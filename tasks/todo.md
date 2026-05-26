@@ -35,12 +35,12 @@
 - `[x]` **S1-T1** Inicializar repo Node + TS strict + tooling. Deps: S0-T1. C: S
   - **AC**: `package.json` con scripts `build`, `lint`, `format`, `test`. `tsconfig.json` con `strict: true`. ESLint + Prettier config. Vitest configurado. `@playwright/test@^1.56.0` pinneado.
   - **Verify**: `npm install && npm test` corre sin errores aunque no haya tests. ✓ Vitest exit 0 con `--passWithNoTests`. Eslint flat config v9 sin errores. ESM + Node>=20. Decisión registrada: pinning `^1.56.0` (no estricto `~1.56.0`) por elección del usuario, divergente del risk #2 del SPEC. `tsc` da TS18003 hasta S1-T3 (esperado, no bloqueante). Movido `seed.spec.ts` → `demo/saucedemo/seed.spec.ts` para alinear con SPEC §3.
-- `[ ]` **S1-T2** Instalar Playwright Test Agents nativos. Deps: S1-T1. C: S
+- `[x]` **S1-T2** Instalar Playwright Test Agents nativos. Deps: S1-T1. C: S
   - **AC**: `npx playwright init-agents --loop=claude` ejecutado desde la raíz. Verificar que `.claude/agents/playwright-test-planner.md`, `playwright-test-generator.md` y `playwright-test-healer.md` existen.
-  - **Verify**: `ls .claude/agents/` lista los tres archivos. Abrir cualquiera y comprobar que tiene frontmatter Claude Code estándar (`name`, `description`, `tools`, `model`).
-- `[ ]` **S1-T3** Crear estructura peer del SPEC. Deps: S1-T2. C: S
+  - **Verify**: `ls .claude/agents/` lista los tres archivos. Abrir cualquiera y comprobar que tiene frontmatter Claude Code estándar (`name`, `description`, `tools`, `model`). ✓ Comando re-ejecutado en sesión, cero diff (archivos del spike ya alineados con Playwright v1.60.0). Frontmatter de los tres validado: `name`, `description`, `tools` (con tools `mcp__playwright-test__*`), `model: sonnet`. `.mcp.json` también presente y trackeado, registra el MCP server `playwright-test`.
+- `[x]` **S1-T3** Crear estructura peer del SPEC. Deps: S1-T2. C: S
   - **AC**: directorios creados según SPEC §3: `.claude/agents/` (con nativos ya presentes + stubs vacíos de los `ia4d-*`), `.claude/commands/test-pilot/`, `hooks/`, `config/`, `style-contracts/`, `references/`, `demo/saucedemo/`, `tests/unit/`, `tests/integration/`. README mínimo en root.
-  - **Verify**: `ls .claude/agents/ | wc -l` ≥ 10 archivos esperados (3 nativos + 7 stubs `ia4d-*`).
+  - **Verify**: `ls .claude/agents/ | wc -l` ≥ 10 archivos esperados (3 nativos + 7 stubs `ia4d-*`). ✓ Exactamente 10 (3 nativos + 7 `ia4d-*`: compliance-checker, pii-scanner, fd-to-plan, style-enforcer, a11y-injector, judge, exporter). Cada stub con frontmatter Claude Code válido (name/description/tools/model) y body de 3-4 líneas mapeando responsabilidad esperada al slice futuro. Dirs `.claude/commands/test-pilot/`, `hooks/`, `config/`, `style-contracts/`, `references/`, `demo/recordings/`, `tests/unit/`, `tests/integration/` versionados vía `.gitkeep`. README.md mínimo en root. `tsc --noEmit` aún da TS18003 (esperado hasta primer .ts vivo en S1-T5).
 - `[ ]` **S1-T4** Command `/test-pilot:healthcheck`. Deps: S1-T3. C: S
   - **AC**: `.claude/commands/test-pilot/healthcheck.md` con prompt que confirma carga del proyecto (versión, fecha, número de subagents `ia4d-*` detectados).
   - **Verify**: invocar `/test-pilot:healthcheck` en Claude Code devuelve mensaje "OK" + versión + conteo subagents.
