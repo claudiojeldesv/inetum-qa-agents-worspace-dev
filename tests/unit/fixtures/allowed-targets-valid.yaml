@@ -1,0 +1,12 @@
+version: 1
+mode: greybox
+allowedPatterns:
+  - "https://www.saucedemo.com/*"
+  - "https://*.saucedemo.com/*"
+blockedPatterns:
+  - "https://prod-*/**"
+syntheticCredentials:
+  usernames:
+    - "standard_user"
+  passwords:
+    - "secret_sauce"

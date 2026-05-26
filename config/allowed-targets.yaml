@@ -1,0 +1,39 @@
+# config/allowed-targets.yaml
+#
+# Compliance gate para hooks/pre-flight.ts. Schema documentado en
+# references/allowed-targets-schema.md. Cambios aquí pueden romper el flujo
+# del agente — el hook bloquea por defecto si el archivo no parsea.
+#
+# Este config es el del demo MVP contra SauceDemo. Para otros clientes,
+# crear un config distinto y referenciar desde el command que lo necesite
+# (mecanismo de selección queda para v0.2 — MVP usa este archivo fijo).
+
+version: 1
+
+mode: greybox
+
+allowedPatterns:
+  - "https://www.saucedemo.com/*"
+  - "https://*.saucedemo.com/*"
+  - "http://localhost:*"
+  - "http://localhost:*/**"
+
+blockedPatterns:
+  # Defensa explícita: cualquier URL con "prod" en el subdominio nunca pasa,
+  # incluso si por error apareciera en allowedPatterns. Caso real banca.
+  - "https://prod-*/**"
+  - "https://*.prod.*/**"
+
+syntheticCredentials:
+  # Usernames documentados por SauceDemo como sintéticos.
+  # Ver https://www.saucedemo.com/ (footer).
+  usernames:
+    - "standard_user"
+    - "locked_out_user"
+    - "problem_user"
+    - "performance_glitch_user"
+    - "error_user"
+    - "visual_user"
+  passwords:
+    # SauceDemo único password sintético declarado.
+    - "secret_sauce"

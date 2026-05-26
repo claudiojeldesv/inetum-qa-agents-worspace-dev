@@ -51,21 +51,21 @@
 
 ### S2 — Compliance pre-flight
 
-- `[ ]` **S2-T1** Documentar reglas. Deps: S1-T5. C: S
+- `[x]` **S2-T1** Documentar reglas. Deps: S1-T5. C: S
   - **AC**: `references/compliance-rules.md` lista patrones bloqueados (PROD URL patterns, modos no declarados, credenciales no sintéticas).
-  - **Verify**: revisión cruzada con boundaries "Never do" del SPEC.
-- `[ ]` **S2-T2** Schema de `allowed-targets`. Deps: S2-T1. C: S
+  - **Verify**: revisión cruzada con boundaries "Never do" del SPEC. ✓ 5 reglas (R-001..R-005) con razón, razón de bloqueo estructurada (`URL_NOT_ALLOWLISTED`, `URL_BLOCKLISTED`, `MODE_INVALID_OR_MISSING`, `CREDENTIAL_NOT_SYNTHETIC_DECLARED`, `CREDENTIAL_LOOKS_LIKE_PII`) + defaults seguros + tabla de verdict con los 5 casos del verify S2-T3 + sección "Cross-reference" mapeando reglas a SPEC §6 Never do + sección "Lo que pre-flight NO hace" (delimita scope con S3 pii-post).
+- `[x]` **S2-T2** Schema de `allowed-targets`. Deps: S2-T1. C: S
   - **AC**: `config/allowed-targets.yaml` con schema documentado. Ejemplo SauceDemo válido.
-  - **Verify**: archivo parseable por `yaml` con campos esperados (`patterns: []`, `mode: greybox|whitebox`).
-- `[ ]` **S2-T3** Implementar `hooks/pre-flight.ts`. Deps: S2-T2. C: M
+  - **Verify**: archivo parseable por `yaml` con campos esperados (`patterns: []`, `mode: greybox|whitebox`). ✓ Schema documentado en `references/allowed-targets-schema.md` (campos: version, mode, allowedPatterns, blockedPatterns, syntheticCredentials.{usernames,passwords}). Config ejemplo SauceDemo con 4 allowedPatterns, 2 blockedPatterns (defense in depth contra prod-*), 6 usernames sintéticos + 1 password. Parsing verificado con `yaml` package v2.9: version=1, mode=greybox, counts correctos. `yaml` añadido como runtime dependency (no devDep; los hooks lo necesitan en ejecución).
+- `[x]` **S2-T3** Implementar `hooks/pre-flight.ts`. Deps: S2-T2. C: M
   - **AC**: hook PreToolUse que lee `allowed-targets.yaml`, valida URL target, valida credenciales (no PII en seed), retorna exit code 2 si bloquea.
-  - **Verify**: tests unitarios cubren ≥5 casos (URL prod, URL test válida, URL no declarada, credenciales reales detectadas, modo missing).
-- `[ ]` **S2-T4** Registrar hook en `hooks.json`. Deps: S2-T3. C: S
-  - **AC**: PreToolUse hook activo para llamadas a Playwright MCP.
-  - **Verify**: ejecutar comando que invoca MCP con URL prod simulada → bloqueado, audit log lo refleja.
-- `[ ]` **S2-T5** Subagent `ia4d-compliance-checker.md`. Deps: S2-T3. C: S
+  - **Verify**: tests unitarios cubren ≥5 casos (URL prod, URL test válida, URL no declarada, credenciales reales detectadas, modo missing). ✓ Implementación con R-001..R-005 + defaults seguros, glob→regex propio (sin minimatch), detector PII inline (DNI ES con checksum + Luhn) — la modularización a `hooks/pii-detector.ts` queda para S3-T2 cuando se amplía el catálogo. 9 tests evaluate + 3 tests DNI + 3 tests Luhn = **15 verdes**. End-to-end CLI verificado: stdin con URL prod → exit 2 + razón; happy path → exit 0. `tsc --noEmit` y `eslint` limpios.
+- `[x]` **S2-T4** Registrar hook en `.claude/settings.json`. Deps: S2-T3. C: S
+  - **AC** (revisado 2026-05-26 por consistencia con SPEC anexo "Decisiones técnicas"): PreToolUse hook activo para llamadas a Playwright MCP, registrado en `.claude/settings.json` (no en el desaparecido `hooks/hooks.json`).
+  - **Verify**: ejecutar comando que invoca MCP con URL prod simulada → bloqueado, audit log lo refleja. ✓ Bloque `PreToolUse` con matcher regex `mcp__playwright-test__.*` apuntando a `npx tsx hooks/pre-flight.ts`. settings.json parsea OK. Verify end-to-end real requiere habilitar el MCP `playwright-test` en settings.local.json (actualmente deshabilitado por el spike) e invocar un tool MCP con URL prod — queda al SDET. Verify equivalente ya hecho en S2-T3 vía CLI directa (stdin → exit 2 + razón estructurada).
+- `[x]` **S2-T5** Subagent `ia4d-compliance-checker.md`. Deps: S2-T3. C: S
   - **AC**: `.claude/agents/ia4d-compliance-checker.md` con frontmatter + prompt que invoca `pre-flight.ts` y produce verdict estructurado.
-  - **Verify**: invocar el subagent vía Task tool con URL + seed devuelve pass/fail + razón.
+  - **Verify**: invocar el subagent vía Task tool con URL + seed devuelve pass/fail + razón. ✓ Stub reemplazado por subagent operativo: frontmatter `tools: Bash, Read` + prompt detallado con (1) construcción de payload JSON, (2) invocación `echo '...' | npx tsx hooks/pre-flight.ts --cli-json`, (3) parseo del verdict JSON, (4) output dual humano (`VERDICT: PASS/BLOCK/ERROR` + REASON + RULE) + máquina (JSON crudo del hook). Mapeo de `reason` codes → reglas R-001..R-005. Modo `--cli-json` añadido a `pre-flight.ts` para devolver JSON limpio por stdout sin parsing frágil de stderr. Verify end-to-end vía Task tool queda al SDET en sesión nueva (en mi sesión actual los subagents `ia4d-*` no estaban cargados al inicio); verify equivalente cumplido por el modo `--cli-json` probado vía Bash directo: blocked URL → `{"pass":false,"reason":"URL_NOT_ALLOWLISTED",...}`; happy path → `{"pass":true}`.
 
 ### S3 — PII scan
 

@@ -1,0 +1,8 @@
+version: 1
+allowedPatterns:
+  - "https://www.saucedemo.com/*"
+syntheticCredentials:
+  usernames:
+    - "standard_user"
+  passwords:
+    - "secret_sauce"
