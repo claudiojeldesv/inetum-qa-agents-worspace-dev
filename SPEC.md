@@ -97,8 +97,9 @@ Arquitectura peer: nuestros subagents `ia4d-*` viven en `.claude/agents/` al mis
 ├── hooks/
 │   ├── pre-flight.ts                        # PreToolUse: compliance gate transversal
 │   ├── pii-post.ts                          # PostToolUse: PII scan tras escritura
-│   ├── audit-write.ts                       # append-only JSON audit log
-│   └── hooks.json                           # registro de hooks
+│   └── audit-write.ts                       # append-only JSON audit log
+│                                            # NOTA: el registro de hooks vive en .claude/settings.json
+│                                            # (Claude Code no soporta include externo). Ver anexo "Decisiones técnicas".
 ├── config/
 │   └── allowed-targets.yaml                 # patrones URL permitidos + modo
 ├── style-contracts/
@@ -248,3 +249,12 @@ Tres listas claras: lo que el agente hace siempre, lo que pregunta antes de hace
 7. **Healer nativo puede silenciar tests con `test.fixme()`**. Detectado en el análisis del subagent `playwright-test-healer`. En banca regulada esto es inaceptable sin sign-off. Mitigación: hook PostToolUse que escanea Edits del Healer y bloquea si detecta inserción de `test.fixme()` no aprobada. Ver Boundaries — Never do.
 8. **Generator nativo no tiene memoria entre runs**. Si el SDET corre `/test-pilot:generate` dos veces sobre el mismo plan, no detecta solapamientos ni duplicados. Mitigación: el `ia4d-exporter` puede deduplicar por hash del contenido + nombre de test antes de escribir `test-catalog.json`. Si surge problema mayor, agente `ia4d-catalog-checker` futuro.
 9. **Generator nativo asume estado fresco entre tests**. Tests del MVP en SauceDemo o TodoMVC no tienen problema. En clientes banca con datos persistentes compartidos, este supuesto se rompe. Mitigación: documentado como limitación MVP; `ia4d-test-data-architect` futuro lo aborda.
+
+## Anexo: Decisiones técnicas durante implementación
+
+Decisiones tomadas mientras se implementa el MVP, posteriores al SPEC inicial. Documentadas aquí en lugar de re-escribir el cuerpo del SPEC para preservar trazabilidad.
+
+| Fecha | Decisión | Razón | Impacto |
+|---|---|---|---|
+| 2026-05-26 | `@playwright/test` con pinning flexible `^1.56.0` (no estricto `~1.56.0`) | Elección del usuario al arrancar S1-T1. Diverge del Anexo Riesgos #2 que recomendaba pinear estricto. | Si Microsoft cambia contratos de los subagents nativos en 1.x.y > 1.56, los commands `/test-pilot:*` pueden romper. Mitigado por capa de constantes con nombres de subagents nativos (a crear cuando sea relevante). |
+| 2026-05-26 | Eliminar `hooks/hooks.json` del SPEC §3. Los hooks se registran exclusivamente en `.claude/settings.json` (versionado) | Claude Code lee hooks solo desde `settings.json` / `settings.local.json`. No hay mecanismo de include externo. Mantener un `hooks/hooks.json` duplicado generaba drift y no aportaba función. | Los scripts ejecutables (`pre-flight.ts`, `pii-post.ts`, `audit-write.ts`) siguen viviendo en `hooks/`. Solo cambia la ubicación del registro/matcher. |

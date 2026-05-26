@@ -44,9 +44,10 @@
 - `[x]` **S1-T4** Command `/test-pilot:healthcheck`. Deps: S1-T3. C: S
   - **AC**: `.claude/commands/test-pilot/healthcheck.md` con prompt que confirma carga del proyecto (versión, fecha, número de subagents `ia4d-*` detectados).
   - **Verify**: invocar `/test-pilot:healthcheck` en Claude Code devuelve mensaje "OK" + versión + conteo subagents. ✓ Comando creado con `allowed-tools: Bash(node:*)` para inyección determinista vía `!`node ...`` (cross-platform, sin dependencia de utilidades shell). Verificación equivalente simulando los snippets: version `0.1.0`, fecha `2026-05-26`, ia4d-* count `7`, nativos count `3`. Output esperado: `OK ia4d-test-pilot v0.1.0 / Fecha: 2026-05-26 / Subagents ia4d-*: 7 / Subagents playwright-test-* (nativos): 3`. Invocación real `/test-pilot:healthcheck` queda al SDET (no la puedo disparar sobre la misma sesión).
-- `[ ]` **S1-T5** Hook stub + `hooks.json`. Deps: S1-T3. C: S
-  - **AC**: `hooks/hooks.json` registra un hook PostToolUse dummy que solo loggea timestamp. `hooks/audit-write.ts` esqueleto.
-  - **Verify**: ejecutar `/test-pilot:healthcheck` deja entrada en `audit-log.json`.
+- `[x]` **S1-T5** Hook stub + registro en `.claude/settings.json`. Deps: S1-T3. C: S
+  - **AC** (revisado 2026-05-26): registrar un hook `PostToolUse` dummy en `.claude/settings.json` (versionado) que ejecuta `hooks/audit-write.ts` para loggear timestamp. `hooks/audit-write.ts` esqueleto. La decisión de no usar `hooks/hooks.json` está documentada en SPEC.md anexo "Decisiones técnicas durante implementación".
+  - **Verify**: ejecutar `/test-pilot:healthcheck` deja entrada en `audit-log.json`. ✓ Hook con matcher `*` registrado en `.claude/settings.json` (versionado). Runner: `npx tsx hooks/audit-write.ts` (tsx añadido como devDep). `audit-log.json` en `.gitignore` (output local). Script tipo-seguro: lee stdin como JSON, append una línea JSONL con `{timestamp, source, event, tool, sessionId}`. Diseño defensivo: nunca falla la ejecución del modelo (stdin malformado → loggea a stderr + exit 0). Verify observado en vivo: el hook ya disparó en mi propia sesión Claude Code al ejecutar Bash arbitrarios → audit-log.json gana líneas por cada tool use. `tsc --noEmit` ahora limpio (TS18003 cerrado).
+  - **Nota de scope**: el hook está activo en TODA sesión Claude Code de este repo, no solo durante `/test-pilot:*`. Es coherente con el spirit "audit transversal" del SPEC. Si en el futuro se quiere scopear, requeriría un wrapper en el comando que arme/desarme el hook (post-MVP).
 
 ### S2 — Compliance pre-flight
 

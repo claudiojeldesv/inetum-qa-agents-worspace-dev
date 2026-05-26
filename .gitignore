@@ -21,3 +21,6 @@ coverage/
 *.tsbuildinfo
 npm-debug.log*
 .eslintcache
+
+# Output local del agente (audit trail, no fuente)
+audit-log.json
