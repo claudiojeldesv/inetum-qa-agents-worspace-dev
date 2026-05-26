@@ -41,9 +41,9 @@
 - `[x]` **S1-T3** Crear estructura peer del SPEC. Deps: S1-T2. C: S
   - **AC**: directorios creados según SPEC §3: `.claude/agents/` (con nativos ya presentes + stubs vacíos de los `ia4d-*`), `.claude/commands/test-pilot/`, `hooks/`, `config/`, `style-contracts/`, `references/`, `demo/saucedemo/`, `tests/unit/`, `tests/integration/`. README mínimo en root.
   - **Verify**: `ls .claude/agents/ | wc -l` ≥ 10 archivos esperados (3 nativos + 7 stubs `ia4d-*`). ✓ Exactamente 10 (3 nativos + 7 `ia4d-*`: compliance-checker, pii-scanner, fd-to-plan, style-enforcer, a11y-injector, judge, exporter). Cada stub con frontmatter Claude Code válido (name/description/tools/model) y body de 3-4 líneas mapeando responsabilidad esperada al slice futuro. Dirs `.claude/commands/test-pilot/`, `hooks/`, `config/`, `style-contracts/`, `references/`, `demo/recordings/`, `tests/unit/`, `tests/integration/` versionados vía `.gitkeep`. README.md mínimo en root. `tsc --noEmit` aún da TS18003 (esperado hasta primer .ts vivo en S1-T5).
-- `[ ]` **S1-T4** Command `/test-pilot:healthcheck`. Deps: S1-T3. C: S
+- `[x]` **S1-T4** Command `/test-pilot:healthcheck`. Deps: S1-T3. C: S
   - **AC**: `.claude/commands/test-pilot/healthcheck.md` con prompt que confirma carga del proyecto (versión, fecha, número de subagents `ia4d-*` detectados).
-  - **Verify**: invocar `/test-pilot:healthcheck` en Claude Code devuelve mensaje "OK" + versión + conteo subagents.
+  - **Verify**: invocar `/test-pilot:healthcheck` en Claude Code devuelve mensaje "OK" + versión + conteo subagents. ✓ Comando creado con `allowed-tools: Bash(node:*)` para inyección determinista vía `!`node ...`` (cross-platform, sin dependencia de utilidades shell). Verificación equivalente simulando los snippets: version `0.1.0`, fecha `2026-05-26`, ia4d-* count `7`, nativos count `3`. Output esperado: `OK ia4d-test-pilot v0.1.0 / Fecha: 2026-05-26 / Subagents ia4d-*: 7 / Subagents playwright-test-* (nativos): 3`. Invocación real `/test-pilot:healthcheck` queda al SDET (no la puedo disparar sobre la misma sesión).
 - `[ ]` **S1-T5** Hook stub + `hooks.json`. Deps: S1-T3. C: S
   - **AC**: `hooks/hooks.json` registra un hook PostToolUse dummy que solo loggea timestamp. `hooks/audit-write.ts` esqueleto.
   - **Verify**: ejecutar `/test-pilot:healthcheck` deja entrada en `audit-log.json`.
