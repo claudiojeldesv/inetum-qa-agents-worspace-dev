@@ -1,0 +1,14 @@
+# Generated outputs (test cases, uncertainty reports from agent runs)
+/output/
+
+# Personal Claude Code settings (machine-local, not versioned)
+.claude/settings.local.json
+
+# Upstream reference clone (cloned separately as read-only)
+/agent-skills/
+
+# Python virtualenv local del validador (Bici en adelante)
+/validator/.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
