@@ -32,9 +32,9 @@
 
 ### S1 — Foundation skeleton + init nativos
 
-- `[ ]` **S1-T1** Inicializar repo Node + TS strict + tooling. Deps: S0-T1. C: S
+- `[x]` **S1-T1** Inicializar repo Node + TS strict + tooling. Deps: S0-T1. C: S
   - **AC**: `package.json` con scripts `build`, `lint`, `format`, `test`. `tsconfig.json` con `strict: true`. ESLint + Prettier config. Vitest configurado. `@playwright/test@^1.56.0` pinneado.
-  - **Verify**: `npm install && npm test` corre sin errores aunque no haya tests.
+  - **Verify**: `npm install && npm test` corre sin errores aunque no haya tests. ✓ Vitest exit 0 con `--passWithNoTests`. Eslint flat config v9 sin errores. ESM + Node>=20. Decisión registrada: pinning `^1.56.0` (no estricto `~1.56.0`) por elección del usuario, divergente del risk #2 del SPEC. `tsc` da TS18003 hasta S1-T3 (esperado, no bloqueante). Movido `seed.spec.ts` → `demo/saucedemo/seed.spec.ts` para alinear con SPEC §3.
 - `[ ]` **S1-T2** Instalar Playwright Test Agents nativos. Deps: S1-T1. C: S
   - **AC**: `npx playwright init-agents --loop=claude` ejecutado desde la raíz. Verificar que `.claude/agents/playwright-test-planner.md`, `playwright-test-generator.md` y `playwright-test-healer.md` existen.
   - **Verify**: `ls .claude/agents/` lista los tres archivos. Abrir cualquiera y comprobar que tiene frontmatter Claude Code estándar (`name`, `description`, `tools`, `model`).
