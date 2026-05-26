@@ -1,0 +1,160 @@
+① Agente Principal
+
+NOMBRE	ia4d-functional-design-expert
+ROL	Orquestador
+VERSION	v1.0.2
+Objetivo
+
+Usa este agente cuando necesites extraer, generar o validar documentos de Diseño Funcional (DF) desde cualquier fuente: código legacy, requisitos de negocio, diseños UX o codebases existentes.
+
+② Uso del Agente
+
+Orquestador: auto-detecta el contexto y delega a los sub-agentes según la tarea.
+
+@ia4d-functional-design-expert Use this agent when you need to extract, generate or validate Functional Design (FD) documents from any source: legacy code (COBOL, VB6, SQLWindows, AngularJS), UX/UI designs (Figma, Sketch, images),
+③ Casos de Uso
+
+Análisis y desarrollo con ia4d-functional-design-expert
+Automatización de tareas de Documentación y Calidad
+Generación de artefactos especializados
+Integración con el ecosistema functional-design, requirements
+④ Sub-Agentes Especializados (3)
+
+source-analyzer
+Use this agent to extract structured functional information from any source type: legacy code, UX/UI designs, requirements documents, and images. Produces a normalized extraction payload for the write
+
+Activación:
+@ia4d-functional-design-expert → [source-analyzer]
+validator
+Use this agent to validate the completeness and quality of a Functional Design document. Runs a 30-point checklist and produces a quality score (0-100) with specific gap identification and remediation
+
+Activación:
+@ia4d-functional-design-expert → [validator]
+writer
+Use this agent to generate a canonical Functional Design document from a normalized extraction payload. Applies fd-standards, fd-templates and produces a complete, well-structured FD Markdown document
+
+Activación:
+@ia4d-functional-design-expert → [writer]
+⑤ Flujo de Interacción
+
+Prompt → Orquestador → Sub-agentes → Comandos → Resultado
+
+invokes
+
+analyzes & delegates
+
+sub-agent 1
+
+sub-agent 2
+
+sub-agent 3
+
+👤 User Prompt
+
+🎯 ia4d-functional-design-exper\nORCHESTRATOR
+
+✅ Code · Analysis · Report
+
+Which agent?
+
+🤖 source-analyzer
+
+🔀 Merge Results
+
+🤖 validator
+
+🤖 writer
+
+⚡ Execute Commands
+
+/fd-from-legacy
+
+/fd-from-requirements
+
+/fd-from-ux
+
+/generate-fd
+
+/validate-fd
+
+⑤b Arquitectura del Plugin
+
+Orquestador → Sub-agentes → Comandos → Hooks → MCPs
+
+result
+
+🔌 MCPs / Herramientas
+
+filesystem
+
+browser / web
+
+code-exec
+
+🪝 Hooks
+
+PreToolUse
+
+PostToolUse
+
+Stop / Notify
+
+⚡ Comandos (5)
+
+/fd-from-legacy
+
+/fd-from-requirements
+
+/fd-from-ux
+
+/generate-fd
+
+/validate-fd
+
+🤖 Sub-Agentes (3)
+
+source-analyzer
+
+validator
+
+writer
+
+🎯 ia4d-functional-design-exp
+
+⑥ Entradas / Salidas
+
+Entradas
+
+Código fuente del proyecto, descripción de la tarea
+
+Salidas
+
+Código generado, análisis, documentación, recomendaciones
+
+⑦ Comandos Disponibles (5)
+
+/ia4d-functional-design-expert:fd-from-legacy
+Generate a Functional Design document from legacy code sources. Optimized for COBOL, VB6, SQLWindows, AngularJS, and other legacy technology stacks.
+
+Ejemplo:
+/fd-from-legacy --context ./cobol/billing --tech cobol --project BILLING
+/ia4d-functional-design-expert:fd-from-requirements
+Generate a Functional Design document from requirements sources: Word documents, PDFs, existing functional specs, user stories, JIRA exports, or plain text descriptions.
+
+Ejemplo:
+/fd-from-requirements --input ./docs/functional-requirements-v3.pdf --project BILLING
+/ia4d-functional-design-expert:fd-from-ux
+Generate a Functional Design document from UX/UI design sources. Supports Figma URLs, Sketch files, mockup images, and wireframe screenshots.
+
+Ejemplo:
+/fd-from-ux --url https://figma.com/file/abc123/Orders-App --project ORDERS
+/ia4d-functional-design-expert:generate-fd
+Generate a complete Functional Design document from any source. Auto-detects source type and orchestrates the full extraction-writing-validation pipeline.
+
+Ejemplo:
+/generate-fd
+/ia4d-functional-design-expert:validate-fd
+Validate the completeness and quality of an existing Functional Design document. Runs a 30-point checklist and produces a scored quality report with specific gap identification.
+
+Ejemplo:
+/validate-fd ./docs/FD-ORDERS-001.md
