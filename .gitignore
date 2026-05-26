@@ -24,3 +24,6 @@ npm-debug.log*
 
 # Output local del agente (audit trail, no fuente)
 audit-log.json
+
+# Cache local del Playwright MCP server (logs de consola, snapshots de páginas)
+.playwright-mcp/

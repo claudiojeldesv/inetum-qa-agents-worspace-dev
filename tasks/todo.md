@@ -106,17 +106,19 @@
   - **AC**: documentado en `references/discovery-report-schema.md`. Útil para Slice 6.
   - **Verify**: el output de S5-T1 coincide con el schema. ✓ Schema completo en markdown: 5 campos requeridos (URL, Timestamp, Compliance verdict, Plan source, Style contract) + 3 secciones requeridas (Resumen del Planner con N escenarios y bullets, Plan completo como referencia no duplicada, Observaciones con fallback "Sin observaciones particulares"). Ejemplo válido completo SauceDemo. Sección "lo que NO captura" delimita scope contra Slice 6 (FD enrich) y Slice 7 (tests ejecutables). Consumidores documentados (humano, `/test-pilot:plan`, `/test-pilot:full-loop`).
 
+> **Observación post-Slice 5 (2026-05-26)**: el primer run real de `/test-pilot:discover` contra SauceDemo tardó ~20 min. Aceptable para MVP pero mejorable. Optimizaciones para v0.2 (no MVP): limitar scope del Planner en el prompt (`máximo N escenarios`, evitar rutas autenticadas), caché por URL (skip si `discovery-report.md` reciente), modelo Haiku para el Planner si calidad alcanza, restringir tools MCP (quitar `browser_take_screenshot` reduce tokens dramáticamente). Registrar como ítem en backlog v0.2 cuando llegue ese momento.
+
 ### S6 — `/test-pilot:plan`
 
-- `[ ]` **S6-T1** Subagent `ia4d-fd-to-plan.md`. Deps: S5-T2. C: M
+- `[x]` **S6-T1** Subagent `ia4d-fd-to-plan.md`. Deps: S5-T2. C: M
   - **AC**: `.claude/agents/ia4d-fd-to-plan.md` que parsea FD markdown libre, extrae criterios, los mapea a casos. Si recibe plan del Planner como contexto adicional, lo enriquece en vez de reemplazar.
-  - **Verify**: prompt cubre cómo manejar FDs ambiguos (delega al SDET, no inventa). Common Rationalizations table presente.
-- `[ ]` **S6-T2** Redactar `demo/saucedemo/fd.md`. Deps: ninguna técnica. C: S
+  - **Verify**: prompt cubre cómo manejar FDs ambiguos (delega al SDET, no inventa). Common Rationalizations table presente. ✓ Stub reemplazado por subagent operativo: tools `Read, Write`, prompt detallado con 3 tipos de códigos (RF-NNN del FD formal, FREE-NNN para FD libre sin códigos, GAP-NNN para observaciones del Planner no cubiertas por FD). Sección "Cómo usas el planner-output" deja claro que el FD manda y el planner-output es contexto auxiliar. Common Rationalizations table de 5 entradas (no inventar logout, no fusionar criterios, no promover GAPs a RFs, no interpretar ambiguos, no inyectar A11y). Sección final "Ambigüedades en el FD" obligatoria si encuentra criterios poco accionables.
+- `[x]` **S6-T2** Redactar `demo/saucedemo/fd.md`. Deps: ninguna técnica. C: S
   - **AC**: FD plausible para SauceDemo con ≥10 criterios (login, catálogo, carrito, checkout, errores).
-  - **Verify**: peer review honesto.
-- `[ ]` **S6-T3** Command `.claude/commands/test-pilot/plan.md`. Deps: S6-T1, S6-T2. C: M
+  - **Verify**: peer review honesto. ✓ 13 criterios RF-001..RF-013 cubriendo autenticación (4 casos incluido locked_out_user), catálogo (2: listado + ordenación), carrito (3: add/remove/cart page), checkout (3: validación + resumen + finalización), robustez (1: problem_user). Producto descrito (SauceDemo, 6 productos físicos, flujo login→catálogo→carrito→checkout). Roles documentados con credenciales sintéticas declaradas. Restricciones de testing alineadas con SPEC §4 (greybox, axe-core, JSDoc cita RF, no waitForTimeout). Sección "lo que el FD NO cubre" delimita scope.
+- `[x]` **S6-T3** Command `.claude/commands/test-pilot/plan.md`. Deps: S6-T1, S6-T2. C: M
   - **AC**: command toma `--fd=` + opcional `--planner-output=`, invoca `ia4d-fd-to-plan`, produce `test-plan.md` estructurado por criterio.
-  - **Verify**: `/test-pilot:plan --fd=demo/saucedemo/fd.md` produce plan con ≥10 entradas, cada una citando criterio del FD.
+  - **Verify**: `/test-pilot:plan --fd=demo/saucedemo/fd.md` produce plan con ≥10 entradas, cada una citando criterio del FD. ✓ Slash command con `allowed-tools: Task, Read, Bash(mkdir:*)`. 5 pasos: parsea args (con validación estricta de --planner-output declarado-pero-no-existe), prepara `output/plan/`, invoca `ia4d-fd-to-plan` vía Task tool, verifica artefacto, imprime resumen. WARN si K ambigüedades > 0. Claude Code descubre `/test-pilot:plan` como skill (system reminder lo lista). Verify literal (invocar contra `demo/saucedemo/fd.md` con 13 RFs) queda al SDET — esperado ≥10 entradas RF-NNN en `output/plan/test-plan.md`.
 
 > **Checkpoint Fase 2**: discovery y plan funcionan end-to-end contra SauceDemo. Output estructurado. Pre-flight bloquea cuando corresponde.
 
