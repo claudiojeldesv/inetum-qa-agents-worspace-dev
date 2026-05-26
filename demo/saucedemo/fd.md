@@ -40,8 +40,9 @@ Todos los anteriores comparten contraseña `secret_sauce` y están declarados en
 ### 3.4. Checkout
 
 - **RF-010** · El checkout requiere First name, Last name y Zip/Postal Code. Cualquier campo vacío produce error en `[data-test="error"]`.
-- **RF-011** · Checkout con datos válidos avanza al resumen (`/checkout-step-two.html`), que muestra subtotal, tax e ítem total calculados sin error.
+- **RF-011** · Checkout con datos válidos avanza al resumen (`/checkout-step-two.html`), donde subtotal, tax e ítem total son visibles y todos numéricos mayores que 0. Este criterio verifica **presencia y no-vaciedad**, no la aritmética.
 - **RF-012** · Finalizar el checkout (`/checkout-complete.html`) muestra mensaje "Thank you for your order" y vacía el carrito.
+- **RF-014** · En `/checkout-step-two.html`, los valores cumplen `tax == round(subtotal * 0.08, 2)` y `total == subtotal + tax`. Tasa de impuesto fija al 8% (declarada por SauceDemo). Este criterio verifica **corrección aritmética** — acoplado a la tasa; si SauceDemo la cambia, el test rompe deliberadamente para que el SDET revise.
 
 ### 3.5. Robustez / errores
 
