@@ -99,12 +99,12 @@
 
 ### S5 — `/test-pilot:discover`
 
-- `[ ]` **S5-T1** Command `.claude/commands/test-pilot/discover.md`. Deps: Fase 1 completa. C: L
+- `[x]` **S5-T1** Command `.claude/commands/test-pilot/discover.md`. Deps: Fase 1 completa. C: L
   - **AC**: command toma `--url=` + opcional `--style=`. Orquesta vía Task tool: (1) `ia4d-compliance-checker` para validar target → (2) `playwright-test-planner` nativo para explorar y producir plan. Cero invocación cruzada subagent-a-subagent.
-  - **Verify**: `/test-pilot:discover --url=https://www.saucedemo.com/` produce plan markdown del Planner + opcionalmente `discovery-report.md` con candidatos priorizados.
-- `[ ]` **S5-T2** Schema de `discovery-report.md`. Deps: S5-T1. C: S
+  - **Verify**: `/test-pilot:discover --url=https://www.saucedemo.com/` produce plan markdown del Planner + opcionalmente `discovery-report.md` con candidatos priorizados. ✓ Command markdown con frontmatter `allowed-tools: Task, Read, Write, Bash(mkdir:*)`. Prompt en 5 pasos: parsea args, ejecuta `ia4d-compliance-checker` vía Task tool (aborta sin override si BLOCK), prepara `output/discover/`, invoca `playwright-test-planner` nativo (le pide guardar en `output/discover/plan.md` vía `planner_save_plan`), compone `discovery-report.md` según schema, imprime resumen al SDET. Reglas duras explícitas (no orquestación cruzada, no override compliance, no inventar campos, no retries silenciosos). Claude Code ya descubre `/test-pilot:discover` como skill (system reminder lo lista). Verify literal (`/test-pilot:discover --url=https://www.saucedemo.com/`) queda al SDET en sesión con MCP playwright-test activo.
+- `[x]` **S5-T2** Schema de `discovery-report.md`. Deps: S5-T1. C: S
   - **AC**: documentado en `references/discovery-report-schema.md`. Útil para Slice 6.
-  - **Verify**: el output de S5-T1 coincide con el schema.
+  - **Verify**: el output de S5-T1 coincide con el schema. ✓ Schema completo en markdown: 5 campos requeridos (URL, Timestamp, Compliance verdict, Plan source, Style contract) + 3 secciones requeridas (Resumen del Planner con N escenarios y bullets, Plan completo como referencia no duplicada, Observaciones con fallback "Sin observaciones particulares"). Ejemplo válido completo SauceDemo. Sección "lo que NO captura" delimita scope contra Slice 6 (FD enrich) y Slice 7 (tests ejecutables). Consumidores documentados (humano, `/test-pilot:plan`, `/test-pilot:full-loop`).
 
 ### S6 — `/test-pilot:plan`
 
