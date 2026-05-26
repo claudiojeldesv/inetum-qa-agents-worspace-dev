@@ -69,15 +69,15 @@
 
 ### S3 — PII scan
 
-- `[ ]` **S3-T1** Catálogo de patrones PII. Deps: S1-T5. C: S
+- `[x]` **S3-T1** Catálogo de patrones PII. Deps: S1-T5. C: S
   - **AC**: `references/pii-patterns.md` con regex DNI español, IBAN (mod 97), tarjetas (Luhn), emails de dominio real, teléfonos ES. Casos positivos y negativos.
-  - **Verify**: doc lista casos por cada patrón.
-- `[ ]` **S3-T2** Implementar `hooks/pii-post.ts`. Deps: S3-T1. C: M
+  - **Verify**: doc lista casos por cada patrón. ✓ 6 patrones (`PII_DNI`, `PII_NIE`, `PII_IBAN`, `PII_CARD`, `PII_EMAIL_REAL`, `PII_PHONE_ES`) con regex, validación adicional (checksum DNI/NIE, mod 97 IBAN, Luhn tarjeta), ≥3 casos positivos y ≥3 negativos por patrón, interfaz `PIIFinding`, scope explícito de qué NO cubre el MVP (CIF, pasaportes no-ES, direcciones, datos médicos, PII hashed). Cross-reference a pre-flight R-005, pii-post, ia4d-pii-scanner, SPEC §6.
+- `[x]` **S3-T2** Implementar `hooks/pii-post.ts`. Deps: S3-T1. C: M
   - **AC**: hook PostToolUse que escanea `.spec.ts` recién escrito, falla con error si encuentra match, escribe audit log. **Adicionalmente**: detecta inserción de `test.fixme()` y bloquea con error específico (ver SPEC Boundaries — Never do).
-  - **Verify**: unit tests con ≥8 casos PII + 1 caso `test.fixme()` introducido por Edit.
-- `[ ]` **S3-T3** Subagent `ia4d-pii-scanner.md`. Deps: S3-T2. C: S
+  - **Verify**: unit tests con ≥8 casos PII + 1 caso `test.fixme()` introducido por Edit. ✓ Extracción del detector compartido `hooks/pii-detector.ts` (6 patrones: DNI, NIE, IBAN mod97, Luhn, email dominio real, phone ES) + refactor de `pre-flight.ts` para reusar `looksLikePII()`. `hooks/pii-post.ts` con doble modo: hook PostToolUse (matcher Edit|Write|MultiEdit en `.claude/settings.json`, exit 2 si encuentra) + `--scan-dir` CLI (JSON estructurado, exit 0 — usado por S3-T3). El audit-log lo escribe el hook audit-write transversalmente, no pii-post directamente. **41 tests verdes**: 26 pii-detector + 6 pii-post + 9 pre-flight existentes. Verificado end-to-end vía CLI: archivo con `12345678Z` y `test.fixme()` → exit 2, stderr lista DNI línea 4 col 16 + FIXME línea 5 col 3.
+- `[x]` **S3-T3** Subagent `ia4d-pii-scanner.md`. Deps: S3-T2. C: S
   - **AC**: `.claude/agents/ia4d-pii-scanner.md` que escanea directorio completo (no solo el archivo recién escrito). Reusable desde `/test-pilot:audit`.
-  - **Verify**: invocar subagent contra carpeta con un test contaminado → reporta archivo y línea.
+  - **Verify**: invocar subagent contra carpeta con un test contaminado → reporta archivo y línea. ✓ Stub reemplazado por subagent operativo: tools `Bash, Read`, prompt invoca `npx tsx hooks/pii-post.ts --scan-dir <path>`, parsea el JSON `{pass, scanned, findings[]}`, expone output dual humano (VERDICT PASS/BLOCK + lista de findings por archivo:línea:col) + máquina (JSON crudo). Tabla diferenciadora hook vs subagent documentada. Verify equivalente cumplido en S3-T2 unit tests + ejecución CLI: dir con `12345678Z` y `test.fixme()` → JSON con 2 findings (PII_DNI + TEST_FIXME_INSERTED) con line/column correctos. Invocación real Task tool queda al SDET en sesión nueva.
 
 ### S4 — Audit log
 

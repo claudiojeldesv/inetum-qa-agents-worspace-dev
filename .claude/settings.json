@@ -13,6 +13,15 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx hooks/pii-post.ts"
+          }
+        ]
+      },
+      {
         "matcher": "*",
         "hooks": [
           {

@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { evaluate, looksLikeDNI, luhnValid } from '../../hooks/pre-flight.js';
+import { evaluate } from '../../hooks/pre-flight.js';
 
 const FIXTURES = resolve(__dirname, 'fixtures');
 const VALID = resolve(FIXTURES, 'allowed-targets-valid.yaml');
@@ -105,33 +105,5 @@ describe('pre-flight.evaluate', () => {
   });
 });
 
-describe('looksLikeDNI', () => {
-  it('acepta DNI válido con letra correcta', () => {
-    expect(looksLikeDNI('12345678Z')).toBe(true);
-    expect(looksLikeDNI('00000000T')).toBe(true);
-  });
-
-  it('rechaza DNI con letra incorrecta', () => {
-    expect(looksLikeDNI('12345678A')).toBe(false);
-  });
-
-  it('rechaza formatos no DNI', () => {
-    expect(looksLikeDNI('standard_user')).toBe(false);
-    expect(looksLikeDNI('1234')).toBe(false);
-  });
-});
-
-describe('luhnValid', () => {
-  it('acepta número de tarjeta válido', () => {
-    // Visa de prueba pública
-    expect(luhnValid('4532015112830366')).toBe(true);
-  });
-
-  it('rechaza Luhn inválido', () => {
-    expect(luhnValid('4532015112830367')).toBe(false);
-  });
-
-  it('rechaza strings cortos', () => {
-    expect(luhnValid('1234')).toBe(false);
-  });
-});
+// Tests de los detectores individuales (DNI/Luhn/IBAN/email/teléfono/NIE)
+// viven en tests/unit/pii-detector.test.ts tras el refactor de Slice 3.

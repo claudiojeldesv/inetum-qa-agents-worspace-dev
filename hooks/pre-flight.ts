@@ -18,6 +18,8 @@ import { text } from 'node:stream/consumers';
 
 import { parse as parseYaml } from 'yaml';
 
+import { looksLikePII } from './pii-detector.js';
+
 export interface AllowedTargetsConfig {
   version: number;
   mode: string;
@@ -52,9 +54,6 @@ export interface Verdict {
 
 const DEFAULT_CONFIG_PATH = 'config/allowed-targets.yaml';
 const SUPPORTED_VERSION = 1;
-
-const DNI_REGEX = /^[0-9]{8}[A-HJ-NP-TV-Z]$/i;
-const DNI_LETTERS = 'TRWAGMYFPDXBNJZSQVHLCKE';
 
 const CREDENTIAL_KEYS = new Set(['username', 'password', 'email', 'user', 'pass']);
 
@@ -105,36 +104,6 @@ function extractCredentials(input: Record<string, unknown> | undefined): string[
   return creds;
 }
 
-export function looksLikeDNI(value: string): boolean {
-  if (!DNI_REGEX.test(value)) return false;
-  const num = parseInt(value.slice(0, 8), 10);
-  const expected = DNI_LETTERS[num % 23];
-  return value[8]?.toUpperCase() === expected;
-}
-
-export function luhnValid(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length < 12 || digits.length > 19) return false;
-  let sum = 0;
-  let alt = false;
-  for (let i = digits.length - 1; i >= 0; i--) {
-    const ch = digits[i];
-    if (ch === undefined) return false;
-    let d = parseInt(ch, 10);
-    if (alt) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
-    sum += d;
-    alt = !alt;
-  }
-  return sum % 10 === 0;
-}
-
-function looksLikePII(value: string): boolean {
-  return looksLikeDNI(value) || luhnValid(value);
-}
-
 export async function evaluate(
   input: HookPayload,
   configPath: string = resolve(process.cwd(), DEFAULT_CONFIG_PATH),
@@ -177,8 +146,13 @@ export async function evaluate(
   const declared = new Set<string>([...declaredUsernames, ...declaredPasswords]);
 
   for (const cred of creds) {
-    if (looksLikePII(cred)) {
-      return { pass: false, reason: 'CREDENTIAL_LOOKS_LIKE_PII', detail: cred };
+    const piiType = looksLikePII(cred);
+    if (piiType !== null) {
+      return {
+        pass: false,
+        reason: 'CREDENTIAL_LOOKS_LIKE_PII',
+        detail: `${cred} (${piiType})`,
+      };
     }
     if (declared.size > 0 && !declared.has(cred)) {
       return {
