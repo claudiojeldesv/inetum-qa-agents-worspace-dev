@@ -18,6 +18,7 @@ import { text } from 'node:stream/consumers';
 
 import { parse as parseYaml } from 'yaml';
 
+import { appendAuditEntry, createEntry } from './audit.js';
 import { looksLikePII } from './pii-detector.js';
 
 export interface AllowedTargetsConfig {
@@ -180,6 +181,23 @@ async function main(): Promise<void> {
   }
 
   const verdict = await evaluate(payload);
+
+  // Audit entry — antes de los return path para garantizar traza
+  // independientemente del modo (CLI o hook).
+  const url = extractUrl(payload.tool_input);
+  await appendAuditEntry(
+    createEntry({
+      source: 'hook:pre-flight',
+      action: 'compliance_check',
+      target: url ?? '<no-url>',
+      result: verdict.pass ? 'pass' : 'block',
+      metadata: {
+        sessionId: (payload as { session_id?: string }).session_id ?? 'unknown',
+        event: payload.hook_event_name ?? 'unknown',
+        ...(verdict.reason ? { reason: verdict.reason } : {}),
+      },
+    }),
+  );
 
   // Modo CLI directo: usado por subagents que necesitan verdict máquina-legible.
   // En lugar de exit 2 + stderr, escribimos JSON a stdout y siempre exit 0.

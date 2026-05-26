@@ -17,6 +17,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { text } from 'node:stream/consumers';
 
+import { appendAuditEntry, createEntry } from './audit.js';
 import { detectPII, type PIIFinding } from './pii-detector.js';
 
 interface HookPayload {
@@ -150,23 +151,70 @@ async function runHookMode(): Promise<void> {
     process.exit(0);
   }
 
-  if (!payload.tool_name || !TARGET_TOOLS.has(payload.tool_name)) {
-    process.exit(0);
-  }
+  const sessionId =
+    (payload as { session_id?: string }).session_id ?? 'unknown';
 
+  // Out-of-scope (tool no es Edit/Write/MultiEdit, o path no es .spec.ts):
+  // registramos noop para trazabilidad y salimos.
   const filePath = payload.tool_input?.file_path;
-  if (typeof filePath !== 'string' || !isTargetFile(filePath)) {
+  const filePathStr = typeof filePath === 'string' ? filePath : '<no-path>';
+  const isTarget =
+    payload.tool_name &&
+    TARGET_TOOLS.has(payload.tool_name) &&
+    typeof filePath === 'string' &&
+    isTargetFile(filePath);
+
+  if (!isTarget) {
+    await appendAuditEntry(
+      createEntry({
+        source: 'hook:pii-post',
+        action: 'pii_scan',
+        target: filePathStr,
+        result: 'noop',
+        metadata: {
+          sessionId,
+          event: payload.hook_event_name ?? 'unknown',
+        },
+      }),
+    );
     process.exit(0);
   }
 
   let content: string;
   try {
-    content = await readFile(filePath, 'utf8');
+    content = await readFile(filePath as string, 'utf8');
   } catch {
+    await appendAuditEntry(
+      createEntry({
+        source: 'hook:pii-post',
+        action: 'pii_scan',
+        target: filePathStr,
+        result: 'unknown',
+        metadata: { sessionId, reason: 'READ_FAILED' },
+      }),
+    );
     process.exit(0);
   }
 
-  const findings = scanContent(filePath, content);
+  const findings = scanContent(filePath as string, content);
+
+  await appendAuditEntry(
+    createEntry({
+      source: 'hook:pii-post',
+      action: 'pii_scan',
+      target: filePathStr,
+      result: findings.length === 0 ? 'pass' : 'block',
+      metadata: {
+        sessionId,
+        event: payload.hook_event_name ?? 'unknown',
+        findings: findings.length,
+        ...(findings.length > 0 && findings[0]
+          ? { reason: findings[0].type }
+          : {}),
+      },
+    }),
+  );
+
   if (findings.length === 0) {
     process.exit(0);
   }

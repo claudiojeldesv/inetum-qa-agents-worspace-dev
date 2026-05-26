@@ -81,15 +81,15 @@
 
 ### S4 — Audit log
 
-- `[ ]` **S4-T1** Schema audit log JSON. Deps: S1-T5. C: S
+- `[x]` **S4-T1** Schema audit log JSON. Deps: S1-T5. C: S
   - **AC**: documentado en `references/audit-log-schema.md`. Campos: timestamp, source (hook/command/subagent), action, target, result, metadata.
-  - **Verify**: ejemplo de entrada parseable contra el schema.
-- `[ ]` **S4-T2** Implementación `audit-write.ts` real. Deps: S4-T1. C: S
+  - **Verify**: ejemplo de entrada parseable contra el schema. ✓ Schema v1 con enums cerrados (action: tool_invocation/compliance_check/pii_scan; result: pass/block/noop/unknown), source tipado por categoría (hook:*, command:*, subagent:*), 4 ejemplos por action + sección "trazabilidad esperada" para 2 escenarios reales.
+- `[x]` **S4-T2** Implementación `audit-write.ts` real. Deps: S4-T1. C: S
   - **AC**: helper TS que append JSON line a `audit-log.json` con schema validado.
-  - **Verify**: unit test escribe N entradas, las re-lee, todas válidas.
-- `[ ]` **S4-T3** Cablear todos los hooks al audit. Deps: S2-T3, S3-T2, S4-T2. C: S
+  - **Verify**: unit test escribe N entradas, las re-lee, todas válidas. ✓ Módulo compartido `hooks/audit.ts` con `createEntry()` (rellena timestamp + schemaVersion) + `validateAuditEntry()` (validador estructural tipo-seguro, no JSON Schema) + `appendAuditEntry()` (escribe JSONL, no lanza si falla). Refactor de `audit-write.ts` para usar el helper y emitir nuevo schema. **9 tests audit verdes** + 41 tests previos = **50 total**. Test "escribe N=5 entradas y las re-lee todas válidas" cumple verify literal.
+- `[x]` **S4-T3** Cablear todos los hooks al audit. Deps: S2-T3, S3-T2, S4-T2. C: S
   - **AC**: cada hook produce entrada audit log.
-  - **Verify**: ejecutar una secuencia y verificar trazabilidad en `audit-log.json`.
+  - **Verify**: ejecutar una secuencia y verificar trazabilidad en `audit-log.json`. ✓ `pre-flight.ts` escribe entrada `compliance_check` con reason en metadata (antes de exit, cubre modo hook y CLI). `pii-post.ts` escribe entrada `pii_scan` con findings count y reason del primer finding (cubre noop, pass, block, unknown). Audit transversal de `audit-write.ts` migrado a nuevo schema. Trazabilidad verificada en vivo: Write tool de seed.spec.ts → 2 entradas distinguibles (tool_invocation Write pass + pii_scan path pass findings=0); pre-flight CLI con URL prod → entrada compliance_check block reason=URL_NOT_ALLOWLISTED.
 
 > **Checkpoint Fase 1**: `npm test` verde. `/test-pilot:healthcheck` responde. Invocación con URL prohibida bloqueada. Invocación con PII detectada bloqueada. Audit log con entradas estructuradas. Sin esto, no avanzar.
 
