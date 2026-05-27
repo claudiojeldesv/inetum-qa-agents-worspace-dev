@@ -1,7 +1,7 @@
 ---
-description: Audita un directorio de .spec.ts. Orquesta ia4d-compliance-checker (modo audit-dir) + ia4d-pii-scanner standalone. Produce verdict global pass/fail con detalle por archivo.
-argument-hint: --dir=<path>
-allowed-tools: Task, Read, Bash(npx tsx:*)
+description: Audita un directorio de .spec.ts. Orquesta ia4d-compliance-checker (modo audit-dir) + ia4d-pii-scanner standalone. Produce verdict global pass/fail con detalle por archivo y escribe audit-report.json consumible por /test-pilot:export.
+argument-hint: --dir=<path> [--out=<path>]
+allowed-tools: Task, Read, Write, Bash(mkdir:*)
 ---
 
 # /test-pilot:audit
@@ -23,8 +23,10 @@ Extrae de `$ARGUMENTS`:
 
   ```
   ERROR: --dir no provisto o no encontrado.
-  Uso: /test-pilot:audit --dir=<path>
+  Uso: /test-pilot:audit --dir=<path> [--out=<path>]
   ```
+
+- `--out=<path>` — opcional. Default: `output/audit/audit-report.json`. Es el JSON consolidado que `/test-pilot:export` puede consumir como `--audit-report`. Si `--out` cae bajo `output/`, ejecuta `mkdir -p` del dir padre con Bash.
 
 ## Paso 1 — Compliance audit del directorio
 
@@ -68,7 +70,28 @@ Espera la respuesta. Captura del Bloque 2 (JSON crudo):
 
 Si reporta `ERROR`, expón el error tal cual y termina con `VERDICT: ERROR`.
 
-## Paso 3 — Verdict global y output al SDET
+## Paso 3 — Escribir audit-report.json
+
+Compón un JSON consolidado y escríbelo en `--out` con la tool `Write`:
+
+```json
+{
+  "schemaVersion": 1,
+  "generated": "<ISO 8601 UTC>",
+  "dir": "<dir>",
+  "pass": <bool>,
+  "compliance": <JSON crudo del Bloque 2 del Paso 1>,
+  "pii": <JSON crudo del Bloque 2 del Paso 2>,
+  "findings": [
+    { "source": "compliance", "file": "...", "line": <int>, "type": "...", "value": "..." },
+    { "source": "pii", "file": "...", "line": <int>, "column": <int>, "type": "...", "value": "..." }
+  ]
+}
+```
+
+`findings[]` es el concatenado de ambos sets con la fuente etiquetada. Útil para el connector futuro de Slice 10.
+
+## Paso 4 — Verdict global y output al SDET
 
 Computa:
 
