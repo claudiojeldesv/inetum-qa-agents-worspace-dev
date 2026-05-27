@@ -1,0 +1,44 @@
+# Style Contract para el demo de SauceDemo.
+# Schema documentado en references/style-contract-schema.md.
+
+version: 1
+client: saucedemo-demo
+framework: playwright
+language: typescript
+
+pom:
+  enabled: true
+  dir: tests/pages
+  namePattern: "*.page.ts"
+  classSuffix: "Page"
+
+naming:
+  specFilePattern: "<feature>.<scenario>.spec.ts"
+  testTitlePattern: free
+
+locators:
+  priority:
+    - getByRole
+    - getByTestId
+    - getByLabel
+    - getByText
+  banned:
+    - rawCss
+    - xpath
+
+bannedApis:
+  - page.waitForTimeout
+  - page.pause
+
+a11y:
+  enabled: true
+  wcagLevel: wcag21aa
+  injectorImport: "@axe-core/playwright"
+
+requiredImports:
+  - module: "@axe-core/playwright"
+    named:
+      - AxeBuilder
+
+jsdoc:
+  citeCriterion: true
