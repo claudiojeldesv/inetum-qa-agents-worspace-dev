@@ -1,6 +1,6 @@
 ---
-description: Orquesta playwright-test-generator (nativo) → ia4d-style-enforcer → ia4d-a11y-injector → ia4d-pii-scanner sobre un test-plan + Style Contract.
-argument-hint: --plan=<path> --style=<path> [--out-dir=<path>] [--threshold=<0..1>] [--no-run]
+description: Orquesta playwright-test-generator (nativo) → ia4d-style-enforcer → ia4d-a11y-injector → ia4d-pii-scanner sobre un test-plan + Style Contract. Tras la ejecución, llama a ia4d-judge para scoring de calidad y aplica ask-first si supera el threshold.
+argument-hint: --plan=<path> --style=<path> [--out-dir=<path>] [--threshold=<0..1>] [--judge-threshold=<0..1>] [--no-run] [--no-judge]
 allowed-tools: Task, Read, Glob, Bash(mkdir:*), Bash(npx tsx:*)
 ---
 
@@ -14,7 +14,7 @@ playwright-test-generator (nativo)  →  ia4d-style-enforcer  →  ia4d-a11y-inj
 
 Cada paso lee del archivo escrito por el anterior. No invocas subagents en paralelo (la cadena por spec es secuencial). El scan PII final puede ser por directorio.
 
-**Importante**: este command no incluye `ia4d-judge` (vive en Slice 8). Sí corre los tests resultantes vía `hooks/run-playwright.ts` con threshold por defecto del 80% (S7-T6). El SDET puede saltarlo con `--no-run` si solo quiere materializar specs sin ejecutar.
+El command corre los tests resultantes vía `hooks/run-playwright.ts` con threshold por defecto del 80% (S7-T6), y después invoca `ia4d-judge` para scoring de calidad por test (S8). Si más del 30% de los tests tienen `score < 0.5`, el command pausa con ask-first (no aborta automáticamente). El SDET puede saltar el run con `--no-run` y el judge con `--no-judge`.
 
 Argumentos crudos: `$ARGUMENTS`
 
@@ -36,8 +36,10 @@ Extrae de `$ARGUMENTS`:
   ```
 
 - `--out-dir=<path>` — opcional. Default: `output/generate/`. Es el directorio donde aterrizan los `.spec.ts` generados.
-- `--threshold=<0..1>` — opcional. Default: `0.8`. Pass-rate mínimo para considerar la corrida GO (Paso 7).
-- `--no-run` — opcional. Si está presente, salta el Paso 7 (no corre Playwright). Útil cuando el SDET solo quiere los archivos materializados.
+- `--threshold=<0..1>` — opcional. Default: `0.8`. Pass-rate mínimo para considerar la corrida GO (Paso 6 — Playwright run).
+- `--judge-threshold=<0..1>` — opcional. Default: `0.5`. Score por test debajo del cual el judge marca verdict `WEAK`. La pausa ask-first usa esta misma cifra como umbral.
+- `--no-run` — opcional. Si está presente, salta el Paso 6 (no corre Playwright). Útil cuando el SDET solo quiere los archivos materializados.
+- `--no-judge` — opcional. Si está presente, salta el Paso 7 (no ejecuta el judge). El output final no incluirá quality scoring.
 
 ## Paso 1 — Preparar output dir
 
@@ -190,9 +192,50 @@ Acciones posibles:
 
 Y termina sin re-invocar nada. La decisión es del SDET.
 
-## Paso 7 — Output al SDET (caso éxito)
+## Paso 7 — Quality scoring (LLM-as-judge)
 
-Si todo limpio (Paso 5 sin failed_specs ni pii_blocked, Paso 6 con `pass: true` o `--no-run`):
+Si el SDET pasó `--no-judge`, salta este paso entero y procede al Paso 8 con `judge.skipped = true`.
+
+En caso normal, invoca el subagent `ia4d-judge` vía Task tool con un prompt como:
+
+> Evalúa los `.spec.ts` en `<out-dir>` contra el plan `<plan>`. Aplica el rubric de 5 ejes y produce `<out-dir>/../judge/judge-report.json` (o el path equivalente bajo `output/judge/`). Threshold por test: `<--judge-threshold>` (default 0.5). Devuelve el resumen humano con el conteo de tests bajo threshold.
+
+Espera al subagent. Cuando vuelva:
+
+- Si reporta `ERROR: <razón>`: expón el error tal cual y termina con `ERROR` global. **No** intentes re-invocar al judge automáticamente.
+- Si responde con el resumen normal: lee el `judge-report.json` con Read y captura `summary.belowThreshold`, `summary.belowThresholdPct`, `summary.avgScore` y `summary.total`.
+
+### Ask-first cuando belowThresholdPct > 0.3
+
+Si `summary.belowThresholdPct > 0.3` (más del 30% de tests con `score < <--judge-threshold>`), **pausa** y presenta al SDET:
+
+```
+ATENCIÓN: el judge marcó muchos tests con calidad baja.
+
+avgScore:           <avgScore>
+Threshold por test: <judge-threshold>
+Tests bajo threshold: <belowThreshold> / <total>  (<belowThresholdPct * 100>%)
+
+WEAK tests:
+  - <file>::<testName>  (score=<score>, eje débil=<eje con score más bajo>)
+  ...
+
+Acciones posibles:
+  1) revisar manualmente los specs marcados como WEAK
+  2) reescribir el test plan o el style contract para subir calidad
+  3) bajar --judge-threshold si los scores actuales son aceptables (sign-off explícito)
+  4) continuar al output final aceptando los scores como están
+
+¿Cómo quieres proceder?
+```
+
+Y termina la ejecución del command **esperando** decisión explícita del SDET. **No tomes la decisión por él.** Si el SDET en el siguiente mensaje dice "continuar", entonces emites el output final del Paso 8. Si dice cualquier otra cosa, esperas instrucciones nuevas.
+
+Si `summary.belowThresholdPct <= 0.3`, continúa al Paso 8 con `judge.askFirstTriggered = false`.
+
+## Paso 8 — Output al SDET (caso éxito)
+
+Si todo limpio (Paso 5 sin failed_specs ni pii_blocked, Paso 6 con `pass: true` o `--no-run`, Paso 7 sin ask-first activo):
 
 ```
 /test-pilot:generate terminado.
@@ -216,12 +259,24 @@ Playwright run:
   flaky:    <flaky>
   skipped:  <skipped>
   report:   <out-dir>/run-report.json
+
+Quality scoring (judge):
+  avgScore:           <avgScore>
+  Threshold por test: <judge-threshold>
+  WEAK tests:         <belowThreshold>/<total>  (<belowThresholdPct * 100>%)
+  report:             output/judge/judge-report.json
 ```
 
 Si `--no-run` fue declarado, sustituye el bloque "Playwright run" por:
 
 ```
 Playwright run: SALTADO (--no-run)
+```
+
+Si `--no-judge` fue declarado, sustituye el bloque "Quality scoring (judge)" por:
+
+```
+Quality scoring (judge): SALTADO (--no-judge)
 ```
 
 Si hubo warnings (style WITH WARNINGS) pero no blocks, añade antes del bloque de Playwright:
@@ -235,9 +290,10 @@ WARN: <K> specs con warnings de estilo (no bloqueantes). Revisa la salida indivi
 - **No reordenes la cadena.** Generator → enforcer → injector → scanner. El enforcer puede eliminar líneas (banned APIs) y por eso debe ir antes del injector. El scanner va último porque opera sobre el resultado final.
 - **No saltes el PII scan.** Es exit-condition de SPEC §6 — Never do. Sin override.
 - **No invoques `ia4d-compliance-checker`** desde aquí — este command opera sobre artefactos locales, no toca URLs. El compliance ya pasó en `/test-pilot:discover`.
-- **No invoques `ia4d-judge`** — vive en Slice 8.
 - **No corras `npx playwright test` directamente.** Usa siempre `hooks/run-playwright.ts` — encapsula el reporter JSON, el parsing y el threshold. Llamadas directas a `npx playwright test` desde el command están prohibidas.
 - **No reintentes el Playwright run automáticamente** si cayó por debajo del threshold. Es ask-first del SDET (SPEC §6 — Ask first: "Continuar cuando el LLM-as-judge clasifica >30% de los tests con score <0.5" — análogo aquí para passRate).
+- **No reintentes el judge automáticamente** si reporta error. La decisión de re-invocar es del SDET.
+- **No tomes la decisión del threshold del judge por el SDET.** Si `belowThresholdPct > 0.3`, pausas y esperas instrucción explícita. No "continúo porque parece OK" — la pausa es la decisión correcta.
 - **No invoques subagents en paralelo dentro de la cadena por spec.** El handoff es por archivo y secuencial. Sí puedes procesar specs distintos uno tras otro; no procesar el mismo spec en dos pasos a la vez.
 - **No edites los `.spec.ts` directamente.** El enforcer y el injector ya lo hacen vía sus CLIs. Tú orquestas, no transformas.
 - **No retries silenciosos.** Si un subagent falla, lo registras y sigues con el siguiente spec; al final reportas al SDET.

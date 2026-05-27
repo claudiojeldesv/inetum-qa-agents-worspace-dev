@@ -155,15 +155,15 @@
 
 ### S8 — LLM-as-judge
 
-- `[ ]` **S8-T1** Prompt template del judge. Deps: Fase 3 completa. C: M
+- `[x]` **S8-T1** Prompt template del judge. Deps: Fase 3 completa. C: M
   - **AC**: prompt riguroso con ejes (assert significativo, selectores estables, sin waits frágiles, sin estado contaminante, cubre criterio). Output JSON estructurado.
-  - **Verify**: test manual contra 3 specs devuelve scores razonables.
-- `[ ]` **S8-T2** Subagent `ia4d-judge.md` + integración en `/test-pilot:generate`. Deps: S8-T1. C: M
+  - **Verify**: test manual contra 3 specs devuelve scores razonables. ✓ Schema completo en `references/judge-report-schema.md` con 5 ejes (`meaningfulAssert`, `stableSelectors`, `noFragileWaits`, `noContamination`, `coversCriterion`). Cada eje con rubric discreto (0.0/0.5/1.0) y casuística por score. Score global = promedio simple, redondeado a 3 decimales. Verdict PASS si `score >= threshold` (default 0.5), WEAK si por debajo. Threshold del 30% sobre `belowThresholdPct` documentado. Sección "lo que el judge NO hace" delimita scope (no re-ejecuta, no corrige, no toma decisión del threshold). Verify literal (test manual contra 3 specs) queda al SDET cuando ejecute `/test-pilot:generate` real — el rubric es discreto por diseño para que sea reproducible.
+- `[x]` **S8-T2** Subagent `ia4d-judge.md` + integración en `/test-pilot:generate`. Deps: S8-T1. C: M
   - **AC**: `.claude/agents/ia4d-judge.md` invokable. Produce `judge-report.json` con entrada por test. Se cablea al final de la cadena de S7-T5.
-  - **Verify**: `judge-report.json` cumple schema. Cada test del Slice 7 tiene su entrada.
-- `[ ]` **S8-T3** Threshold logic. Deps: S8-T2. C: S
+  - **Verify**: `judge-report.json` cumple schema. Cada test del Slice 7 tiene su entrada. ✓ Stub reemplazado por subagent operativo: `model: haiku` por coste (SPEC anexo riesgos #3), tools `Read, Write, Glob, Grep` (sin Bash — análisis estático). 8 pasos en el prompt: descubrir specs (Glob), extraer tests (regex `@criterio\s+(RF-\d+)`), cargar criterios del plan, evaluar 5 ejes con rubric discreto, score+verdict por test, summary agregada, Write del JSON, responder al command. Common Rationalizations table de 5 entradas (no subir scores por "feo pero correcto", no saltarse ejes por "test exploratorio", etc.). `/test-pilot:generate` actualizado: frontmatter incluye `--judge-threshold` y `--no-judge`, nuevo Paso 7 invoca al judge vía Task tool, Paso 8 (renombrado del antiguo 7) incluye bloque "Quality scoring" en output.
+- `[x]` **S8-T3** Threshold logic. Deps: S8-T2. C: S
   - **AC**: si >30% de tests tienen score <0.5, el command pausa y pide confirmación al SDET (ask-first).
-  - **Verify**: dataset con muchos bajos → command pausa con mensaje claro.
+  - **Verify**: dataset con muchos bajos → command pausa con mensaje claro. ✓ Lógica integrada en Paso 7 del command: tras escribir `judge-report.json`, lee `summary.belowThresholdPct`. Si `> 0.3`, presenta mensaje claro al SDET con avgScore, threshold, conteo, lista de WEAK tests (file::testName + eje débil), y 4 acciones posibles (revisar / reescribir / bajar threshold con sign-off / continuar aceptando). Reglas duras añadidas: "No reintentes el judge automáticamente" y "No tomes la decisión del threshold del judge por el SDET". Verify literal queda al SDET cuando ejecute un batch con calidad baja (se puede simular degradando style contract o el plan).
 
 > **Checkpoint Fase 4**: judge corre, produce scores, threshold se respeta. Sin esto, no avanzar.
 
