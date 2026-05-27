@@ -69,7 +69,7 @@ export interface Violation {
 }
 
 interface FixApplied {
-  rule: 'BANNED_API' | 'MISSING_IMPORT';
+  rule: 'BANNED_API' | 'MISSING_IMPORT' | 'RAW_CSS_LOCATOR';
   line: number;
   detail: string;
 }
@@ -251,6 +251,44 @@ function detectMissingImports(
   return violations;
 }
 
+/**
+ * Auto-convierte locators CSS predecibles de la forma
+ *   page.locator('[data-test="X"]'), page.locator('[data-testid=X]'), page.locator("[data-qa='X']")
+ * a su equivalente semántico:
+ *   page.getByTestId('X')
+ *
+ * Sólo aplica a atributos data-test / data-testid / data-qa con un valor
+ * simple (sin selectores compuestos ni operadores de atributo). Cualquier
+ * otro CSS bruto (`.class`, `#id`, `tag > tag`, etc.) NO se convierte y
+ * seguirá disparando RAW_CSS_LOCATOR en el detector posterior.
+ *
+ * Decisión consciente: convertimos sólo los patrones determinísticamente
+ * traducibles a un getBy* semántico del Style Contract. El resto sigue
+ * siendo block, no warn, porque su corrección es ambigua y debe revisarla
+ * el SDET o el style-enforcer humano.
+ */
+export function convertCssLocators(content: string): { content: string; fixes: FixApplied[] } {
+  const fixes: FixApplied[] = [];
+  // Captura: outerQuote, atributo, value. \1 fuerza que la outer quote de cierre coincida con la de apertura.
+  const re = /\blocator\s*\(\s*(['"`])\[(data-test(?:id)?|data-qa)=(?:['"]?)([^'"\]\s]+)(?:['"]?)\]\1\s*\)/g;
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    let changed = false;
+    const next = line.replace(re, (_match, outerQuote: string, attr: string, value: string) => {
+      changed = true;
+      fixes.push({
+        rule: 'RAW_CSS_LOCATOR',
+        line: i + 1,
+        detail: `locator('[${attr}=${value}]') → getByTestId('${value}')`,
+      });
+      return `getByTestId(${outerQuote}${value}${outerQuote})`;
+    });
+    if (changed) lines[i] = next;
+  }
+  return { content: lines.join('\n'), fixes };
+}
+
 function applyFixes(
   content: string,
   required: RequiredImport[],
@@ -258,6 +296,12 @@ function applyFixes(
 ): { content: string; fixes: FixApplied[] } {
   const fixes: FixApplied[] = [];
   let working = content;
+
+  // 0) convertir CSS locators predecibles ANTES que banned APIs.
+  // Si después un banned API queda en otra línea, lo coge el paso 1.
+  const cssConv = convertCssLocators(working);
+  working = cssConv.content;
+  fixes.push(...cssConv.fixes);
 
   // 1) eliminar banned APIs (sustituye la línea entera por comentario)
   const lines = working.split(/\r?\n/);
@@ -448,4 +492,15 @@ async function main(): Promise<void> {
   process.exit(blocking ? 2 : 0);
 }
 
-void main();
+const isDirectInvocation = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectInvocation) {
+  void main();
+}

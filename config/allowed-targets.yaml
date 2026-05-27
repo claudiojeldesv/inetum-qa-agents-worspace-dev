@@ -37,3 +37,5 @@ syntheticCredentials:
   passwords:
     # SauceDemo único password sintético declarado.
     - "secret_sauce"
+    # Password sintético para casos negativos (RF-003 fd-login-only).
+    - "wrong_password"

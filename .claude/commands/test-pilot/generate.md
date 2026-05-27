@@ -55,7 +55,16 @@ Si el SDET dio uno custom, asume que existe.
 
 Invoca el subagent `playwright-test-generator` (nativo de Playwright) vía Task tool con un prompt como:
 
-> Genera tests Playwright TypeScript a partir del plan en `<plan>`. Por cada caso del plan, crea un archivo `.spec.ts` separado bajo `<out-dir>/` siguiendo el naming `<feature>.<scenario>.spec.ts`. No instales dependencias, no edites `playwright.config.ts`. Cuando termines, devuelve la lista de archivos `.spec.ts` que has escrito (paths relativos al repo).
+> Genera tests Playwright TypeScript a partir del plan en `<plan>`. Por cada caso del plan, crea un archivo `.spec.ts` separado bajo `<out-dir>/` siguiendo el naming `<feature>.<scenario>.spec.ts`. No instales dependencias, no edites `playwright.config.ts`.
+>
+> **Convenciones de locators** (las enforce el style-enforcer aguas abajo, pero ahórrate retrabajo):
+> - Cuando veas atributos `data-test`, `data-testid` o `data-qa` en la app, **usa `page.getByTestId('valor')`**. Nunca emitas `page.locator('[data-test="valor"]')` literal.
+> - Para botones, links, headings y otros roles: `page.getByRole('button', { name: 'X' })`.
+> - Para inputs etiquetados: `page.getByLabel('Email')`.
+> - Para texto plano visible: `page.getByText('Welcome')`.
+> - **Evita** `page.locator('.clase')`, `page.locator('#id')` y XPath. El enforcer los bloquea sin auto-fix.
+>
+> Cuando termines, devuelve la lista de archivos `.spec.ts` que has escrito (paths relativos al repo).
 
 Espera a que termine. Cuando vuelva:
 

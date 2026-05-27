@@ -144,6 +144,14 @@ Estado al final: video de 30 minutos grabado, reproducible, que cumple el Defini
 4. Por cada checkpoint: revisión humana antes de pasar a la fase siguiente. Sin atajos.
 5. No tocar slices posteriores hasta haber pasado el checkpoint del actual.
 
+## 6.5. Concesiones registradas durante ejecución
+
+Decisiones pragmáticas tomadas durante la ejecución de un slice que no son default del SPEC. Se listan aquí para no perderlas de vista y revisarlas en v0.2.
+
+| Fecha | Slice | Concesión | Razón | Deuda v0.2 |
+|---|---|---|---|---|
+| 2026-05-27 | 7 | ~~`rawCss` retirado de `locators.banned`~~ **RESUELTO** mismo día. | El Generator nativo emite `[data-test="..."]` literales y la regla `RAW_CSS_LOCATOR` no era auto-fixable. | Resuelto añadiendo `convertCssLocators()` al `--fix` del style-enforcer: transforma `locator('[data-test*=X]')` → `getByTestId('X')` automáticamente, y se añadió instrucción preventiva al prompt del Generator. `rawCss` vuelve a `banned` en el contract. Mecanismo de severidad por regla (`block`/`warn`/`off`) sigue siendo deuda v0.2 pero ya no es bloqueante. |
+
 ## 7. Lo que este plan deliberadamente no hace
 
 - No define fechas. El usuario gestiona el calendario.

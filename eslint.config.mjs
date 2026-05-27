@@ -3,7 +3,7 @@ import importPlugin from 'eslint-plugin-import';
 
 export default tseslint.config(
   {
-    ignores: ['node_modules/**', 'dist/**', 'coverage/**', '.claude/**', 'demo/**'],
+    ignores: ['node_modules/**', 'dist/**', 'coverage/**', '.claude/**', 'demo/**', 'output/**'],
   },
   ...tseslint.configs.recommended,
   {
