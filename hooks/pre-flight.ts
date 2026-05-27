@@ -12,8 +12,8 @@
  * Defensive defaults: si el config falta/no parsea, bloquea. Sin override.
  */
 
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { text } from 'node:stream/consumers';
 
 import { parse as parseYaml } from 'yaml';
@@ -167,7 +167,184 @@ export async function evaluate(
   return { pass: true };
 }
 
+// ----- Modo audit-dir (S9) -----
+//
+// Recorre un directorio recursivo, extrae URLs y credenciales hardcoded de
+// los .spec.ts encontrados, y evalúa cada una contra el config de allowed
+// targets. Devuelve un AuditReport con findings.
+//
+// Heurísticas de extracción (puramente estáticas, sin ejecutar el código):
+//   - URLs: literales 'http://...' o "https://..." dentro del código.
+//   - Credenciales: argumentos string de .fill(...) o .type(...) cuando el
+//     locator inmediatamente anterior cae sobre un campo con nombre
+//     'username' / 'user' / 'password' / 'pass' / 'email'.
+//
+// Las heurísticas pueden tener falsos positivos. La filosofía es la misma
+// que el pre-flight runtime: defense in depth, falsos positivos preferibles
+// a falsos negativos.
+
+export interface AuditFinding {
+  file: string;
+  line: number;
+  type: 'URL_NOT_ALLOWLISTED' | 'URL_BLOCKLISTED' | 'CREDENTIAL_NOT_SYNTHETIC_DECLARED' | 'CREDENTIAL_LOOKS_LIKE_PII';
+  value: string;
+}
+
+export interface AuditReport {
+  pass: boolean;
+  scanned: string[];
+  findings: AuditFinding[];
+}
+
+async function walkSpecFiles(root: string): Promise<string[]> {
+  const out: string[] = [];
+  async function recurse(dir: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry);
+      let info;
+      try {
+        info = await stat(full);
+      } catch {
+        continue;
+      }
+      if (info.isDirectory()) {
+        if (entry === 'node_modules' || entry.startsWith('.')) continue;
+        await recurse(full);
+      } else if (full.endsWith('.spec.ts')) {
+        out.push(full);
+      }
+    }
+  }
+  const rootStat = await stat(root).catch(() => null);
+  if (!rootStat) return out;
+  if (rootStat.isDirectory()) await recurse(root);
+  else if (root.endsWith('.spec.ts')) out.push(root);
+  return out;
+}
+
+const URL_REGEX = /['"`](https?:\/\/[^'"`\s]+)['"`]/g;
+const CRED_FIELD_REGEX = /getBy(?:TestId|Label|Role|Text)\s*\([^)]*?(username|user|password|pass|email)[^)]*?\)\s*\.\s*(?:fill|type)\s*\(\s*['"`]([^'"`]+)['"`]/gi;
+const CRED_OBJECT_REGEX = /\b(username|password|email|user|pass)\s*:\s*['"`]([^'"`]+)['"`]/gi;
+
+export function extractStaticUrls(content: string): Array<{ url: string; line: number }> {
+  const out: Array<{ url: string; line: number }> = [];
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    const re = new RegExp(URL_REGEX.source, URL_REGEX.flags);
+    for (const m of line.matchAll(re)) {
+      const url = m[1];
+      if (url) out.push({ url, line: i + 1 });
+    }
+  }
+  return out;
+}
+
+export function extractStaticCredentials(content: string): Array<{ value: string; line: number }> {
+  const out: Array<{ value: string; line: number }> = [];
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    const re1 = new RegExp(CRED_FIELD_REGEX.source, CRED_FIELD_REGEX.flags);
+    for (const m of line.matchAll(re1)) {
+      const val = m[2];
+      if (val) out.push({ value: val, line: i + 1 });
+    }
+    const re2 = new RegExp(CRED_OBJECT_REGEX.source, CRED_OBJECT_REGEX.flags);
+    for (const m of line.matchAll(re2)) {
+      const val = m[2];
+      if (val) out.push({ value: val, line: i + 1 });
+    }
+  }
+  return out;
+}
+
+export async function auditDirectory(
+  dir: string,
+  configPath: string = resolve(process.cwd(), DEFAULT_CONFIG_PATH),
+): Promise<AuditReport> {
+  const config = await loadConfig(configPath);
+  const files = await walkSpecFiles(dir);
+  const findings: AuditFinding[] = [];
+
+  if (!config) {
+    // sin config no podemos validar; devolvemos el dir escaneado pero pass:false
+    return {
+      pass: false,
+      scanned: files,
+      findings: [
+        {
+          file: configPath,
+          line: 0,
+          type: 'URL_NOT_ALLOWLISTED',
+          value: 'CONFIG_MISSING_OR_INVALID',
+        },
+      ],
+    };
+  }
+
+  const declaredUsernames = new Set(config.syntheticCredentials?.usernames ?? []);
+  const declaredPasswords = new Set(config.syntheticCredentials?.passwords ?? []);
+  const declared = new Set<string>([...declaredUsernames, ...declaredPasswords]);
+
+  for (const file of files) {
+    let content: string;
+    try {
+      content = await readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+
+    for (const { url, line } of extractStaticUrls(content)) {
+      if (config.blockedPatterns && matchesAny(url, config.blockedPatterns)) {
+        findings.push({ file, line, type: 'URL_BLOCKLISTED', value: url });
+        continue;
+      }
+      if (!matchesAny(url, config.allowedPatterns)) {
+        findings.push({ file, line, type: 'URL_NOT_ALLOWLISTED', value: url });
+      }
+    }
+
+    for (const { value, line } of extractStaticCredentials(content)) {
+      const piiType = looksLikePII(value);
+      if (piiType !== null) {
+        findings.push({ file, line, type: 'CREDENTIAL_LOOKS_LIKE_PII', value: `${value} (${piiType})` });
+        continue;
+      }
+      if (declared.size > 0 && !declared.has(value)) {
+        findings.push({ file, line, type: 'CREDENTIAL_NOT_SYNTHETIC_DECLARED', value });
+      }
+    }
+  }
+
+  return { pass: findings.length === 0, scanned: files, findings };
+}
+
+async function runAuditDirMode(dir: string): Promise<void> {
+  const report = await auditDirectory(dir);
+  process.stdout.write(JSON.stringify(report) + '\n');
+  process.exit(0);
+}
+
 async function main(): Promise<void> {
+  // Modo audit-dir (S9): salida JSON estructurada, siempre exit 0.
+  const auditDirIndex = process.argv.indexOf('--audit-dir');
+  if (auditDirIndex !== -1) {
+    const dir = process.argv[auditDirIndex + 1];
+    if (!dir) {
+      process.stderr.write('[pre-flight] --audit-dir requiere path\n');
+      process.exit(1);
+    }
+    await runAuditDirMode(dir);
+    return;
+  }
+
   let payload: HookPayload = {};
   try {
     const raw = await text(process.stdin);
