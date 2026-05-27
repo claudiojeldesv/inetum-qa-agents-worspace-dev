@@ -215,9 +215,9 @@
 - `[ ]` **S12-T3** Grabar demo final. Deps: S12-T2. C: M
   - **AC**: video reproducible (mp4 H.264 o similar). Output del agente commit-eado en `demo/output/`.
   - **Verify**: visionar el video confirma cumplimiento del Definition of Done del SPEC.
-- `[ ]` **S12-T4** Documentar reproducción. Deps: S12-T3. C: S
+- `[x]` **S12-T4** Documentar reproducción. Deps: S12-T3. C: S
   - **AC**: `demo/saucedemo/HOW-TO-REPRODUCE.md` con pasos exactos.
-  - **Verify**: tercer involucrado reproduce con el doc y reporta dónde se atasca.
+  - **Verify**: tercer involucrado reproduce con el doc y reporta dónde se atasca. ✓ Manual completo: prerequisitos (sesión nueva, MCP, Chromium, limpieza), Paso 0 healthcheck, Paso 1 comando exacto `/test-pilot:full-loop --no-discover --fd=... --style=... --a11y=warn --a11y-reason="..."`, timeline esperada (6-12 min), 5 puntos de validación (resumen DoD, artefactos en disco, catalog coherente, audit-log policy_skip, spec inspeccionado). Variantes: modo strict (perfil banca), dry run, full con discover. Troubleshooting: ask-first, MCP errors, Playwright config, judge bajo, audit findings, rehacer desde 0. Sección "lo que el e2e NO garantiza" (Planner no determinístico, judge variable, sin cross-cliente, sin perf prod). Verify literal (tercer involucrado) queda al SDET cuando comparta con un colega.
 
 > **Checkpoint Fase 6 = Definition of Done del MVP**: demo grabada + reproducible + artefactos commit-eados.
 
