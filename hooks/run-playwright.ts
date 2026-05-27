@@ -179,15 +179,20 @@ async function runPlaywright(dir: string): Promise<{ exitCode: number; stdout: s
     // shell:true es necesario en Windows con Node 18.20+/20.18+ para invocar
     // .cmd shims (npx, playwright). Node tightened spawn() en esas versiones
     // por CVE-2024-27980 y exige shell para resolverlos. En Linux/Mac no
-    // cambia el comportamiento. Quoteamos `dir` si contiene chars que el
-    // shell interpreta.
-    const needsQuote = /[\s"'$&|;<>()\\]/.test(dir);
-    const safeDir = needsQuote ? `"${dir.replace(/"/g, '\\"')}"` : dir;
+    // cambia el comportamiento.
+    //
+    // `dir` se pasa vía env var `TEST_PILOT_TESTDIR` y se consume desde
+    // `playwright.config.ts`. NO se pasa como positional arg: Playwright
+    // interpreta los positionals como regex de filtro sobre paths
+    // relativos a testDir (no como override de testDir), por lo que un
+    // positional `output/generate` jamás matchearía contra
+    // `login.standard-user.spec.ts`. El config lee el env var y lo usa
+    // como `testDir` (default './output/generate' si no viene seteado).
     const child = spawn(
       'npx',
-      ['playwright', 'test', safeDir, '--reporter=json'],
+      ['playwright', 'test', '--reporter=json'],
       {
-        env: { ...process.env, FORCE_COLOR: '0' },
+        env: { ...process.env, FORCE_COLOR: '0', TEST_PILOT_TESTDIR: dir },
         shell: true,
       },
     );

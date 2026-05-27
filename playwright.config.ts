@@ -23,7 +23,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './output/generate',
+  testDir: process.env.TEST_PILOT_TESTDIR ?? './output/generate',
   testMatch: ['**/*.spec.ts'],
   fullyParallel: false,
   workers: 1,
