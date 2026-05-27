@@ -176,12 +176,19 @@ function summarize(results: PerTestResult[], threshold: number, exitCode: number
 
 async function runPlaywright(dir: string): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
+    // shell:true es necesario en Windows con Node 18.20+/20.18+ para invocar
+    // .cmd shims (npx, playwright). Node tightened spawn() en esas versiones
+    // por CVE-2024-27980 y exige shell para resolverlos. En Linux/Mac no
+    // cambia el comportamiento. Quoteamos `dir` si contiene chars que el
+    // shell interpreta.
+    const needsQuote = /[\s"'$&|;<>()\\]/.test(dir);
+    const safeDir = needsQuote ? `"${dir.replace(/"/g, '\\"')}"` : dir;
     const child = spawn(
-      process.platform === 'win32' ? 'npx.cmd' : 'npx',
-      ['playwright', 'test', dir, '--reporter=json'],
+      'npx',
+      ['playwright', 'test', safeDir, '--reporter=json'],
       {
         env: { ...process.env, FORCE_COLOR: '0' },
-        shell: false,
+        shell: true,
       },
     );
     let stdout = '';
