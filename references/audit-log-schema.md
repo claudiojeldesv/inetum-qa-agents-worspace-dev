@@ -43,6 +43,7 @@ Qué evento ha ocurrido. Enum cerrado:
 - `tool_invocation` — un tool de Claude Code se invocó (audit transversal).
 - `compliance_check` — pre-flight evaluó una invocación contra `allowed-targets.yaml`.
 - `pii_scan` — pii-post escaneó contenido por PII o `test.fixme()`.
+- `policy_skip` — el SDET declaró un downgrade de una política bloqueante (ej. a11y de block a warn o skip). Lleva razón obligatoria en metadata.
 
 Si añades una action nueva, bump del schema (`metadata.schemaVersion`).
 
@@ -104,6 +105,19 @@ Campos auxiliares por action. Algunos típicos:
 ```json
 {"timestamp":"2026-05-26T18:30:15.789Z","source":"hook:pii-post","action":"pii_scan","target":"README.md","result":"noop","metadata":{"sessionId":"abc-123","schemaVersion":1}}
 ```
+
+### policy_skip (a11y degradado a warn por el SDET vía flag CLI)
+
+```json
+{"timestamp":"2026-05-27T16:30:00.000Z","source":"command:/test-pilot:generate","action":"policy_skip","target":"a11y","result":"pass","metadata":{"policy":"a11y","mode":"warn","reason":"SauceDemo demo público sin SLA WCAG","declaredIn":"cli","schemaVersion":1}}
+```
+
+Campos extra esperados en `metadata` para `policy_skip`:
+
+- `policy` (string): nombre de la política. En MVP solo `"a11y"`.
+- `mode` (string): nuevo modo. Valores válidos: `"warn"`, `"skip"`. No se emite entry cuando el modo es `block` (default).
+- `reason` (string, **obligatorio**, no vacío): justificación del SDET. El comando rechaza la invocación si `mode != block` y `reason` falta.
+- `declaredIn` (string): `"cli"` si vino por flag, `"contract"` si vino del Style Contract.
 
 ## Trazabilidad esperada
 

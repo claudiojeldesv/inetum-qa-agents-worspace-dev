@@ -34,6 +34,12 @@ a11y:
   enabled: true
   wcagLevel: wcag21aa
   injectorImport: "@axe-core/playwright"
+  # Modo declarativo de enforcement (extensión de a11y modes, equivalente a --a11y CLI).
+  # block (default SPEC §6) | warn | skip. Si no es block, reasonForDisable es obligatorio.
+  # SauceDemo es demo público sin SLA WCAG → warn es razonable para no bloquear el demo.
+  # El CLI gana sobre el contract si ambos están presentes.
+  enforceMode: warn
+  reasonForDisable: "SauceDemo es demo público sin SLA WCAG; violaciones conocidas (document-title, region) no bloquean este contrato. En clientes regulados el contract NO declara este downgrade."
 
 requiredImports:
   - module: "@axe-core/playwright"

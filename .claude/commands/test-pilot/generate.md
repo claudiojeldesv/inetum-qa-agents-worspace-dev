@@ -1,6 +1,6 @@
 ---
-description: Orquesta playwright-test-generator (nativo) → ia4d-style-enforcer → ia4d-a11y-injector → ia4d-pii-scanner sobre un test-plan + Style Contract. Tras la ejecución, llama a ia4d-judge para scoring de calidad y aplica ask-first si supera el threshold.
-argument-hint: --plan=<path> --style=<path> [--out-dir=<path>] [--threshold=<0..1>] [--judge-threshold=<0..1>] [--no-run] [--no-judge]
+description: Orquesta playwright-test-generator (nativo) → ia4d-style-enforcer → ia4d-a11y-injector → ia4d-pii-scanner sobre un test-plan + Style Contract. Tras la ejecución, llama a ia4d-judge para scoring de calidad y aplica ask-first si supera el threshold. Soporta downgrade declarado de a11y vía --a11y / --a11y-reason con audit trail.
+argument-hint: --plan=<path> --style=<path> [--out-dir=<path>] [--threshold=<0..1>] [--judge-threshold=<0..1>] [--a11y=<block|warn|skip>] [--a11y-reason="<texto>"] [--no-run] [--no-judge]
 allowed-tools: Task, Read, Glob, Bash(mkdir:*), Bash(npx tsx:*)
 ---
 
@@ -40,6 +40,32 @@ Extrae de `$ARGUMENTS`:
 - `--judge-threshold=<0..1>` — opcional. Default: `0.5`. Score por test debajo del cual el judge marca verdict `WEAK`. La pausa ask-first usa esta misma cifra como umbral.
 - `--no-run` — opcional. Si está presente, salta el Paso 6 (no corre Playwright). Útil cuando el SDET solo quiere los archivos materializados.
 - `--no-judge` — opcional. Si está presente, salta el Paso 7 (no ejecuta el judge). El output final no incluirá quality scoring.
+- `--a11y=<block|warn|skip>` — opcional. Default: `block`. Modo del check axe-core inyectado por `ia4d-a11y-injector`:
+  - `block`: el snippet usa `expect(_axe.violations).toEqual([])` — el test falla si hay violaciones (SPEC §6 — default).
+  - `warn`: el snippet usa `console.warn` — el test pasa aunque haya violaciones; se loggea su cantidad.
+  - `skip`: no se inyecta nada — el spec ni siquiera ve axe.
+- `--a11y-reason="<texto>"` — **obligatorio si `--a11y` no es `block`**. Justificación que el SDET declara por escrito. Va al audit log y al badge POLICY DOWNGRADE del output.
+
+### Validación a11y
+
+Si `--a11y` viene con valor distinto a `block`:
+
+1. Si `--a11y-reason` falta o es cadena vacía, aborta con:
+
+   ```
+   ERROR: --a11y=<mode> requiere --a11y-reason="<texto explícito>".
+   No silencio el downgrade sin razón declarada.
+   ```
+
+2. Si todo está bien, **antes de continuar al Paso 1**, registra la entry audit invocando:
+
+   ```bash
+   npx tsx hooks/policy-skip.ts --policy a11y --mode <warn|skip> --reason "<reason>" --declared-in cli --source "command:/test-pilot:generate"
+   ```
+
+   Si el helper devuelve exit != 0, aborta con el stderr literal. No silencies el fallo del audit.
+
+3. Recuerda el `mode` y `reason` para pasarlos al subagent en el Paso 3b y para mostrar el badge en el Paso 8.
 
 ## Paso 1 — Preparar output dir
 
@@ -90,14 +116,24 @@ Espera al subagent. Parsea el JSON crudo del Bloque 2 de su respuesta.
 
 ### 3b. A11y inject
 
-Invoca `ia4d-a11y-injector` vía Task tool:
+Invoca `ia4d-a11y-injector` vía Task tool. El prompt cambia según el modo declarado:
 
-> Inyecta axe-core en el spec `<spec>`. Devuelve el JSON crudo del CLI tal cual.
+- Si `--a11y=block` (default):
+
+  > Inyecta axe-core en el spec `<spec>` con mode=block (default SPEC §6). Devuelve el JSON crudo del CLI tal cual.
+
+- Si `--a11y=warn`:
+
+  > Inyecta axe-core en el spec `<spec>` con mode=warn y reason `<--a11y-reason>`. El snippet debe usar `console.warn` en lugar de `expect`. Devuelve el JSON crudo del CLI tal cual.
+
+- Si `--a11y=skip`:
+
+  > NO inyectes axe-core en el spec `<spec>`. Mode=skip declarado con reason `<--a11y-reason>`. Devuelve el JSON crudo del CLI tal cual.
 
 Espera al subagent. Parsea el JSON.
 
 - Si `VERDICT: ERROR` (CLI exit 1, p. ej. el archivo no contiene `test(...)`): registra el spec en `failed_specs` con razón.
-- Si `VERDICT: PASS`: marca este spec como `clean_specs`.
+- Si `VERDICT: PASS` (o `PASS (a11y downgraded to warn)` o `PASS (a11y SKIPPED ...)`): marca este spec como `clean_specs`. El downgrade NO se considera fallo — está declarado por el SDET y ya registrado en audit.
 
 ## Paso 4 — PII scan sobre el output dir
 
@@ -245,6 +281,20 @@ Si `summary.belowThresholdPct <= 0.3`, continúa al Paso 8 con `judge.askFirstTr
 ## Paso 8 — Output al SDET (caso éxito)
 
 Si todo limpio (Paso 5 sin failed_specs ni pii_blocked, Paso 6 con `pass: true` o `--no-run`, Paso 7 sin ask-first activo):
+
+Si `--a11y` no es `block`, **anteponer al bloque normal** un badge visible:
+
+```
+⚠ POLICY DOWNGRADE: a11y=<mode>
+  Razón:    <--a11y-reason>
+  Source:   cli
+  Impact:   <según mode>
+              - warn: el axe check inyectado emite console.warn en lugar de fallar el test.
+              - skip: no se inyectó axe check; los specs no validan accesibilidad.
+  Audit:    hook source=command:/test-pilot:generate action=policy_skip target=a11y
+```
+
+Después, el bloque normal de éxito:
 
 ```
 /test-pilot:generate terminado.

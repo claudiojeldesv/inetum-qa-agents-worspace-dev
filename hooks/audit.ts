@@ -16,7 +16,11 @@ export type AuditSource =
   | `command:${string}`
   | `subagent:${string}`;
 
-export type AuditAction = 'tool_invocation' | 'compliance_check' | 'pii_scan';
+export type AuditAction =
+  | 'tool_invocation'
+  | 'compliance_check'
+  | 'pii_scan'
+  | 'policy_skip';
 
 export type AuditResult = 'pass' | 'block' | 'noop' | 'unknown';
 
@@ -44,6 +48,7 @@ const VALID_ACTIONS = new Set<AuditAction>([
   'tool_invocation',
   'compliance_check',
   'pii_scan',
+  'policy_skip',
 ]);
 
 const VALID_RESULTS = new Set<AuditResult>(['pass', 'block', 'noop', 'unknown']);

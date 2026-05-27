@@ -20,7 +20,7 @@ Las credenciales sintéticas están declaradas en `config/allowed-targets.yaml#s
 - **RF-001** · Login con `standard_user` redirige a `/inventory.html` y la cabecera muestra "Swag Labs".
 - **RF-002** · Login con `locked_out_user` mantiene al usuario en `/` y muestra mensaje de error en `[data-test="error"]` que contiene la frase "Sorry, this user has been locked out".
 - **RF-003** · Login con password incorrecto produce mensaje de error sin redirección. Se prueba con `standard_user` / `wrong_password`. El elemento `[data-test="error"]` debe ser visible (sin asserting sobre el texto, robusto a cambios de copy).
-- **RF-004** · Logout desde el menú lateral devuelve al login.
+- **RF-004** · Logout desde el menú lateral devuelve al login: el elemento `[data-test="login-button"]` debe ser visible tras pulsar logout.
 
 ## 4. Restricciones de testing
 

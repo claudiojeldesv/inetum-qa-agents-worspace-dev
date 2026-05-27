@@ -1,53 +1,103 @@
 /**
- * CLI — `npx tsx hooks/a11y-inject.ts --spec <path>`
+ * CLI — `npx tsx hooks/a11y-inject.ts --spec <path> [--mode <block|warn|skip>] [--reason "<texto>"]`
  *
- * Inyecta el check de axe-core en cada `test(...)` del .spec.ts indicado.
- * Baked-in, no opcional (SPEC §6 — Always do).
+ * Inyecta (o no) el check de axe-core en cada `test(...)` del .spec.ts
+ * indicado, según el modo declarado por el SDET o por el Style Contract:
  *
- * Operación:
- *   1) asegura import { AxeBuilder } from '@axe-core/playwright'
- *   2) por cada `test('...', async ({ page }) => { ... })`:
- *      - si el callback ya contiene `new AxeBuilder(`, no toca.
- *      - si no, inserta al inicio del bloque:
- *          const _axe = await new AxeBuilder({ page }).analyze();
- *          expect(_axe.violations).toEqual([]);
- *      - registra que se necesita `expect` (de '@playwright/test') si no estaba.
+ *   --mode block (default): inyecta
+ *       const _axe = await new AxeBuilder({ page }).analyze();
+ *       expect(_axe.violations).toEqual([]);
  *
- * Determinista. ts-morph para imports + parse del CallExpression `test`,
- * texto crudo para la inyección del snippet.
+ *   --mode warn: inyecta una versión no-bloqueante
+ *       const _axe = await new AxeBuilder({ page }).analyze();
+ *       if (_axe.violations.length > 0) {
+ *         console.warn('[a11y][warn] ' + _axe.violations.length +
+ *           ' violation(s) — downgrade declarado por SDET');
+ *       }
  *
- * Output JSON a stdout:
- *   { specFile, injected: <n>, alreadyPresent: <n>, importsAdded: [<modules>] }
+ *   --mode skip: no inyecta nada. El subagent reporta skipped:N. La
+ *       responsabilidad del audit trail vive en hooks/policy-skip.ts
+ *       (lo invoca el slash command al inicio cuando detecta no-block).
  *
- * Exit 0 siempre que no haya error de I/O. Exit 1 si el path no se pudo
- * leer/escribir o el archivo no contiene ningún `test(...)`.
+ * Reason es obligatorio si --mode != block. Se acepta como argumento
+ * pero el CLI no lo persiste — solo lo valida. La persistencia del
+ * reason vive en la entry audit emitida por policy-skip.ts.
+ *
+ * Output JSON a stdout (shape varía por modo):
+ *   block:  { specFile, mode:'block', injected, alreadyPresent, importsAdded }
+ *   warn:   { specFile, mode:'warn',  injected, alreadyPresent, importsAdded }
+ *   skip:   { specFile, mode:'skip',  skipped:N }
+ *
+ * Exit 0 si éxito. Exit 1 si error de I/O, archivo sin test(),
+ * o --reason faltante cuando se requiere.
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { Project, SyntaxKind, type ArrowFunction, type CallExpression, type FunctionExpression } from 'ts-morph';
 
-interface InjectReport {
+export type A11yMode = 'block' | 'warn' | 'skip';
+
+interface InjectReportBlockOrWarn {
   specFile: string;
+  mode: 'block' | 'warn';
   injected: number;
   alreadyPresent: number;
   importsAdded: string[];
 }
 
-const SNIPPET_LINES = [
+interface InjectReportSkip {
+  specFile: string;
+  mode: 'skip';
+  skipped: number;
+}
+
+export type InjectReport = InjectReportBlockOrWarn | InjectReportSkip;
+
+const SNIPPET_BLOCK = [
   '  const _axe = await new AxeBuilder({ page }).analyze();',
   '  expect(_axe.violations).toEqual([]);',
 ];
 
-function parseArgs(argv: string[]): { spec: string | null } {
-  let spec: string | null = null;
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--spec') spec = argv[++i] ?? null;
-  }
-  return { spec };
+const SNIPPET_WARN = [
+  '  const _axe = await new AxeBuilder({ page }).analyze();',
+  '  if (_axe.violations.length > 0) {',
+  "    console.warn('[a11y][warn] ' + _axe.violations.length + ' violation(s) — downgrade declarado por SDET');",
+  '  }',
+];
+
+function snippetFor(mode: 'block' | 'warn'): string[] {
+  return mode === 'block' ? SNIPPET_BLOCK : SNIPPET_WARN;
 }
 
-function ensureImports(project: Project, sourceText: string): { text: string; added: string[] } {
+function parseArgs(argv: string[]): {
+  spec: string | null;
+  mode: A11yMode;
+  reason: string | null;
+} {
+  let spec: string | null = null;
+  let mode: A11yMode = 'block';
+  let reason: string | null = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--spec') spec = argv[++i] ?? null;
+    else if (a === '--mode') {
+      const v = argv[++i] ?? '';
+      if (v === 'block' || v === 'warn' || v === 'skip') mode = v;
+      else {
+        process.stderr.write(`[a11y-inject] --mode debe ser block|warn|skip (recibido: ${v})\n`);
+        process.exit(1);
+      }
+    } else if (a === '--reason') reason = argv[++i] ?? null;
+  }
+  return { spec, mode, reason };
+}
+
+function ensureImports(
+  project: Project,
+  sourceText: string,
+  needsExpect: boolean,
+): { text: string; added: string[] } {
   const added: string[] = [];
   const source = project.createSourceFile('virtual.spec.ts', sourceText, { overwrite: true });
 
@@ -67,19 +117,21 @@ function ensureImports(project: Project, sourceText: string): { text: string; ad
     }
   }
 
-  // @playwright/test — expect
-  let pw = source.getImportDeclaration((d) => d.getModuleSpecifierValue() === '@playwright/test');
-  if (!pw) {
-    pw = source.addImportDeclaration({
-      moduleSpecifier: '@playwright/test',
-      namedImports: ['expect'],
-    });
-    added.push('@playwright/test');
-  } else {
-    const declared = new Set(pw.getNamedImports().map((n) => n.getName()));
-    if (!declared.has('expect')) {
-      pw.addNamedImport('expect');
-      if (!added.includes('@playwright/test')) added.push('@playwright/test');
+  // @playwright/test — expect (solo en modo block; modo warn no usa expect)
+  if (needsExpect) {
+    let pw = source.getImportDeclaration((d) => d.getModuleSpecifierValue() === '@playwright/test');
+    if (!pw) {
+      pw = source.addImportDeclaration({
+        moduleSpecifier: '@playwright/test',
+        namedImports: ['expect'],
+      });
+      added.push('@playwright/test');
+    } else {
+      const declared = new Set(pw.getNamedImports().map((n) => n.getName()));
+      if (!declared.has('expect')) {
+        pw.addNamedImport('expect');
+        if (!added.includes('@playwright/test')) added.push('@playwright/test');
+      }
     }
   }
 
@@ -102,14 +154,15 @@ function findTestCalls(project: Project, sourceText: string): CallExpression[] {
   return out;
 }
 
-function injectSnippets(sourceText: string, project: Project): { text: string; injected: number; alreadyPresent: number } {
+function injectSnippets(
+  sourceText: string,
+  project: Project,
+  snippet: string[],
+): { text: string; injected: number; alreadyPresent: number } {
   let working = sourceText;
   let injected = 0;
   let alreadyPresent = 0;
 
-  // iterar hasta que ningún `test()` callback quede sin axe.
-  // Re-parseamos en cada iteración porque las inserciones desplazan offsets.
-  // Salida segura: máximo N iteraciones = número inicial de `test(`.
   const initialCount = findTestCalls(project, working).length;
   for (let iter = 0; iter < initialCount; iter++) {
     const calls = findTestCalls(project, working);
@@ -124,32 +177,77 @@ function injectSnippets(sourceText: string, project: Project): { text: string; i
         continue;
       }
       const body = (callback as ArrowFunction | FunctionExpression).getBody();
-      if (body.getKind() !== SyntaxKind.Block) continue; // arrow sin braces — no soportado
+      if (body.getKind() !== SyntaxKind.Block) continue;
       const bodyText = body.getText();
       if (bodyText.includes('new AxeBuilder(')) {
         alreadyPresent++;
         continue;
       }
-      // inserta justo después de la `{` inicial
       const bodyStart = body.getStart();
       const openBrace = working.indexOf('{', bodyStart);
       if (openBrace === -1) continue;
       const insertAt = openBrace + 1;
-      const snippet = '\n' + SNIPPET_LINES.join('\n') + '\n';
-      working = working.slice(0, insertAt) + snippet + working.slice(insertAt);
+      const snippetText = '\n' + snippet.join('\n') + '\n';
+      working = working.slice(0, insertAt) + snippetText + working.slice(insertAt);
       injected++;
       mutated = true;
-      break; // re-parse y vuelve a empezar
+      break;
     }
     if (!mutated) break;
   }
   return { text: working, injected, alreadyPresent };
 }
 
+/**
+ * Función pura para tests vitest. Devuelve el texto resultante y el
+ * report; no toca el filesystem.
+ */
+export function processContent(
+  sourceText: string,
+  mode: A11yMode,
+): { text: string; report: InjectReport; testCount: number } {
+  const project = new Project({
+    useInMemoryFileSystem: true,
+    skipAddingFilesFromTsConfig: true,
+  });
+
+  const tests = findTestCalls(project, sourceText);
+  const testCount = tests.length;
+
+  if (mode === 'skip') {
+    const report: InjectReport = {
+      specFile: '<inline>',
+      mode: 'skip',
+      skipped: testCount,
+    };
+    return { text: sourceText, report, testCount };
+  }
+
+  const needsExpect = mode === 'block';
+  const importStep = ensureImports(project, sourceText, needsExpect);
+  let content = importStep.text;
+
+  const injectStep = injectSnippets(content, project, snippetFor(mode));
+  content = injectStep.text;
+
+  const report: InjectReport = {
+    specFile: '<inline>',
+    mode,
+    injected: injectStep.injected,
+    alreadyPresent: injectStep.alreadyPresent,
+    importsAdded: importStep.added,
+  };
+  return { text: content, report, testCount };
+}
+
 async function main(): Promise<void> {
-  const { spec } = parseArgs(process.argv.slice(2));
+  const { spec, mode, reason } = parseArgs(process.argv.slice(2));
   if (!spec) {
-    process.stderr.write('[a11y-inject] uso: --spec <path>\n');
+    process.stderr.write('[a11y-inject] uso: --spec <path> [--mode block|warn|skip] [--reason "<texto>"]\n');
+    process.exit(1);
+  }
+  if (mode !== 'block' && (!reason || reason.trim().length === 0)) {
+    process.stderr.write(`[a11y-inject] --reason es obligatorio cuando --mode=${mode}\n`);
     process.exit(1);
   }
 
@@ -161,35 +259,31 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const project = new Project({
-    useInMemoryFileSystem: true,
-    skipAddingFilesFromTsConfig: true,
-  });
+  const { text, report, testCount } = processContent(content, mode);
 
-  const tests = findTestCalls(project, content);
-  if (tests.length === 0) {
+  if (testCount === 0) {
     process.stderr.write(`[a11y-inject] el archivo no contiene ningún test(): ${spec}\n`);
     process.exit(1);
   }
 
-  // 1) imports
-  const importStep = ensureImports(project, content);
-  content = importStep.text;
+  if (mode !== 'skip') {
+    await writeFile(spec, text, 'utf8');
+  }
 
-  // 2) inyección por test
-  const injectStep = injectSnippets(content, project);
-  content = injectStep.text;
-
-  await writeFile(spec, content, 'utf8');
-
-  const report: InjectReport = {
-    specFile: spec,
-    injected: injectStep.injected,
-    alreadyPresent: injectStep.alreadyPresent,
-    importsAdded: importStep.added,
-  };
-  process.stdout.write(JSON.stringify(report) + '\n');
+  const finalReport: InjectReport = { ...report, specFile: spec };
+  process.stdout.write(JSON.stringify(finalReport) + '\n');
   process.exit(0);
 }
 
-void main();
+const isDirectInvocation = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === new URL(`file://${process.argv[1]}`).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectInvocation) {
+  void main();
+}
