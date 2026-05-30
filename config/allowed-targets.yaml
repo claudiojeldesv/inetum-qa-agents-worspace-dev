@@ -1,0 +1,48 @@
+# Allowed targets — compliance pre-flight
+# Reglas en references/compliance-rules.md
+# El hook hooks/pre-flight.ts valida URL contra estos patrones.
+
+version: 1
+mode: greybox                      # greybox | whitebox
+
+# Lista de patrones URL permitidos. Cualquier URL que NO matche un pattern
+# de esta lista será bloqueada por el pre-flight (regla C1).
+patterns:
+  # Demo apps usadas por el MVP
+  - 'https://www.saucedemo.com/*'
+  - 'https://demo.playwright.dev/*'
+  - 'https://todomvc.com/*'
+
+  # Entornos no productivos (cualquier subdominio)
+  - 'https://*.qa.*'
+  - 'https://*.test.*'
+  - 'https://*.int.*'
+  - 'https://*.staging.*'
+  - 'https://*.dev.*'
+  - 'https://*.uat.*'
+
+  # Local
+  - 'http://localhost:*'
+  - 'http://127.0.0.1:*'
+  - 'http://0.0.0.0:*'
+
+# Patrones explícitamente prohibidos (regla C2 — production-like)
+forbidden_patterns:
+  - 'https://www.*.com/login'      # heurística: prod
+  - 'https://prod.*'
+  - 'https://*.production.*'
+
+# Credenciales declaradas como test (no PII real, ver synthetic_fixtures en style-contract)
+allowed_test_credentials:
+  - username: standard_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'
+  - username: locked_out_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'
+  - username: problem_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'
+  - username: performance_glitch_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'

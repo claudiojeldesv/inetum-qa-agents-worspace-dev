@@ -1,235 +1,88 @@
-# TODO — `ia4d-test-pilot` v0.1 (MVP)
+# TODO — `ia4d-qa-automator` v0.1
 
-> Lista ejecutable de tareas derivada de [plan.md](plan.md). Marca cada tarea como `[x]` cuando esté completada con evidencia (output, log, test verde). No marcar antes.
->
-> **v2** — actualizado tras spike + lectura de subagents nativos. Arquitectura: peer `.claude/agents/` + commands `/test-pilot:*`. Sin invocación cruzada entre subagents.
+> Lista ejecutable derivada de [plan.md](plan.md). Estados: `[ ]` pendiente · `[x]` hecho.
 
-## Convenciones
+## Slice 0.5 — Spike completion ✓
 
-- **ID**: `S<slice>-T<task>` (ej. `S2-T3` = Slice 2, tarea 3).
-- **Deps**: tareas bloqueantes.
-- **AC**: acceptance criteria — qué tiene que ser cierto al terminar.
-- **Verify**: comando/acción concreta que prueba el AC.
-- **C**: complejidad relativa (S/M/L).
-- **Status**: `[ ]` pendiente · `[~]` en curso · `[x]` hecho con evidencia · `[!]` bloqueado.
+- `[x]` Medir Planner contra TodoMVC. 36,004 tokens, 47 tool uses, 5.6 min.
+- `[x]` Medir Planner contra SauceDemo. 32,051 tokens, 38 tool uses, 3.4 min.
+- `[x]` Medir Generator (1 test SauceDemo). 30,751 tokens, 25 tool uses, 3.4 min.
+- `[x]` Actualizar [`docs/findings/spike-playwright-mcp.md`](../docs/findings/spike-playwright-mcp.md).
+- `[x]` Cerrar decisiones [PENDIENTE SPIKE].
 
----
+## Slice 1 — Foundation + rebrand
 
-## Fase 0 — Spike Playwright MCP (CERRADO)
+- `[x]` Mover artefactos del spike a `docs/spike/artifacts/`.
+- `[x]` Eliminar archivos del reset (test-pilot SPEC/plan/todo, seed.spec.ts, audit-log.json, output/, node_modules/, directorios vacíos).
+- `[x]` Crear estructura de directorios (`hooks/`, `config/`, `style-contracts/`, `references/`, `demo/saucedemo/`, `tests/{unit,integration,pages}/`, `.claude/commands/qa-automator/`, `src/`).
+- `[x]` `package.json`, `tsconfig.json`, `.eslintrc.json`, `.prettierrc.json`, `vitest.config.ts`, `playwright.config.ts`, `.gitignore` actualizado.
+- `[x]` Limpiar `.claude/settings.local.json` (referencia a `test-pilot:plan`).
+- `[x]` Reescribir `CLAUDE.md`.
+- `[x]` Crear nuevo `SPEC.md`.
+- `[x]` Crear `tasks/plan.md` y `tasks/todo.md`.
 
-### S0 — Validar Playwright Test Agents en Windows
+## Slice 2 — Capa transversal
 
-- `[x]` **S0-T1** Spike manual. Deps: ninguna. C: S
-  - **AC**: documentado experimento donde Playwright Planner v1.56+ se invoca contra app web desde Claude Code en Windows y produce output útil.
-  - **Verify**: archivo `docs/findings/spike-playwright-mcp.md` con verdict GO, mecanismo de activación documentado (`npx playwright init-agents --loop=claude`).
-  - **Notas**: verdict GO confirmado. Algunos TBDs (outputs concretos Planner/Generator, conteo de tokens) pendientes de completar pero no bloquean Fase 1.
+- `[ ]` `references/compliance-rules.md`, `pii-patterns.md`, `audit-log-schema.md`, `style-contract-schema.md`, `composition-rules.md`.
+- `[ ]` `config/allowed-targets.yaml`.
+- `[ ]` `src/audit-log.ts` (writer helper).
+- `[ ]` `hooks/pre-flight.ts`, `pii-post.ts`, `audit-write.ts`, `hooks.json`.
+- `[ ]` `.claude/agents/ia4d-compliance-checker.md`, `pii-scanner.md`, `style-enforcer.md`, `a11y-injector.md`.
+- `[ ]` `tests/unit/pii-detector.test.ts`, `compliance-preflight.test.ts`, `style-enforcer.test.ts`.
 
-> ✓ **Checkpoint Fase 0 superado**. Arrancar Fase 1.
+## Slice 3 — Quality layer
 
----
+- `[ ]` `references/writer-reviewer-protocol.md`.
+- `[ ]` `.claude/agents/ia4d-writer.md`, `ia4d-reviewer.md`, `ia4d-judge.md`.
+- `[ ]` `tests/unit/judge-scoring.test.ts`.
 
-## Fase 1 — Foundation y guardrails
+## Slice 4 — POM determinístico
 
-### S1 — Foundation skeleton + init nativos
+- `[ ]` `src/pom-scaffolder.ts`.
+- `[ ]` `tests/unit/pom-scaffolder.test.ts`.
 
-- `[ ]` **S1-T1** Inicializar repo Node + TS strict + tooling. Deps: S0-T1. C: S
-  - **AC**: `package.json` con scripts `build`, `lint`, `format`, `test`. `tsconfig.json` con `strict: true`. ESLint + Prettier config. Vitest configurado. `@playwright/test@^1.56.0` pinneado.
-  - **Verify**: `npm install && npm test` corre sin errores aunque no haya tests.
-- `[ ]` **S1-T2** Instalar Playwright Test Agents nativos. Deps: S1-T1. C: S
-  - **AC**: `npx playwright init-agents --loop=claude` ejecutado desde la raíz. Verificar que `.claude/agents/playwright-test-planner.md`, `playwright-test-generator.md` y `playwright-test-healer.md` existen.
-  - **Verify**: `ls .claude/agents/` lista los tres archivos. Abrir cualquiera y comprobar que tiene frontmatter Claude Code estándar (`name`, `description`, `tools`, `model`).
-- `[ ]` **S1-T3** Crear estructura peer del SPEC. Deps: S1-T2. C: S
-  - **AC**: directorios creados según SPEC §3: `.claude/agents/` (con nativos ya presentes + stubs vacíos de los `ia4d-*`), `.claude/commands/test-pilot/`, `hooks/`, `config/`, `style-contracts/`, `references/`, `demo/saucedemo/`, `tests/unit/`, `tests/integration/`. README mínimo en root.
-  - **Verify**: `ls .claude/agents/ | wc -l` ≥ 10 archivos esperados (3 nativos + 7 stubs `ia4d-*`).
-- `[ ]` **S1-T4** Command `/test-pilot:healthcheck`. Deps: S1-T3. C: S
-  - **AC**: `.claude/commands/test-pilot/healthcheck.md` con prompt que confirma carga del proyecto (versión, fecha, número de subagents `ia4d-*` detectados).
-  - **Verify**: invocar `/test-pilot:healthcheck` en Claude Code devuelve mensaje "OK" + versión + conteo subagents.
-- `[ ]` **S1-T5** Hook stub + `hooks.json`. Deps: S1-T3. C: S
-  - **AC**: `hooks/hooks.json` registra un hook PostToolUse dummy que solo loggea timestamp. `hooks/audit-write.ts` esqueleto.
-  - **Verify**: ejecutar `/test-pilot:healthcheck` deja entrada en `audit-log.json`.
+## Slice 5 — Módulo S4 Autonomous
 
-### S2 — Compliance pre-flight
+- `[ ]` `src/native-agents.ts` (constantes).
+- `[ ]` `.claude/agents/ia4d-discovery-analyzer.md`, `ia4d-mode-router.md`.
+- `[ ]` `.claude/commands/qa-automator/healthcheck.md`, `autonomous.md`.
 
-- `[ ]` **S2-T1** Documentar reglas. Deps: S1-T5. C: S
-  - **AC**: `references/compliance-rules.md` lista patrones bloqueados (PROD URL patterns, modos no declarados, credenciales no sintéticas).
-  - **Verify**: revisión cruzada con boundaries "Never do" del SPEC.
-- `[ ]` **S2-T2** Schema de `allowed-targets`. Deps: S2-T1. C: S
-  - **AC**: `config/allowed-targets.yaml` con schema documentado. Ejemplo SauceDemo válido.
-  - **Verify**: archivo parseable por `yaml` con campos esperados (`patterns: []`, `mode: greybox|whitebox`).
-- `[ ]` **S2-T3** Implementar `hooks/pre-flight.ts`. Deps: S2-T2. C: M
-  - **AC**: hook PreToolUse que lee `allowed-targets.yaml`, valida URL target, valida credenciales (no PII en seed), retorna exit code 2 si bloquea.
-  - **Verify**: tests unitarios cubren ≥5 casos (URL prod, URL test válida, URL no declarada, credenciales reales detectadas, modo missing).
-- `[ ]` **S2-T4** Registrar hook en `hooks.json`. Deps: S2-T3. C: S
-  - **AC**: PreToolUse hook activo para llamadas a Playwright MCP.
-  - **Verify**: ejecutar comando que invoca MCP con URL prod simulada → bloqueado, audit log lo refleja.
-- `[ ]` **S2-T5** Subagent `ia4d-compliance-checker.md`. Deps: S2-T3. C: S
-  - **AC**: `.claude/agents/ia4d-compliance-checker.md` con frontmatter + prompt que invoca `pre-flight.ts` y produce verdict estructurado.
-  - **Verify**: invocar el subagent vía Task tool con URL + seed devuelve pass/fail + razón.
+## Slice 6 — Flujo SauceDemo verde (parcial)
 
-### S3 — PII scan
+- `[x]` `style-contracts/saucedemo.yaml`.
+- `[x]` `demo/saucedemo/HOW-TO-REPRODUCE.md`.
+- `[ ]` `demo/saucedemo/expected-output/` baseline (limpiado — pendiente repoblado por Slice 6.5).
+- `[~]` Ejecutar flujo end-to-end y validar verde. **Parcial**: la suite resultante corrió verde, pero los artefactos (discovery, POMs, specs) fueron escritos manualmente por el agente principal apoyándose en outputs del spike Slice 0.5. No demuestra orquestación end-to-end.
 
-- `[ ]` **S3-T1** Catálogo de patrones PII. Deps: S1-T5. C: S
-  - **AC**: `references/pii-patterns.md` con regex DNI español, IBAN (mod 97), tarjetas (Luhn), emails de dominio real, teléfonos ES. Casos positivos y negativos.
-  - **Verify**: doc lista casos por cada patrón.
-- `[ ]` **S3-T2** Implementar `hooks/pii-post.ts`. Deps: S3-T1. C: M
-  - **AC**: hook PostToolUse que escanea `.spec.ts` recién escrito, falla con error si encuentra match, escribe audit log. **Adicionalmente**: detecta inserción de `test.fixme()` y bloquea con error específico (ver SPEC Boundaries — Never do).
-  - **Verify**: unit tests con ≥8 casos PII + 1 caso `test.fixme()` introducido por Edit.
-- `[ ]` **S3-T3** Subagent `ia4d-pii-scanner.md`. Deps: S3-T2. C: S
-  - **AC**: `.claude/agents/ia4d-pii-scanner.md` que escanea directorio completo (no solo el archivo recién escrito). Reusable desde `/test-pilot:audit`.
-  - **Verify**: invocar subagent contra carpeta con un test contaminado → reporta archivo y línea.
+## Slice 6.5 — Validar flujo autonomous LLM en vivo (gate real del MVP)
 
-### S4 — Audit log
+Objetivo: ejecutar `/qa-automator:autonomous --url=https://www.saucedemo.com/` pasando por **todos** los subagents LLM y subagents nativos en vivo, sin saltos manuales. Mide wall-clock real, valida la composición Writer↔Reviewer, confirma que la orquestación del command funciona.
 
-- `[ ]` **S4-T1** Schema audit log JSON. Deps: S1-T5. C: S
-  - **AC**: documentado en `references/audit-log-schema.md`. Campos: timestamp, source (hook/command/subagent), action, target, result, metadata.
-  - **Verify**: ejemplo de entrada parseable contra el schema.
-- `[ ]` **S4-T2** Implementación `audit-write.ts` real. Deps: S4-T1. C: S
-  - **AC**: helper TS que append JSON line a `audit-log.json` con schema validado.
-  - **Verify**: unit test escribe N entradas, las re-lee, todas válidas.
-- `[ ]` **S4-T3** Cablear todos los hooks al audit. Deps: S2-T3, S3-T2, S4-T2. C: S
-  - **AC**: cada hook produce entrada audit log.
-  - **Verify**: ejecutar una secuencia y verificar trazabilidad en `audit-log.json`.
+Pasos atómicos:
 
-> **Checkpoint Fase 1**: `npm test` verde. `/test-pilot:healthcheck` responde. Invocación con URL prohibida bloqueada. Invocación con PII detectada bloqueada. Audit log con entradas estructuradas. Sin esto, no avanzar.
+- `[x]` **S6.5-T1** Acto 1 — Comprender. Compliance pre-flight ejecutado programáticamente via `npx tsx hooks/pre-flight.ts` (subagent `ia4d-compliance-checker` no invocable en esta sesión). Verdict `pass`, exit 0, audit log con `action: allow`.
+- `[x]` **S6.5-T2** Acto 2 — Mapear. `playwright-test-planner` nativo invocado vía Task tool contra SauceDemo. 21,602 tokens, 22 tool uses, 99 seg. Plan `saucedemo-slice65-plan.md` con 3 escenarios golden path.
+- `[~]` **S6.5-T3** Acto 2b — Discovery extraído programáticamente (no via `ia4d-discovery-analyzer` que no es invocable). `discovery-report.json` con 6 screens + 3 scenarios_recommended. **Pendiente validación real del subagent en nueva sesión.**
+- `[x]` **S6.5-T4** Acto 3 — `scripts/scaffold-poms.ts` ejecutado. 6 POMs generados en `tests/pages/`.
+- `[~]` **S6.5-T5** Acto 4 — Sustituido por `playwright-test-generator` nativo invocado 3 veces (login, add-to-cart, checkout). 66,163 tokens, 69 tool uses, 305 seg. **Composición Writer↔Reviewer real (LLM-LLM) pendiente nueva sesión.**
+- `[~]` **S6.5-T6** Post-procesado — verificación programática de style + A11y + criterion + PII. Detectó 2 raw selectors en login spec; aplicada corrección manual replicando `ia4d-style-enforcer`. **Subagents pendientes nueva sesión.**
+- `[~]` **S6.5-T7** Acto 5 — Judge programático via `scripts/slice65-judge.ts` aplicando los 7 ejes del SPEC. Scores 0.900-0.964 sobre 3 specs. Ask-first threshold no superado. **Subagent `ia4d-judge` pendiente nueva sesión.**
+- `[x]` **S6.5-T8** `npx playwright test`. **3/3 verdes en 9.7 seg paralelos**. Hallazgo: violación A11y critical real en SauceDemo `/inventory.html` (`select-name`) detectada por axe — el agente cumplió su misión QA.
+- `[x]` **S6.5-T9** Findings actualizado con sección "Slice 6.5 — Validación flujo LLM end-to-end".
+- `[x]` **S6.5-T10** README actualizado con resultados reales.
 
----
+**Resumen Slice 6.5**: validación híbrida concluida. Lo invocable (Planner + Generator nativos) validado en vivo. Lo no invocable (subagents `ia4d-*` creados en esta sesión) sustituido por lógica programática equivalente. Resultado: 3/3 specs verdes contra SauceDemo, ~14 min secuencial / ~7 min proyectado paralelo, judge scores ≥0.9.
 
-## Fase 2 — External integration (discovery + plan)
+**Pendiente cierre v0.1**: nueva sesión Claude Code para invocar la composición LLM-LLM real Writer↔Reviewer.
 
-### S5 — `/test-pilot:discover`
+## Slice 7 — Stubs S1/S2/S3
 
-- `[ ]` **S5-T1** Command `.claude/commands/test-pilot/discover.md`. Deps: Fase 1 completa. C: L
-  - **AC**: command toma `--url=` + opcional `--style=`. Orquesta vía Task tool: (1) `ia4d-compliance-checker` para validar target → (2) `playwright-test-planner` nativo para explorar y producir plan. Cero invocación cruzada subagent-a-subagent.
-  - **Verify**: `/test-pilot:discover --url=https://www.saucedemo.com/` produce plan markdown del Planner + opcionalmente `discovery-report.md` con candidatos priorizados.
-- `[ ]` **S5-T2** Schema de `discovery-report.md`. Deps: S5-T1. C: S
-  - **AC**: documentado en `references/discovery-report-schema.md`. Útil para Slice 6.
-  - **Verify**: el output de S5-T1 coincide con el schema.
+- `[ ]` `.claude/agents/ia4d-code-analyzer.md`, `ia4d-spec-parser.md`, `ia4d-spec-refiner.md` (stubs).
+- `[ ]` `.claude/commands/qa-automator/code-driven.md`, `req-driven.md`, `spec-refiner.md` (stubs).
 
-### S6 — `/test-pilot:plan`
+## Slice 8 — Entrega
 
-- `[ ]` **S6-T1** Subagent `ia4d-fd-to-plan.md`. Deps: S5-T2. C: M
-  - **AC**: `.claude/agents/ia4d-fd-to-plan.md` que parsea FD markdown libre, extrae criterios, los mapea a casos. Si recibe plan del Planner como contexto adicional, lo enriquece en vez de reemplazar.
-  - **Verify**: prompt cubre cómo manejar FDs ambiguos (delega al SDET, no inventa). Common Rationalizations table presente.
-- `[ ]` **S6-T2** Redactar `demo/saucedemo/fd.md`. Deps: ninguna técnica. C: S
-  - **AC**: FD plausible para SauceDemo con ≥10 criterios (login, catálogo, carrito, checkout, errores).
-  - **Verify**: peer review honesto.
-- `[ ]` **S6-T3** Command `.claude/commands/test-pilot/plan.md`. Deps: S6-T1, S6-T2. C: M
-  - **AC**: command toma `--fd=` + opcional `--planner-output=`, invoca `ia4d-fd-to-plan`, produce `test-plan.md` estructurado por criterio.
-  - **Verify**: `/test-pilot:plan --fd=demo/saucedemo/fd.md` produce plan con ≥10 entradas, cada una citando criterio del FD.
-
-> **Checkpoint Fase 2**: discovery y plan funcionan end-to-end contra SauceDemo. Output estructurado. Pre-flight bloquea cuando corresponde.
-
----
-
-## Fase 3 — Generación con guardrails de calidad
-
-### S7 — `/test-pilot:generate`
-
-- `[ ]` **S7-T1** Schema Style Contract YAML. Deps: Fase 2 completa. C: M
-  - **AC**: `references/style-contract-schema.md` documenta campos: POM strategy, naming, locator priority, fixtures, banned APIs, axe-core switch.
-  - **Verify**: schema cubre reglas listadas en SPEC §4.
-- `[ ]` **S7-T2** Redactar `style-contracts/saucedemo.yaml`. Deps: S7-T1. C: S
-  - **AC**: contract concreto cumpliendo schema.
-  - **Verify**: YAML válido + reglas razonables.
-- `[ ]` **S7-T3** Subagent `ia4d-style-enforcer.md`. Deps: S7-T1. C: L
-  - **AC**: `.claude/agents/ia4d-style-enforcer.md` que toma `.spec.ts` recién escrito por el Generator nativo + style-contract.yaml, lo post-procesa para cumplir reglas. AST cuando posible, regex como fallback.
-  - **Verify**: prompt lista reglas que enforce (POM, naming, locators, banned APIs) vs reglas que solo advierte.
-- `[ ]` **S7-T4** Subagent `ia4d-a11y-injector.md`. Deps: S7-T1. C: M
-  - **AC**: `.claude/agents/ia4d-a11y-injector.md` que inyecta `AxeBuilder` check al inicio de cada `test()`. Usa `@axe-core/playwright`.
-  - **Verify**: prompt incluye snippet exacto del código inyectado.
-- `[ ]` **S7-T5** Command `.claude/commands/test-pilot/generate.md`. Deps: S7-T3, S7-T4, S3-T3. C: L
-  - **AC**: command toma `--plan=` + `--style=`, orquesta secuencialmente: `playwright-test-generator` (nativo) → `ia4d-style-enforcer` → `ia4d-a11y-injector` → `ia4d-pii-scanner`. Cada paso lee del archivo escrito por el anterior.
-  - **Verify**: `/test-pilot:generate --plan=test-plan.md --style=style-contracts/saucedemo.yaml` produce ≥10 archivos `.spec.ts`.
-- `[ ]` **S7-T6** Verificación automática de ejecución. Deps: S7-T5. C: M
-  - **AC**: tras la cadena de subagents, el command ejecuta `npx playwright test` en el repo destino y verifica que ≥80% corren verdes. Los que fallan se marcan con confidence 0.
-  - **Verify**: contra SauceDemo, ≥10 tests verdes. Los rojos quedan listados con razón.
-
-> **Checkpoint Fase 3**: tests generados ejecutables y verdes contra SauceDemo. Style Contract aplicado. axe-core presente. Sin esto, no avanzar.
-
----
-
-## Fase 4 — Quality layer
-
-### S8 — LLM-as-judge
-
-- `[ ]` **S8-T1** Prompt template del judge. Deps: Fase 3 completa. C: M
-  - **AC**: prompt riguroso con ejes (assert significativo, selectores estables, sin waits frágiles, sin estado contaminante, cubre criterio). Output JSON estructurado.
-  - **Verify**: test manual contra 3 specs devuelve scores razonables.
-- `[ ]` **S8-T2** Subagent `ia4d-judge.md` + integración en `/test-pilot:generate`. Deps: S8-T1. C: M
-  - **AC**: `.claude/agents/ia4d-judge.md` invokable. Produce `judge-report.json` con entrada por test. Se cablea al final de la cadena de S7-T5.
-  - **Verify**: `judge-report.json` cumple schema. Cada test del Slice 7 tiene su entrada.
-- `[ ]` **S8-T3** Threshold logic. Deps: S8-T2. C: S
-  - **AC**: si >30% de tests tienen score <0.5, el command pausa y pide confirmación al SDET (ask-first).
-  - **Verify**: dataset con muchos bajos → command pausa con mensaje claro.
-
-> **Checkpoint Fase 4**: judge corre, produce scores, threshold se respeta. Sin esto, no avanzar.
-
----
-
-## Fase 5 — Composición y export
-
-### S9 — `/test-pilot:audit`
-
-- `[ ]` **S9-T1** Command `.claude/commands/test-pilot/audit.md`. Deps: Fase 4 completa. C: S
-  - **AC**: command toma `--dir=`, orquesta `ia4d-compliance-checker` + `ia4d-pii-scanner` standalone (no como hooks). Produce verdict pass/fail con detalle.
-  - **Verify**: `/test-pilot:audit --dir=demo/output/` contra directorio limpio → pass. Contra uno contaminado → fail con razón.
-
-### S10 — `/test-pilot:export`
-
-- `[ ]` **S10-T1** Schema `test-catalog.json`. Deps: Fase 4 completa. C: S
-  - **AC**: documentado en `references/test-catalog-schema.md`. Campos: caseId, criterio, test file, judge score, audit verdict, axe violations.
-  - **Verify**: schema cubre lo necesario para futuro Xray connector.
-- `[ ]` **S10-T2** Subagent `ia4d-exporter.md`. Deps: S10-T1. C: S
-  - **AC**: `.claude/agents/ia4d-exporter.md` consolida outputs de slices anteriores en JSON catalog. Deduplica por hash + nombre.
-  - **Verify**: ejemplo generado válido contra schema.
-- `[ ]` **S10-T3** Command `.claude/commands/test-pilot/export.md`. Deps: S10-T2. C: S
-  - **AC**: command invoca exporter, produce `test-catalog.json`.
-  - **Verify**: invocar tras `/test-pilot:full-loop` produce JSON parseable.
-
-### S11 — `/test-pilot:full-loop`
-
-- `[ ]` **S11-T1** Command `.claude/commands/test-pilot/full-loop.md`. Deps: S9-T1, S10-T3. C: M
-  - **AC**: command encadena discover → plan → generate → audit → export. Maneja errores intermedios sin perder estado.
-  - **Verify**: invocación única produce todos los artefactos esperados.
-- `[ ]` **S11-T2** Integration test mockeado. Deps: S11-T1. C: M
-  - **AC**: `tests/integration/full-loop-saucedemo.test.ts` mockea subagents nativos + judge. Verifica que el flujo produce todos los artefactos.
-  - **Verify**: `npm test -- integration` verde.
-
-> **Checkpoint Fase 5**: `/test-pilot:full-loop` funciona end-to-end contra SauceDemo real + integration test verde. Sin esto, no grabar demo.
-
----
-
-## Fase 6 — Demo
-
-### S12 — Rehearsal + grabación
-
-- `[ ]` **S12-T1** Redactar guion de demo. Deps: Fase 5 completa. C: S
-  - **AC**: `demo/saucedemo/script.md` con timing T+0 a T+30, frases clave, qué se ve en pantalla.
-  - **Verify**: peer review de inteligibilidad.
-- `[ ]` **S12-T2** Ensayar ≥5 veces. Deps: S12-T1. C: M
-  - **AC**: cada ensayo deja entrada en `demo/recordings/rehearsals.md`.
-  - **Verify**: último ensayo dentro de 30 min ± 2 min, sin intervención no documentada.
-- `[ ]` **S12-T3** Grabar demo final. Deps: S12-T2. C: M
-  - **AC**: video reproducible (mp4 H.264 o similar). Output del agente commit-eado en `demo/output/`.
-  - **Verify**: visionar el video confirma cumplimiento del Definition of Done del SPEC.
-- `[ ]` **S12-T4** Documentar reproducción. Deps: S12-T3. C: S
-  - **AC**: `demo/saucedemo/HOW-TO-REPRODUCE.md` con pasos exactos.
-  - **Verify**: tercer involucrado reproduce con el doc y reporta dónde se atasca.
-
-> **Checkpoint Fase 6 = Definition of Done del MVP**: demo grabada + reproducible + artefactos commit-eados.
-
----
-
-## Resumen de complejidad
-
-| Fase | Slices | Complejidad agregada |
-|---|---|---|
-| 0 | 1 | S (CERRADO) |
-| 1 | 4 | S+S+S+S+S+M+M+S+S+S+S+S = mix de S/M |
-| 2 | 2 | L+S+M+S+M = mix |
-| 3 | 1 | M+S+L+M+L+M |
-| 4 | 1 | M+M+S |
-| 5 | 3 | S+S+S+S+M+M |
-| 6 | 1 | S+M+M+S |
-
-Slice 5 (`/test-pilot:discover`) y Slice 7 (`/test-pilot:generate`) siguen siendo los más pesados — donde más probable que aparezcan problemas no anticipados de integración con los subagents nativos.
+- `[ ]` `demo/saucedemo/script.md` (guion).
+- `[ ]` `docs/Inetum/Catalogo/ia4d-qa-automator.md` (ficha catálogo formato canónico).
+- `[ ]` `demo/recordings/` (placeholder para video).
+- `[ ]` `README.md` raíz.

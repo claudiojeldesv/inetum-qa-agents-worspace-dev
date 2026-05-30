@@ -1,0 +1,39 @@
+1. La batalla: CLAUDE.md vs. Tu Suite Agéntica
+Un archivo CLAUDE.md es estático. Es como darle el manual de usuario de un avión a un piloto automático. Tu suite de agentes es el piloto automático conectado a la torre de control, al radar meteorológico y a los motores en tiempo real.
+
+Característica	El CLAUDE.md del SDET	Tu Enterprise Context Injector / Suite
+Límite de Contexto	Si el proyecto crece, el CLAUDE.md se llena. Claude empieza a olvidar las reglas del principio para recordar las del final.	Estructura Atómica: Tu software inyecta solo la regla de la póliza específica que se va a probar en ese segundo, manteniendo el contexto limpio.
+Validación de Datos	Le dice a Claude cómo debe ser un dato (ej: "Usa patentes válidas"), pero Claude no tiene una base de datos para ir a buscar una patente real que no esté usada.	Conexión Real (Data State): Tu agente se conecta por API al backend o DB de Stage del cliente, extrae una póliza viva que sirva para esa casuística, y la usa.
+Manejo de Casuísticas	Para probar 50 tipos de pólizas (Auto, Vida, Flotas), tendrías un CLAUDE.md de 5,000 líneas que colapsaría el modelo.	Inyección Dinámica: Tu sistema lee la casuística del caso de prueba y carga la "Skill" o el JSON de esa póliza exacta bajo demanda.
+2. Tus tres armas de valor: Cómo responderle al Jefe de QA
+Cuando el cliente te diga: "¿Qué gano yo con tu agente si ya tengo un CLAUDE.md?", tu respuesta se enfoca en la infraestructura y el flujo de trabajo:
+
+A. Buenas Prácticas Automatizadas (Tú pones la ingeniería, no ellos)
+Para que un CLAUDE.md funcione, el humano tiene que acordarse de mantenerlo actualizado y de estructurar bien el prompt en cada chat.
+
+Tu valor: Tu suite implementa Hooks avanzados de ciclo de vida y abstracciones de Playwright que el cliente no quiere programar. Por ejemplo, tu agente no solo escribe el test; automatiza el patrón Page Object Model de forma estricta, corre el linter en segundo plano vía hooks del sistema, y optimiza los reintentos (retry logic) ante elementos flakies (inestables) basándose en reportes previos de ejecución. Estás vendiendo la arquitectura ya resuelta.
+
+B. Trazabilidad de Requisitos (El puente que la IA sola no hace)
+Claude Code por sí solo no sabe qué es Jira, ni qué es un plan de pruebas en Xray o Zephyr, ni entiende de cobertura de requerimientos regulatorios.
+
+Tu valor: Tu suite agéntica conecta los mundos. Cuando el agente lee un flujo funcional, no solo genera el código en Playwright; crea una matriz de trazabilidad automática: "Este método test_poliza_auto_declinada cubre el criterio de aceptación 3.2 del ticket JIRA-104". Si el test pasa o falla, actualiza el estado en el software de gestión de la empresa. Un CLAUDE.md no puede interactuar con APIs externas de gestión de calidad de esa manera.
+
+C. Confianza (Human-in-the-loop y Orquestación)
+La IA sola en una consola (como Claude Code nativo) puede cometer errores destructivos si se le da demasiada autonomía en proyectos grandes (ej: borrar archivos por error o inventar métodos que no existen en otras clases).
+
+Tu valor: Tu suite provee una capa de gobernanza. Creas un workflow estructurado donde el agente principal coordina subagentes especialistas que se auditan entre sí. El subagente 1 escribe el test, el subagente 2 (el revisor) lo audita simulando que es un SDET estricto antes de ejecutarlo. Esto genera reportes de confianza para el jefe de QA: "El código generado tiene un 98% de adherencia a tus estándares y fue verificado por nuestro agente de regresión".
+
+🚀 Cómo estructurar tu "Proyecto Tipo" para venderlo
+No necesitas conocer el proyecto del cliente de antemano. Lo que tú vas a vender es un Framework Base Agéntico (un Boilerplate Inteligente) que ellos instalan en su repositorio en 2 minutos.
+
+Tu producto instala una carpeta estructurada en el repositorio del cliente:
+
+mi-proyecto-qa/
+├── .claude/
+│   ├── skills/         <-- Tus skills atómicas optimizadas (las que tú diseñaste)
+│   └── agents/         <-- Tus subagentes (El Escritor, El Healer, El Auditor)
+└── qa-platform/
+    ├── enterprise-injector/ <-- El motor que conecta sus datos con los agentes
+    └── tracking/            <-- El motor de trazabilidad a Jira/Reportes
+El argumento de cierre definitivo:
+"Señor Jefe de QA, un CLAUDE.md es solo una hoja de papel con instrucciones para la IA. Nuestra suite es la fábrica automatizada. Con tu CLAUDE.md, tu equipo todavía tiene que abrir la consola, formular el prompt correcto, buscar los datos de la póliza a mano en la base de datos, correr el test, revisar por qué falló y subirlo a Git. Con nuestra suite, el SDET solo arrastra el flujo funcional; nuestros agentes buscan la póliza real, escriben el Page Object perfecto, auto-corrigen los fallos de sincronización y te entregan el Pull Request listo para producción. No te vendemos prompts, te vendemos el proceso automatizado de punta a punta."

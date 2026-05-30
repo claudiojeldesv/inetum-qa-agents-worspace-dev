@@ -1,14 +1,36 @@
-# Generated outputs (test cases, uncertainty reports from agent runs)
-/output/
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Personal Claude Code settings (machine-local, not versioned)
+# Outputs & runtime
+/output/
+/playwright-report/
+/test-results/
+/.playwright-mcp/
+
+# Local settings (machine-specific)
 .claude/settings.local.json
 
 # Upstream reference clone (cloned separately as read-only)
 /agent-skills/
 
-# Python virtualenv local del validador (Bici en adelante)
+# Python venv (validator stub)
 /validator/.venv/
 **/__pycache__/
 *.pyc
 .pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Audit log local runs (recreated per session)
+/audit-log.json
+/judge-report.json
+/review-feedback.json
+/discovery-report.json
+
+# Archived pre-MVP / referential content (relocated, not deleted)
+/tmp/

@@ -1,131 +1,161 @@
-# SPEC — `ia4d-test-pilot` v0.1 (MVP)
+# SPEC — `ia4d-qa-automator` v0.1 (MVP)
 
-> Documento spec del primer agente de la categoría QA del catálogo `ia4d-*`. Alcance: solo `ia4d-test-pilot`. Los demás agentes propuestos (`test-explorer`, `test-healer`, etc.) tienen specs propios cuando lleguen.
+> Documento spec del primer agente QA del catálogo `ia4d-*`. Alcance: solo `qa-automator`. Los demás agentes de la cartera (`test-explorer`, `test-healer-pro`, etc.) tienen specs propios cuando lleguen. Reset desde `ia4d-test-pilot` (descartado por pivot consensuado con visión Gemini, ver [`conversacion-gemini.txt`](conversacion-gemini.txt) y plan aprobado).
 
 ## 1. Objective
 
-`ia4d-test-pilot` es un agente Claude Code que genera tests E2E en Playwright TypeScript a partir de una app desplegada accesible vía URL, aplicando convenciones declaradas por el SDET, gates de compliance y verificación de accesibilidad, sin que el SDET haya escrito código previo.
+`ia4d-qa-automator` es un agente Claude Code que genera tests E2E en Playwright TypeScript con marco QA propio, aplicando convenciones declaradas por el SDET, gates de compliance, verificación de accesibilidad y un Quality layer Writer+Reviewer+Judge que materializa "QA es juez independiente".
 
-El agente envuelve los Playwright Test Agents nativos (Planner + Generator de v1.56+) vía MCP y añade:
-- enforcement de un Style Contract declarativo del proyecto cliente,
-- pre-flight de compliance que bloquea targets/datos no declarados como sintéticos,
-- post-procesamiento que escanea PII en el output,
-- inyección automática de assertions axe-core (WCAG 2.1 AA),
-- revisión por LLM-as-judge previa al SDET, con confidence scoring,
-- audit log estructurado JSON append-only,
-- export del catálogo de casos a JSON genérico (Test Management connector queda fuera del MVP).
+### Argumento estructural
+
+`ia4d-testing-core` es la herramienta del dev que escribe tests sobre su propio código (whitebox, fase 07 estricta, dev-céntrico). **`ia4d-qa-automator` es la herramienta del juez QA independiente** (greybox o black-box, multi-modo según input, transversal por disciplina QA). Misión incompatible, no perspectiva distinta. Dev no puede ser juez y parte. Las herramientas QA tienen **otra forma de operar**.
+
+### Cuatro módulos de entrada
+
+| Módulo | Entrada | MVP v0.1 | Subagent driver |
+|---|---|---|---|
+| **S1 Code-driven** | Repo frontend (React/Vue/HTML) | Stub | `ia4d-code-analyzer` |
+| **S2 Req-driven** | Gherkin / OpenAPI | Stub | `ia4d-spec-parser` |
+| **S3 Spec-refiner** | DF flojo / PDF / Jira | Stub | `ia4d-spec-refiner` |
+| **S4 Autonomous** | Solo URL | **Funcional** | `playwright-test-planner` (nativo) + `ia4d-discovery-analyzer` |
+
+### Marco QA propio (5 actos)
+
+| Acto | Función |
+|---|---|
+| **Comprender** | Determinar modo (S1/S2/S3/S4) y validar target |
+| **Mapear** | Discovery + criticidad + riesgo |
+| **Estructurar** | POM determinístico, Style Contract, fixtures, datos sintéticos |
+| **Materializar** | Writer genera tests; capa transversal enforce |
+| **Juzgar** | Reviewer audita, Judge puntúa, SDET sign-off |
+
+### Capa transversal (siempre activa, todos los modos)
+
+- **Compliance pre-flight** (`PreToolUse` hook + `ia4d-compliance-checker`): valida URL contra `allowed-targets.yaml` y modo declarado. Sin override.
+- **PII scanner** (`PostToolUse` hook + `ia4d-pii-scanner`): regex banca-ES (DNI/IBAN/Luhn/teléfono/email) sobre cada `.spec.ts` escrito. Sin override. Detecta también inserción no autorizada de `test.fixme()` por el Healer.
+- **Style Contract enforcer** (`ia4d-style-enforcer`): post-procesa al output del Generator nativo según `style-contract.yaml`.
+- **A11y injector** (`ia4d-a11y-injector`): inyecta `AxeBuilder({ page }).analyze()` al inicio de cada `test()`.
+- **Audit log** (`audit-write.ts` hook): JSON line append-only por cada llamada LLM, archivo escrito, decisión Reviewer/Judge.
+
+### Quality layer (Writer + Reviewer + Judge)
+
+```
+Writer → produce .spec.ts → Reviewer audita → feedback al Writer
+  ↑                                              │
+  └──────────── itera (max N=2 rondas) ─────────┘
+                          │
+                          ▼ (Reviewer aprueba o N agotado)
+                   Judge → score numérico 0-1 + reasoning
+```
+
+El Writer y el Reviewer se invocan **directamente** vía Task tool (excepción nombrada a la regla "subagents no se invocan entre sí"). El Judge se invoca al final desde el command. Auditabilidad por `audit-log.json`.
 
 ### Target users
 
 | Rol | Tipo | Cómo lo usa |
 |---|---|---|
-| SDET (consumidor primario) | Usuario directo | Invoca commands del agente, revisa output, refina seed si hace falta |
-| QA Manager (decisor cliente) | Usuario indirecto | Ve la demo, valida fit con su práctica QA, decide piloto |
+| SDET (consumidor primario) | Usuario directo | Invoca commands del agente, revisa output del Reviewer/Judge, refina seed si hace falta |
+| QA Manager (decisor cliente) | Usuario indirecto | Ve el video del demo, valida fit con su práctica QA, decide piloto |
 | I+D Inetum (decisor catálogo) | Usuario indirecto | Evalúa cumplimiento del patrón canónico para admisión a la pestaña Documentación y Calidad |
 
 ### Definition of Done del MVP
 
-Demo grabada de 30 minutos donde un SDET sin contexto previo del proyecto:
+Video reproducible y bundle de ejemplos donde:
 
-1. Lanza el agente contra `https://www.saucedemo.com/`
-2. El Planner descubre la app autónomamente y propone un seed candidato
-3. SDET marca el seed como anchor
-4. Agente genera ≥10 tests Playwright TS materializados, con axe-core baked-in, siguiendo el Style Contract declarado
-5. Compliance pre-flight pasa, PII detector pasa
-6. LLM-as-judge clasifica los tests por confianza
-7. Audit log JSON generado
-8. Catálogo de casos exportado como JSON
-9. Suite Playwright corre verde en local
+1. Se ejecuta `/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml`.
+2. El sistema orquesta los 5 actos contra SauceDemo.
+3. Se generan ≥3 archivos `.spec.ts` cubriendo el flujo golden path (login + add to cart + checkout).
+4. Cada test incluye `AxeBuilder` check, POM aplicado, Style Contract enforce, citación del criterio.
+5. `npx playwright test` corre los tres verdes.
+6. Compliance pre-flight pasa, PII scanner pasa.
+7. Writer↔Reviewer protocol ejecutado (1-2 iteraciones por test), `review-feedback.json` poblado.
+8. Judge produce `judge-report.json` con score por test.
+9. Audit log JSON estructurado.
+10. Wall-clock total **≤8 minutos con paralelismo** (gate informado por Slice 0.5 mediciones).
+11. Ficha catálogo Inetum redactada en formato canónico ①-⑦.
 
 No incluye admisión formal al catálogo Inetum ni piloto con cliente real. Eso es post-MVP.
 
-### Non-goals MVP
+### Non-goals MVP v0.1
 
-- Integración formal con `ia4d-functional-design-expert` / `ia4d-technical-design-expert` (entra FD/plan en markdown libre).
-- Connectors a Xray, Zephyr, TestRail (solo JSON genérico).
+- Módulos S1/S2/S3 funcionales (stubs documentados, roadmap explícito).
+- Integración formal con `ia4d-functional-design-expert` / `ia4d-technical-design-expert` (entra FD/plan en markdown libre o solo URL).
+- Connectors a Xray, Zephyr, TestRail, Jira (deferido a v0.2).
 - Knowledge graph SQLite con traceability persistida (deferido a v0.2).
 - REST Assured Java / API tests / mobile.
-- Modo whitebox (asume greybox: agente no lee código fuente del producto).
-- `test-explorer` / `test-healer` Inetum (otros agentes futuros — el Healer nativo de Playwright SÍ se usa en la operación general; lo que es non-goal es nuestro agente Inetum dedicado a healing).
-- Branch + PR automation en repos existentes.
-- Reimplementación de exploración / generación / healing — se delega en `playwright-test-planner`, `playwright-test-generator`, `playwright-test-healer` (subagents nativos de Playwright v1.56+ instalados vía `npx playwright init-agents --loop=claude`). Nuestros subagents `ia4d-*` los rodean, no los sustituyen.
+- Modo whitebox total (S1 implementado entra en v0.3).
+- Enterprise Context Injector con datos vivos del Stage del cliente (v0.4 con asterisco "no genérico").
+- Branch + PR automation en repos existentes (v0.2).
+- Reimplementación de exploración / generación / healing — se delega en `playwright-test-{planner,generator,healer}` nativos.
 
 ## 2. Commands
 
-El proyecto expone seis slash commands bajo el namespace `/test-pilot:*`. Cada command es un orquestador: encadena subagents nativos de Playwright (Planner, Generator, Healer) con subagents nuestros (`ia4d-*`) vía invocaciones explícitas con la Task tool y handoffs por archivos. **Ningún subagent invoca a otro subagent directamente** — la orquestación vive exclusivamente en los commands (alineado con patrón canónico Microsoft + agent-skills).
+El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 
-| Comando | Responsabilidad | Subagents implicados (en orden) | Output |
+| Comando | Estado MVP | Responsabilidad | Output |
 |---|---|---|---|
-| `/test-pilot:discover` | Compliance gate + invoca Planner contra URL. Produce mapa de pantallas + candidatos de seed/happy path | `ia4d-compliance-checker` → `playwright-test-planner` | Plan markdown del Planner + `discovery-report.md` |
-| `/test-pilot:plan` | Toma un FD en markdown libre y, opcionalmente, el plan del Planner. Produce plan enriquecido por criterio del FD | `ia4d-fd-to-plan` | `test-plan.md` estructurado por criterio |
-| `/test-pilot:generate` | Invoca Generator. Post-procesa con style enforce + a11y + PII + judge | `playwright-test-generator` → `ia4d-style-enforcer` → `ia4d-a11y-injector` → `ia4d-pii-scanner` → `ia4d-judge` | N x `*.spec.ts` + `judge-report.json` |
-| `/test-pilot:audit` | Compliance pre-flight + PII scan standalone sobre un directorio dado | `ia4d-compliance-checker` + `ia4d-pii-scanner` | `audit-log.json` (append) + verdict pass/fail |
-| `/test-pilot:export` | Serializa el catálogo de casos a JSON genérico | `ia4d-exporter` | `test-catalog.json` |
-| `/test-pilot:full-loop` | Encadena discover → plan → generate → audit → export | Todos | Todos los anteriores |
+| `/qa-automator:healthcheck` | Funcional | Smoke test: versión, subagents detectados, MCP server status | Mensaje de estado |
+| `/qa-automator:autonomous` | Funcional | Módulo S4. Toma `--url=` + `--style=`. Orquesta los 5 actos | discovery-report.json + plan.md + N `.spec.ts` + judge-report.json + review-feedback.json + audit-log.json |
+| `/qa-automator:code-driven` | Stub v0.1 | Módulo S1 (v0.3) | Mensaje "stub v0.1, planificado v0.3" |
+| `/qa-automator:req-driven` | Stub v0.1 | Módulo S2 (v0.3) | Mensaje "stub v0.1, planificado v0.3" |
+| `/qa-automator:spec-refiner` | Stub v0.1 | Módulo S3 (v0.2) | Mensaje "stub v0.1, planificado v0.2" |
 
-**Convención de handoff**: cada subagent escribe su output en una ruta predecible (declarada en su prompt) que el siguiente subagent lee. Cero acoplamiento por código — solo por contratos de archivo.
+**Convención de orquestación**: cada command es orquestador. Encadena subagents nativos de Playwright (Planner, Generator, Healer) con subagents nuestros (`ia4d-*`) vía invocaciones explícitas con la Task tool y handoffs por archivos. La regla "ningún subagent invoca a otro" está activa por defecto; la **excepción nombrada y documentada** es el par Writer↔Reviewer (composición explícita del Quality layer).
 
 ## 3. Project structure
 
-Arquitectura peer: nuestros subagents `ia4d-*` viven en `.claude/agents/` al mismo nivel que los nativos de Playwright. La orquestación está en `.claude/commands/test-pilot/`. Cero acoplamiento a internals de Microsoft — todo handoff es por archivos.
-
 ```
 /
-├── CLAUDE.md                                # convenciones del proyecto (eager-load)
-├── SPEC.md                                  # este documento
-├── README.md                                # entrada humana
+├── CLAUDE.md
+├── SPEC.md
+├── README.md
+├── package.json  tsconfig.json  playwright.config.ts  vitest.config.ts
+├── .eslintrc.json  .prettierrc.json
 ├── .claude/
 │   ├── agents/
-│   │   ├── playwright-test-planner.md       # nativo (Microsoft) — viene de init-agents
-│   │   ├── playwright-test-generator.md     # nativo (Microsoft)
-│   │   ├── playwright-test-healer.md        # nativo (Microsoft)
-│   │   ├── ia4d-fd-to-plan.md               # nuestro: enriquece plan con criterios del FD
-│   │   ├── ia4d-style-enforcer.md           # nuestro: reformatea .spec.ts al Style Contract
-│   │   ├── ia4d-a11y-injector.md            # nuestro: inyecta axe-core en cada test
-│   │   ├── ia4d-compliance-checker.md       # nuestro: gate URL/seed/credenciales
-│   │   ├── ia4d-pii-scanner.md              # nuestro: escanea PII en .spec.ts
-│   │   ├── ia4d-judge.md                    # nuestro: LLM-as-judge sobre calidad del código
-│   │   └── ia4d-exporter.md                 # nuestro: produce JSON catalog
-│   └── commands/
-│       └── test-pilot/
-│           ├── discover.md                  # orquesta compliance + planner
-│           ├── plan.md                      # invoca fd-to-plan
-│           ├── generate.md                  # orquesta generator + post-procesos
-│           ├── audit.md                     # invoca compliance + pii-scanner
-│           ├── export.md                    # invoca exporter
-│           └── full-loop.md                 # encadena todos
+│   │   ├── playwright-test-{planner,generator,healer}.md              (nativos Microsoft)
+│   │   ├── ia4d-{compliance-checker,pii-scanner,style-enforcer,
+│   │   │        a11y-injector}.md                                      (capa transversal)
+│   │   ├── ia4d-{writer,reviewer,judge}.md                             (Quality layer)
+│   │   ├── ia4d-{discovery-analyzer,mode-router}.md                    (S4 + dispatcher)
+│   │   └── ia4d-{code-analyzer,spec-parser,spec-refiner}.md            (stubs S1/S2/S3)
+│   ├── commands/qa-automator/
+│   │   ├── healthcheck.md  autonomous.md
+│   │   └── code-driven.md  req-driven.md  spec-refiner.md              (stubs)
+│   └── settings.local.json
+├── src/
+│   ├── pom-scaffolder.ts                       (POM esqueleto determinístico)
+│   ├── native-agents.ts                        (constantes con nombres de los nativos)
+│   └── audit-log.ts                            (helper writer del audit log)
 ├── hooks/
-│   ├── pre-flight.ts                        # PreToolUse: compliance gate transversal
-│   ├── pii-post.ts                          # PostToolUse: PII scan tras escritura
-│   ├── audit-write.ts                       # append-only JSON audit log
-│   └── hooks.json                           # registro de hooks
+│   ├── pre-flight.ts  pii-post.ts  audit-write.ts
+│   └── hooks.json
 ├── config/
-│   └── allowed-targets.yaml                 # patrones URL permitidos + modo
+│   └── allowed-targets.yaml
 ├── style-contracts/
-│   └── saucedemo.yaml                       # Style Contract para el demo
+│   └── saucedemo.yaml
 ├── references/
-│   ├── compliance-rules.md                  # qué bloquea pre-flight
-│   ├── pii-patterns.md                      # regex + Luhn (DNI/IBAN/cards/email/teléfono ES)
-│   ├── rationalizations.md                  # Common Rationalizations catalog (compartido por skills)
-│   ├── style-contract-schema.md             # schema YAML del Style Contract
-│   ├── audit-log-schema.md                  # schema JSON del audit log
-│   └── integration-patterns.md              # cómo nuestros subagents se integran con los nativos
+│   ├── compliance-rules.md  pii-patterns.md  audit-log-schema.md
+│   ├── style-contract-schema.md  composition-rules.md
+│   └── writer-reviewer-protocol.md
 ├── demo/
-│   ├── saucedemo/
-│   │   ├── fd.md                            # FD manual para el demo
-│   │   ├── style-contract.yaml
-│   │   ├── seed.spec.ts                     # seed inicial (o producido por Planner)
-│   │   ├── HOW-TO-REPRODUCE.md
-│   │   ├── script.md                        # guion del demo
-│   │   └── expected-output/                 # baseline para verificar
-│   └── recordings/                          # vídeos del demo
-└── tests/                                   # tests del PROPIO agente (no del output)
-    ├── unit/
-    │   ├── pii-detector.test.ts
-    │   ├── style-enforcer.test.ts
-    │   └── compliance-preflight.test.ts
-    └── integration/
-        └── full-loop-saucedemo.test.ts
+│   └── saucedemo/
+│       ├── HOW-TO-REPRODUCE.md  script.md
+│       └── expected-output/
+├── tests/
+│   ├── unit/                                   (vitest)
+│   ├── integration/
+│   ├── e2e/                                    (Playwright, generados por el agente)
+│   └── pages/                                  (POM)
+├── docs/
+│   ├── findings/spike-playwright-mcp.md        (mediciones Slice 0.5)
+│   ├── spike/spike-protocol.md
+│   ├── spike/artifacts/                        (outputs del Slice 0.5)
+│   └── Inetum/Catalogo/
+│       ├── ia4d-qa-automator.md                (ficha canónica del catálogo)
+│       └── ...                                  (otras fichas existentes)
+└── tasks/
+    ├── plan.md  todo.md                        (referencias al plan aprobado)
 ```
 
 **Nota sobre `.claude/agents/`**: el directorio mezcla deliberadamente subagents nativos de Microsoft con los nuestros. No los aislamos en subcarpetas porque el formato Claude Code los descubre todos planos. La convención `ia4d-*` los distingue visualmente.
@@ -135,116 +165,121 @@ Arquitectura peer: nuestros subagents `ia4d-*` viven en `.claude/agents/` al mis
 ### Para el código del agente
 
 - **TypeScript** estricto (`tsconfig.json` con `strict: true`).
-- **Node** 20 LTS mínimo.
-- **Formatter**: Prettier con config por defecto. Sin discusiones.
-- **Linter**: ESLint con `@typescript-eslint/recommended` + `eslint-plugin-import` para orden.
-- **Naming**:
-  - Archivos: `kebab-case.ts`
-  - Símbolos: `camelCase` para variables/funciones, `PascalCase` para clases/types/interfaces.
-  - Skills/agents/commands: `kebab-case` consistente con agent-skills.
-- **Comentarios**: solo cuando el *por qué* no es obvio (convención global del proyecto, no de este SPEC).
-- **Imports**: orden estándar — node builtins, deps externas, internas relativas, separados por línea en blanco.
+- **Node** 20 LTS mínimo (probado con 24.16).
+- **Formatter**: Prettier. Sin discusiones.
+- **Linter**: ESLint con `@typescript-eslint/recommended`.
+- **Naming**: kebab-case archivos, camelCase variables/funciones, PascalCase clases/types/interfaces.
+- **Comentarios**: solo cuando el *por qué* no es obvio.
+- **Imports**: node builtins, deps externas, internas relativas, separados por línea en blanco.
 
 ### Para los tests generados por el agente (output al SDET)
 
 Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contracts/saucedemo.yaml` con estos defaults:
 
 - POM en `tests/pages/<feature>.page.ts` con clase `*Page`.
-- Locators con prioridad: `getByRole` > `getByTestId` > `getByLabel` > `getByText`. Nunca CSS bruto sin justificación.
+- Locators con prioridad: `getByTestId` (SauceDemo tiene `data-test` en todo) > `getByRole` > `getByLabel` > `getByText`. Nunca CSS bruto sin justificación.
 - Fixtures Playwright en `tests/fixtures/`.
 - Naming de specs: `<feature>.<scenario>.spec.ts`.
-- Asserts: usar `expect(locator).toX()` semánticos, nunca `assert.equal(text)`.
+- Asserts: `expect(locator).toX()` semánticos, nunca `assert.equal(text)`.
 - axe-core injection: cada `test()` incluye `expect(await new AxeBuilder({ page }).analyze()).toHaveNoViolations()` antes del flujo.
 - Sin `page.waitForTimeout()`. Solo waits semánticos.
+- Cita del criterio (RF-ID o texto del plan) en JSDoc del `test()`.
 
 ## 5. Testing strategy
 
-### Tests del propio agente (cómo verificamos que funciona)
+### Tests del propio agente
 
-**Unit tests** (Vitest):
-- `pii-detector`: regex DNI español, IBAN (mod 97), tarjetas (Luhn), emails de dominios reales. Casos positivos y negativos.
-- `style-enforcer`: input `.spec.ts` violando reglas → output corregido. Reglas: locator strategy, naming, banned APIs.
-- `compliance-preflight`: matriz de combinaciones (URL prod / staging / test, credenciales sintéticas / reales, modo declarado) → verdict bloqueo / pass.
-- `llm-judge`: prompt template + mocks de respuesta LLM → score normalizado 0-1.
+**Unit tests** (vitest):
+- `pii-detector`: regex DNI español, IBAN (mod 97), tarjetas (Luhn), emails de dominios reales. Positivos y negativos.
+- `style-enforcer`: input `.spec.ts` violando reglas → output corregido.
+- `compliance-preflight`: matriz URL prod/staging/test × credenciales sintéticas/reales × modo declarado → verdict.
+- `judge-scoring`: prompt template + mocks → score 0-1 estructurado.
+- `pom-scaffolder`: discovery JSON sintético → archivos `*.page.ts` válidos TypeScript.
 
 **Integration tests**:
-- `full-loop-saucedemo`: levanta el agente con `demo/saucedemo/`, ejecuta `/full-loop`, verifica que produce ≥10 tests + audit log + JSON catalog. No requiere LLM real (mockeado).
+- `full-loop-saucedemo`: orquestación completa con LLM mockeado. Verifica los artefactos.
 
-**E2E (gate del Definition of Done)**:
-- Reproducción del demo de 30 minutos contra `saucedemo.com`. Suite Playwright generada corre verde. Audit log y JSON catalog presentes.
-- Sin coverage threshold formal en MVP — gate es "demo reproducible".
-
-### Tests generados por el agente (output al SDET)
-
-- Cada `.spec.ts` incluye axe-core check obligatorio.
-- Cada test cubre exactamente un criterio del FD (cita el criterio en JSDoc).
-- Tests independientes (cero estado compartido entre `test()` blocks).
-- Cleanup en `afterEach` cuando crean estado.
-- Selectores semánticos (ver Code style).
+**E2E** (gate del DoD):
+- Demo SauceDemo end-to-end. Suite Playwright generada corre verde. Wall-clock ≤8 min con paralelismo.
 
 ## 6. Boundaries
-
-Tres listas claras: lo que el agente hace siempre, lo que pregunta antes de hacer, lo que no hace jamás.
 
 ### Always do
 
 - Ejecutar el hook PreToolUse `pre-flight.ts` antes de cualquier invocación a Playwright Planner o Generator.
 - Ejecutar el hook PostToolUse `pii-post.ts` sobre cada `.spec.ts` generado.
-- Escribir entrada al audit log JSON por cada: llamada LLM, archivo modificado, decisión del judge, ejecución de hook.
-- Aplicar el Style Contract declarado en `style-contract.yaml`. Si no hay contrato, usar el default explícito del agente y dejarlo loggeado.
-- Inyectar `axe-core` check en cada test generado. No opcional.
+- Escribir entrada al `audit-log.json` por cada: llamada LLM, archivo modificado, decisión Reviewer/Judge, ejecución de hook.
+- Aplicar el Style Contract declarado. Si no hay, default del agente + log explicito.
+- Inyectar `AxeBuilder` check en cada test generado. No opcional.
+- Generar POM esqueleto por código determinístico (`src/pom-scaffolder.ts`) antes de invocar Writer.
+- Citar el criterio fuente del plan (o `discovery-report.json` en S4) en el JSDoc de cada test.
+- Generar `judge-report.json` y `review-feedback.json` antes de exponer el código al SDET.
 - Verificar que cada test generado corre verde localmente antes de marcarlo "materializado".
-- Citar el criterio fuente del FD (RF-ID o texto) en el JSDoc de cada test.
-- Generar `judge-report.json` con score y razonamiento por cada test antes de exponerlo al SDET.
-- Operar en modo greybox: nunca leer archivos fuera del repo del SDET ni del directorio del agente.
+- Operar en greybox por defecto: nunca leer archivos fuera del repo destino ni del directorio del agente.
 
 ### Ask first
 
-- Modificar tests existentes en el repo destino (caso clean-slate de MVP esto debería ser raro, pero el guardrail aplica).
-- Targetear una URL que no esté en la lista declarada `allowed-targets` del config.
-- Generar tests sin FD/plan estructurado (apoyándose solo en la exploración del Planner).
-- Sobreescribir cualquier archivo en `tests/` del repo destino.
-- Continuar cuando el LLM-as-judge clasifica >30% de los tests con score <0.5 (señal de bajo quality batch).
-- Continuar cuando el compliance pre-flight devuelve warnings (pasa pero alerta).
-- Exportar el catálogo si algún test no ha corrido verde localmente.
+- Modificar tests existentes en el repo destino.
+- Targetear una URL no declarada en `allowed-targets.yaml`.
+- Sobreescribir archivos en `tests/` del repo destino.
+- Continuar cuando el Judge clasifica >30% de tests con score <0.5.
+- Continuar cuando el Reviewer agotó N=2 rondas sin aprobar.
+- Continuar cuando compliance pre-flight devuelve warnings.
+- Exportar el catálogo si algún test no ha corrido verde.
 
 ### Never do
 
-- Ejecutar el agente contra URLs que coincidan con patrones declarados como `production` en config. Lista mínima inicial: cualquier URL sin prefijo `qa.`, `test.`, `int.`, `staging.`, `dev.`, `localhost`, o `*.saucedemo.com` durante el demo.
-- Usar PII real como dato de prueba. Si el PII detector encuentra coincidencia en seed o test, abort con error.
-- Saltarse el compliance pre-flight gate por cualquier motivo. No hay flag de override.
+- Ejecutar contra URLs declaradas `production` en config (sin prefijo `qa.`, `test.`, `int.`, `staging.`, `dev.`, `localhost`, ni dominios SauceDemo declarados).
+- Usar PII real como dato de prueba. Abort con error si PII detector encuentra match.
+- Saltarse el compliance pre-flight gate. No hay flag de override.
 - Saltarse el PII detector. No hay flag de override.
-- Commit auto-generado a `main` o branches protegidas. El agente no tiene credenciales de git push en MVP.
-- Desactivar inyección de `axe-core` en builds del demo.
-- Procesar artefactos (FD, seed, datos) de entornos declarados como `prod` o `pre-prod` en config.
-- **Invocación cruzada entre subagents**. Ningún subagent (nativo o `ia4d-*`) llama a otro directamente. La orquestación vive exclusivamente en los commands `/test-pilot:*`. Si un subagent necesita output de otro, lo lee del archivo de handoff documentado en su prompt.
-- Generar tests sin entrada explícita del SDET a un `/test-pilot:discover` previo. El agente nunca arranca generación autónoma.
-- **Permitir que `playwright-test-healer` marque tests con `test.fixme()` sin aprobación humana explícita**. En banca regulada el silenciamiento de un test es decisión documentada y firmada, no automática. El hook `pii-post.ts` (o equivalente) debe interceptar Edits del Healer que introduzcan `test.fixme()` y bloquear con error pidiendo intervención SDET.
+- Commit auto-generado a `main` o branches protegidas.
+- Desactivar inyección de `AxeBuilder` en builds del demo.
+- Procesar artefactos de entornos `prod` o `pre-prod`.
+- **Invocación cruzada entre subagents** salvo la excepción nombrada Writer↔Reviewer (documentada en `references/composition-rules.md`).
+- Generar tests sin entrada explícita del SDET (URL o FD/plan).
+- **Permitir que `playwright-test-healer` marque tests con `test.fixme()` sin aprobación humana explícita**. Hook `pii-post.ts` intercepta Edits del Healer y bloquea.
+- Saltarse el Quality layer Writer+Reviewer+Judge en MVP. Los tres están activos por design.
+
+## 7. Roadmap por versiones
+
+| Versión | Foco | Módulos activos | Highlights |
+|---|---|---|---|
+| **v0.1 (MVP)** | Foundation + S4 + capa transversal + Quality layer | S4 | Demo SauceDemo verde, video, bundle, ficha catálogo |
+| **v0.2** | S3 (Spec-refiner) + TMS connectors | S3 + S4 | Jira/Xray sync, FD flojo de input, knowledge graph SQLite |
+| **v0.3** | S1 (Code-driven) + S2 (Req-driven) | Todos los módulos | Cobertura completa de entradas SDET, AST analyzers React/Vue |
+| **v0.4** | Context Injector* + PR automation | Todo + Injector opcional | Endgame visión Gemini. Asterisco: el Injector **rompe genericidad** y requiere adaptadores por cliente. No es feature del catálogo, es engagement aparte. |
 
 ---
 
-## Anexo: Decisiones cerradas en entrevista
+## Anexo: Decisiones cerradas
 
 | Pregunta | Respuesta |
 |---|---|
-| Scope SPEC | Solo `ia4d-test-pilot` |
-| Target app demo | SauceDemo (saucedemo.com) |
-| DoD MVP | Demo grabada 30 min funcionando end-to-end |
-| Integración FDS/TD | FD manual en markdown libre. No dependencia con `ia4d-functional-design-expert` en MVP |
-| Estrategia anchor | Playwright Planner descubre seed automáticamente |
-| Bundles de features MUST-HAVE | Compliance core (pre-flight + PII + audit log) · Style enforce (Style Contract + LLM-as-judge) · A11y baked-in con axe-core |
-| Bundles NO MVP | Traceability + Xray export (knowledge graph + connector) |
+| Scope SPEC | Solo `ia4d-qa-automator` |
+| Target app demo | SauceDemo (`saucedemo.com`) |
+| Flujo MVP | login + add to cart + checkout (golden path) |
+| DoD MVP | Video reproducible + bundle de ejemplos + ≤8 min wall-clock con paralelismo |
+| Integración FD/TD | FD markdown libre o solo URL. No dependencia con `ia4d-functional-design-expert` en MVP |
+| Estrategia anchor S4 | Playwright Planner descubre seed automáticamente |
+| Quality layer | Writer + Reviewer + Judge los tres activos |
+| Regla subagents | Suavizada — excepción nombrada Writer↔Reviewer |
+| Modelo LLM Planner/Generator | `sonnet` (nativo Microsoft, sin cambio) |
+| Modelo LLM Writer/Reviewer/Spec-refiner | `sonnet` |
+| Modelo LLM Judge / mecánicos | `haiku` |
+| Cache de discovery | Opcional MVP. Se evalúa post-demo |
+| Paralelismo Generator | Prioritario en Slice 5 |
+| Datos productivos | Fuera del contexto MVP. Context Injector solo en v0.4* |
 | Output target | Repo de tests nuevo (clean slate) |
-| Test Management connector | Ninguno — export JSON genérico |
 
 ## Anexo: Riesgos conocidos del MVP
 
-1. **Playwright Planner contra SauceDemo en demo en vivo**. Si el Planner falla durante la grabación, embarazoso. Mitigación: ensayar el flujo varias veces antes de grabar; tener seed manual como fallback no documentado.
-2. **Dependencia versión Playwright** v1.56+. Pinear en `package.json`. Si Microsoft cambia los nombres/contratos de los subagents (`playwright-test-planner` → otro), los commands `/test-pilot:*` se rompen. Mitigación: encapsular los nombres de subagents nativos en una capa de constantes/config.
-3. **Coste LLM** sin budget cap en MVP. Aceptable para demo, no para piloto. Pendiente medir tokens reales durante el spike (sección "Coste / token usage" del findings).
-4. **Sin knowledge graph**, la traceability vive en el `audit-log.json` y en JSDoc de cada test. Limitado para queries complejas. Aceptable para MVP.
-5. **Sin Xray connector**, JSON catalog es genérico — el SDET debe hacer import manual. Aceptable para demo, blocker para piloto cliente.
-6. **`ia4d-functional-design-expert` no es input formal**. Si el catálogo Inetum evoluciona y exige integración estricta, hay que adaptar el `/test-pilot:plan` para consumir output estructurado.
-7. **Healer nativo puede silenciar tests con `test.fixme()`**. Detectado en el análisis del subagent `playwright-test-healer`. En banca regulada esto es inaceptable sin sign-off. Mitigación: hook PostToolUse que escanea Edits del Healer y bloquea si detecta inserción de `test.fixme()` no aprobada. Ver Boundaries — Never do.
-8. **Generator nativo no tiene memoria entre runs**. Si el SDET corre `/test-pilot:generate` dos veces sobre el mismo plan, no detecta solapamientos ni duplicados. Mitigación: el `ia4d-exporter` puede deduplicar por hash del contenido + nombre de test antes de escribir `test-catalog.json`. Si surge problema mayor, agente `ia4d-catalog-checker` futuro.
-9. **Generator nativo asume estado fresco entre tests**. Tests del MVP en SauceDemo o TodoMVC no tienen problema. En clientes banca con datos persistentes compartidos, este supuesto se rompe. Mitigación: documentado como limitación MVP; `ia4d-test-data-architect` futuro lo aborda.
+1. **Playwright Planner contra SauceDemo en demo en vivo**: mitigado por entrega via video, no demo en vivo.
+2. **Dependencia versión Playwright** v1.56+. Pinear en `package.json` (`^1.56.0`). Nombres de subagents nativos encapsulados en `src/native-agents.ts` para protegernos de renames upstream.
+3. **Coste LLM** sin budget cap en MVP. Aceptable según mediciones (≤100k tokens por MVP completo, según Slice 0.5). Budget cap entra en v0.2.
+4. **Sin knowledge graph**, traceability vive en `audit-log.json` + JSDoc. Limitado para queries complejas. Aceptable MVP.
+5. **Sin TMS connector**, JSON catalog genérico. Blocker para piloto cliente. Aceptable demo.
+6. **Healer nativo puede silenciar tests con `test.fixme()`**. Hook `pii-post.ts` intercepta y bloquea.
+7. **Generator nativo sin memoria entre runs**. Mitigado por `discovery-report.json` cacheado opcional.
+8. **Quality layer (Writer+Reviewer+Judge) añade coste vs ejecutar solo Generator nativo**. Esperado ~2x tokens por test. Compensa por confianza estructural ("QA es juez").
+9. **El "Reviewer puede invocar Writer" rompe la regla de no invocación cruzada**. Documentado como excepción nombrada en `references/composition-rules.md`. Defendible ante I+D.
