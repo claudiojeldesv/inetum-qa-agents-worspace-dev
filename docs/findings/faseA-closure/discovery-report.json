@@ -1,0 +1,323 @@
+{
+  "target_url": "https://www.saucedemo.com/",
+  "discovery_timestamp": "2026-05-30T00:00:00Z",
+  "source_plan": "saucedemo-plan.md",
+  "screens": [
+    {
+      "name": "login",
+      "url_pattern": "/",
+      "description": "Authentication gateway. Six test accounts available with distinct behavior profiles.",
+      "interactive_elements": [
+        {
+          "role": "textbox",
+          "name": "Username",
+          "test_id": "user-name",
+          "note": "Data-test attr referenced in plan; style contract enforces getByTestId priority"
+        },
+        {
+          "role": "textbox",
+          "name": "Password",
+          "test_id": "password",
+          "note": "Data-test attr referenced in plan"
+        },
+        {
+          "role": "button",
+          "name": "Login",
+          "test_id": "login-button",
+          "note": "Submit button; triggers credential validation"
+        },
+        {
+          "role": "button",
+          "name": "close",
+          "test_id": "error-button",
+          "note": "Dismisses error message; visible when validation fails"
+        }
+      ]
+    },
+    {
+      "name": "inventory",
+      "url_pattern": "/inventory.html",
+      "description": "Product listing page. Six items. Sortable by Name (A-Z, Z-A) and Price (low-high, high-low). Default: Name A-Z.",
+      "interactive_elements": [
+        {
+          "role": "link",
+          "name": "All Items",
+          "test_id": "inventory_sidebar_link",
+          "note": "Sidebar menu item, accessible via hamburger menu"
+        },
+        {
+          "role": "button",
+          "name": "Open Menu",
+          "test_id": "react-burger-menu-btn",
+          "note": "Hamburger menu toggle in top-left corner"
+        },
+        {
+          "role": "button",
+          "name": "Close Menu",
+          "test_id": "react-burger-cross-btn",
+          "note": "Closes side navigation drawer"
+        },
+        {
+          "role": "link",
+          "name": "About",
+          "test_id": "about_sidebar_link",
+          "note": "Sidebar menu item"
+        },
+        {
+          "role": "link",
+          "name": "Logout",
+          "test_id": "logout_sidebar_link",
+          "note": "Sidebar menu item"
+        },
+        {
+          "role": "link",
+          "name": "Reset App State",
+          "test_id": "reset_sidebar_link",
+          "note": "Sidebar menu item"
+        },
+        {
+          "role": "combobox",
+          "name": "Sort",
+          "test_id": "product_sort_container",
+          "note": "Dropdown with options: Name (A to Z), Name (Z to A), Price (low to high), Price (high to low)"
+        },
+        {
+          "role": "button",
+          "name": "Add to cart",
+          "test_id": "add-to-cart-sauce-labs-backpack",
+          "note": "Per-product button; becomes 'Remove' when item added. test_id pattern: add-to-cart-{product-slug}"
+        },
+        {
+          "role": "link",
+          "name": "Sauce Labs Backpack",
+          "test_id": "item_4_title_link",
+          "note": "Product name link navigates to product detail; test_id pattern: item_{id}_title_link"
+        },
+        {
+          "role": "image",
+          "name": "Sauce Labs Backpack",
+          "test_id": "item_4_img",
+          "note": "Product image; may be clickable depending on UX; test_id pattern: item_{id}_img"
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "test_id": "shopping_cart_link",
+          "note": "Top-right icon with optional badge"
+        }
+      ]
+    },
+    {
+      "name": "inventory-item",
+      "url_pattern": "/inventory-item.html?id=",
+      "description": "Individual product detail page. Shows image, name, description, price, Add to cart button, Back to products button.",
+      "interactive_elements": [
+        {
+          "role": "button",
+          "name": "Add to cart",
+          "test_id": "add-to-cart",
+          "note": "Changes to 'Remove' when product added to cart"
+        },
+        {
+          "role": "link",
+          "name": "Back to products",
+          "test_id": "back-to-products",
+          "note": "Returns to inventory page"
+        },
+        {
+          "role": "button",
+          "name": "Open Menu",
+          "test_id": "react-burger-menu-btn",
+          "note": "Hamburger menu available on detail page"
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "test_id": "shopping_cart_link",
+          "note": "Top-right icon with optional badge"
+        }
+      ]
+    },
+    {
+      "name": "cart",
+      "url_pattern": "/cart.html",
+      "description": "Shopping cart view. Displays all added items with quantity, name, description, price. Allows removal and checkout.",
+      "interactive_elements": [
+        {
+          "role": "button",
+          "name": "Remove",
+          "test_id": "remove-sauce-labs-backpack",
+          "note": "Per-item removal button; test_id pattern: remove-{product-slug}"
+        },
+        {
+          "role": "button",
+          "name": "Continue Shopping",
+          "test_id": "continue-shopping",
+          "note": "Returns to inventory while preserving cart state"
+        },
+        {
+          "role": "button",
+          "name": "Checkout",
+          "test_id": "checkout",
+          "note": "Initiates checkout flow; enabled even with empty cart (known quirk)"
+        },
+        {
+          "role": "button",
+          "name": "Open Menu",
+          "test_id": "react-burger-menu-btn",
+          "note": "Hamburger menu"
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "test_id": "shopping_cart_link",
+          "note": "Top-right icon"
+        }
+      ]
+    },
+    {
+      "name": "checkout-step-one",
+      "url_pattern": "/checkout-step-one.html",
+      "description": "Checkout information form. Three required fields: First Name, Last Name, Postal Code. Each independently validated.",
+      "interactive_elements": [
+        {
+          "role": "textbox",
+          "name": "First Name",
+          "test_id": "first-name",
+          "note": "Required field"
+        },
+        {
+          "role": "textbox",
+          "name": "Last Name",
+          "test_id": "last-name",
+          "note": "Required field"
+        },
+        {
+          "role": "textbox",
+          "name": "Zip/Postal Code",
+          "test_id": "postal-code",
+          "note": "Required field"
+        },
+        {
+          "role": "button",
+          "name": "Continue",
+          "test_id": "continue",
+          "note": "Proceeds to checkout step two if all fields valid"
+        },
+        {
+          "role": "button",
+          "name": "Cancel",
+          "test_id": "cancel",
+          "note": "Returns to cart without clearing fields from session"
+        },
+        {
+          "role": "button",
+          "name": "close",
+          "test_id": "error-button",
+          "note": "Dismisses validation error messages"
+        }
+      ]
+    },
+    {
+      "name": "checkout-step-two",
+      "url_pattern": "/checkout-step-two.html",
+      "description": "Checkout overview. Displays order items, payment info, shipping info, totals (item, tax, grand total).",
+      "interactive_elements": [
+        {
+          "role": "button",
+          "name": "Finish",
+          "test_id": "finish",
+          "note": "Completes order and navigates to confirmation"
+        },
+        {
+          "role": "button",
+          "name": "Cancel",
+          "test_id": "cancel",
+          "note": "Returns to inventory; cart state preserved"
+        },
+        {
+          "role": "button",
+          "name": "Open Menu",
+          "test_id": "react-burger-menu-btn",
+          "note": "Hamburger menu"
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "test_id": "shopping_cart_link",
+          "note": "Top-right icon"
+        }
+      ]
+    },
+    {
+      "name": "checkout-complete",
+      "url_pattern": "/checkout-complete.html",
+      "description": "Order confirmation. Displays success message, order dispatch info, pony express image, back home button. Cart cleared.",
+      "interactive_elements": [
+        {
+          "role": "button",
+          "name": "Back Home",
+          "test_id": "back-to-products",
+          "note": "Returns to inventory; cart badge no longer visible"
+        },
+        {
+          "role": "button",
+          "name": "Open Menu",
+          "test_id": "react-burger-menu-btn",
+          "note": "Hamburger menu"
+        }
+      ]
+    }
+  ],
+  "scenarios_recommended": [
+    "authentication.login-success",
+    "inventory.product-list-display",
+    "cart.add-single-item",
+    "checkout.golden-path-single-item",
+    "checkout.validation-required-fields",
+    "checkout.empty-cart-flow"
+  ],
+  "discovery_notes": {
+    "style_contract_honored": true,
+    "locators_priority": "getByTestId (data-test) > getByRole > getByLabel > getByText",
+    "test_accounts": [
+      {
+        "username": "standard_user",
+        "password": "secret_sauce",
+        "profile": "fully functional"
+      },
+      {
+        "username": "locked_out_user",
+        "password": "secret_sauce",
+        "profile": "blocked on login"
+      },
+      {
+        "username": "problem_user",
+        "password": "secret_sauce",
+        "profile": "UI defects"
+      },
+      {
+        "username": "performance_glitch_user",
+        "password": "secret_sauce",
+        "profile": "slow responses"
+      },
+      {
+        "username": "error_user",
+        "password": "secret_sauce",
+        "profile": "API errors"
+      },
+      {
+        "username": "visual_user",
+        "password": "secret_sauce",
+        "profile": "visual regressions"
+      }
+    ],
+    "products": 6,
+    "product_price_range": "$7.99 - $49.99",
+    "known_quirks": [
+      "Empty cart checkout allowed (no guard)"
+    ],
+    "accessibility_requirements": "axe-core WCAG 2.1 AA (style contract: fail_on_violations=true, severity_threshold=[serious, critical])",
+    "pii_considerations": "Test credentials are synthetic/public; no real user data in fixtures"
+  }
+}
