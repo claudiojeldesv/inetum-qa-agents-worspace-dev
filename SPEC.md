@@ -245,10 +245,72 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contrac
 
 | Versión | Foco | Módulos activos | Highlights |
 |---|---|---|---|
-| **v0.1 (MVP)** | Foundation + S4 + capa transversal + Quality layer | S4 | Demo SauceDemo verde, video, bundle, ficha catálogo |
-| **v0.2** | S3 (Spec-refiner) + TMS connectors | S3 + S4 | Jira/Xray sync, FD flojo de input, knowledge graph SQLite |
-| **v0.3** | S1 (Code-driven) + S2 (Req-driven) | Todos los módulos | Cobertura completa de entradas SDET, AST analyzers React/Vue |
+| **v0.1 (MVP)** | Foundation + S4 + capa transversal + Quality layer | S4 | Demo SauceDemo verde, validación híbrida (Slice 6.5), ficha catálogo |
+| **v0.2** | **Salir del sandbox: enfrentar el caos web real** + S3 (Spec-refiner) + hardening por categoría de fallo | S3 + S4 | Ver detalle abajo |
+| **v0.2.x (continuación)** | TMS connectors (Jira/Xray) + knowledge graph SQLite + budget cap LLM persistente | Mismos | Solo cuando v0.2 cierre con evidencia de uso real |
+| **v0.3** | S1 (Code-driven) + S2 (Req-driven) | Todos los módulos | AST analyzers React/Vue, parser Gherkin/OpenAPI |
 | **v0.4** | Context Injector* + PR automation | Todo + Injector opcional | Endgame visión Gemini. Asterisco: el Injector **rompe genericidad** y requiere adaptadores por cliente. No es feature del catálogo, es engagement aparte. |
+
+### v0.2 detallado — "Interactuar con el caos"
+
+**Premisa**: SauceDemo es un sandbox didáctico (`data-test` en todo, sin auth real, sin estado persistente, sin iframes, sin MFA, sin GDPR popup). El v0.1 validó el motor pero no probó el caos. v0.2 ataca el gap por evidencia, no por hipótesis.
+
+**Orden estricto de v0.2** (cada fase informa la siguiente, no se salta):
+
+**v0.2 Fase A — Cierre operativo del MVP v0.1**:
+1. Validación end-to-end LLM-LLM en sesión Claude Code nueva (cierra el bloqueador del Slice 6.5).
+2. Borrar residuales de v0.1 (specs E2E generados, POMs, audit-log.json, judge-report.json, etc.) — empezar limpio.
+
+**v0.2 Fase B — Recolección honesta contra sitios reales** (1-2 semanas):
+
+Ejecutar `/qa-automator:autonomous` contra una batería progresiva de targets públicos, documentando fallos sin teorizar:
+
+| Target | Caos esperado |
+|---|---|
+| `https://demo.opencart.com/` | E-commerce SPA parcial. Selectors mixtos. Sin auth fuerte. |
+| `https://parabank.parasoft.com/` | Banca demo con auth + cuentas + transferencias. Estado persistente. |
+| `https://practice.expandtesting.com/` | Trampas variadas: waits, dynamic loading, iframes, modales. |
+| Portal corporativo público (intranet cliente sin auth) | Reflejar contexto real Inetum cuando aplique. |
+
+Output de la Fase B: `docs/findings/wild-sites-report.md` con tabla de fallos categorizados por (1) frecuencia, (2) impacto en tiempo SDET, (3) dificultad de solución.
+
+**v0.2 Fase C — Hardening por categoría de fallo observada** (no por componente teórico):
+
+Componentes nuevos previstos. **Cada uno entra solo si la Fase B muestra que su categoría aparece con frecuencia ≥30%**:
+
+| Componente | Categoría que ataca | Prioridad esperada |
+|---|---|---|
+| `ia4d-locator-hardener` | Selectors inestables (`_emotion-css-xxx`, ids con timestamps, sin `data-test`). Combina `role + accessibleName + nearbyText`, marca selectors fragile en judge-report. | Alta (apuesta: top 1) |
+| `ia4d-pre-flight-cleaner` | Cookies banner GDPR, modales emergentes, ads. Cierra dialogs antes de exploración. | Alta (apuesta: top 2) |
+| `ia4d-auth-handler` | SAML / OAuth / MFA. `globalSetup` captura `storageState` reutilizable; soporta TOTP via `authenticator` lib. | Media-Alta |
+| `ia4d-test-data-architect` | Lifecycle setup/teardown. Fixtures contra OpenAPI/DB schema, factories con faker.js seed-reproducible. | Media |
+| **A11y baseline aprobada** | Threshold actual `serious\|critical` aborta el 80% de tests contra portales reales. Mecanismo de baseline aprobada por SDET, no todo-o-nada. Es extensión del `ia4d-a11y-injector` existente. | Media-Alta |
+
+**v0.2 Fase D — Ajustes al Quality layer derivados de observación**:
+
+| Ajuste | Razón observable |
+|---|---|
+| Writer↔Reviewer N=3 (o fallback `@status pending-sdet-review`) | En SauceDemo el Generator nativo produjo código casi perfecto a la primera. En apps reales el Reviewer iterará más. Hard cap N=2 puede ser insuficiente. |
+| `ia4d-judge` con scoring axes ajustables por Style Contract | Ejes hoy hardcoded en `src/judge-scoring.ts`. Cliente banca puede priorizar `criterion_coverage` sobre `a11y`. |
+| `ia4d-spec-refiner` (S3) **funcional** | Realista en banca: el input típico es un FD flojo o Jira mal redactado, no una URL pelada. Promovido del v0.2 original. |
+
+**v0.2 Fase E — Telemetría y budget cap**:
+
+| Componente | Función |
+|---|---|
+| Budget cap LLM persistente | Hoy no hay límite. Contra apps reales los Planners necesitan ~2-3x tokens. Cap configurable por proyecto. |
+| Telemetría heurística del agente | Logs estructurados de qué heurísticas funcionan en qué tipo de app. Sin esto no se aprende. |
+
+**v0.2 NO incluye** (queda en v0.2.x o v0.3):
+- TMS connectors (Jira/Xray) — esperar a tener datos reales que se traceen.
+- Knowledge graph SQLite — depende de TMS y telemetría.
+- AST parsers React/Vue (esos son v0.3).
+- Visual regression formal (Percy/Chromatic) — v0.3+.
+
+**Riesgos data-dependent de v0.2** (a revisar tras Fase B):
+- Tokens proyectados de Planner contra app real: 2-3x lo medido en SauceDemo (~32k → 65-100k).
+- Wall-clock proyectado: 2-3x lo de Slice 6.5 (~14 min secuencial → 30-45 min). Paralelismo crítico.
+- A11y violations en portales reales: decenas serious/critical. Threshold actual inviable sin baseline.
 
 ---
 

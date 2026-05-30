@@ -192,10 +192,13 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 
 | Versión | Foco | Estado |
 |---|---|---|
-| **v0.1 MVP** | Foundation + S4 Autonomous + capa transversal + Quality layer + demo SauceDemo | **Validado híbrido. Pendiente cierre con sesión Claude Code nueva** |
-| v0.2 | S3 (Spec-refiner) + TMS connectors (Jira/Xray) + budget cap LLM | Backlog |
+| **v0.1 MVP** | Foundation + S4 Autonomous + capa transversal + Quality layer + demo SauceDemo | **Commit-eado (`c5a2be2`). Pendiente cierre LLM-LLM en sesión nueva** |
+| **v0.2** | **Interactuar con el caos**: pruebas contra sitios reales + hardening por categoría observada (locator-hardener, pre-flight-cleaner, auth-handler, test-data-architect) + S3 funcional + A11y baseline aprobada + Writer↔Reviewer N=3 + budget cap LLM | Próximo |
+| v0.2.x | TMS connectors (Jira/Xray) + knowledge graph SQLite | Backlog (depende de evidencia de v0.2) |
 | v0.3 | S1 (Code-driven) + S2 (Req-driven) + AST parsers React/Vue/Gherkin | Backlog |
 | v0.4 | Context Injector* + PR automation | Backlog |
+
+Detalle del v0.2 en [`SPEC.md`](SPEC.md) §7 y [`tasks/todo.md`](tasks/todo.md).
 
 ## Workspace cleanup
 

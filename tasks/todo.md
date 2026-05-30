@@ -75,6 +75,47 @@ Pasos atómicos:
 
 **Pendiente cierre v0.1**: nueva sesión Claude Code para invocar la composición LLM-LLM real Writer↔Reviewer.
 
+---
+
+## v0.2 — Interactuar con el caos (post commit v0.1)
+
+Roadmap detallado en `tasks/plan.md` y `SPEC.md` §7. Tareas:
+
+### Fase A — Cierre v0.1
+
+- `[ ]` **v0.2.A-T1** Abrir sesión Claude Code nueva en este repo. Verificar que los 12 subagents `ia4d-*` aparecen en la lista de Task tool.
+- `[ ]` **v0.2.A-T2** Ejecutar `/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml`. Validar composición Writer↔Reviewer LLM-LLM real. Documentar resultados en `docs/findings/spike-playwright-mcp.md` (sección "v0.1 closeout — end-to-end LLM-LLM").
+- `[ ]` **v0.2.A-T3** Borrar residuales del v0.1: `tests/e2e/*.spec.ts`, `tests/pages/*.page.ts`, `audit-log.json`, `judge-report.json`, `discovery-report.json`, `saucedemo-slice65-plan.md`. Mantener `tests/unit/*` y todo `src/`.
+
+### Fase B — Recolección honesta contra sitios reales
+
+- `[ ]` **v0.2.B-T1** Ejecutar `/qa-automator:autonomous` contra `https://demo.opencart.com/`. Documentar fallos en `docs/findings/wild-sites-report.md`.
+- `[ ]` **v0.2.B-T2** Idem contra `https://parabank.parasoft.com/` (incluye auth login).
+- `[ ]` **v0.2.B-T3** Idem contra `https://practice.expandtesting.com/`.
+- `[ ]` **v0.2.B-T4** Identificar 1 portal corporativo público sin auth y ejecutar (cuando aplique).
+- `[ ]` **v0.2.B-T5** Consolidar en `wild-sites-report.md`: tabla de fallos categorizados (selectors / auth / timing / data / a11y / modales / iframes / shadow-dom). Frecuencia × impacto × dificultad. Output: priorización de Fase C.
+
+### Fase C — Hardening por categoría
+
+Cada subtarea entra solo si la Fase B muestra que su categoría tiene frecuencia ≥30%. Esperado por análisis preliminar:
+
+- `[ ]` **v0.2.C-T1** `ia4d-locator-hardener` (alta probabilidad) — subagent que audita output del Writer, propone locators robustos combinando `role + accessibleName + nearbyText`, marca fragile en judge-report.
+- `[ ]` **v0.2.C-T2** `ia4d-pre-flight-cleaner` (alta probabilidad) — extensión del hook `pre-flight.ts` o subagent separado que cierra cookies banner GDPR y modales antes de exploración.
+- `[ ]` **v0.2.C-T3** `ia4d-auth-handler` (media-alta) — `globalSetup` que captura `storageState` reutilizable. Soporte TOTP via lib `authenticator`. SAML/OAuth como flow específico.
+- `[ ]` **v0.2.C-T4** `ia4d-test-data-architect` (media) — lifecycle setup/teardown, fixtures contra OpenAPI/DB schema, factories faker.js con seed reproducible.
+- `[ ]` **v0.2.C-T5** A11y baseline aprobada (media-alta) — extensión del `ia4d-a11y-injector`: mecanismo de baseline aprobada por SDET (no todo-o-nada). Schema en `references/a11y-baseline-schema.md`.
+
+### Fase D — Ajustes Quality layer
+
+- `[ ]` **v0.2.D-T1** Writer↔Reviewer N=3 o fallback `@status pending-sdet-review`. Editar `references/writer-reviewer-protocol.md`.
+- `[ ]` **v0.2.D-T2** Judge scoring con ejes ajustables por Style Contract. Refactor `src/judge-scoring.ts` para leer pesos de `style-contract.yaml`.
+- `[ ]` **v0.2.D-T3** `ia4d-spec-refiner` (S3) funcional. Promueve el stub a runtime. Soporta FD markdown + Jira ticket (texto plano por ahora, sin Jira connector).
+
+### Fase E — Telemetría y budget cap
+
+- `[ ]` **v0.2.E-T1** Budget cap LLM persistente. Config en `config/budget.yaml`. Hook que aborta cuando se supera.
+- `[ ]` **v0.2.E-T2** Telemetría heurística — logs estructurados por heurística aplicada y tipo de app detectada.
+
 ## Slice 7 — Stubs S1/S2/S3
 
 - `[ ]` `.claude/agents/ia4d-code-analyzer.md`, `ia4d-spec-parser.md`, `ia4d-spec-refiner.md` (stubs).

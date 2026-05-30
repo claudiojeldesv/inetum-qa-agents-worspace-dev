@@ -95,10 +95,9 @@ Modelo confirmado para Planner/Generator nativos: `sonnet`. Para subagents `ia4d
 
 ## Estado actual
 
-- **Slice 0.5 (spike completion)**: CERRADO. Mediciones cuantitativas en findings.
-- **Slice 1 (Foundation + rebrand)**: en curso. Reset documental desde `ia4d-test-pilot`.
-- **Slices 2-8**: pendientes según plan.
-- **Definition of Done MVP v0.1**: flujo `login + add to cart + checkout` de SauceDemo verde end-to-end (≤8 min wall-clock con paralelismo), video reproducible, bundle de ejemplos, ficha catálogo Inetum lista.
+- **v0.1 commit-eado** (`c5a2be2`, 82 archivos, 9845 líneas). Validación híbrida via Slice 6.5: 3/3 specs E2E verdes contra SauceDemo, judge scores 0.9-0.96.
+- **Pendiente cierre v0.1**: validación end-to-end LLM-LLM en sesión Claude Code nueva (los subagents `ia4d-*` creados en sesión no son invocables hasta restart).
+- **v0.2 — Interactuar con el caos** (próxima fase, no arrancada): redefinida para atacar el gap entre sandbox SauceDemo y caos web real. Orden estricto: cierre v0.1 → recolección honesta contra sitios reales (opencart, parabank, expandtesting) → hardening por categoría observada → ajustes Quality layer → telemetría + budget cap. TMS connectors deferidos a v0.2.x.
 - **Sin plazo de calendario comprometido**. Plan en fases con checkpoints.
 
 ## Documentación viva
