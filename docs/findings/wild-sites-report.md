@@ -132,6 +132,34 @@ Tres sitios producidos y catalogados (pequeño con id/label, grande con data-tes
 
 ---
 
+## Validación Fase C — los 3 componentes construidos y verificados en vivo (parabank, 5/5)
+
+Construidos los 3 top **sin subagents nuevos** (schema + lógica en agentes existentes; decisión: evidencia n=1/n=2 + editar-sobre-crear). Commit `8aae203`. Validados end-to-end contra parabank real reusando el `discovery-report.json` de Fase B (el planner no toca ninguno de los 3; re-correrlo no validaba nada). **5/5 verde, 4 workers, sin `--workers=1`.**
+
+### Qué se construyó
+
+| Componente | Realizado como | Archivos |
+|---|---|---|
+| **C1 — a11y gate configurable** | Gate `a11y.fail_on_violations` por-sitio separado del scan (que siempre se inyecta). `ia4d-a11y-injector` honra el gate: `true`→`expect` aborta, `false`→annotation `test.info().annotations` (evidencia, no aborta). | `references/style-contract-schema.md`, `.claude/agents/ia4d-a11y-injector.md`, `autonomous.md` |
+| **C2 — auth-handler acotado** | Campo `auth:` en schema (form-based) + setup project + `dependencies` + storageState **condicionales por `QA_STORAGE_STATE`** en el config. El command genera `auth.setup.ts`. SAML/OAuth/MFA diferidos. | `references/style-contract-schema.md`, `playwright.config.ts`, `autonomous.md` |
+| **C3 — excepción CSS legacy** | Campo `locators.css_fallback_attributes` (whitelist `name`/`id`). `ia4d-style-enforcer` aplica el fallback acotado cuando no hay semántica (taggeado + audit-log); `ia4d-reviewer` MF-1 lo honra. Nunca CSS arbitrario. | `references/style-contract-schema.md`, `ia4d-style-enforcer.md`, `ia4d-reviewer.md`, `writer-reviewer-protocol.md` |
+
+### Evidencia del run
+
+- **C2**: `ok 1 [setup] authenticate (2.5s)` corrió primero como dependency y escribió `john.json` (borrado antes de cada run para probarlo). El transfer happy-path heredó la sesión y llegó a "Transfer Complete!" bajo `fullyParallel`. **La race que en Fase B exigía `--workers=1` está muerta.**
+- **C1**: el injector produjo el modo warning canónico en los 3 tests. parabank tiene violaciones serias conocidas (5/8/7 en Fase B) y el run **no abortó** — en modo `fail` habría reventado como expandtesting (sitio 1).
+- **C3**: los locators `#amount`, `#fromAccountId`, `#toAccountId`, `input[name="username"]` resolvieron contra el DOM legacy vivo. Runtime idéntico a Fase B; el cambio es de gobernanza (sancionado declarativamente vs roto a la fuerza por el Healer).
+
+### Lo aprendido (transversal, no por componente)
+
+1. **El gap de auth-handler era estructural, no de patrón.** El storageState ya lo generaba el Writer en Fase B; lo que faltaba era el setup project + `dependencies`. Confirmado: con eso, `fullyParallel` ordena setup→tests sin `--workers=1`. El gate condicional por env var (no patchear el config por run) preserva los sitios sin auth intactos — verificado con `--list` en ambos modos antes de tocar nada.
+2. **`auth.setup.ts` debe verificar el `success_signal` ANTES de guardar estado.** Si no, un login que falla en silencio persiste una sesión no autenticada y todos los specs dependientes fallan con causa difusa. El Writer lo hizo bien (assert `Log Out` visible → luego `storageState`).
+3. **El `ia4d-a11y-injector` es aditivo-idempotente, no reformateador.** Si el spec ya tiene un scan axe (aunque sea en forma vieja `console.warn`), el injector lo respeta y no reescribe a la forma canónica. Para obtener el modo warning canónico hay que inyectar sobre un spec sin scan previo. Implicación: el injector está bien para generación fresca; para migrar specs viejos hace falta strip + re-inject (o un modo reformateo, no construido).
+4. **C3 a nivel enforcer apunta a specs, pero en POM bien estructurado los locators viven en la page class.** Por eso los honor-ers reales de la excepción CSS en este codebase son el Writer (rellena el POM) y el Reviewer (MF-1), no el style-enforcer (que opera sobre el spec). El campo del contract es la fuente de verdad declarativa; quién lo aplica depende de dónde viva el locator.
+5. **Test-data stale en entornos demo compartidos.** El primer run dio 4/5: el transfer reventó en `selectOption('15564')` porque las cuentas de john cambian entre runs (el `shared_environment_warning` del discovery, ya catalogado). No es regresión de componente — el locator resolvió, el valor no existía. Fix: leer las `<option>` disponibles en runtime, nunca hardcodear IDs de cuenta. **Lección transversal** (candidata a hint del Writer o futuro `test-data-architect`), no específica de Fase C.
+
+---
+
 ## Estado de continuidad (para el próximo chat)
 
 **Hecho (Fase B completa, 3 sitios):**
@@ -142,12 +170,19 @@ Tres sitios producidos y catalogados (pequeño con id/label, grande con data-tes
 - Fix `baseURL` (`QA_BASE_URL`) aplicado y validado en sitio 3.
 - Evidencia de sitios 1 y 2 archivada en `docs/findings/faseB-evidence/{sitio1-expandtesting,sitio2-toolshop}/`.
 
-**Estado actual del workspace (sin commitear):**
-- `tests/e2e/`: `login.spec.ts` + `transfer-funds.spec.ts` (parabank, 3/3 verde) + `seed.spec.ts` (resembrado MCP).
-- `tests/pages/`: login/overview/transfer/logout POMs de parabank (locators CSS forzados, documentados).
-- `style-contracts/parabank.yaml`, `config/allowed-targets.yaml` (+ parabank +john/demo).
-- Artefactos del run: `discovery-report.json`, `parabank-plan.md`, `compliance-verdict.json`, `judge-report.json`, `audit-log.json`.
+**Hecho (Fase C, 3 componentes top construidos y validados):**
+- C1 a11y gate configurable, C2 auth-handler acotado, C3 excepción CSS legacy. Sin subagents nuevos (schema + agentes existentes). Commit `8aae203`.
+- Validación live parabank **5/5 verde, 4 workers, sin `--workers=1`**. Specs regenerados por el pipeline nuevo. Detalle en la sección "Validación Fase C" arriba.
+- SPEC §7: subsección "Estado Fase C — construido" con las 3 divergencias (flag-no-baseline, sin subagents, auth form-based).
 
-**Cómo re-correr parabank:** `$env:QA_BASE_URL='https://parabank.parasoft.com/'; npx playwright test tests/e2e/login.spec.ts tests/e2e/transfer-funds.spec.ts --reporter=list --workers=1` (login DEBE correr antes que transfer — sin setup project, el orden es la única garantía del storageState).
+**Estado actual del workspace:**
+- `tests/e2e/`: `auth.setup.ts` (setup project, NUEVO), `login.spec.ts` (fresco + a11y annotation), `transfer-funds.spec.ts` (hereda storageState del project + dynamic accounts + a11y annotation), `seed.spec.ts` (resembrado MCP).
+- `tests/pages/`: login/overview/transfer/logout POMs de parabank (locators `name`/`id` ahora sancionados por `css_fallback_attributes`, no "forzados").
+- `style-contracts/parabank.yaml`: con `fail_on_violations:false` + `css_fallback_attributes:[name,id]` + bloque `auth:`.
+- `playwright/.auth/john.json`: gitignored, lo escribe el setup project en cada run.
 
-**Siguiente (Fase C):** cerrar priorización arriba. Componentes top: a11y baseline configurable, auth-handler de primera clase (setup project + campo `auth:` en schema), locator-hardener/excepción CSS en legacy. Pendiente decidir: commit de cierre de Fase B + arranque de Fase C.
+**Cómo re-correr parabank (config nuevo, sin `--workers=1`):**
+`$env:QA_BASE_URL='https://parabank.parasoft.com/'; $env:QA_STORAGE_STATE='playwright/.auth/john.json'; npx playwright test --reporter=list`
+El setup project (`auth.setup.ts`) corre primero por `dependencies`; los specs heredan la sesión. El orden lo garantiza el config, no el run manual.
+
+**Siguiente:** Fase D (Quality layer: Writer↔Reviewer N=3, judge axes por contract) o Fase E (telemetría + budget cap), o S3 spec-refiner. Componentes Fase C restantes (`pre-flight-cleaner`, `test-data-architect`, `frame-handler`) entran solo si la evidencia los prioriza. Candidata transversal del run: hint de test-data dinámico al Writer (lección #5).
