@@ -1,17 +1,30 @@
 /**
- * @criterion parabank-plan.md § 1.1
- *   Login happy path — valid credentials log in and land on Accounts Overview
- * @style-contract style-contracts/parabank.yaml
- * @discovery-source discovery-report.json
+ * @criterion RF-001 (fd-parabank.md:20-24)
+ *   "Inicio de sesión con credenciales válidas"
+ *   given:  Un cliente registrado no ha iniciado sesión
+ *   when:   El cliente introduce su nombre de usuario y contraseña correctos y confirma el acceso
+ *   then:   El sistema autentica al cliente y muestra el resumen de cuentas con el saldo de cada cuenta
+ *
+ * @writer-iterations 1
+ * @reviewer-verdict pass
  *
  * AUTH-HANDLER (v0.2 Fase C): session persistence is owned by auth.setup.ts (setup
  * project) wired in playwright.config.ts via QA_STORAGE_STATE + dependencies. This spec
  * runs FRESH — it overrides the project-level storageState with an empty one so it
  * exercises the real login form, and it does NOT save state (auth.setup.ts does that).
  *
- * A11Y: the axe-core scan is injected by ia4d-a11y-injector per the style-contract gate
- * (parabank.yaml a11y.fail_on_violations=false → warning mode, captured as annotation,
- * does not abort the flow).
+ * A11Y: axe-core scan injected per style-contract hard rule. parabank.yaml
+ * a11y.fail_on_violations=false → warning mode only; violations captured as
+ * test.info().annotations, never abort the test flow.
+ *
+ * LOCATORS: ParaBank JSP has no data-test attributes. Per style-contract
+ * locators.css_fallback_attributes=[name,id], login inputs use css-fallback
+ * (documented in LoginPage POM). All other locators are semantic.
+ *
+ * DATA: credentials john/demo from synthetic_fixtures[0] in parabank.yaml.
+ * Balance values NOT asserted — shared demo environment; balances change across runs.
+ *
+ * Source: discovery-report.json criteria_mapping RF-001, screen "login" + "overview".
  */
 
 import { test, expect } from '@playwright/test';
@@ -21,19 +34,19 @@ import { OverviewPage } from '../pages/overview.page';
 
 test.describe('Feature: Login', () => {
   // Fresh context: this test performs a real login; it must NOT inherit the
-  // project-level storageState produced by the setup dependency.
+  // project-level storageState produced by the auth.setup dependency.
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('Scenario: valid credentials log in and land on Accounts Overview', async ({ page }) => {
+  test('Scenario: valid credentials authenticate and display accounts overview', async ({ page }) => {
     const loginPage = new LoginPage(page);
     const overviewPage = new OverviewPage(page);
 
-    // Step 1: Navigate to login page
+    // given: cliente registrado no ha iniciado sesión — navigate to fresh login page
     await loginPage.goto();
 
-    // A11y scan (warning mode per style-contract fail_on_violations=false)
-    const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
-    const a11yViolations = accessibilityScanResults.violations.filter(v =>
+    // A11y gate: always inject per SPEC hard rule; fail_on_violations=false → annotation only
+    const a11yScan = await new AxeBuilder({ page }).analyze();
+    const a11yViolations = a11yScan.violations.filter(v =>
       ['serious', 'critical'].includes(v.impact ?? '')
     );
     if (a11yViolations.length > 0) {
@@ -44,31 +57,31 @@ test.describe('Feature: Login', () => {
       });
     }
 
-    // Step 1 assertions: page title + login form visible
+    // Assert login screen is active before submitting
     await expect(page).toHaveTitle('ParaBank | Welcome | Online Banking');
     await expect(loginPage.username).toBeVisible();
     await expect(loginPage.password).toBeVisible();
     await expect(loginPage.logIn).toBeVisible();
 
-    // Steps 2–4: Fill credentials and submit
-    // Credentials from synthetic_fixtures in style-contract (john/demo — public demo account)
+    // when: cliente introduce credenciales correctas y confirma el acceso
+    // Credentials from synthetic_fixtures in parabank.yaml (john/demo — public demo account)
     await loginPage.login('john', 'demo');
 
-    // Step 4 assertions: redirect to overview.htm
+    // then: sistema autentica al cliente
     await expect(page).toHaveURL(/\/parabank\/overview\.htm/);
     await expect(page).toHaveTitle('ParaBank | Accounts Overview');
 
-    // Step 5: Authenticated welcome message in sidebar
+    // then: muestra el resumen de cuentas — authenticated welcome message
     await expect(overviewPage.welcomeMessage).toBeVisible();
 
-    // Step 6: Account Services navigation
+    // then: muestra el resumen de cuentas — Account Services navigation present
     await expect(overviewPage.transferFunds).toBeVisible();
     await expect(overviewPage.transferFunds).toHaveAttribute('href', /transfer\.htm/);
     await expect(overviewPage.logOut).toBeVisible();
     await expect(overviewPage.logOut).toHaveAttribute('href', /logout\.htm/);
 
-    // Step 7: Accounts Overview table present — structure only, no balance assertion
-    // (shared demo environment; balances change across runs per plan § 1.1 step 7)
+    // then: muestra el resumen de cuentas — accounts table structure visible
+    // Balance values not asserted: shared demo env, balances change between runs
     await expect(overviewPage.accountsTable).toBeVisible();
   });
 });

@@ -1,0 +1,56 @@
+[
+  {
+    "test_file": "tests/e2e/login.spec.ts",
+    "criterion": "RF-001",
+    "score": 0.96,
+    "axes": {
+      "assertions": 0.95,
+      "selectors": 0.90,
+      "waits": 1.0,
+      "isolation": 1.0,
+      "criterion_coverage": 1.0,
+      "a11y": 1.0,
+      "structure": 0.95
+    },
+    "reasoning": "9 asserts verify functional state (form visible, login success, URL destination, welcome message, nav links, accounts table). Semantic waits + AxeBuilder warning-mode. Fresh context, no storageState inheritance. POM LoginPage+OverviewPage with css_fallback justified for JSP legacy. Demérito menor: welcomeMessage uses getByText (slight fragility if markup shifts); balance not asserted (correct for shared env).",
+    "reviewer_feedback": "Approved iteration 1. Nits noted: table.first() positional qualifier (low risk), filename convention (acceptable for feature grouping), test title prefix (cosmetic).",
+    "reviewer_unresolved": false,
+    "timestamp": "2026-05-31T16:30:00Z"
+  },
+  {
+    "test_file": "tests/e2e/transfer-funds.spec.ts",
+    "criterion": "RF-003",
+    "score": 0.96,
+    "axes": {
+      "assertions": 0.95,
+      "selectors": 0.92,
+      "waits": 1.0,
+      "isolation": 0.85,
+      "criterion_coverage": 1.0,
+      "a11y": 1.0,
+      "structure": 1.0
+    },
+    "reasoning": "5 asserts: form state, amount visible, runtime account reading (evaluateAll, no hardcoded IDs), full-sentence confirmation (avoids combobox DOM residual false-positive). Inheritance of shared storageState (auth.setup.ts) introduces mild dependency risk—mitigated by direct navigation + dynamic data. AxeBuilder warning-mode. POM TransferPage with clean transferFunds() method. Demérito: isolation 0.85 due to session chain dependency (if login.spec fails silently, transfer breaks); assertion scope narrow (no confirmation table structure/field names, only amount+sentence).",
+    "reviewer_feedback": "Approved iteration 1. Pre-submission fix applied: replaced three separate getByText asserts (ambiguous on account numbers in residual combobox DOM) with single full-sentence assert. No must-fix.",
+    "reviewer_unresolved": false,
+    "timestamp": "2026-05-31T16:30:00Z"
+  },
+  {
+    "test_file": "tests/e2e/logout.spec.ts",
+    "criterion": "RF-006",
+    "score": 0.99,
+    "axes": {
+      "assertions": 1.0,
+      "selectors": 0.93,
+      "waits": 1.0,
+      "isolation": 1.0,
+      "criterion_coverage": 1.0,
+      "a11y": 1.0,
+      "structure": 0.98
+    },
+    "reasoning": "8 asserts: pre-condition (welcomeMessage+logOut visible) validates active session; post-logout (URL, title, Customer Login heading, form inputs, absence of welcome message scoped to #leftPanel, absence of nav scoped #leftPanel). Scoped locators avoid strict-mode violations from footer SOAP links. Fresh isolated context + inline login (given own session). AxeBuilder warning-mode. Auth-handler comment (lines 12-19) explains critical invariant: logout owns its session to avoid poisoning transfer-funds via server-side JSESSIONID. Strong structure. Demérito: no LogoutPage POM (acceptable—logout is action/state, not screen); reutilization of OverviewPage+LoginPage for assertions is appropriate.",
+    "reviewer_feedback": "Approved iteration 1. No feedback. S3 mode: criterion citation correct, session isolation justified (server-side JSESSIONID poison prevention), pre-condition guard asserts authenticated state before action, post-logout state fully verified.",
+    "reviewer_unresolved": false,
+    "timestamp": "2026-05-31T16:30:00Z"
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "source_fd": "demo/parabank/fd-parabank.md",
+  "source_criteria": "docs/findings/faseD-s3/criteria.json",
+  "source_discovery": "discovery-report.json",
+  "drift_diff_method": "deterministic: brief.flows MINUS criteria_mapping.mapped (command-level, no LLM)",
+
+  "drift": [],
+
+  "covered": [
+    { "rf": "RF-001", "flow": "login", "scenario": "login.happy-path", "screen": "login" },
+    { "rf": "RF-002", "flow": "auth-guard", "scenario": "auth-guard.unauthenticated-access", "screen": "error" },
+    { "rf": "RF-003", "flow": "transfer-funds", "scenario": "transfer-funds.happy-path", "screen": "transfer" },
+    { "rf": "RF-004", "flow": "transfer-funds", "scenario": "transfer-funds.empty-amount-validation", "screen": "transfer" },
+    { "rf": "RF-005", "flow": "bill-pay", "scenario": "bill-pay.happy-path", "screen": "bill-pay" },
+    { "rf": "RF-006", "flow": "logout", "scenario": "logout.happy-path", "screen": "login" }
+  ],
+
+  "drift_risk_resolution": [
+    {
+      "rf": "RF-005",
+      "flow": "bill-pay",
+      "fd_drift_risk": "high",
+      "fd_claim": "El preamble del FD (fd-parabank.md:6-11) y brief.drift_flags advierten que pago de recibos 'puede no estar expuesto en el happy-path del entorno de staging'.",
+      "dom_reality": "El planner mapeo el flujo contra el DOM real: /parabank/billpay.htm EXISTE y es alcanzable post-login (form de beneficiario completo + confirmacion 'Bill Payment Complete').",
+      "verdict": "NO DRIFT. El drift_risk del FD era una premisa falsa contra el parabank real. Reportar drift aqui habria sido fabricar un gap inexistente (hard rule no-fabricar). RF-005 NO genera spec, pero por bloqueo de open_questions Q-003/Q-004 (then AMBIGUO), no por drift."
+    }
+  ],
+
+  "behavioral_drift": [
+    {
+      "rf": "RF-002",
+      "flow": "auth-guard",
+      "type": "then-mismatch (no es drift estructural de flujo ausente; es divergencia de comportamiento esperado vs real)",
+      "fd_assumption": "criteria.json RF-002 assumption: 'Se asume redireccion al login por ser el comportamiento estandar en portales bancarios' (interpretacion del refiner, marcada [ASSUMPTION]).",
+      "dom_reality": "El acceso no autenticado a /overview.htm /transfer.htm /billpay.htm NO redirige al login: devuelve pagina de error server-side (titulo 'ParaBank | Error', h1 'Error!', 'An internal error has occurred and has been logged.'), con el form de login persistente en el panel lateral.",
+      "impact": "RF-002 esta bloqueado por Q-001 (el FD no especifica el mecanismo), por lo que NO genera spec este run igualmente. Pero el hallazgo es exactamente la deteccion FD<->implementacion que aporta valor: la assumption del refiner queda refutada por el DOM real. El SDET deberia actualizar el FD (mecanismo = error page, no redirect) al responder Q-001.",
+      "note": "Distinto del drift estructural (flujo declarado-no-mapeado, que aqui es vacio). Se reporta aparte para no conflar las dos nociones."
+    }
+  ],
+
+  "summary": "Drift estructural (declarado-no-mapeado): NINGUNO. Los 5 flujos del brief se mapearon contra DOM real. El drift_risk:high del FD sobre bill-pay se RESOLVIO como no-drift (staging si lo expone). Hallazgo adicional: drift conductual en auth-guard (FD asume redirect, impl da error page) - RF-002 bloqueado por Q-001 igualmente."
+}

@@ -32,6 +32,11 @@ Thumbs.db
 /review-feedback.json
 /discovery-report.json
 /compliance-verdict.json
+/drift-report.json
+/qa-automator-run-summary.json
+/mode-routing.json
+# Saved plans del planner nativo (recreados por run; evidencia va a docs/findings/)
+/*-plan.md
 
 # StorageState / auth artifacts (session cookies, recreated by login spec at runtime)
 /playwright/.auth/

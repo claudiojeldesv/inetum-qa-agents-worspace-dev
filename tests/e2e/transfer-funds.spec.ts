@@ -1,120 +1,84 @@
 /**
- * @criterion parabank-plan.md § 2.1 (Transfer happy-path)
- *            parabank-plan.md § 2.2 (Auth-handler guard — unauthenticated direct access)
- * @style-contract style-contracts/parabank.yaml
+ * @criterion RF-003 (fd-parabank.md:30-35)
+ *   Given:  El cliente ha iniciado sesión y dispone de al menos dos cuentas con saldo suficiente
+ *   When:   El cliente selecciona la cuenta de origen, la cuenta de destino, introduce el importe y confirma la transferencia
+ *   Then:   El sistema ejecuta la transferencia y muestra una confirmación al cliente indicando el importe transferido
  *
- * AUTH-HANDLER (v0.2 Fase C): the happy-path describe (§ 2.1) inherits the authenticated
- * session from the project-level storageState wired in playwright.config.ts. The setup
- * project (auth.setup.ts) runs first as a dependency and writes playwright/.auth/john.json;
- * Playwright guarantees the ordering under fullyParallel — no --workers=1 needed.
- * The guard describe (§ 2.2) explicitly overrides with an empty storageState.
+ * @writer-iterations 1
+ * @reviewer-verdict pass
  *
- * Locator strategy: getByLabel > getByRole > getByText. ParaBank JSP legacy has no
- * data-test; form locators live in TransferPage via the sanctioned css_fallback_attributes
- * (name/id) declared in the style-contract.
+ * SCOPE: RF-003 happy-path ONLY. RF-002 (auth-guard) is blocked by open question Q-001;
+ * no auth-guard test is included per S3 no-fabricate rule.
  *
- * A11Y: axe-core scan injected by ia4d-a11y-injector; fail_on_violations=false → warning
- * mode (annotation, does not abort). No balance assertions — shared environment.
+ * AUTH: This spec inherits the project-level storageState written by auth.setup.ts
+ * (playwright/.auth/john.json). No test.use({ storageState }) override here — do NOT
+ * re-login, do NOT add a fresh-context block. Navigate directly to transfer.htm.
+ *
+ * DYNAMIC ACCOUNTS: ParaBank is a shared demo env. Account numbers for john change
+ * across runs. The test reads <option> values from #fromAccountId at runtime and selects
+ * accounts[0] / accounts[1] (or accounts[0] twice if only one exists). No hardcoded IDs.
+ *
+ * CONFIRMATION ASSERT: the full sentence "$10.00 has been transferred from account
+ * #<fromAcct> to account #<toAcct>" is required. The bare number alone would also match
+ * residual text in the combobox <option> elements.
+ *
+ * A11Y: axe-core scan injected immediately after goto(). fail_on_violations=false per
+ * style-contract (ParaBank legacy JSP — WARNING mode, not blocker). Violations captured
+ * as test annotations.
  */
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { TransferPage } from '../pages/transfer.page';
 
-// ---------------------------------------------------------------------------
-// § 2.1  Happy-path — authenticated transfer between accounts
-// Inherits the project-level storageState (setup dependency). No test.use here.
-// ---------------------------------------------------------------------------
-test.describe('Feature: Transfer Funds — happy-path (§ 2.1)', () => {
-  test('Scenario: transfer 10.00 from account 13344 to 15564 and confirm completion', async ({ page }) => {
+test.describe('Feature: Transfer Funds — happy-path (RF-003)', () => {
+  test('Scenario: transfer $10.00 between own accounts and confirm completion', async ({ page }) => {
     const transferPage = new TransferPage(page);
 
-    // Step 1 — navigate to protected screen using the inherited session
+    // Step 1 — navigate to the protected screen using the inherited session
     await transferPage.goto();
 
-    // Accessibility scan (a11y gate: warning mode, no abort)
-    const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
-    const a11yViolations = accessibilityScanResults.violations.filter(v =>
-      ['serious', 'critical'].includes(v.impact ?? '')
+    // A11y scan — warning mode (fail_on_violations=false per style-contract)
+    const axeResults = await new AxeBuilder({ page }).analyze();
+    const a11yViolations = axeResults.violations.filter(
+      (v) => ['serious', 'critical'].includes(v.impact ?? ''),
     );
     if (a11yViolations.length > 0) {
       test.info().annotations.push({
         type: 'a11y-warning',
-        description: `${a11yViolations.length} serious/critical violation(s): ` +
-          a11yViolations.map(v => v.id).join(', '),
+        description:
+          `${a11yViolations.length} serious/critical violation(s): ` +
+          a11yViolations.map((v) => v.id).join(', '),
       });
     }
 
-    // Step 2 — page should NOT have redirected back to login
-    // If the session was not reused correctly, ParaBank serves the error-page gate.
+    // Step 2 — confirm the form loaded (session was reused correctly)
     await expect(page).toHaveTitle('ParaBank | Transfer Funds');
     await expect(page.getByRole('heading', { name: 'Transfer Funds' })).toBeVisible();
-
-    // Confirm the Amount textbox is present (proves the form loaded, not the login page)
     await expect(transferPage.amount).toBeVisible();
 
-    // Shared demo env (discovery shared_environment_warning): account numbers churn
-    // across runs — john may have a different/variable set. Read the live <option>
-    // values instead of hardcoding 13344/15564 (which went stale between Fase B and now).
+    // Step 3 — read available accounts at runtime (shared demo env, IDs change between runs)
     const accounts = await transferPage.fromAccount
       .locator('option')
-      .evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value).filter(Boolean));
+      .evaluateAll((opts) =>
+        opts.map((o) => (o as HTMLOptionElement).value).filter(Boolean),
+      );
     expect(accounts.length).toBeGreaterThan(0);
     const fromAcct = accounts[0];
     const toAcct = accounts.length > 1 ? accounts[1] : accounts[0];
 
-    // Step 3-5 — fill and submit the transfer form via POM action
+    // Step 4 — fill and submit the transfer form
     await transferPage.transferFunds('10.00', fromAcct, toAcct);
 
-    // Step 6 — confirm transfer completion
-    // No balance assertion — shared environment, balance changes across runs.
+    // Step 5 — assert confirmation (RF-003 then: system executes transfer and shows confirmation)
+    // Heading confirms the operation completed.
     await expect(transferPage.transferComplete).toBeVisible();
 
-    // The echoed amount and account numbers must appear in the confirmation text.
-    // Full sentence fragment avoids matching combobox DOM residuals (the bare number
-    // would also match the still-rendered select option).
+    // Full-sentence assert avoids false positives from combobox option text in the DOM.
     await expect(
-      page.getByText(`$10.00 has been transferred from account #${fromAcct} to account #${toAcct}`),
+      page.getByText(
+        `$10.00 has been transferred from account #${fromAcct} to account #${toAcct}`,
+      ),
     ).toBeVisible();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// § 2.2  Auth-handler guard — unauthenticated direct access blocked by error-page gate
-// Fresh browser context with NO storageState (overrides the project default).
-// ParaBank legacy JSP does NOT redirect on unauthenticated access: it serves an inline
-// error-page at the same URL (transfer.htm) with heading "Error!" + the login form.
-// The Transfer Funds form (Amount textbox) is NOT rendered.
-// ---------------------------------------------------------------------------
-test.describe('Feature: Transfer Funds — auth-handler guard (§ 2.2)', () => {
-  test.use({ storageState: { cookies: [], origins: [] } });
-
-  test('Scenario: unauthenticated direct access to transfer.htm shows error-page gate with login form', async ({ page }) => {
-    // Navigate directly to the protected screen without a session.
-    await page.goto('https://parabank.parasoft.com/parabank/transfer.htm');
-
-    // Accessibility scan (a11y gate: warning mode, no abort)
-    const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
-    const a11yViolations = accessibilityScanResults.violations.filter(v =>
-      ['serious', 'critical'].includes(v.impact ?? '')
-    );
-    if (a11yViolations.length > 0) {
-      test.info().annotations.push({
-        type: 'a11y-warning',
-        description: `${a11yViolations.length} serious/critical violation(s): ` +
-          a11yViolations.map(v => v.id).join(', '),
-      });
-    }
-
-    // GUARD BEHAVIOUR — catalogued Fase B, sitio 3 (ParaBank).
-    // ParaBank legacy JSP does NOT redirect on unauthenticated access to protected screens.
-    // The URL stays at transfer.htm; the server returns "ParaBank | Error" and renders
-    // heading "Error!" (h1) alongside the Customer Login form (heading "Customer Login", h2).
-    // The transfer form itself is NOT rendered. Asserting a URL-redirect would be wrong;
-    // we assert the inline error-page guard instead.
-    const transferPage = new TransferPage(page);
-    await expect(transferPage.amount).not.toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Error!' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Customer Login' })).toBeVisible();
   });
 });

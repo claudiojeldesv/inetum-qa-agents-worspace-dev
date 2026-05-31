@@ -1,0 +1,129 @@
+{
+  "module": "S3",
+  "mode": "Spec-refiner (Forma B)",
+  "command": "/qa-automator:spec-refiner --fd=demo/parabank/fd-parabank.md --url=https://parabank.parasoft.com/parabank/index.htm --style=style-contracts/parabank.yaml",
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "source_fd": "demo/parabank/fd-parabank.md",
+  "criteria": "docs/findings/faseD-s3/criteria.json",
+
+  "gates": {
+    "mode_router": "S3 functional / Forma B",
+    "compliance": "WARN (W1: parabank en allow-list pero real-like; no bloquea; autorizado por invocacion explicita)",
+    "open_questions_gate": "activo (opcion a): criterios con then AMBIGUO u open_questions NO se generan"
+  },
+
+  "tests_generated": [
+    {
+      "rf": "RF-001",
+      "title": "Inicio de sesion con credenciales validas",
+      "flow": "login",
+      "spec": "tests/e2e/login.spec.ts",
+      "criterion_citation": "RF-001 (fd-parabank.md:20-24)",
+      "writer_iterations": 1,
+      "reviewer_verdict": "approved",
+      "judge_score": 0.96,
+      "run_result": "PASS",
+      "a11y": "axe injected, warning-mode (fail_on_violations=false)"
+    },
+    {
+      "rf": "RF-003",
+      "title": "Transferencia de fondos entre cuentas propias - happy path",
+      "flow": "transfer-funds",
+      "spec": "tests/e2e/transfer-funds.spec.ts",
+      "criterion_citation": "RF-003 (fd-parabank.md:30-35)",
+      "writer_iterations": 1,
+      "reviewer_verdict": "approved",
+      "judge_score": 0.96,
+      "run_result": "PASS",
+      "a11y": "axe injected, warning-mode",
+      "note": "Solo happy-path. El guard de auth (RF-002) NO se incluyo: bloqueado por Q-001."
+    },
+    {
+      "rf": "RF-006",
+      "title": "Cierre de sesion",
+      "flow": "logout",
+      "spec": "tests/e2e/logout.spec.ts",
+      "criterion_citation": "RF-006 (fd-parabank.md:44-47)",
+      "writer_iterations": 1,
+      "reviewer_verdict": "approved",
+      "judge_score": 0.99,
+      "run_result": "PASS",
+      "a11y": "axe injected, warning-mode",
+      "heal_note": "Sanado post-proceso (principio SDET). Dos fixes: (1) strict-mode - asserts de ausencia de nav scopeados a #leftPanel (el footer de parabank tiene links SOAP llamados 'Transfer Funds'); (2) session-poisoning - logout usa sesion AISLADA (storageState vacio + login inline como given RF-006) para no invalidar la JSESSIONID compartida server-side que usa transfer-funds."
+    }
+  ],
+
+  "criteria_blocked_pending_sdet": [
+    {
+      "rf": "RF-002",
+      "title": "Acceso denegado a area de cliente sin sesion activa",
+      "flow": "auth-guard",
+      "blocked_by": ["Q-001"],
+      "reason": "El FD no especifica el mecanismo de bloqueo (redirect? error? 403?). then es una [ASSUMPTION]. No se fabrica la asercion.",
+      "mapped_in_dom": true,
+      "behavioral_drift_found": "El planner observo el comportamiento real: NO hay redirect, parabank devuelve pagina de error server-side ('ParaBank | Error', 'Error!'). Refuta la assumption del refiner (redirect). Ver drift-report.json behavioral_drift. El SDET deberia actualizar el FD al responder Q-001."
+    },
+    {
+      "rf": "RF-004",
+      "title": "Transferencia bloqueada por saldo insuficiente",
+      "flow": "transfer-funds",
+      "blocked_by": ["Q-002"],
+      "reason": "El FD pide validar saldo suficiente pero no especifica el comportamiento ante saldo insuficiente (mensaje? bloqueo duro o aviso? form editable?). then AMBIGUO. No se fabrica el caso negativo.",
+      "mapped_in_dom": true
+    },
+    {
+      "rf": "RF-005",
+      "title": "Alta de pago de recibo a beneficiario",
+      "flow": "bill-pay",
+      "blocked_by": ["Q-003", "Q-004"],
+      "reason": "El FD describe el form pero no el outcome tras confirmar. then AMBIGUO. No se fabrica spec.",
+      "mapped_in_dom": true,
+      "drift_risk_resolution": "El FD marcaba drift_risk:high ('bill-pay puede no estar expuesto en staging'). EMPIRICAMENTE FALSO: el planner mapeo /parabank/billpay.htm contra DOM real (form completo + confirmacion 'Bill Payment Complete'). RF-005 NO es drift: es mapeado-pero-bloqueado por open_questions. Reportar drift aqui habria sido fabricar un gap inexistente."
+    }
+  ],
+
+  "drift": {
+    "structural_declared_not_mapped": [],
+    "summary": "Drift estructural: NINGUNO. Los 5 flujos del brief (login, auth-guard, transfer-funds, bill-pay, logout) se mapearon contra DOM real. Detalle en drift-report.json.",
+    "behavioral_drift": [
+      {
+        "rf": "RF-002",
+        "flow": "auth-guard",
+        "finding": "FD asume redirect al login; implementacion devuelve pagina de error server-side. Divergencia FD<->impl real detectada. RF-002 bloqueado por Q-001 igualmente (no genera spec)."
+      }
+    ],
+    "false_drift_premise_resolved": {
+      "rf": "RF-005",
+      "flow": "bill-pay",
+      "finding": "La premisa de drift del FD (bill-pay no expuesto en staging) resulto falsa contra el parabank real. Se resolvio como no-drift, no se fabrico gap."
+    }
+  },
+
+  "verification": {
+    "command": "QA_BASE_URL + QA_STORAGE_STATE; npx playwright test login.spec.ts transfer-funds.spec.ts logout.spec.ts",
+    "workers": 3,
+    "workers_1_flag": false,
+    "retries": 0,
+    "runs": "2 corridas consecutivas, ambas verde",
+    "result": "4 passed (setup + 3 specs), ~11.9s",
+    "green": true
+  },
+
+  "artifacts": {
+    "criteria": "docs/findings/faseD-s3/criteria.json",
+    "refinement_questions": "docs/findings/faseD-s3/refinement-questions.md",
+    "discovery_report": "discovery-report.json (con criteria_mapping)",
+    "drift_report": "drift-report.json",
+    "review_feedback": "review-feedback.json",
+    "judge_report": "judge-report.json",
+    "audit_log": "audit-log.json"
+  },
+
+  "s3_2_acceptance_check": {
+    "ac1_rf001_rf003_rf006_generated_green": "PASS (3/3 verde, @criterion RF-NNN + source_ref, auth QA_BASE_URL+QA_STORAGE_STATE, sin --workers=1)",
+    "ac2_rf005_drift_no_spec": "AJUSTADO (decision SDET 'correr y reportar lo real'): RF-005 NO genera spec (correcto), pero NO es drift - bill-pay SI esta expuesto en parabank. Es mapeado-pero-bloqueado. La premisa de drift del fixture era falsa.",
+    "ac3_rf002_rf004_blocked_pending": "PASS (no generados, en criteria_blocked_pending_sdet, bloqueados por Q-001/Q-002)",
+    "ac4_discovery_criteria_mapping": "PASS (discovery-report.json trae criteria_mapping con 6 RF mapped, unmapped_flows vacio)",
+    "ac5_no_s4_regression": "PENDIENTE de verificar (autonomous sin --criteria)"
+  }
+}

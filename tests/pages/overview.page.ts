@@ -18,6 +18,11 @@ export class OverviewPage {
   readonly transferFunds: Locator;
   readonly logOut: Locator;
   readonly accountsTable: Locator;
+  // Scoped to #leftPanel — avoids matching SOAP service links in the footer of index.htm
+  // that also carry the text "Transfer Funds". Use these for not.toBeVisible() assertions
+  // after logout so the broad locator above does not cause strict-mode violations.
+  readonly transferFundsNav: Locator;
+  readonly logOutNav: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -29,6 +34,8 @@ export class OverviewPage {
     this.logOut = this.page.getByRole('link', { name: 'Log Out' });
     // Table may not have an accessible name in JSP markup. Primary assertion is via row text.
     this.accountsTable = this.page.getByRole('table').first();
+    this.transferFundsNav = this.page.locator('#leftPanel').getByRole('link', { name: 'Transfer Funds' });
+    this.logOutNav = this.page.locator('#leftPanel').getByRole('link', { name: 'Log Out' });
   }
 
   async goto() {

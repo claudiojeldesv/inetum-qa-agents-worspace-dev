@@ -1,0 +1,419 @@
+{
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "discovery_timestamp": "2026-05-31T00:00:00Z",
+  "source_plan": "parabank-s3-plan.md",
+  "source_criteria": "docs/findings/faseD-s3/criteria.json",
+  "discovery_mode": "S3-spec-refiner-forma-b",
+  "application_name": "ParaBank - Parasoft Demo Banking",
+  "framework": "JSP (legacy server-side rendering, no data-test attributes)",
+  "screens": [
+    {
+      "name": "login",
+      "url_pattern": "/parabank/index.htm",
+      "description": "Customer login form with username and password fields; entry point to ParaBank session",
+      "interactive_elements": [
+        {
+          "role": "textbox",
+          "name": "Username",
+          "test_id": null,
+          "locator_hint": "input[name='username']",
+          "locator_priority": "getByRole > getByLabel > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "Password",
+          "test_id": null,
+          "locator_hint": "input[name='password']",
+          "locator_priority": "getByRole > getByLabel > css_fallback (name)"
+        },
+        {
+          "role": "button",
+          "name": "Log In",
+          "test_id": null,
+          "locator_hint": "input[type='submit'][value='Log In']",
+          "locator_priority": "getByRole > getByLabel"
+        }
+      ]
+    },
+    {
+      "name": "overview",
+      "url_pattern": "/parabank/overview.htm",
+      "description": "Authenticated accounts overview showing welcome message, Account Services navigation, and accounts table with balances",
+      "interactive_elements": [
+        {
+          "role": "heading",
+          "name": "Welcome John Smith",
+          "test_id": null,
+          "locator_hint": "paragraph in authenticated sidebar",
+          "locator_priority": "getByText",
+          "note": "Assertion-only, not interactive; presence indicates authenticated state"
+        },
+        {
+          "role": "link",
+          "name": "Accounts Overview",
+          "test_id": null,
+          "locator_hint": "left-panel navigation link",
+          "locator_priority": "getByRole > getByText"
+        },
+        {
+          "role": "link",
+          "name": "Transfer Funds",
+          "test_id": null,
+          "locator_hint": "left-panel navigation link",
+          "locator_priority": "getByRole > getByText"
+        },
+        {
+          "role": "link",
+          "name": "Bill Pay",
+          "test_id": null,
+          "locator_hint": "left-panel navigation link",
+          "locator_priority": "getByRole > getByText"
+        },
+        {
+          "role": "link",
+          "name": "Log Out",
+          "test_id": null,
+          "locator_hint": "left-panel navigation link, href='logout.htm'",
+          "locator_priority": "getByRole > getByText"
+        },
+        {
+          "role": "table",
+          "name": "Accounts table",
+          "test_id": null,
+          "locator_hint": "table with columns: Account, Balance*, Available Amount",
+          "locator_priority": "getByRole",
+          "note": "Linked account numbers in table rows (href to activity.htm?id=NNNNN); read at runtime, never hardcoded"
+        }
+      ]
+    },
+    {
+      "name": "transfer",
+      "url_pattern": "/parabank/transfer.htm",
+      "description": "Transfer Funds form allowing transfers between own accounts; protected screen (auth-handler required)",
+      "interactive_elements": [
+        {
+          "role": "spinbutton",
+          "name": "amount",
+          "test_id": null,
+          "locator_hint": "input[id='amount']",
+          "locator_priority": "getByRole > css_fallback (id)"
+        },
+        {
+          "role": "combobox",
+          "name": "fromAccountId",
+          "test_id": null,
+          "locator_hint": "select[id='fromAccountId']",
+          "locator_priority": "getByRole > css_fallback (id)",
+          "note": "Options populated at runtime with john's account numbers; read and select dynamically"
+        },
+        {
+          "role": "combobox",
+          "name": "toAccountId",
+          "test_id": null,
+          "locator_hint": "select[id='toAccountId']",
+          "locator_priority": "getByRole > css_fallback (id)",
+          "note": "Options populated at runtime; must select different account from fromAccountId"
+        },
+        {
+          "role": "button",
+          "name": "Transfer",
+          "test_id": null,
+          "locator_hint": "input[value='Transfer']",
+          "locator_priority": "getByRole > getByLabel"
+        },
+        {
+          "role": "heading",
+          "name": "Transfer Complete!",
+          "test_id": null,
+          "locator_hint": "h1 heading post-transfer",
+          "locator_priority": "getByRole",
+          "note": "Confirmation heading; appears post-transfer with echoed amount in paragraph below"
+        }
+      ]
+    },
+    {
+      "name": "bill-pay",
+      "url_pattern": "/parabank/billpay.htm",
+      "description": "Bill Payment Service form for paying bills to beneficiaries; protected screen (auth-handler required)",
+      "interactive_elements": [
+        {
+          "role": "textbox",
+          "name": "payee.name",
+          "test_id": null,
+          "locator_hint": "input[name='payee.name']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "payee.address.street",
+          "test_id": null,
+          "locator_hint": "input[name='payee.address.street']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "payee.address.city",
+          "test_id": null,
+          "locator_hint": "input[name='payee.address.city']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "payee.address.state",
+          "test_id": null,
+          "locator_hint": "input[name='payee.address.state']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "payee.address.zipCode",
+          "test_id": null,
+          "locator_hint": "input[name='payee.address.zipCode']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "payee.phoneNumber",
+          "test_id": null,
+          "locator_hint": "input[name='payee.phoneNumber']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "payee.accountNumber",
+          "test_id": null,
+          "locator_hint": "input[name='payee.accountNumber']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "verifyAccount",
+          "test_id": null,
+          "locator_hint": "input[name='verifyAccount']",
+          "locator_priority": "getByRole > css_fallback (name)",
+          "note": "Must match payee.accountNumber; validated client-side"
+        },
+        {
+          "role": "spinbutton",
+          "name": "amount",
+          "test_id": null,
+          "locator_hint": "input[name='amount']",
+          "locator_priority": "getByRole > css_fallback (name)"
+        },
+        {
+          "role": "combobox",
+          "name": "fromAccountId",
+          "test_id": null,
+          "locator_hint": "select[name='fromAccountId']",
+          "locator_priority": "getByRole > css_fallback (name)",
+          "note": "Charge account; options populated at runtime with john's account numbers"
+        },
+        {
+          "role": "button",
+          "name": "Send Payment",
+          "test_id": null,
+          "locator_hint": "input[type='button'][value='Send Payment']",
+          "locator_priority": "getByRole > getByLabel"
+        },
+        {
+          "role": "heading",
+          "name": "Bill Payment Complete",
+          "test_id": null,
+          "locator_hint": "h1 heading post-payment",
+          "locator_priority": "getByRole",
+          "note": "Confirmation heading; appears post-payment with echoed payee name and amount in paragraph below"
+        }
+      ]
+    },
+    {
+      "name": "error",
+      "url_pattern": "/parabank/",
+      "description": "Error page returned when accessing protected pages without active session (auth-guard behavior); no redirect, error title and heading displayed",
+      "interactive_elements": [
+        {
+          "role": "heading",
+          "name": "Error!",
+          "test_id": null,
+          "locator_hint": "h1 heading in main content area",
+          "locator_priority": "getByRole",
+          "note": "Indicates unauthenticated access attempt to protected page"
+        },
+        {
+          "role": "paragraph",
+          "name": "An internal error has occurred and has been logged.",
+          "test_id": null,
+          "locator_hint": "p text in main content",
+          "locator_priority": "getByText",
+          "note": "Standard error message text"
+        },
+        {
+          "role": "textbox",
+          "name": "Username",
+          "test_id": null,
+          "locator_hint": "input[name='username'] (login form still rendered in left panel)",
+          "locator_priority": "getByRole > css_fallback (name)",
+          "note": "Login form persists in sidebar even on error page"
+        },
+        {
+          "role": "textbox",
+          "name": "Password",
+          "test_id": null,
+          "locator_hint": "input[name='password'] (login form still rendered in left panel)",
+          "locator_priority": "getByRole > css_fallback (name)",
+          "note": "Login form persists in sidebar even on error page"
+        }
+      ]
+    }
+  ],
+  "scenarios_recommended": [
+    "login.happy-path",
+    "login.invalid-credentials",
+    "auth-guard.unauthenticated-access-overview",
+    "auth-guard.unauthenticated-access-transfer",
+    "auth-guard.unauthenticated-access-bill-pay",
+    "transfer-funds.happy-path",
+    "transfer-funds.empty-amount-validation",
+    "bill-pay.happy-path",
+    "bill-pay.mismatched-account-validation",
+    "logout.happy-path",
+    "logout.post-logout-protected-access"
+  ],
+  "criteria_mapping": {
+    "mapped": [
+      {
+        "rf": "RF-001",
+        "title": "Inicio de sesión con credenciales válidas",
+        "flow": "login",
+        "scenario": "login.happy-path",
+        "screen": "login",
+        "confidence": "high",
+        "evidence": "Plan §1.1 maps login flow with valid credentials (john/demo) to /parabank/index.htm → /parabank/overview.htm. Steps include username input[name='username'], password input[name='password'], submit input[type='submit'][value='Log In']. Success signals: browser navigates to overview.htm, title becomes 'ParaBank | Accounts Overview', 'Welcome John Smith' paragraph visible, 'Accounts Overview' h1 visible, accounts table with linked account numbers present, Account Services navigation visible with Transfer Funds, Bill Pay, Log Out links."
+      },
+      {
+        "rf": "RF-002",
+        "title": "Acceso denegado a área de cliente sin sesión activa",
+        "flow": "auth-guard",
+        "scenario": "auth-guard.unauthenticated-access",
+        "screen": "error",
+        "confidence": "medium",
+        "evidence": "Plan §2 (2.1, 2.2, 2.3) maps auth-guard flow: unauthenticated direct access to /overview.htm, /transfer.htm, /billpay.htm (without JSESSIONID cookie, fresh browser context) returns 'ParaBank | Error' title, 'Error!' h1 heading, 'An internal error has occurred and has been logged.' paragraph text, login form still rendered in left panel (input[name='username'], input[name='password']). No redirect to login; error state persists on protected pages. Resolves Q-001 (FD assumption on behavior): actual behavior is error page with login form still available.",
+        "note": "Auth-guard is not a separate screen but a server-side error state behavior. Mapped to 'error' screen in POM for reusable error validation."
+      },
+      {
+        "rf": "RF-003",
+        "title": "Transferencia de fondos entre cuentas propias — happy path",
+        "flow": "transfer-funds",
+        "scenario": "transfer-funds.happy-path",
+        "screen": "transfer",
+        "confidence": "high",
+        "evidence": "Plan §3.1 maps transfer-funds happy path: authenticate (login flow) → navigate to /parabank/transfer.htm → form visible with h1 'Transfer Funds', input[id='amount'], select[id='fromAccountId'] with dynamic options, select[id='toAccountId'] with dynamic options, button input[value='Transfer']. Fill amount with '10', read account options at runtime, select two distinct accounts, click Transfer → page stays at /parabank/transfer.htm, heading 'Transfer Complete!' h1 visible, confirmation paragraph with pattern '$10.00 has been transferred from account #NNNNN to account #MMMMM', 'See Account Activity for more details.' text visible."
+      },
+      {
+        "rf": "RF-004",
+        "title": "Transferencia bloqueada por saldo insuficiente",
+        "flow": "transfer-funds",
+        "scenario": "transfer-funds.empty-amount-validation",
+        "screen": "transfer",
+        "confidence": "medium",
+        "evidence": "Plan §3.2 maps transfer-funds negative case (empty amount validation): authenticate → navigate to /parabank/transfer.htm → leave input[id='amount'] empty → select any two accounts → click input[value='Transfer'] → transfer does not complete, error or validation message visible. Plan notes 'exact text to be confirmed against live DOM on first run' (Q-002 deferred to Writer). Flow structure mapped; validation behavior confirmed at screen level."
+      },
+      {
+        "rf": "RF-005",
+        "title": "Alta de pago de recibo a beneficiario",
+        "flow": "bill-pay",
+        "scenario": "bill-pay.happy-path",
+        "screen": "bill-pay",
+        "confidence": "low",
+        "evidence": "Plan §4.1 maps bill-pay happy path: authenticate → navigate to /parabank/billpay.htm → form visible with h1 'Bill Payment Service', h2 'Enter payee information', beneficiary input fields (payee.name, payee.address.street, payee.address.city, payee.address.state, payee.address.zipCode, payee.phoneNumber, payee.accountNumber), verification input[name='verifyAccount'], amount input[name='amount'], select[name='fromAccountId'], button input[type='button'][value='Send Payment']. Fill form with test data (Test Payee, 123 Main St, Testville, CA, 90210, 5551234567, 99999, verify 99999, amount 25) → read from account option at runtime → click Send Payment → page stays at /parabank/billpay.htm, title changes to 'ParaBank | Bill Payment Complete', h1 'Bill Payment Complete' visible, confirmation paragraph with pattern 'Bill Payment to Test Payee in the amount of $25.00 from account NNNNN was successful.', 'See Account Activity for more details.' text visible. Confidence low due to FD ambiguity on outcome specification (Q-003, Q-004), but flow structure and DOM mapping confirmed.",
+        "drift_note": "FD declares bill-pay 'may not be exposed in staging' but plan confirms it is reachable at /parabank/billpay.htm; no actual drift detected."
+      },
+      {
+        "rf": "RF-006",
+        "title": "Cierre de sesión",
+        "flow": "logout",
+        "scenario": "logout.happy-path",
+        "screen": "login",
+        "confidence": "high",
+        "evidence": "Plan §5.1 maps logout happy path: authenticate (login flow) so 'Welcome John Smith' visible in authenticated overview state → Account Services navigation visible with 'Log Out' link (href='logout.htm') → click 'Log Out' link → browser navigates to /parabank/index.htm (session cleared by server, optional query string ?ConnType=JDBC allowed) → page title returns to 'ParaBank | Welcome | Online Banking', h2 'Customer Login' visible, input[name='username'] and input[name='password'] visible and empty, 'Welcome John Smith' paragraph no longer present, Account Services navigation links (Transfer Funds, Bill Pay, Log Out) no longer present, indicating authenticated state cleared."
+      }
+    ],
+    "unmapped_flows": []
+  },
+  "style_contract_alignment": {
+    "locators_priority_applied": [
+      "getByLabel",
+      "getByRole",
+      "getByText",
+      "getByTestId"
+    ],
+    "css_fallback_attributes": [
+      "name",
+      "id"
+    ],
+    "observations": [
+      "No data-testid attributes found in ParaBank DOM; all locators derive from semantic role, name attribute, or id attribute (legacy JSP)",
+      "Priority getByLabel/getByRole honored per style-contract; css_fallback_attributes (name, id) applied where semantic locators unavailable",
+      "input[type='submit'] and input[type='button'] use value attribute for button name identification; getByRole('button', { name: 'value' }) preferred",
+      "Dynamic account numbers in select[id='fromAccountId'], select[id='toAccountId'], select[name='fromAccountId'] options read at runtime; no hardcoded account IDs",
+      "Session persistence via JSESSIONID cookie; auth.setup.ts pattern (login once → storageState) aligns with style-contract auth configuration",
+      "Form input name attributes consistently follow naming convention (payee.name, payee.address.street, etc.) enabling predictable css_fallback locator construction"
+    ]
+  },
+  "notes": {
+    "discovery_completeness": "All five flows declared in brief (login, auth-guard, transfer-funds, bill-pay, logout) successfully mapped against live DOM. Five screens identified (login, overview, transfer, bill-pay, error). No screens omitted; all interactive elements extracted with locator hints.",
+    "open_questions_resolution": [
+      "Q-001 (RF-002 auth-guard behavior): RESOLVED by plan — unauthenticated access to protected pages returns error page with title 'ParaBank | Error', h1 'Error!', not redirect to login",
+      "Q-002 (RF-004 transfer validation message): DEFERRED to Writer/first test run — plan confirms validation error visible; exact message text to be captured on execution",
+      "Q-003, Q-004 (RF-005 bill-pay outcome): DEFERRED to Writer/first test run — plan describes confirmation page ('Bill Payment Complete' title/h1) and paragraph pattern; exact success message and feedback elements to be validated on execution"
+    ],
+    "drift_flag_analysis": "FD declares 'bill-pay may not be exposed in staging' (brief.drift_flags[0]); however, plan confirms /parabank/billpay.htm exists and is reachable post-authentication. No actual drift detected between FD intent and DOM reality.",
+    "auth_handler_notes": "ParaBank uses server-side JSESSIONID cookie for session persistence (Java servlet session). Auth-handler pattern (login once → storageState in playwright/.auth/john.json) is directly applicable per style-contract auth.enabled=true, storage_state path, credentials_ref, success_signal pointing to 'Log Out' link visibility.",
+    "a11y_notes": "a11y gate configured fail_on_violations=false (warning mode, not blocking) per style-contract decision for Fase B JSP legacy app. axe-core scan will be injected but violations tagged as annotations in test report, not test failures. Severity threshold: serious, critical only.",
+    "pii_compliance": "Plan uses only synthetic demo credentials (john/demo from public Parasoft environment). Test data (Test Payee, 123 Main St, Testville, CA, 90210, 5551234567, payee account 99999) are hardcoded synthetic values. No real PII (DNI, IBAN, phone, email) in test data. Synthetic fixtures defined in style-contract.synthetic_fixtures.",
+    "shared_environment_note": "ParaBank is a shared demo environment run by Parasoft. Account numbers are dynamic (read at runtime via select option values). Account balances change with each execution by any user. Tests assert only 'Transfer Complete!' / 'Bill Payment Complete!' confirmation text and transferred/paid amounts, never exact account balances or account number expectations.",
+    "session_isolation": "Fresh browser context (no JSESSIONID) required for auth-guard tests (§2); authenticated context (storageState) required for transfer-funds and bill-pay tests. Logout test (§5) validates session clearing by navigating back to login screen and confirming 'Welcome John Smith' absent and Account Services nav absent."
+  },
+  "locator_priority_per_contract": [
+    "getByLabel",
+    "getByRole",
+    "getByText",
+    "getByTestId"
+  ],
+  "quality_notes": {
+    "data_test_availability": "NONE — ParaBank is legacy JSP without data-test attributes. All locators must derive from semantic discovery (role, name, id, text).",
+    "locator_confidence": "HIGH — plan explicitly documents input names (username, password, amount, fromAccountId, toAccountId, payee.name, etc.), select ids, and button values; role-based and fallback-attribute locators are reliable.",
+    "pii_note": "Credentials (john/demo) are public demo fixtures from Parasoft. Test data (names, addresses, phone, account numbers) are synthetic. No real PII in scope.",
+    "a11y_enforcement": "axe-core injected per style-contract; fail_on_violations=false (WARNING severity, not blocker). SDET decision: ParaBank legacy JSP has known a11y violations — capture data for awareness without aborting test execution.",
+    "coverage_notes": [
+      "All five flows from brief covered: login (happy + negative), auth-guard (three protected-page scenarios), transfer-funds (happy + negative), bill-pay (happy + negative), logout (happy + post-logout guard)",
+      "Negative cases (invalid credentials, empty amount, mismatched account) are mapped with deferred validation text (exact error messages captured on first run)",
+      "Account number and balance displays in tables and confirmation messages are read/asserted dynamically, not hardcoded"
+    ]
+  },
+  "fixtures_required": {
+    "synthetic_data": [
+      {
+        "role": "credentials",
+        "username": "john",
+        "password": "demo",
+        "note": "Public demo account provided by Parasoft; shared environment"
+      },
+      {
+        "role": "bill_pay_test_beneficiary",
+        "payee_name": "Test Payee",
+        "payee_address_street": "123 Main St",
+        "payee_address_city": "Testville",
+        "payee_address_state": "CA",
+        "payee_address_zipcode": "90210",
+        "payee_phone": "5551234567",
+        "payee_account": "99999",
+        "note": "Synthetic test data for bill-pay form; no real PII"
+      }
+    ],
+    "auth_state": "playwright/.auth/john.json (storageState file path; created post-login via auth.setup.ts, reused in transfer-funds and bill-pay suites)"
+  },
+  "a11y_enforced": true,
+  "pii_scan_active": true,
+  "compliance_pre_flight": true,
+  "s3_mapping_complete": true
+}

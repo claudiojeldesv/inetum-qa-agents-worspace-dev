@@ -333,6 +333,8 @@ Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4
 - **Decisiones abiertas antes de construir**: formato del FD de entrada (markdown libre vs estructura mínima RF-NNN) y cuánto "refina" el refiner un FD flojo (instinto: extrae + marca huecos, no inventa criterios — peligroso en banca).
 - **S2 (Gherkin/OpenAPI) y Jira/tickets diferidos al final.** No bloquean S3.
 
+**S3 CERRADO — validado end-to-end (S3.2)**. Detalle en [`docs/findings/faseD-s3/s3.2-validation-report.md`](../docs/findings/faseD-s3/s3.2-validation-report.md). Contra ParaBank: **3/3 specs verde** (RF-001/RF-003/RF-006) con `@criterion` citando `RF-NNN (source_ref)`, 3 workers sin `--workers=1`; `discovery-report.json` con `criteria_mapping`; gate de open_questions bloquea RF-002/RF-004/RF-005 (no se generan, quedan pendientes de respuesta SDET). Drift: el FD declaraba bill-pay como flujo no expuesto, pero ParaBank **sí lo expone** → el agente lo reportó como no-drift (mapeado-pero-bloqueado), no fabricó el gap. Hallazgo de drift conductual real en auth-guard (el FD asume redirect, la app da error server-side). No-regresión S4 verificada en vivo (discovery sin `criteria_mapping`, writer con `@criterion` de prosa de plan). Refinamiento del FD = extrae + marca huecos, no inventa: confirmado. Markdown libre como formato de entrada: confirmado.
+
 **v0.2 Fase E — Telemetría y budget cap**:
 
 | Componente | Función |

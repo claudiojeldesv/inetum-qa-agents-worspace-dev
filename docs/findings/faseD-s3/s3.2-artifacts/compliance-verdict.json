@@ -1,0 +1,7 @@
+{
+  "verdict": "warn",
+  "rule": "W1",
+  "url": "https://parabank.parasoft.com/parabank/index.htm",
+  "reason": "URL allowed but lacks non-prod prefix (qa, test, int, staging, dev, localhost)",
+  "audit_logged": true
+}
