@@ -8,7 +8,9 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html', { outputFolder: 'playwright-report', open: 'never' }], ['list']],
   use: {
-    baseURL: 'https://www.saucedemo.com/',
+    // baseURL parametrizable por run (v0.2 Fase B): el command autonomous lo setea
+    // con el --url del target. Default SauceDemo para no romper specs históricos.
+    baseURL: process.env.QA_BASE_URL || 'https://www.saucedemo.com/',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     testIdAttribute: 'data-test',

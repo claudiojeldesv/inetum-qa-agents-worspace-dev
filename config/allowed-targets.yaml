@@ -13,6 +13,10 @@ patterns:
   - 'https://demo.playwright.dev/*'
   - 'https://todomvc.com/*'
 
+  # Sitios reales de práctica — v0.2 Fase B (sandboxes públicos de automation testing)
+  - 'https://practice.expandtesting.com/*'
+  - 'https://practicesoftwaretesting.com/*'
+
   # Entornos no productivos (cualquier subdominio)
   - 'https://*.qa.*'
   - 'https://*.test.*'
@@ -46,3 +50,6 @@ allowed_test_credentials:
   - username: performance_glitch_user
     password: secret_sauce
     source: 'saucedemo.com - publicly documented'
+  - username: practice
+    password: 'SuperSecretPassword!'
+    source: 'practice.expandtesting.com - publicly documented on /login page'

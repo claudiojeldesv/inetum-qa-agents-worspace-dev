@@ -83,10 +83,12 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 
 ## Verification step (ejecuta `npx playwright test`)
 
-Tras los 5 actos, ejecuta:
+Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo y el spec corre contra el sitio equivocado — hallazgo Fase B sitio 2):
 
 ```sh
-npx playwright test --reporter=list
+# PowerShell:  $env:QA_BASE_URL='<--url>'; npx playwright test <spec> --reporter=list
+# bash:        QA_BASE_URL='<--url>' npx playwright test <spec> --reporter=list
+QA_BASE_URL='<--url>' npx playwright test --reporter=list
 ```
 
 - Si todos verdes → run exitoso.

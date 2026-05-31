@@ -1,0 +1,57 @@
+# Style Contract — practicesoftwaretesting.com (Toolshop) — v0.2 Fase B, sitio 2
+# Schema docs: references/style-contract-schema.md
+# Nota Fase B: Toolshop (Angular SPA) SÍ expone data-test en sus elementos
+# (contraste con expandtesting). getByTestId vuelve a ser prioridad real aquí.
+# Flujo acotado: add-to-cart (sin auth). synthetic_fixtures vacío a propósito.
+
+version: 1
+project: practicesoftwaretesting
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByTestId
+    - getByRole
+    - getByLabel
+    - getByText
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  spec_pattern: '{feature}.{scenario}.spec.ts'
+  test_title_pattern: '{scenario_human_name}'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: true
+  severity_threshold:
+    - serious
+    - critical
+
+# Flujo add-to-cart no requiere credenciales. Si el flujo se ampliara a checkout,
+# declarar aquí las credenciales públicas documentadas de Toolshop.
+synthetic_fixtures:
+  credentials: []
+  test_cards: []
+  test_iban: []
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath
