@@ -77,6 +77,7 @@ interface ReviewFeedback {
 Un test se rechaza (`rejected`) si tiene **cualquiera** de:
 
 1. Locator CSS bruto sin `data-test` ni `getByRole`/`getByLabel`/`getByText` justificado.
+   - **Excepción legacy (v0.2 Fase C)**: un selector de atributo acotado (`[name="..."]` / `#id`) taggeado `// css-fallback:` NO es violación si el contract declara ese atributo en `locators.css_fallback_attributes` y no existe locator semántico para ese elemento en discovery. Selectores de clase, descendiente o tag+class siguen siendo violación siempre.
 2. Locator XPath.
 3. `page.waitForTimeout(...)`.
 4. Assert que solo verifica navegación (URL change) sin verificar contenido funcional.

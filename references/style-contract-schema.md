@@ -23,6 +23,17 @@ locators:
     - getByText
   forbid_css_selectors: boolean     # default true
   forbid_xpath: boolean             # default true
+  # Excepción acotada para sitios legacy sin semántica (v0.2 Fase C, hallazgo parabank #9).
+  # Cuando forbid_css_selectors:true pero NINGÚN locator de `priority` resuelve un
+  # elemento (JSP viejo sin label/aria/data-test), se permite caer a un selector de
+  # ATRIBUTO limitado a esta whitelist — p.ej. page.locator('[name="username"]') o '#id'.
+  # NUNCA CSS arbitrario: sin clases (.foo), sin descendientes (div > span), sin tag+class.
+  # Cada uso se taggea en el spec (// css-fallback: no semantic locator) y se registra
+  # al audit-log. Es declarativa y determinística: el contract autoriza, el enforcer
+  # aplica solo si no hay alternativa semántica. No es criterio del LLM.
+  css_fallback_attributes:          # default [] (sin excepción — forbid estricto)
+    - name
+    - id
 
 # Naming
 naming:
@@ -46,13 +57,30 @@ fixtures:
 
 # axe-core obligatorio
 a11y:
-  inject_axe_check: boolean         # default true (NO opcional en MVP)
-  fail_on_violations: boolean       # default true
-  severity_threshold:               # default 'serious'
-    - minor
-    - moderate
-    - serious
-    - critical
+  inject_axe_check: boolean         # default true (NO opcional en MVP — el scan SIEMPRE corre)
+  fail_on_violations: boolean       # default true. Gate configurable por-sitio (v0.2 Fase C).
+                                    #   true  → las violaciones (filtradas por severity) ABORTAN el test.
+                                    #   false → modo WARNING: el scan corre igual, las violaciones se
+                                    #           registran como test annotations (evidencia auditable),
+                                    #           pero NO tumban el test. No es silencio: el dato se captura.
+  severity_threshold:               # default ['serious','critical']. Solo estas severidades cuentan
+    - serious                       #   (tanto para fallar con fail_on_violations:true como para anotar
+    - critical                      #    con fail_on_violations:false).
+
+# Autenticación con sesión persistente (v0.2 Fase C, hallazgo parabank #10).
+# Cuando enabled:true, el command genera un setup project que loguea UNA vez, guarda
+# storageState, y los specs lo reutilizan vía `dependencies` — robusto bajo fullyParallel
+# (sustituye al frágil --workers=1 + orden alfabético del run manual de parabank).
+# ACOTADO a login form-based (usuario/contraseña). SAML / OAuth / MFA / TOTP NO soportados
+# en esta versión: no observados en Fase B (n=1). Entran cuando la evidencia lo justifique.
+auth:
+  enabled: boolean                  # default false → sin auth, sin setup project (comportamiento actual)
+  login_path: string                # ruta del form de login (ej. '/parabank/index.htm')
+  storage_state: string             # default 'playwright/.auth/<project>.json'
+  credentials_ref: integer          # índice en synthetic_fixtures.credentials (default 0). NO credenciales inline.
+  success_signal:                   # cómo el setup verifica que el login funcionó antes de guardar estado
+    type: string                    #   'url' (patrón de URL post-login) | 'locator' (elemento solo visible autenticado)
+    value: string                   #   ej. '**/overview.htm'  o  "getByRole('link', { name: 'Log Out' })"
 
 # PII allowlist (datos test publicados por el target, no son PII real)
 synthetic_fixtures:

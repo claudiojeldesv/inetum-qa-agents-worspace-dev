@@ -27,7 +27,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 
 | ID | Criterion |
 |---|---|
-| MF-1 | Locator uses CSS bruto or XPath when `data-test` or semantic locator is available in discovery |
+| MF-1 | Locator uses CSS bruto or XPath when `data-test` or semantic locator is available in discovery. **Exception**: a bounded attribute selector (`[name="..."]` / `#id`) tagged `// css-fallback:` is NOT a violation if (a) the contract declares the attribute in `locators.css_fallback_attributes` AND (b) no semantic locator for that element exists in discovery. Class/descendant/tag+class CSS is always a violation regardless of tag. |
 | MF-2 | `page.waitForTimeout(...)` present |
 | MF-3 | Assert only verifies navigation (URL change) without verifying functional content |
 | MF-4 | Missing `AxeBuilder({ page }).analyze()` check at start of `test()` |

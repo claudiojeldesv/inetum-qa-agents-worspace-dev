@@ -303,6 +303,18 @@ Componentes nuevos previstos. **Cada uno entra solo si la recolección muestra q
 | **A11y baseline aprobada** | Threshold actual `serious\|critical` aborta el 80% de tests contra portales reales. Mecanismo de baseline aprobada por SDET, no todo-o-nada. Es extensión del `ia4d-a11y-injector` existente. | Media-Alta |
 | `ia4d-frame-handler` (casuística especial) | Iframes y flujos cross-frame / pantalla-a-pantalla. Tratado **aparte** del reconocimiento general; Playwright maneja frames con API propia. Entra solo si aparece con frecuencia. | Baja-Media (caso aparte) |
 
+#### Estado Fase C — construido (3 sitios de evidencia, decisión SDET)
+
+Tras catalogar 3 sitios (wild-sites-report.md), se construyeron los 3 top **sin crear subagents nuevos**: se realizan como campos del style-contract + lógica en los agentes existentes. Decisión deliberada (evidencia n=1/n=2 + regla "editar sobre crear"). Diverge de la columna "Componente nuevo previsto" de arriba:
+
+| Componente top | Realizado como | Divergencia vs plan original |
+|---|---|---|
+| **A11y baseline configurable** | Gate `a11y.fail_on_violations` por-sitio en el schema; `ia4d-a11y-injector` lo honra (true → `expect` aborta; false → modo warning a `test.info().annotations`, evidencia sin abortar). El scan SIEMPRE se inyecta. | Es el **flag configurable**, NO el "baseline aprobada" (diff contra snapshot de violaciones conocidas). Baseline-diff diferido a v0.2.x. |
+| **auth-handler** | Campo `auth:` en el schema (form-based) + setup project condicional en `playwright.config.ts` (gate `QA_STORAGE_STATE`) + `dependencies` que mata la race bajo `fullyParallel`. El command genera `auth.setup.ts`. | Acotado a login **form-based**. SAML / OAuth / MFA / TOTP **diferidos** (no observados, n=1). No es subagent `ia4d-auth-handler`; es schema + config + command. |
+| **locator-hardener / excepción CSS legacy** | Campo `locators.css_fallback_attributes` (whitelist `name`/`id`); `ia4d-style-enforcer` aplica el fallback acotado cuando no hay semántica (taggeado + audit-log); `ia4d-reviewer` MF-1 honra la excepción declarada. | Excepción **declarativa y determinística** (el contract autoriza, el enforcer aplica), no un subagent `ia4d-locator-hardener` con heurística `role+accessibleName+nearbyText`. Nunca CSS arbitrario. |
+
+`ia4d-pre-flight-cleaner`, `ia4d-test-data-architect` y `ia4d-frame-handler` siguen pendientes (no alcanzaron el top de la priorización por impacto×frecuencia en los 3 sitios).
+
 **v0.2 Fase D — Ajustes al Quality layer derivados de observación**:
 
 | Ajuste | Razón observable |

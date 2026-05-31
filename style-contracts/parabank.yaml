@@ -31,6 +31,13 @@ locators:
     - getByTestId
   forbid_css_selectors: true
   forbid_xpath: true
+  # ParaBank es JSP legacy sin label/aria/data-test (hallazgo Fase B #9): login usa
+  # `name` (sin id), transfer usa `id`. Cuando ningún locator semántico resuelve, el
+  # enforcer cae a un selector de atributo acotado a esta whitelist, taggeado y audit-logged.
+  # Sustituye la ruptura forzada del Healer por una excepción declarativa y determinística.
+  css_fallback_attributes:
+    - name
+    - id
 
 naming:
   spec_pattern: '{feature}.{scenario}.spec.ts'
@@ -54,6 +61,18 @@ a11y:
   severity_threshold:
     - serious
     - critical
+
+# auth-handler (Fase C, hallazgo #10): sesión persistente robusta. El command genera
+# auth.setup.ts (login una vez → storageState) y el config la activa vía QA_STORAGE_STATE.
+# Sustituye la garantía frágil del run manual (--workers=1 + orden alfabético login→transfer).
+auth:
+  enabled: true
+  login_path: /parabank/index.htm
+  storage_state: playwright/.auth/john.json
+  credentials_ref: 0
+  success_signal:
+    type: locator
+    value: "getByRole('link', { name: 'Log Out' })"
 
 # Credenciales demo públicas de Parasoft (cuenta compartida, no PII real).
 # Estado compartido: el balance de john cambia con cada ejecución de cualquiera

@@ -18,7 +18,10 @@ You are the **Style Enforcer** of `ia4d-qa-automator`. You take a `.spec.ts` wri
 1. Read both files.
 2. Apply enforceable rules from the contract:
    - **Locator priority**: if `getByTestId` is in priority list and the test uses CSS selectors or roles when a `data-test` attr is present in the discovery report, rewrite to use `getByTestId('...')`.
-   - **No CSS selectors / no XPath**: if `forbid_css_selectors: true` and the test uses `page.locator('div.cls')` or `page.$('xpath=...')`, flag and rewrite if a semantic alternative is available; otherwise leave with a `// TODO style-enforcer: locator strategy` comment.
+   - **No CSS selectors / no XPath**: if `forbid_css_selectors: true` and the test uses `page.locator('div.cls')` or `page.$('xpath=...')`:
+     1. If a semantic alternative (per `priority`) is available in the discovery report → rewrite to it.
+     2. Else if the contract declares `locators.css_fallback_attributes` (legacy exception) → rewrite to a **bounded attribute selector** limited to those attributes only: `page.locator('[name="..."]')` or `page.locator('#id')`. Tag the line with `// css-fallback: no semantic locator (legacy, sanctioned by style-contract)` and append an audit-log entry `{ source: 'subagent', action: 'warn', target: <file>, rule: 'css-fallback', reason: '<attr> selector, no semantic alternative' }`. **Never** emit class (`.foo`), tag+class, descendant (`div > span`), or attribute outside the whitelist — those stay as a `// TODO style-enforcer:` comment.
+     3. Else (no semantic alt, no declared fallback) → leave with a `// TODO style-enforcer: locator strategy` comment.
    - **No waitForTimeout**: replace with `expect(locator).toBeVisible()` or similar semantic wait.
    - **No assert.equal(text)**: rewrite to `expect(locator).toHaveText(value)`.
    - **POM placement**: if the test references locators inline that should live in a Page class (per `pom.enabled: true`), flag but do not move automatically — leave a `// TODO style-enforcer: extract to POM` comment.

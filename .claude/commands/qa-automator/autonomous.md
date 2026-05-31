@@ -58,12 +58,20 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 
 ### Acto 4 — Materializar
 
+**8.b — Auth setup** (solo si el contract tiene `auth.enabled: true`):
+- Invoca `ia4d-writer` para generar `tests/e2e/auth.setup.ts`: un bloque `setup('authenticate', ...)` que navega a `auth.login_path`, rellena las credenciales de `synthetic_fixtures.credentials[auth.credentials_ref]`, verifica `auth.success_signal` (assert por `url` o `locator`), y guarda el estado con `await page.context().storageState({ path: <auth.storage_state> })`. Importa `setup` como `import { test as setup } from '@playwright/test'`. **NO** lleva AxeBuilder (es setup, no test del flujo). Los locators del login salen de discovery; si no hay semántica, aplica la excepción `css_fallback_attributes` (Componente CSS legacy).
+- El setup project + `dependencies` + `storageState` los activa `playwright.config.ts` vía `QA_STORAGE_STATE` (ver Verification step). Los specs del resto de flujos NO re-loguean: heredan el estado por el dependency.
+- Registra al audit-log: `{ source: 'command', action: 'write_file', target: 'tests/e2e/auth.setup.ts', rule: 'auth-handler', reason: 'setup project for persistent session' }`.
+
 9. Para cada `scenario` en `discovery-report.scenarios_recommended` (paralelizable):
    - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir`, `--output`, `--discovery-report`.
    - El Writer escribe el `.spec.ts` e invoca internamente al Reviewer (ping-pong N≤2).
    - Cada `.spec.ts` pasa por el hook PostToolUse `pii-post.ts` automáticamente.
 10. (Opcional) Invoca `ia4d-style-enforcer` por cada `.spec.ts` para enforce final del Style Contract.
-11. (Obligatorio) Invoca `ia4d-a11y-injector` por cada `.spec.ts` para asegurar `AxeBuilder` check.
+11. (Obligatorio) Invoca `ia4d-a11y-injector` por cada `.spec.ts` **pasándole `--style-contract`** para asegurar el `AxeBuilder` scan y aplicar el gate del contract:
+    - El scan se inyecta siempre (no opcional, SPEC §6).
+    - El gate lo decide `a11y.fail_on_violations` del contract: `true` → `expect(...).toEqual([])` aborta; `false` → modo warning (annotation auditable, no aborta). Severidades filtradas por `a11y.severity_threshold`.
+    - Lee el `gate_mode` del output del injector y registra al audit-log: `{ source: 'command', action: 'warn'|'allow', target: <spec>, rule: 'a11y-gate', reason: 'fail_on_violations:<bool> → <mode> mode' }`.
 
 ### Acto 5 — Juzgar
 
@@ -83,12 +91,18 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 
 ## Verification step (ejecuta `npx playwright test`)
 
-Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo y el spec corre contra el sitio equivocado — hallazgo Fase B sitio 2):
+Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo y el spec corre contra el sitio equivocado — hallazgo Fase B sitio 2).
+
+**Si el contract tiene `auth.enabled: true`**, setea además `QA_STORAGE_STATE` con `auth.storage_state`. Eso activa el setup project + `dependencies` en `playwright.config.ts`: el `auth.setup.ts` corre primero y escribe el estado, luego los specs lo heredan. **Ya no hace falta `--workers=1`** — el dependency garantiza el orden bajo `fullyParallel` (mata la race del hallazgo #10).
 
 ```sh
-# PowerShell:  $env:QA_BASE_URL='<--url>'; npx playwright test <spec> --reporter=list
-# bash:        QA_BASE_URL='<--url>' npx playwright test <spec> --reporter=list
-QA_BASE_URL='<--url>' npx playwright test --reporter=list
+# Sin auth (PowerShell):  $env:QA_BASE_URL='<--url>'; npx playwright test --reporter=list
+# Sin auth (bash):        QA_BASE_URL='<--url>' npx playwright test --reporter=list
+
+# Con auth (PowerShell):
+#   $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test --reporter=list
+# Con auth (bash):
+#   QA_BASE_URL='<--url>' QA_STORAGE_STATE='playwright/.auth/<project>.json' npx playwright test --reporter=list
 ```
 
 - Si todos verdes → run exitoso.
