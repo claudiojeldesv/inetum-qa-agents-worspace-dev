@@ -16,6 +16,7 @@ patterns:
   # Sitios reales de práctica — v0.2 Fase B (sandboxes públicos de automation testing)
   - 'https://practice.expandtesting.com/*'
   - 'https://practicesoftwaretesting.com/*'
+  - 'https://parabank.parasoft.com/*'    # sitio 3: banca demo (auth + estado)
 
   # Entornos no productivos (cualquier subdominio)
   - 'https://*.qa.*'
@@ -53,3 +54,6 @@ allowed_test_credentials:
   - username: practice
     password: 'SuperSecretPassword!'
     source: 'practice.expandtesting.com - publicly documented on /login page'
+  - username: john
+    password: demo
+    source: 'parabank.parasoft.com - Parasoft demo account, publicly documented'

@@ -73,40 +73,81 @@ Reemplazo de opencart (caído). Ecommerce Angular SPA, catálogo grande. Brief: 
 
 ---
 
-## Frecuencias provisionales (2 sitios)
+## Sitio 3 — `parabank.parasoft.com` (banca demo JSP, flujos: login + transferencia)
+
+Sitio elegido para cazar la categoría **auth-handler** (login persistente / storageState), única apuesta top de Fase C aún no observada. Banca demo Parasoft, JSP legacy server-side. Brief: `--flows=login,transfer-funds --entry=/parabank/index.htm --ignore=bill-pay,request-loan,...`. Style contract: `parabank.yaml` (locators `getByLabel/getByRole` primero, `fail_on_violations: false`). Credenciales públicas `john/demo`.
+
+**Recon previo del SDET** (antes del pipeline): verificación empírica de viabilidad — `john/demo` loguea, transfer-funds ejecutable, Register disponible. No se asumió que las credenciales demo siguieran vivas; se comprobó. Dato: el estado cambió entre recon (john con 1 cuenta) y run del planner (2 cuentas, 13344+15564).
+
+### Resultado
+
+**3/3 verde** (login + transfer happy-path + auth-guard) tras pipeline + Healer. Judge: login 0.96, transfer 0.93. Reviewer aprobó ambos en iteración 0. El a11y NO abortó (configurado warning) → permitió alcanzar el objetivo.
+
+**Auth-handler CAZADO**: el patrón storageState funcionó end-to-end. login.spec.ts guarda `playwright/.auth/john.json`; transfer happy-path lo reutiliza vía `test.use({ storageState })` y navega a transfer.htm **sin re-login** (sesión persistió entre specs). El guard test valida el acceso no autenticado.
+
+### Fallos / hallazgos
+
+| # | Categoría | Detalle | Impacto | Dificultad | Componente Fase C |
+|---|---|---|---|---|---|
+| 9 | **`forbid_css_selectors` inviable en legacy** | ParaBank no tiene labels asociados, ni aria-*, ni placeholder, ni data-test. `getByLabel` falla; `getByRole('textbox')` ambiguo (text+password ambos role textbox → strict-mode). El Healer **rompió forzadamente** `forbid_css_selectors`: `input[name=...]` en login, `#id` en transfer. Documentado como excepción. **No observado en sitios 1-2** (tenían id/label o data-test). | **Alto** — bloquea todo locator del sitio si el contract es estricto | Media | **Contract: excepción CSS por-locator en sitios legacy** (o locator-hardener con fallback a name/id attribute) |
+| 10 | **auth-handler: patrón OK, plumbing ausente** | storageState reutilizado funciona, pero NO hay setup project con `dependencies` en `playwright.config.ts`. Frágil ante `fullyParallel` (race: transfer lee el `.json` antes de que login lo escriba). Única garantía actual: `--workers=1` + orden alfabético login→transfer. Ambos Writers flaguearon el gap de forma independiente. | **Alto** — auth-handler no es robusto sin esto | Media | **Command: setea setup project + dependencies; schema del style-contract con campo `auth:`** |
+| 11 | Guard de sesión legacy = error-page inline, NO redirect | Acceso no autenticado a transfer.htm: la URL **no cambia**, ParaBank sirve transfer.htm (200) con heading "Error!" + form de login, sin el form de transferencia. El planner asumió redirect (modelo SPA/MVC moderno). Aserción re-modelada al comportamiento real (no se falseó un redirect inexistente). | Medio | Baja | Nota para planner/Writer: "auth guard = redirect" no aplica a apps server-side legacy |
+| 12 | Inconsistencia de atributos por pantalla (mismo sitio) | login usa `name` (sin id); transfer usa `id` (con `name="input"` genérico inútil). El locator robusto **varía por pantalla** dentro del mismo sitio legacy. Refuerza #9. | Bajo | — | Estrategia de locator por-pantalla, no por-sitio |
+| 13 | Writer optimista vs Healer realista | El Writer siguió la prioridad `getByLabel` del contract asumiendo linkage for/id inexistente. Generación optimista; el Healer corrige contra DOM real. Coherente con el principio SDET (sanación al final, no acoplada a generación). | Bajo (es el flujo esperado) | — | Confirma el rol del Healer; opcional: pre-scout de DOM antes del Writer (Fase C+) |
+| 14 | `npx tsx -e` del scaffolder falla silencioso (win32/bash) | El comando inline del Acto 3 (`autonomous.md` paso 8) no escribió POMs sin error visible. Hubo que ejecutarlo vía archivo `.mjs` dentro del workspace (import relativo). | Bajo | Baja | Plumbing: scaffolder como script invocable, no `-e` inline |
+
+### Lo que NO falló / contrastes positivos
+
+- **storageState reutilizado entre specs**: el objetivo del sitio. La sesión persistió; transfer.htm cargó autenticado sin re-login.
+- **Hard rule test_id honrada (3/3)**: discovery puso `test_id: null` en todos (ParaBank no tiene data-test). El defecto de Fase A (fabricar test_id) sigue sin reproducirse.
+- **a11y como warning permitió el objetivo**: 5/8/7 violaciones critical/serious capturadas sin abortar. Contraste con sitio 1 (abortó con `fail_on_violations: true`). Confirma que la decisión de severidad debe ser configurable por sitio.
+- **Reviewer aprobó iter 0 en ambos**; el Healer resolvió lo que era runtime puro (locators contra DOM real + comportamiento del guard), no defectos de redacción.
+
+---
+
+## Frecuencias (3 sitios — Fase B cerrada)
 
 | Categoría | Frecuencia | Nota |
 |---|---|---|
-| Compliance W1 (sitio real sin prefijo) | 2/2 (100%) | Ajustar: FQDN en allowlist no debería warnear |
-| Style contract por sitio (setup manual) | 2/2 (100%) | Plantilla/generador de contract |
-| A11y todo-o-nada aborta | 1/2 (50%) | Baseline aprobada sigue siendo prioridad (cuando golpea, bloquea entero) |
-| Locator frágil (id dinámico / sin data-test) | 1/2 | locator-hardener |
-| baseURL no parametrizado | 1/2 (pero estructural, afecta a todos) | Plumbing baseURL |
-| `seed.spec` resembrado por MCP | 2/2 | Limpieza post-run |
+| Compliance W1 (sitio real sin prefijo) | 3/3 (100%) | Ajustar: FQDN en allowlist no debería warnear |
+| Style contract por sitio (setup manual) | 3/3 (100%) | Plantilla/generador de contract |
+| `seed.spec` resembrado por MCP | 3/3 (100%) | Limpieza post-run |
+| Hard rule `test_id` honrada (no fabrica) | 3/3 (100%) | Defecto Fase A no reproducido — fix barato confirmado |
+| Problema de locator (naturaleza varía) | 2/3 | toolshop: id dinámico; parabank: sin semántica (forbid_css inviable). expandtesting OK |
+| A11y con violaciones serias presente | 2/3 | expandtesting + parabank; toolshop limpio (Angular Material) |
+| A11y **aborta** el flujo | 1/3 (33%) | Solo sitio 1 (`fail_on_violations: true`). Configurable → no es destino forzoso |
+| auth-handler (storageState + guard) | 1/3 | Solo parabank tiene auth. Apuesta top **confirmada y cazada** |
+| `forbid_css_selectors` inviable (legacy) | 1/3 | Solo parabank (JSP legacy sin semántica). NUEVO |
+| baseURL no parametrizado | estructural | FIXED (`QA_BASE_URL`) |
 
-Pendiente sitio 3: `parabank.parasoft.com` (auth + estado). opencart descartado (caído).
+## Consolidación Fase B — priorización de componentes Fase C
 
-## Consolidación (tras sitio 3)
+Tres sitios producidos y catalogados (pequeño con id/label, grande con data-test, legacy sin semántica + auth). Priorización por impacto × frecuencia:
 
-Recalcular frecuencias y cerrar priorización de componentes Fase C.
+1. **A11y baseline configurable** (impacto alto cuando golpea, 1/3 aborta pero 2/3 con violaciones serias). El umbral de severidad y `fail_on_violations` deben ser por-sitio, no global. Ya validado manualmente en parabank (warning permitió el objetivo).
+2. **auth-handler como componente de primera clase** (1/3 pero alto valor, categoría diferenciadora): setup project + `dependencies` en config generados por el command; campo `auth:` en el schema del style-contract (login flow + ruta storageState). El patrón ya lo genera el planner/Writer; falta el plumbing que lo haga robusto sin `--workers=1` manual.
+3. **locator-hardener / excepción CSS en legacy** (2/3 problemas de locator, naturaleza dispar): fallback a `name`/`id` attribute cuando no hay semántica; excepción documentada a `forbid_css_selectors` por-locator. ParaBank demostró que la regla estricta es inviable en JSP legacy.
+4. **Style contract por sitio** (3/3): plantilla/generador que arranque del DOM real (pre-scout) en vez de setup 100% manual.
+5. **Ajustes de fricción** (baja dificultad, alta frecuencia): W1 no-warn para FQDN en allowlist (3/3), limpieza de `seed.spec` post-run (3/3), scaffolder como script invocable no `-e` inline.
 
 ---
 
 ## Estado de continuidad (para el próximo chat)
 
-**Hecho esta sesión:**
+**Hecho (Fase B completa, 3 sitios):**
 - Cierre Fase A (commit `ef5611e`): pipeline LLM-LLM validado, evidencia en `docs/findings/faseA-closure/`.
 - Plumbing del brief (commit `6deabdc`): `autonomous.md` acepta `--flows/--entry/--ignore`.
 - Reframe Fase B en SPEC + CLAUDE (commit `0a601d6`).
-- Fase B sitios 1 (expandtesting) y 2 (Toolshop) ejecutados y catalogados aquí.
-- **Fix `baseURL`** aplicado (no commiteado aún): `playwright.config.ts` ahora lee `process.env.QA_BASE_URL` (default saucedemo); `autonomous.md` verification step documenta setearlo con el `--url` del run. Resuelve el hallazgo #5.
+- Fase B sitios 1 (expandtesting), 2 (Toolshop) y 3 (parabank) ejecutados y catalogados.
+- Fix `baseURL` (`QA_BASE_URL`) aplicado y validado en sitio 3.
+- Evidencia de sitios 1 y 2 archivada en `docs/findings/faseB-evidence/{sitio1-expandtesting,sitio2-toolshop}/`.
 
-**Cómo correr el sitio 3 (parabank) en el próximo chat:**
-1. Añadir `https://parabank.parasoft.com/*` a `config/allowed-targets.yaml` + sus credenciales test.
-2. Crear `style-contracts/parabank.yaml` (parabank usa ids/forms clásicos, sin data-test → priority getByLabel/getByRole; declarar credenciales en synthetic_fixtures porque el flujo de banca requiere login → categoría **auth-handler**).
-3. `/qa-automator:autonomous --url=https://parabank.parasoft.com/ --style=style-contracts/parabank.yaml --flows=<login|transferencia> --entry=/ --ignore=<...>`.
-4. Verificación: setear `QA_BASE_URL=https://parabank.parasoft.com/` (fix ya aplicado).
+**Estado actual del workspace (sin commitear):**
+- `tests/e2e/`: `login.spec.ts` + `transfer-funds.spec.ts` (parabank, 3/3 verde) + `seed.spec.ts` (resembrado MCP).
+- `tests/pages/`: login/overview/transfer/logout POMs de parabank (locators CSS forzados, documentados).
+- `style-contracts/parabank.yaml`, `config/allowed-targets.yaml` (+ parabank +john/demo).
+- Artefactos del run: `discovery-report.json`, `parabank-plan.md`, `compliance-verdict.json`, `judge-report.json`, `audit-log.json`.
 
-**Limpieza pendiente** (decidir al empezar): `tests/e2e/` tiene `login.spec.ts` (expandtesting) + `add-to-cart.spec.ts` (Toolshop) + `seed.spec.ts` (resembrado por MCP). Archivar como evidencia o limpiar antes del sitio 3.
+**Cómo re-correr parabank:** `$env:QA_BASE_URL='https://parabank.parasoft.com/'; npx playwright test tests/e2e/login.spec.ts tests/e2e/transfer-funds.spec.ts --reporter=list --workers=1` (login DEBE correr antes que transfer — sin setup project, el orden es la única garantía del storageState).
 
-**Objetivo del sitio 3:** cazar la categoría **auth-handler** (storageState, login persistente) — única apuesta top de Fase C aún no observada. Tras sitio 3, recalcular frecuencias y cerrar la priorización de componentes Fase C.
+**Siguiente (Fase C):** cerrar priorización arriba. Componentes top: a11y baseline configurable, auth-handler de primera clase (setup project + campo `auth:` en schema), locator-hardener/excepción CSS en legacy. Pendiente decidir: commit de cierre de Fase B + arranque de Fase C.

@@ -31,6 +31,13 @@ Thumbs.db
 /judge-report.json
 /review-feedback.json
 /discovery-report.json
+/compliance-verdict.json
+
+# StorageState / auth artifacts (session cookies, recreated by login spec at runtime)
+/playwright/.auth/
+
+# Empty seed scaffold resembrado por el MCP playwright-test en cada setup_page
+/tests/e2e/seed.spec.ts
 
 # Archived pre-MVP / referential content (relocated, not deleted)
 /tmp/
