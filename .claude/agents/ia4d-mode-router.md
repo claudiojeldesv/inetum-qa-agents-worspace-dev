@@ -21,12 +21,17 @@ A command invocation will pass a subset of:
 ## Decision tree
 
 ```
-if --repo present → S1 (Code-driven) [STUB in v0.1, return 'not implemented v0.3']
-elif --gherkin or --openapi present → S2 (Req-driven) [STUB in v0.1, return 'not implemented v0.3']
-elif --fd present → S3 (Spec-refiner) [STUB in v0.1, return 'not implemented v0.2']
-elif --url present → S4 (Autonomous) [FUNCTIONAL in v0.1]
+if --repo present → S1 (Code-driven) [STUB, return 'not implemented v0.3']
+elif --gherkin or --openapi present → S2 (Req-driven) [STUB, return 'not implemented v0.3']
+elif --fd present → S3 (Spec-refiner) [FUNCTIONAL v0.2 Forma B — requires --url too]
+elif --url present → S4 (Autonomous) [FUNCTIONAL]
 else → error: 'no input provided. Use --url, --fd, --gherkin, --openapi, or --repo'
 ```
+
+Note on S3 (Forma B): S3 is `--fd` **plus** `--url`. The FD provides the criteria; the URL
+provides the DOM to map them against. If `--fd` is present but `--url` is absent, return a
+`needs_input` status telling the SDET that Forma B requires a staging URL (Forma A — FD without
+target — is not implemented; it would break the green-run/real-locators value proposition).
 
 ## Output
 
@@ -35,9 +40,9 @@ Write to `mode-routing.json` in workspace root:
 ```json
 {
   "module": "S1 | S2 | S3 | S4",
-  "status": "functional | stub",
+  "status": "functional | stub | needs_input",
   "next_action": "<what the orchestrator should do>",
-  "user_message": "<what to tell the SDET if this is a stub>"
+  "user_message": "<what to tell the SDET if this is a stub or needs_input>"
 }
 ```
 
@@ -45,7 +50,8 @@ Write to `mode-routing.json` in workspace root:
 
 - Do not invoke other subagents. You are the dispatcher; the command reads your output and decides.
 - Be deterministic. Same input always → same module.
-- In MVP v0.1, only S4 is functional. The others return informative stubs.
+- S3 (`--fd` + `--url`) and S4 (`--url`) are functional. S1 (`--repo`) and S2 (`--gherkin`/`--openapi`) return informative stubs.
+- For `status`, use `functional` | `stub` | `needs_input` (the last when `--fd` is present without `--url`).
 
 ## Reference
 
