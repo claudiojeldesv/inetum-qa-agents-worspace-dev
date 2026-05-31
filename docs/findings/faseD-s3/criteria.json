@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "source_fd": "demo/parabank/fd-parabank.md",
+  "refined_timestamp": "2026-05-31T00:00:00Z",
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+
+  "criteria": [
+    {
+      "id": "RF-001",
+      "title": "Inicio de sesión con credenciales válidas",
+      "flow": "login",
+      "given": "Un cliente registrado no ha iniciado sesión",
+      "when": "El cliente introduce su nombre de usuario y contraseña correctos y confirma el acceso",
+      "then": "El sistema autentica al cliente y muestra el resumen de cuentas con el saldo de cada cuenta",
+      "source_ref": "fd-parabank.md:20-24",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-002",
+      "title": "Acceso denegado a área de cliente sin sesión activa",
+      "flow": "auth-guard",
+      "given": "Un usuario no ha iniciado sesión",
+      "when": "El usuario intenta acceder a cualquier pantalla del área de cliente",
+      "then": "El sistema impide la visualización de datos de cuentas y no permite el acceso a la pantalla solicitada",
+      "source_ref": "fd-parabank.md:24-27",
+      "confidence": "medium",
+      "drift_risk": "low",
+      "assumptions": [
+        "[ASSUMPTION] El FD dice 'no debe estar permitido' e 'impedir la visualización' pero no especifica si el sistema redirige al login, muestra un error, o simplemente no renderiza el contenido. Se asume redirección al login por ser el comportamiento estándar en portales bancarios, pero el then se limita a lo que el FD enuncia explícitamente."
+      ],
+      "open_questions": ["Q-001"]
+    },
+    {
+      "id": "RF-003",
+      "title": "Transferencia de fondos entre cuentas propias — happy path",
+      "flow": "transfer-funds",
+      "given": "El cliente ha iniciado sesión y dispone de al menos dos cuentas con saldo suficiente",
+      "when": "El cliente selecciona la cuenta de origen, la cuenta de destino, introduce el importe y confirma la transferencia",
+      "then": "El sistema ejecuta la transferencia y muestra una confirmación al cliente indicando el importe transferido",
+      "source_ref": "fd-parabank.md:30-35",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-004",
+      "title": "Transferencia bloqueada por saldo insuficiente",
+      "flow": "transfer-funds",
+      "given": "El cliente ha iniciado sesión y selecciona una cuenta de origen sin saldo suficiente para el importe introducido",
+      "when": "El cliente intenta confirmar la transferencia",
+      "then": "[AMBIGUO — el FD no especifica] El FD indica que el sistema debe validar que la cuenta de origen dispone de saldo suficiente antes de ejecutar la operación, pero no describe el comportamiento resultante: ni el texto del mensaje de error, ni si el formulario permanece editable, ni si es un bloqueo duro o un aviso",
+      "source_ref": "fd-parabank.md:32-34",
+      "confidence": "low",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": ["Q-002"]
+    },
+    {
+      "id": "RF-005",
+      "title": "Alta de pago de recibo a beneficiario",
+      "flow": "bill-pay",
+      "given": "El cliente ha iniciado sesión",
+      "when": "El cliente accede a la pantalla de pago de recibos, introduce los datos del beneficiario (nombre, dirección, cuenta) y el importe, selecciona la cuenta con cargo y confirma el pago",
+      "then": "[AMBIGUO — el FD no especifica] El FD describe los datos requeridos y la acción de confirmar, pero no especifica el resultado tras la confirmación (mensaje de éxito, actualización de saldo, confirmación visual u otro feedback)",
+      "source_ref": "fd-parabank.md:38-42",
+      "confidence": "low",
+      "drift_risk": "high",
+      "assumptions": [
+        "[ASSUMPTION] El FD usa la expresión 'dar de alta el pago de un recibo' que en el dominio bancario español puede referirse tanto a un pago puntual como a una domiciliación recurrente. Se asume pago puntual por la descripción del flujo, pero no se puede confirmar sin aclaración."
+      ],
+      "open_questions": ["Q-003", "Q-004"]
+    },
+    {
+      "id": "RF-006",
+      "title": "Cierre de sesión",
+      "flow": "logout",
+      "given": "El cliente tiene una sesión activa",
+      "when": "El cliente ejecuta el cierre de sesión",
+      "then": "El sistema termina la sesión y devuelve al cliente a la pantalla de acceso (login)",
+      "source_ref": "fd-parabank.md:44-47",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    }
+  ],
+
+  "brief": {
+    "flows": ["login", "auth-guard", "transfer-funds", "bill-pay", "logout"],
+    "entry": "/parabank/index.htm",
+    "ignore": ["administración interna", "apertura de nuevas cuentas"],
+    "drift_flags": [
+      {
+        "flow": "bill-pay",
+        "rf": "RF-005",
+        "reason": "El propio preamble del FD advierte que este flujo puede no estar expuesto en el happy-path del entorno de staging. El FD describe el formulario y la confirmación pero no especifica el outcome, lo que impide verificación completa incluso si el flujo existe."
+      }
+    ]
+  },
+
+  "open_questions_ref": "docs/findings/faseD-s3/refinement-questions.md",
+
+  "pii_redaction": {
+    "verdict": "pass",
+    "literals_found": [],
+    "downstream_note": "El FD no contiene ejemplos de datos concretos (sin DNI, IBAN, tarjetas, teléfonos ni emails). Los fixtures de prueba (credenciales de login, importes de transferencia, datos de beneficiario) deben provenir exclusivamente del bloque synthetic_fixtures del style-contract del cliente, no del FD."
+  },
+
+  "refiner_notes": "El FD tiene 6 requisitos funcionales distribuidos en 4 secciones. RF-004 y RF-005 tienen then ambiguo y requieren respuesta del SDET antes de generar los casos negativos y el flujo completo de bill-pay respectivamente. El flujo auth-guard (RF-002) tiene confidence medium por una interpretación necesaria sobre el comportamiento de redirección. Los flujos login, transfer-funds (happy path) y logout son de confidence high y pueden avanzar a generación sin esperar respuestas. Las zonas out-of-scope declaradas explícitamente por el FD son administración interna y apertura de nuevas cuentas."
+}
