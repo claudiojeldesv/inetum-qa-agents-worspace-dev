@@ -257,26 +257,42 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contrac
 
 **Orden estricto de v0.2** (cada fase informa la siguiente, no se salta):
 
-**v0.2 Fase A — Cierre operativo del MVP v0.1**:
-1. Validación end-to-end LLM-LLM en sesión Claude Code nueva (cierra el bloqueador del Slice 6.5).
-2. Borrar residuales de v0.1 (specs E2E generados, POMs, audit-log.json, judge-report.json, etc.) — empezar limpio.
+**v0.2 Fase A — Cierre operativo del MVP v0.1** ✅ COMPLETADA:
+1. Validación end-to-end LLM-LLM en sesión nueva: los 13 subagents responden como invocables, los 5 actos orquestan end-to-end. Bloqueador Slice 6.5 cerrado.
+2. Verificación runtime inicial: 0/3 specs generados verdes. Causa: `ia4d-discovery-analyzer` fabrica `test_id` desde prosa del plan (`user-name` vs `data-test` real `username`) — viola su propia hard rule "do not invent". Defecto registrado.
+3. Sanación (post-proceso, principio del SDET): `playwright-test-healer` reconcilió 20 test_ids contra DOM vivo, sin `test.fixme`. Verificado: 4/4 verde.
+4. Evidencia archivada en `docs/findings/faseA-closure/` (commit `ef5611e`), no en `tests/` vivo. Residuales v0.1 relocados a `tmp/v01-residuals/` (archivo, no borrado).
+5. Decisión de fondo derivada: `discovery` DOM-aware vs lean-on-Healer → ver estrategia de reconocimiento en Fase C.
 
-**v0.2 Fase B — Recolección honesta contra sitios reales** (1-2 semanas):
+**v0.2 Fase B — Producción contra sitios reales con catalogación incidental** (2-3 sitios):
 
-Ejecutar `/qa-automator:autonomous` contra una batería progresiva de targets públicos, documentando fallos sin teorizar:
+**No es observación pura.** Se intenta **producir tests** contra sitios reales —reconocimiento happy-path acotado a mano vía plumbing (`--flows/--entry/--ignore`)— y cada fallo que rompe la producción ES el dato que prioriza el hardening de Fase C. Se cataloga produciendo, no mirando. Como solo se producen happy-paths, solo se cataloga el caos que vive dentro de ellos (el de zonas que nunca se tocan no interesa). Esto mata la "Fase B de observación pura": menos coste, evidencia más relevante.
 
-| Target | Caos esperado |
-|---|---|
-| `https://demo.opencart.com/` | E-commerce SPA parcial. Selectors mixtos. Sin auth fuerte. |
-| `https://parabank.parasoft.com/` | Banca demo con auth + cuentas + transferencias. Estado persistente. |
-| `https://practice.expandtesting.com/` | Trampas variadas: waits, dynamic loading, iframes, modales. |
-| Portal corporativo público (intranet cliente sin auth) | Reflejar contexto real Inetum cuando aplique. |
+Orden de menor a mayor riesgo de demora (estrenar el plumbing sin que el primer run se eternice):
 
-Output de la Fase B: `docs/findings/wild-sites-report.md` con tabla de fallos categorizados por (1) frecuencia, (2) impacto en tiempo SDET, (3) dificultad de solución.
+| Orden | Target | Qué aísla |
+|---|---|---|
+| 1 | `https://practice.expandtesting.com/` | Caos de runtime concentrado (waits, dynamic loading, modales) en sitio pequeño. Bajo riesgo de demora. |
+| 2 | `https://demo.opencart.com/` | E-commerce grande: aquí se prueba de verdad la acotación happy-path (scope/demora). Selectors mixtos. |
+| 3 | `https://parabank.parasoft.com/` | Banca demo: auth + estado persistente (`storageState`). |
+
+Iframes: si aparecen, se anotan como casuística aparte (`ia4d-frame-handler`), no se fuerzan en el happy-path.
+
+Output: `docs/findings/wild-sites-report.md` — fallos de **producción** categorizados por (1) frecuencia, (2) impacto en tiempo SDET, (3) dificultad de solución. Doble uso: prioriza componentes de Fase C (umbral ≥30%) y aporta las preguntas reales del futuro intake. El portal corporativo Inetum entra cuando aplique, no es bloqueante.
 
 **v0.2 Fase C — Hardening por categoría de fallo observada** (no por componente teórico):
 
-Componentes nuevos previstos. **Cada uno entra solo si la Fase B muestra que su categoría aparece con frecuencia ≥30%**:
+**Estrategia de reconocimiento — happy-path acotado (rediseño del Acto Mapear de S4)**:
+
+Hoy el planner nativo explora con mandato de exhaustividad ("explore all"), sin tope: contra sitios grandes diverge en tiempo y no es reproducible. Cambio: la primera etapa de S4 es un **reconocimiento acotado al happy path**, no exhaustivo. Fija los límites de inmediato; las etapas posteriores (edge cases, negativos, más flujos) cuelgan de esa columna vertebral ya mapeada.
+
+- **Orden: brief → exploración.** El brief declara cuál(es) happy path(s); la exploración los mapea y verifica. La exploración NO define el happy path por sí sola (eso reintroduce divergencia).
+- **Captura del brief — dos puertas, sin que el SDET deba "saber" nada.** Flags presentes (`--flows/--entry/--ignore`) → modo dirigido. Solo URL → el agente NO explora a ciegas: entra en intake y pregunta los datos mínimos. El default ante ausencia de brief es entrevistar, no explorar.
+- **Ancla generalista del happy path: login + home + navegación primaria.** La navegación primaria (header/sidebar) da los *candidatos*; el brief elige cuáles. Distinguir de footer legal, menú de usuario y megamenús de marketing (NO son happy path). La nav es el punto de entrada, no el flujo completo: el happy path continúa en acciones (carrito, formulario, confirmación).
+- Acota **scope** (la demora), NO elude el **caos de runtime** (banner/auth viven dentro del happy path; los maneja `pre-flight-cleaner`/`auth-handler`).
+- **Plumbing instrumental** (flags → prompt del planner, sin IA): se monta antes de la recolección para acotar runs a mano. La capa conversacional (intake adaptativo) se construye encima, con preguntas/targets/topes derivados de la recolección — no se cablean a priori.
+
+Componentes nuevos previstos. **Cada uno entra solo si la recolección muestra que su categoría aparece con frecuencia ≥30%**:
 
 | Componente | Categoría que ataca | Prioridad esperada |
 |---|---|---|
@@ -285,6 +301,7 @@ Componentes nuevos previstos. **Cada uno entra solo si la Fase B muestra que su 
 | `ia4d-auth-handler` | SAML / OAuth / MFA. `globalSetup` captura `storageState` reutilizable; soporta TOTP via `authenticator` lib. | Media-Alta |
 | `ia4d-test-data-architect` | Lifecycle setup/teardown. Fixtures contra OpenAPI/DB schema, factories con faker.js seed-reproducible. | Media |
 | **A11y baseline aprobada** | Threshold actual `serious\|critical` aborta el 80% de tests contra portales reales. Mecanismo de baseline aprobada por SDET, no todo-o-nada. Es extensión del `ia4d-a11y-injector` existente. | Media-Alta |
+| `ia4d-frame-handler` (casuística especial) | Iframes y flujos cross-frame / pantalla-a-pantalla. Tratado **aparte** del reconocimiento general; Playwright maneja frames con API propia. Entra solo si aparece con frecuencia. | Baja-Media (caso aparte) |
 
 **v0.2 Fase D — Ajustes al Quality layer derivados de observación**:
 

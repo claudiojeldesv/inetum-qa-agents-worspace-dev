@@ -95,9 +95,11 @@ Modelo confirmado para Planner/Generator nativos: `sonnet`. Para subagents `ia4d
 
 ## Estado actual
 
-- **v0.1 commit-eado** (`c5a2be2`, 82 archivos, 9845 líneas). Validación híbrida via Slice 6.5: 3/3 specs E2E verdes contra SauceDemo, judge scores 0.9-0.96.
-- **Pendiente cierre v0.1**: validación end-to-end LLM-LLM en sesión Claude Code nueva (los subagents `ia4d-*` creados en sesión no son invocables hasta restart).
-- **v0.2 — Interactuar con el caos** (próxima fase, no arrancada): redefinida para atacar el gap entre sandbox SauceDemo y caos web real. Orden estricto: cierre v0.1 → recolección honesta contra sitios reales (opencart, parabank, expandtesting) → hardening por categoría observada → ajustes Quality layer → telemetría + budget cap. TMS connectors deferidos a v0.2.x.
+- **v0.1 commit-eado** (`c5a2be2`). El Slice 6.5 dio 3/3 verdes, pero era validación **híbrida** (locators correctos a mano), no el camino puro LLM-LLM.
+- **v0.2 Fase A — cierre v0.1 COMPLETADA** (commit `ef5611e`): validación end-to-end LLM-LLM en sesión nueva. Los 13 subagents invocables, 5 actos orquestados. Runtime inicial **0/3** — el `ia4d-discovery-analyzer` fabrica `test_id` desde la prosa del plan (viola su propia hard rule); sanado a **4/4** vía `playwright-test-healer`. Evidencia en `docs/findings/faseA-closure/`.
+- **v0.2 Fase B — siguiente**: producción contra 2-3 sitios reales (expandtesting → opencart → parabank) con **catalogación incidental** — se cataloga el caos produciendo happy-paths acotados (plumbing `--flows/--entry/--ignore`), no observando. Alimenta el hardening de Fase C (umbral ≥30%) y las preguntas del futuro intake. Luego: ajustes Quality layer + S3 → telemetría + budget cap. TMS connectors a v0.2.x.
+- **Reconocimiento happy-path** (estrategia de Fase C): primera etapa de S4 acotada al happy-path vía brief. Orden brief→exploración; dos puertas (flags = dirigido / solo-URL = intake que pregunta, no explora a ciegas); ancla generalista login + home + **navegación primaria** (no "menús" en general). Acota scope, no elude caos de runtime. Iframes = casuística aparte (`ia4d-frame-handler`).
+- **Principio del SDET**: la sanación/reparación de calidad va al final como post-proceso (Healer), no acoplada a la generación. Validado en Fase A.
 - **Sin plazo de calendario comprometido**. Plan en fases con checkpoints.
 
 ## Documentación viva
