@@ -1,5 +1,7 @@
 # TODO — `ia4d-qa-automator` v0.1
 
+> **HISTÓRICO v0.1.** Checklist del MVP v0.1 (cerrado, `c5a2be2`). Los `[ ]` de abajo NO reflejan el estado actual del producto — v0.1 completo se entregó; v0.2 Fases A/B/C están cerradas. Tracking vivo: [`CLAUDE.md`](../CLAUDE.md) §"Estado actual", [`SPEC.md`](../SPEC.md) §7, [`docs/findings/wild-sites-report.md`](../docs/findings/wild-sites-report.md).
+
 > Lista ejecutable derivada de [plan.md](plan.md). Estados: `[ ]` pendiente · `[x]` hecho.
 
 ## Slice 0.5 — Spike completion ✓

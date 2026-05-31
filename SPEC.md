@@ -321,7 +321,17 @@ Tras catalogar 3 sitios (wild-sites-report.md), se construyeron los 3 top **sin 
 |---|---|
 | Writer↔Reviewer N=3 (o fallback `@status pending-sdet-review`) | En SauceDemo el Generator nativo produjo código casi perfecto a la primera. En apps reales el Reviewer iterará más. Hard cap N=2 puede ser insuficiente. |
 | `ia4d-judge` con scoring axes ajustables por Style Contract | Ejes hoy hardcoded en `src/judge-scoring.ts`. Cliente banca puede priorizar `criterion_coverage` sobre `a11y`. |
-| `ia4d-spec-refiner` (S3) **funcional** | Realista en banca: el input típico es un FD flojo o Jira mal redactado, no una URL pelada. Promovido del v0.2 original. |
+| `ia4d-spec-refiner` (S3) **funcional** | Realista en banca: el input típico es un FD flojo o Jira mal redactado, no una URL pelada. Promovido del v0.2 original. **Diseño decidido: Forma B (ver abajo).** |
+
+#### S3 — diseño decidido: Forma B (FD + URL, inyección de criterios sobre S4)
+
+Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4 ya validado** (Fases A-C), NO como generación doc-only.
+
+- **Forma B (elegida)** — entrada = FD (markdown) **+ URL de staging**. El FD da el *qué* (criterios RF-NNN, flujos); la URL da el *cómo* (DOM, locators, run verde). El ingester del FD (`ia4d-spec-refiner`) emite (a) los criterios estructurados y (b) el brief (`--flows/--entry`) que hoy se escribe a mano. El planner pasa de **descubrir** flujos a **mapearlos contra el DOM**. Todo el back-end (discovery, POM scaffolder, Writer↔Reviewer↔Judge, los 3 componentes de Fase C) se reutiliza sin cambios.
+- **Forma A (descartada)** — FD sin target. Sin DOM no hay locators reales, ni POM rellenable, ni run verde, ni axe sobre DOM real: rompe la propuesta de valor validada. Si se necesita, queda como modo degradado documentado (doc → esqueletos/Gherkin), no como objetivo.
+- **Valor que desbloquea Forma B**: (1) **trazabilidad real** — el `@criterion` del JSDoc cita un RF-NNN del FD, no prosa del discovery; (2) **detección de drift FD↔implementación** — si el FD declara un flujo que el staging no tiene, el agente **reporta el gap, no fabrica el test** (extensión de la hard rule no-fabricar del discovery).
+- **Decisiones abiertas antes de construir**: formato del FD de entrada (markdown libre vs estructura mínima RF-NNN) y cuánto "refina" el refiner un FD flojo (instinto: extrae + marca huecos, no inventa criterios — peligroso en banca).
+- **S2 (Gherkin/OpenAPI) y Jira/tickets diferidos al final.** No bloquean S3.
 
 **v0.2 Fase E — Telemetría y budget cap**:
 

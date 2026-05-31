@@ -1,5 +1,7 @@
 # Plan — `ia4d-qa-automator` v0.1 (MVP)
 
+> **HISTÓRICO v0.1.** Trackea los slices del MVP v0.1 (cerrado, commit `c5a2be2`). El tracking vivo de v0.2 (Fases A/B/C cerradas; D/E pendientes) NO vive aquí: está en [`CLAUDE.md`](../CLAUDE.md) §"Estado actual", [`SPEC.md`](../SPEC.md) §7, y [`docs/findings/wild-sites-report.md`](../docs/findings/wild-sites-report.md). Los checkboxes de abajo quedaron al cierre de v0.1; no se mantienen para v0.2.
+
 > Plan de ejecución para entregar el MVP definido en [SPEC.md](../SPEC.md). Reset desde `ia4d-test-pilot`. Plan vivo en `~/.claude/plans/1-el-mvp-idealmente-magical-aurora.md` aprobado por el usuario, este archivo es el espejo dentro del repo.
 
 ## Slices del MVP
