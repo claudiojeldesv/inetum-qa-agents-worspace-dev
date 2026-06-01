@@ -66,6 +66,25 @@ The scenario you were handed traces back to a real FD requirement. Cite it prope
    generated). If it does, stop and report it rather than inventing the expected outcome — the
    ambiguity must go back to the SDET. This is the no-fabricate rule at the assertion level.
 
+### Parameterización (criterio con bloque `examples`, viene de un Scenario Outline en S2)
+
+If the criterion in `criteria.json` carries an `examples` block (an `{ header, rows }` table from a
+Gherkin `Scenario Outline`, S2 module only), materialize a **data-driven test**: one test case per
+row, all under the same `@criterion RF-NNN`. The `<placeholder>` tokens in `given/when/then` (e.g.
+`<amount>`) bind to the columns in `examples.header`.
+
+```typescript
+const cases = [{ amount: '1' }, { amount: '2' }]; // from criteria.json examples.rows — never invented
+for (const data of cases) {
+  test(`Scenario: transferencia de ${data.amount}`, async ({ page }) => { /* ... */ });
+}
+```
+
+The example values come **only** from `examples.rows` in `criteria.json`. Never add rows, never
+invent values. If a row contains a value that looks like real PII, the parser already flagged it in
+`pii_redaction` — use the style-contract `synthetic_fixtures` instead, do not reproduce the literal.
+A plain `Scenario` (no `examples`) → a single test, exactly as before.
+
 ## Output
 
 The test file at `--output`, with a JSDoc header like:

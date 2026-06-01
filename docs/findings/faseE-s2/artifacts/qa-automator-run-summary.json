@@ -1,0 +1,80 @@
+{
+  "module": "S2",
+  "input_format": "gherkin",
+  "source_spec": "demo/parabank/parabank.feature",
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "style_contract": "style-contracts/parabank.yaml",
+  "run_phase": "v0.2 Fase E",
+  "compliance_verdict": "warn (W1 — sandbox público allowlisted, no override)",
+
+  "criteria_total": 4,
+  "criteria_blocked_open_questions": 0,
+
+  "tests_generated": [
+    {
+      "spec": "tests/e2e/login.spec.ts",
+      "rf": "RF-001",
+      "source_ref": "parabank.feature:8 (REQ-LOGIN)",
+      "writer_iterations": 1,
+      "reviewer_verdict": "pass",
+      "judge_score": 0.93,
+      "run_result": "passed",
+      "notes": "Opt-out del storageState compartido (login debe partir sin sesión)."
+    },
+    {
+      "spec": "tests/e2e/transfer-funds.spec.ts",
+      "rf": "RF-002",
+      "source_ref": "parabank.feature:15 (REQ-TRANSFER)",
+      "writer_iterations": 2,
+      "reviewer_verdict": "pass",
+      "judge_score": 0.94,
+      "run_result": "passed",
+      "data_driven": true,
+      "cases": [{ "amount": "1" }, { "amount": "2" }],
+      "cases_source": "RF-002 examples.rows (Scenario Outline) — sin filas inventadas",
+      "notes": "Serial mode (mutación de cuenta compartida). 2 tests data-driven citando RF-002."
+    },
+    {
+      "spec": "tests/e2e/logout.spec.ts",
+      "rf": "RF-003",
+      "source_ref": "parabank.feature:27 (REQ-LOGOUT)",
+      "writer_iterations": 1,
+      "reviewer_verdict": "pass",
+      "judge_score": 0.96,
+      "run_result": "passed",
+      "notes": "Sesión propia aislada (opt-out + login fresco): su logout no envenena la sesión compartida de transfer."
+    }
+  ],
+
+  "drift": [
+    {
+      "rf": "RF-004",
+      "flow": "close-account",
+      "source_ref": "parabank.feature:33 (REQ-CLOSE)",
+      "reason": "declarado en el .feature, no expuesto en staging — NO se fabricó test"
+    }
+  ],
+
+  "judge_summary": { "mean_score": 0.94, "min_score": 0.93, "gate_ask_first_triggered": false },
+
+  "playwright_run": {
+    "command": "npx playwright test login.spec.ts transfer-funds.spec.ts logout.spec.ts --timeout=60000",
+    "result": "5 passed (setup + login + transfer x2 + logout)",
+    "workers": 3,
+    "workers_1_flag_used": false,
+    "env_notes": "Timeout elevado a 60s para absorber latencia variable de parabank (demo público); transfer amount-1 tardó 24s, logout 28s en el run verde. No es defecto del pipeline S2."
+  },
+
+  "a11y": {
+    "axe_injected_all_specs": true,
+    "fail_on_violations": false,
+    "mode": "warning (anotaciones test.info), no bloqueante — decisión SDET en el contract"
+  },
+
+  "healing_postprocess": [
+    "POM goto() con waitUntil:'domcontentloaded' (parabank no dispara 'load' completo en 30s).",
+    "login.spec.ts: opt-out del storageState compartido (debe partir sin sesión).",
+    "transfer-funds.spec.ts: serial mode (mutación de cuenta compartida).",
+    "logout.spec.ts: sesión propia aislada — hallazgo: una sola sesión compartida + un test que cierra sesión envenena los tests autenticados concurrentes."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "source_spec": "demo/parabank/parabank.feature",
+  "spec_format": "gherkin",
+  "source_criteria": "docs/findings/faseE-s2/criteria.json",
+  "source_discovery": "discovery-report.json",
+  "drift_diff_method": "deterministic: brief.flows MINUS criteria_mapping.mapped (command-level, no LLM)",
+
+  "drift": [
+    {
+      "rf": "RF-004",
+      "flow": "close-account",
+      "source_ref": "parabank.feature:33 (REQ-CLOSE)",
+      "reason": "declarado en el .feature, no mapeado en staging — ParaBank no expone cierre de cuenta (sidebar Account Services con 8 items sin Close Account; sitemap sin la pagina; URLs directas closeaccount.htm/close.htm/deleteaccount.htm no resuelven). Drift estructural real spec<->implementacion. Test NO fabricado (hard rule no-fabricar)."
+    }
+  ],
+
+  "covered": [
+    { "rf": "RF-001", "flow": "login", "scenario": "login.standard-user-happy-path", "screen": "login" },
+    { "rf": "RF-002", "flow": "transfer-funds", "scenario": "transfer-funds.complete-transfer (parametrizado: amount 1, 2)", "screen": "transfer" },
+    { "rf": "RF-003", "flow": "logout", "scenario": "logout.clear-session", "screen": "login" }
+  ],
+
+  "summary": "Drift estructural (declarado-no-mapeado): 1 flujo — close-account (RF-004). ParaBank no expone cierre de cuenta; el .feature lo declaraba con @drift-risk:high y el diff lo confirma. Se reporta como gap, NO se fabrica el test. Los otros 3 flujos (login, transfer-funds, logout) mapearon contra DOM real y se generan. La parameterizacion del Scenario Outline (transfer-funds, amounts 1/2) se materializa como test data-driven citando RF-002."
+}

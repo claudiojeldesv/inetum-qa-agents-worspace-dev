@@ -1,0 +1,76 @@
+{
+  "test_file": "tests/e2e/login.spec.ts",
+  "score": 0.93,
+  "axes": {
+    "assertions": 0.95,
+    "selectors": 0.95,
+    "waits": 1.0,
+    "isolation": 1.0,
+    "criterion_coverage": 0.95,
+    "a11y": 1.0,
+    "structure": 0.90
+  },
+  "reasoning": "Strong semantic assertions (heading, welcome text, logout link, table visibility). Criterion RF-001 clearly cited with source_ref (parabank.feature:8). AxeBuilder injected with WCAG tags; warning mode aligns with fail_on_violations=false. POM used throughout (LoginPage). Semantic locators: getByRole for button/heading/link, getByText for welcome. storageState opt-out correctly justified (no shared session). Nit: table.first() positional qualifier noted by reviewer but low risk (single-table page); minor structure penalty for this fragility.",
+  "reviewer_unresolved": false,
+  "reviewer_verdict": "pass",
+  "reviewer_iterations": 1,
+  "timestamp": "2026-06-01T00:00:00Z"
+}
+{
+  "test_file": "tests/e2e/transfer-funds.spec.ts",
+  "score": 0.94,
+  "axes": {
+    "assertions": 0.92,
+    "selectors": 1.0,
+    "waits": 1.0,
+    "isolation": 0.95,
+    "criterion_coverage": 0.95,
+    "a11y": 1.0,
+    "structure": 0.92
+  },
+  "reasoning": "DATA-DRIVEN (2 cases from examples.rows, amounts only). Criterion RF-002 cited with source_ref. MF-1 violation corrected in iteration 1: moved inline CSS descendant selector to POM (confirmationAmount getter uses semantic getByText regex). AxeBuilder injected with warnings mode. Three functional assertions: heading, complete heading, amount visibility. POM delegates all locators (semantic + tagged css_fallback). Serial mode correctly configured for shared account mutability. Session inherited via storageState; no re-login. Dynamic account selection by index (no hardcoding). Minor: assertions are functional but confirmation pattern (amount regex) could be more explicit about DOM fragility (noted pre-submission, resolved).",
+  "reviewer_unresolved": false,
+  "reviewer_verdict": "pass",
+  "reviewer_iterations": 2,
+  "data_driven": true,
+  "timestamp": "2026-06-01T00:00:00Z"
+}
+{
+  "test_file": "tests/e2e/logout.spec.ts",
+  "score": 0.96,
+  "axes": {
+    "assertions": 0.98,
+    "selectors": 1.0,
+    "waits": 1.0,
+    "isolation": 1.0,
+    "criterion_coverage": 1.0,
+    "a11y": 1.0,
+    "structure": 0.92
+  },
+  "reasoning": "Criterion RF-003 cited with source_ref (parabank.feature:27 (REQ-LOGOUT)). Five semantic assertions post-logout: URL pattern (not bare URL comparison), login heading, username/password inputs visible, welcome message NOT visible, logout link NOT visible. Pre-condition guard correctly asserts authenticated state before action. AxeBuilder injected with warnings mode. POM used throughout (OverviewPage, LoginPage). All locators semantic (getByRole for heading/link, getByText for welcome). storageState opt-out correctly justified (isolated session, no poison to transfer.spec). Fresh login satisfies given (sesion activa). No waitForTimeout, no banned APIs. Full functional verification of session termination, not navigation-only. Nit: test.use([]) override pattern replicated across 3 specs for session isolation — architectural consistency.",
+  "reviewer_unresolved": false,
+  "reviewer_verdict": "pass",
+  "reviewer_iterations": 1,
+  "timestamp": "2026-06-01T00:00:00Z"
+}
+{
+  "source": "subagent",
+  "action": "judge_decision",
+  "target": "tests/e2e/login.spec.ts",
+  "metadata": { "score": 0.93, "reviewer_unresolved": false, "criterion": "RF-001" },
+  "result": "pass"
+}
+{
+  "source": "subagent",
+  "action": "judge_decision",
+  "target": "tests/e2e/transfer-funds.spec.ts",
+  "metadata": { "score": 0.94, "reviewer_unresolved": false, "criterion": "RF-002", "data_driven": true },
+  "result": "pass"
+}
+{
+  "source": "subagent",
+  "action": "judge_decision",
+  "target": "tests/e2e/logout.spec.ts",
+  "metadata": { "score": 0.96, "reviewer_unresolved": false, "criterion": "RF-003" },
+  "result": "pass"
+}

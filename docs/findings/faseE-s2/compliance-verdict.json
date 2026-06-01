@@ -1,0 +1,8 @@
+{
+  "verdict": "warn",
+  "rule": "W1",
+  "url": "https://parabank.parasoft.com/parabank/index.htm",
+  "reason": "URL allowed but lacks non-prod prefix (qa/test/int/staging/dev). Parabank is a public demo sandbox and allowed in allowed-targets.yaml, but recommendation is to use explicit prefixes for non-production environments.",
+  "audit_logged": true,
+  "timestamp": "2026-06-01T17:04:29.595Z"
+}

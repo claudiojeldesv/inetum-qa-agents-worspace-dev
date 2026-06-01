@@ -12,11 +12,11 @@
 
 ### Cuatro módulos de entrada
 
-| Módulo | Entrada | MVP v0.1 | Subagent driver |
+| Módulo | Entrada | Estado actual | Subagent driver |
 |---|---|---|---|
-| **S1 Code-driven** | Repo frontend (React/Vue/HTML) | Stub | `ia4d-code-analyzer` |
-| **S2 Req-driven** | Gherkin / OpenAPI | Stub | `ia4d-spec-parser` |
-| **S3 Spec-refiner** | DF flojo / PDF / Jira | Stub | `ia4d-spec-refiner` |
+| **S1 Code-driven** | Repo frontend (React/Vue/HTML) | Stub (v0.3) | `ia4d-code-analyzer` |
+| **S2 Req-driven** | Gherkin (+ URL) / OpenAPI | **Funcional (Gherkin, v0.2 Fase E)** · OpenAPI diferido v0.4 | `ia4d-spec-parser` |
+| **S3 Spec-refiner** | FD markdown + URL (Forma B) | **Funcional (v0.2 Fase D)** | `ia4d-spec-refiner` |
 | **S4 Autonomous** | Solo URL | **Funcional** | `playwright-test-planner` (nativo) + `ia4d-discovery-analyzer` |
 
 ### Marco QA propio (5 actos)
@@ -97,8 +97,8 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 | `/qa-automator:healthcheck` | Funcional | Smoke test: versión, subagents detectados, MCP server status | Mensaje de estado |
 | `/qa-automator:autonomous` | Funcional | Módulo S4. Toma `--url=` + `--style=`. Orquesta los 5 actos | discovery-report.json + plan.md + N `.spec.ts` + judge-report.json + review-feedback.json + audit-log.json |
 | `/qa-automator:code-driven` | Stub v0.1 | Módulo S1 (v0.3) | Mensaje "stub v0.1, planificado v0.3" |
-| `/qa-automator:req-driven` | Stub v0.1 | Módulo S2 (v0.3) | Mensaje "stub v0.1, planificado v0.3" |
-| `/qa-automator:spec-refiner` | Stub v0.1 | Módulo S3 (v0.2) | Mensaje "stub v0.1, planificado v0.2" |
+| `/qa-automator:req-driven` | **Funcional (Gherkin, v0.2 Fase E)** | Módulo S2. Toma `--gherkin=` + `--url=` + `--style=`. Ingiere el `.feature` (determinístico) y reusa el motor S3/S4 | criteria.json + drift-report.json + discovery-report.json + N `.spec.ts` (con `@criterion RF-NNN`) + judge-report.json + audit-log.json |
+| `/qa-automator:spec-refiner` | **Funcional (v0.2 Fase D)** | Módulo S3 Forma B. Toma `--fd=` + `--url=` | criteria.json + drift-report.json + N `.spec.ts` + judge-report.json + audit-log.json |
 
 **Convención de orquestación**: cada command es orquestador. Encadena subagents nativos de Playwright (Planner, Generator, Healer) con subagents nuestros (`ia4d-*`) vía invocaciones explícitas con la Task tool y handoffs por archivos. La regla "ningún subagent invoca a otro" está activa por defecto; la **excepción nombrada y documentada** es el par Writer↔Reviewer (composición explícita del Quality layer).
 
@@ -246,10 +246,10 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contrac
 | Versión | Foco | Módulos activos | Highlights |
 |---|---|---|---|
 | **v0.1 (MVP)** | Foundation + S4 + capa transversal + Quality layer | S4 | Demo SauceDemo verde, validación híbrida (Slice 6.5), ficha catálogo |
-| **v0.2** | **Salir del sandbox: enfrentar el caos web real** + S3 (Spec-refiner) + hardening por categoría de fallo | S3 + S4 | Ver detalle abajo |
+| **v0.2** | **Salir del sandbox: enfrentar el caos web real** + S3 (Spec-refiner, Fase D) + S2 Gherkin (Fase E) + hardening por categoría de fallo | S2 (Gherkin) + S3 + S4 | Ver detalle abajo |
 | **v0.2.x (continuación)** | TMS connectors (Jira/Xray) + knowledge graph SQLite + budget cap LLM persistente | Mismos | Solo cuando v0.2 cierre con evidencia de uso real |
-| **v0.3** | S1 (Code-driven) + S2 (Req-driven) | Todos los módulos | AST analyzers React/Vue, parser Gherkin/OpenAPI |
-| **v0.4** | Context Injector* + PR automation | Todo + Injector opcional | Endgame visión Gemini. Asterisco: el Injector **rompe genericidad** y requiere adaptadores por cliente. No es feature del catálogo, es engagement aparte. |
+| **v0.3** | S1 (Code-driven) | + S1 | AST analyzers React/Vue |
+| **v0.4** | S2 OpenAPI (API tests, `ia4d-api-test-writer`) + Context Injector* + PR automation | Todos | OpenAPI no comparte el motor DOM (necesita writer de API propio). Endgame visión Gemini. Asterisco: el Injector **rompe genericidad** y requiere adaptadores por cliente. No es feature del catálogo, es engagement aparte. |
 
 ### v0.2 detallado — "Interactuar con el caos"
 

@@ -1,0 +1,254 @@
+{
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "discovery_timestamp": "2026-06-01T17:06:56.938Z",
+  "source_plan": "docs/findings/faseE-s2/parabank-s2-plan.md",
+  "source_criteria": "docs/findings/faseE-s2/criteria.json",
+  "discovery_mode": "S3-spec-refiner-forma-b",
+  "screens": [
+    {
+      "name": "login",
+      "url_pattern": "/parabank/index.htm",
+      "description": "Customer login form; entry point to ParaBank session",
+      "interactive_elements": [
+        {
+          "role": "textbox",
+          "name": "Username",
+          "test_id": null,
+          "locator_type": "css_fallback",
+          "locator_value": "input[name='username']",
+          "locator_priority": "getByRole > getByLabel > css_fallback (name)"
+        },
+        {
+          "role": "textbox",
+          "name": "Password",
+          "test_id": null,
+          "locator_type": "css_fallback",
+          "locator_value": "input[name='password']",
+          "locator_priority": "getByRole > getByLabel > css_fallback (name)"
+        },
+        {
+          "role": "button",
+          "name": "Log In",
+          "test_id": null,
+          "locator_type": "css_fallback",
+          "locator_value": "input[value='Log In']",
+          "locator_priority": "getByRole > getByLabel"
+        }
+      ]
+    },
+    {
+      "name": "overview",
+      "url_pattern": "/parabank/overview.htm",
+      "description": "Authenticated accounts overview; shows welcome message, Account Services navigation, and accounts table",
+      "interactive_elements": [
+        {
+          "role": "heading",
+          "name": "Accounts Overview",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('heading', { name: 'Accounts Overview', level: 1 })",
+          "locator_priority": "getByRole"
+        },
+        {
+          "role": "text",
+          "name": "Welcome John Smith",
+          "test_id": null,
+          "locator_type": "getByText",
+          "locator_value": "getByText('Welcome John Smith')",
+          "locator_priority": "getByText",
+          "note": "Authenticated state indicator"
+        },
+        {
+          "role": "heading",
+          "name": "Account Services",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('heading', { name: 'Account Services', level: 2 })",
+          "locator_priority": "getByRole"
+        },
+        {
+          "role": "table",
+          "name": "Accounts",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('table')",
+          "locator_priority": "getByRole",
+          "note": "Columns: Account, Balance*, Available Amount; linked account rows to activity.htm?id=..."
+        },
+        {
+          "role": "link",
+          "name": "Transfer Funds",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('link', { name: 'Transfer Funds' })",
+          "locator_priority": "getByRole > getByText"
+        },
+        {
+          "role": "link",
+          "name": "Log Out",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('link', { name: 'Log Out' })",
+          "locator_priority": "getByRole > getByText",
+          "note": "href='logout.htm'; session active indicator"
+        }
+      ]
+    },
+    {
+      "name": "transfer",
+      "url_pattern": "/parabank/transfer.htm",
+      "description": "Transfer Funds form for transfers between own accounts; protected screen",
+      "interactive_elements": [
+        {
+          "role": "heading",
+          "name": "Transfer Funds",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('heading', { name: 'Transfer Funds', level: 1 })",
+          "locator_priority": "getByRole"
+        },
+        {
+          "role": "spinbutton",
+          "name": "amount",
+          "test_id": null,
+          "locator_type": "css_fallback",
+          "locator_value": "input[id='amount']",
+          "locator_priority": "getByRole > css_fallback (id)"
+        },
+        {
+          "role": "combobox",
+          "name": "From account #",
+          "test_id": null,
+          "locator_type": "css_fallback",
+          "locator_value": "select[id='fromAccountId']",
+          "locator_priority": "getByRole > css_fallback (id)",
+          "note": "Dynamic options; populated at runtime with user accounts"
+        },
+        {
+          "role": "combobox",
+          "name": "to account #",
+          "test_id": null,
+          "locator_type": "css_fallback",
+          "locator_value": "select[id='toAccountId']",
+          "locator_priority": "getByRole > css_fallback (id)",
+          "note": "Dynamic options; must differ from fromAccountId"
+        },
+        {
+          "role": "button",
+          "name": "Transfer",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('button', { name: 'Transfer' })",
+          "locator_priority": "getByRole > getByLabel"
+        },
+        {
+          "role": "heading",
+          "name": "Transfer Complete!",
+          "test_id": null,
+          "locator_type": "getByRole",
+          "locator_value": "getByRole('heading', { name: 'Transfer Complete!', level: 1 })",
+          "locator_priority": "getByRole",
+          "note": "Post-transfer confirmation heading; appears in #rightPanel"
+        }
+      ]
+    }
+  ],
+  "scenarios_recommended": [
+    "login.standard-user-happy-path",
+    "transfer-funds.complete-transfer-amount-1",
+    "transfer-funds.complete-transfer-amount-2",
+    "logout.clear-session"
+  ],
+  "criteria_mapping": {
+    "mapped": [
+      {
+        "rf": "RF-001",
+        "title": "Inicio de sesion con credenciales validas",
+        "flow": "login",
+        "scenario": "login.standard-user-happy-path",
+        "screen": "login",
+        "source_ref": "parabank.feature:8 (REQ-LOGIN)",
+        "confidence": "high",
+        "evidence": "Plan §1.1 maps login with valid credentials (john/demo) from /parabank/index.htm to /parabank/overview.htm. Steps: input[name='username'], input[name='password'], input[value='Log In']. Success signals: page title 'ParaBank | Accounts Overview', 'Welcome John Smith' visible, h1 'Accounts Overview' visible, Account Services h2 visible, accounts table with linked account numbers, 'Log Out' link visible (a[href='logout.htm'])."
+      },
+      {
+        "rf": "RF-002",
+        "title": "Transferencia de fondos entre cuentas propias",
+        "flow": "transfer-funds",
+        "scenario": "transfer-funds.complete-transfer-amount-1 (parametrized via examples)",
+        "screen": "transfer",
+        "source_ref": "parabank.feature:15 (REQ-TRANSFER)",
+        "confidence": "high",
+        "examples": [
+          {
+            "amount": "1"
+          },
+          {
+            "amount": "2"
+          }
+        ],
+        "evidence": "Plan §2.1 maps transfer-funds happy path: authenticate → /parabank/transfer.htm → h1 'Transfer Funds' visible. Form elements: input[id='amount'] (label 'Amount: $'), select[id='fromAccountId'] (label 'From account #') with dynamic options, select[id='toAccountId'] (label 'to account #') with dynamic options, button 'Transfer'. Fill amount → select distinct accounts → click Transfer → page stays at /parabank/transfer.htm, h1 'Transfer Complete!' visible, confirmation paragraph with pattern '$X.XX has been transferred from account #[source] to account #[dest].' Examples parametrize amount (1, 2); mapped to two scenario variants in scenarios_recommended."
+      },
+      {
+        "rf": "RF-003",
+        "title": "Cierre de sesion",
+        "flow": "logout",
+        "scenario": "logout.clear-session",
+        "screen": "login",
+        "source_ref": "parabank.feature:27 (REQ-LOGOUT)",
+        "confidence": "high",
+        "evidence": "Plan §3.1 maps logout: from authenticated state (session active, 'Welcome John Smith' visible) → click a[href='logout.htm'] → browser navigates to /parabank/index.htm (optional query ?ConnType=JDBC) → page title 'ParaBank | Welcome | Online Banking', h2 'Customer Login' visible, input[name='username'] and input[name='password'] present and empty, 'Welcome John Smith' no longer present, Account Services navigation gone, indicating session cleared."
+      }
+    ],
+    "unmapped_flows": [
+      {
+        "rf": "RF-004",
+        "title": "Cierre de una cuenta del cliente",
+        "flow": "close-account",
+        "source_ref": "parabank.feature:33 (REQ-CLOSE)",
+        "confidence": "high",
+        "drift_risk": "high",
+        "reason": "No screen or route for account closure found in ParaBank DOM. Plan §4.1 explicitly maps this as 'NO MAPEADO — close-account no existe en el DOM de ParaBank'. Evidence from plan: (1) sidebar Account Services lists exactly 8 items (Open New Account, Accounts Overview, Transfer Funds, Bill Pay, Find Transactions, Update Contact Info, Request Loan, Log Out); no 'Close Account' link. (2) Sitemap (/parabank/sitemap.htm) does not list account closure page. (3) Direct URLs (/parabank/closeaccount.htm, /parabank/close.htm, /parabank/deleteaccount.htm) return non-existent resources (no title). CONCLUSION: Drift between specification (criteria.json declares RF-004) and implementation (ParaBank does not expose account closure feature). Test NOT implemented per hard rule (no fabrication)."
+      }
+    ]
+  },
+  "style_contract_alignment": {
+    "locators_priority_applied": [
+      "getByLabel",
+      "getByRole",
+      "getByText",
+      "getByTestId"
+    ],
+    "css_fallback_attributes": [
+      "name",
+      "id"
+    ],
+    "observations": [
+      "No data-testid attributes in ParaBank DOM; all locators from semantic role, name, or id (legacy JSP)",
+      "Priority getByLabel/getByRole honored; css_fallback (name, id) applied where semantic unavailable",
+      "Inputs: username/password via name attribute; amount/account selects via id attribute",
+      "Dynamic account numbers read at runtime from select option values; no hardcoded account IDs",
+      "Session persistence via JSESSIONID; auth.setup.ts pattern (login once → storageState) aligns with style-contract auth config"
+    ]
+  },
+  "discovery_mode_notes": {
+    "s2_input": "Gherkin feature file (parabank.feature) refined to criteria.json with 4 flows (login, transfer-funds, logout, close-account)",
+    "planner_mode": "Map-against-DOM: planner navigated ParaBank to locate each flow in criteria against actual DOM, not free discovery",
+    "criteria_coverage": "3 of 4 flows mapped; 1 flow (close-account) confirmed NOT in DOM per hard rule",
+    "no_fabrication_rule_applied": "close-account is absent from plan output, therefore goes to unmapped_flows — not invented as mapped despite being in criteria.json"
+  },
+  "fixtures_required": {
+    "synthetic_credentials": [
+      {
+        "username": "john",
+        "password": "demo",
+        "note": "Public demo account from Parasoft; shared environment"
+      }
+    ],
+    "auth_state": "playwright/.auth/john.json (storageState path; created post-login via auth.setup.ts, reused in transfer-funds tests)"
+  },
+  "a11y_enforced": true,
+  "pii_scan_active": true,
+  "compliance_pre_flight": true,
+  "s3_mapping_complete": true
+}
