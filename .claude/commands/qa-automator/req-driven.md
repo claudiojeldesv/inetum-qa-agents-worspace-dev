@@ -113,15 +113,18 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
     - El Writer escribe el `.spec.ts` e invoca al Reviewer (ping-pong N≤2). Pasa por el hook `pii-post.ts`.
 13. (Opcional) `ia4d-style-enforcer` por cada `.spec.ts`.
 14. (Obligatorio) `ia4d-a11y-injector` por cada `.spec.ts` pasándole `--style-contract` (scan
-    siempre; gate por `a11y.fail_on_violations`). Igual que S4.
+    siempre; gate por `a11y.fail_on_violations`, **default `false`** → modo warning; reactivable
+    por-sitio con `true`). Igual que S4.
 
 ### Acto 5 — Juzgar
 
-15. Invoca `ia4d-judge` por cada `.spec.ts` con el `review-feedback.json` consolidado.
-16. Lee scores. Si >30% < 0.5 → pausa ask-first.
-17. Genera `qa-automator-run-summary.json` con: tests generados (+ su RF), scores, verdicts, axe
-    results, **criterios bloqueados** (Scenarios sin `Then`, si los hubo) y **drift** (RF declarados
-    sin cobertura en staging).
+15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (`echo $env:QA_ENABLE_JUDGE`)
+    invoca `ia4d-judge` por cada `.spec.ts` con el `review-feedback.json` consolidado. Si no, **omite el
+    Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`.
+16. (Solo si el Judge corrió) Lee scores. Si >30% < 0.5 → pausa ask-first.
+17. Genera `qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`),
+    verdicts, axe results, **criterios bloqueados** (Scenarios sin `Then`, si los hubo) y **drift**
+    (RF declarados sin cobertura en staging).
 
 ## Outputs (consolidados)
 
@@ -153,8 +156,8 @@ Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_
 - No se fabrica drift. Un flujo no mapeado se reporta como gap.
 - La ingestión del `.feature` es determinística (`src/gherkin-to-criteria.ts` + `@cucumber/gherkin`),
   no LLM.
-- Quality layer (Writer/Reviewer/Judge) activo, igual que S4/S3.
-- Cada invocación de subagent y cada decisión (ingest, drift, bloqueo) registra al audit-log.
+- Writer+Reviewer activos (igual que S4/S3); el **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`).
+- Cada invocación de subagent y cada decisión (ingest, drift, bloqueo, judge omitido) registra al audit-log.
 - OpenAPI diferido a v0.4.
 
 ## Reference

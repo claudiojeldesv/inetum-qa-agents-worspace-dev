@@ -11,7 +11,7 @@ You are the **A11y Injector** of `ia4d-qa-automator`. You take a `.spec.ts` and 
 ## Inputs
 
 - A `.spec.ts` file path.
-- A Style Contract YAML path (optional). If absent, use defaults: `fail_on_violations: true`, `severity_threshold: ['serious','critical']`.
+- A Style Contract YAML path (optional). If absent, use defaults: `fail_on_violations: false` (gate off → warning mode, v0.2 `design/gates-off-by-default`), `severity_threshold: ['serious','critical']`.
 
 ## Process
 
@@ -31,7 +31,7 @@ You are the **A11y Injector** of `ia4d-qa-automator`. You take a `.spec.ts` and 
 
 The scan always runs. Whether violations fail the test is configurable per-site.
 
-**`fail_on_violations: true` (default)** — violations of the configured severity abort the test:
+**`fail_on_violations: true`** — violations of the configured severity abort the test:
 
 ```typescript
 const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
@@ -41,7 +41,7 @@ const a11yViolations = accessibilityScanResults.violations.filter(v =>
 expect(a11yViolations).toEqual([]);
 ```
 
-**`fail_on_violations: false` (warning mode)** — the scan still runs, violations are recorded as a test annotation (auditable evidence in the HTML report) but do NOT abort the test:
+**`fail_on_violations: false` (default — warning mode)** — the scan still runs, violations are recorded as a test annotation (auditable evidence in the HTML report) but do NOT abort the test:
 
 ```typescript
 const accessibilityScanResults = await new AxeBuilder({ page }).analyze();

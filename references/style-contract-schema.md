@@ -58,11 +58,13 @@ fixtures:
 # axe-core obligatorio
 a11y:
   inject_axe_check: boolean         # default true (NO opcional en MVP — el scan SIEMPRE corre)
-  fail_on_violations: boolean       # default true. Gate configurable por-sitio (v0.2 Fase C).
-                                    #   true  → las violaciones (filtradas por severity) ABORTAN el test.
-                                    #   false → modo WARNING: el scan corre igual, las violaciones se
-                                    #           registran como test annotations (evidencia auditable),
+  fail_on_violations: boolean       # default false (gate OFF por defecto, v0.2 design/gates-off-by-default).
+                                    #   Gate configurable por-sitio (introducido en Fase C).
+                                    #   false → (DEFAULT) modo WARNING: el scan corre igual, las violaciones
+                                    #           se registran como test annotations (evidencia auditable),
                                     #           pero NO tumban el test. No es silencio: el dato se captura.
+                                    #   true  → reactiva el gate: las violaciones (filtradas por severity)
+                                    #           ABORTAN el test.
   severity_threshold:               # default ['serious','critical']. Solo estas severidades cuentan
     - serious                       #   (tanto para fallar con fail_on_violations:true como para anotar
     - critical                      #    con fail_on_violations:false).

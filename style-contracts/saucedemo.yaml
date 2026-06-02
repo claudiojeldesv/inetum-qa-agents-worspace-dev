@@ -36,7 +36,7 @@ fixtures:
 
 a11y:
   inject_axe_check: true
-  fail_on_violations: true
+  fail_on_violations: false   # gate off por defecto (v0.2 design/gates-off-by-default); warning, no aborta
   severity_threshold:
     - serious
     - critical

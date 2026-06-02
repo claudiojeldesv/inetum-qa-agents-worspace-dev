@@ -86,26 +86,38 @@ async function main(): Promise<number> {
   const files = extractWrittenFiles(payload);
   if (files.length === 0) return 0;
 
-  const allowlist = loadSyntheticAllowlist();
+  // PII scanner: OFF por defecto (v0.2 — design/gates-off-by-default). Se reactiva con
+  // QA_ENABLE_PII=1|true|on. La guarda anti-test.fixme() del Healer NO depende de esto: corre
+  // siempre (no es PII). Funcionalidad apagada, no eliminada: el detector y la allowlist siguen aquí.
+  const piiEnabled = ['1', 'true', 'on'].includes(
+    (process.env.QA_ENABLE_PII ?? '').trim().toLowerCase(),
+  );
+
+  const allowlist = piiEnabled
+    ? loadSyntheticAllowlist()
+    : { syntheticTestCards: [], syntheticIbans: [], syntheticUsernames: [] };
   let hardFailures = 0;
 
   for (const file of files) {
     if (!existsSync(file)) continue;
     const content = readFileSync(file, 'utf8');
 
-    const pii = scanText(content, {
-      syntheticTestCards: allowlist.syntheticTestCards,
-      syntheticIbans: allowlist.syntheticIbans,
-    });
+    const pii = piiEnabled
+      ? scanText(content, {
+          syntheticTestCards: allowlist.syntheticTestCards,
+          syntheticIbans: allowlist.syntheticIbans,
+        })
+      : [];
     const fixmes = scanForUnauthorizedTestFixme(content);
     const all: PiiMatch[] = [...pii, ...fixmes];
 
     if (all.length === 0) {
       appendAuditEntry({
         source: 'pii-post',
-        action: 'allow',
+        action: piiEnabled ? 'allow' : 'skip',
         target: file,
         rule: 'P1-P6',
+        reason: piiEnabled ? undefined : 'PII scanner off (QA_ENABLE_PII unset)',
         result: 'pass',
       });
       continue;

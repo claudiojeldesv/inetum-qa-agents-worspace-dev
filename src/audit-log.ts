@@ -13,6 +13,7 @@ export type AuditAction =
   | 'block'
   | 'warn'
   | 'allow'
+  | 'skip'
   | 'write_file'
   | 'edit_file'
   | 'read_file'

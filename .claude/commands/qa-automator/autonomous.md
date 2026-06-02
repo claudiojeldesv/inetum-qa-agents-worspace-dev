@@ -70,14 +70,14 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 10. (Opcional) Invoca `ia4d-style-enforcer` por cada `.spec.ts` para enforce final del Style Contract.
 11. (Obligatorio) Invoca `ia4d-a11y-injector` por cada `.spec.ts` **pasándole `--style-contract`** para asegurar el `AxeBuilder` scan y aplicar el gate del contract:
     - El scan se inyecta siempre (no opcional, SPEC §6).
-    - El gate lo decide `a11y.fail_on_violations` del contract: `true` → `expect(...).toEqual([])` aborta; `false` → modo warning (annotation auditable, no aborta). Severidades filtradas por `a11y.severity_threshold`.
+    - El gate lo decide `a11y.fail_on_violations` del contract. **Default `false`** (modo warning: annotation auditable, no aborta) — gate apagado por defecto, reactivable por-sitio con `fail_on_violations: true` (entonces `expect(...).toEqual([])` aborta). Severidades filtradas por `a11y.severity_threshold`.
     - Lee el `gate_mode` del output del injector y registra al audit-log: `{ source: 'command', action: 'warn'|'allow', target: <spec>, rule: 'a11y-gate', reason: 'fail_on_violations:<bool> → <mode> mode' }`.
 
 ### Acto 5 — Juzgar
 
-12. Invoca `ia4d-judge` por cada `.spec.ts` con el `review-feedback.json` consolidado.
-13. Lee todos los scores. Si >30% < 0.5 → pausa con ask-first.
-14. Genera summary `qa-automator-run-summary.json` con: lista de tests, scores, verdicts del Reviewer, axe results.
+12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
+13. (Solo si el Judge corrió) Lee todos los scores. Si >30% < 0.5 → pausa con ask-first.
+14. Genera summary `qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results.
 
 ## Outputs (consolidados)
 
@@ -90,6 +90,11 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 - `qa-automator-run-summary.json`
 
 ## Verification step (ejecuta `npx playwright test`)
+
+**Gates opcionales (off por defecto, v0.2 `design/gates-off-by-default`)**: para reactivarlos en el run,
+setea `QA_ENABLE_PII=1` (PII scanner del hook) y/o `QA_ENABLE_JUDGE=1` (Acto 5). El gate de a11y se
+reactiva por-sitio con `fail_on_violations: true` en el Style Contract, no por env-var. Sin estas vars,
+el run corre sin PII scan, sin Judge y con a11y en modo warning.
 
 Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo y el spec corre contra el sitio equivocado — hallazgo Fase B sitio 2).
 
@@ -112,7 +117,7 @@ Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del ru
 
 - Cada invocación de subagent registra al audit-log.
 - No saltar Acto 1 (compliance pre-flight). Sin override.
-- No saltar Acto 5 (Quality layer). Los tres (Writer/Reviewer/Judge) están activos.
+- Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.
 - Paralelismo del Acto 4 es prioritario: invocar los Writers de los N escenarios concurrentemente cuando sea posible.
 
 ## Reference

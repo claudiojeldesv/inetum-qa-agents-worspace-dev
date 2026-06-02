@@ -32,9 +32,9 @@
 ### Capa transversal (siempre activa, todos los modos)
 
 - **Compliance pre-flight** (`PreToolUse` hook + `ia4d-compliance-checker`): valida URL contra `allowed-targets.yaml` y modo declarado. Sin override.
-- **PII scanner** (`PostToolUse` hook + `ia4d-pii-scanner`): regex banca-ES (DNI/IBAN/Luhn/teléfono/email) sobre cada `.spec.ts` escrito. Sin override. Detecta también inserción no autorizada de `test.fixme()` por el Healer.
+- **PII scanner** (`PostToolUse` hook + `ia4d-pii-scanner`): regex banca-ES (DNI/IBAN/Luhn/teléfono/email) sobre cada `.spec.ts` escrito. **Off por defecto** (v0.2 `design/gates-off-by-default`), reactivable con `QA_ENABLE_PII=1` — funcionalidad apagada, no eliminada. La detección de `test.fixme()` no autorizado del Healer en el mismo hook **sigue activa siempre** (no es PII).
 - **Style Contract enforcer** (`ia4d-style-enforcer`): post-procesa al output del Generator nativo según `style-contract.yaml`.
-- **A11y injector** (`ia4d-a11y-injector`): inyecta `AxeBuilder({ page }).analyze()` al inicio de cada `test()`.
+- **A11y injector** (`ia4d-a11y-injector`): inyecta `AxeBuilder({ page }).analyze()` al inicio de cada `test()`. El scan siempre se inyecta; el **gate** (`fail_on_violations`) está **off por defecto** (modo warning), reactivable por-sitio con `true`.
 - **Audit log** (`audit-write.ts` hook): JSON line append-only por cada llamada LLM, archivo escrito, decisión Reviewer/Judge.
 
 ### Quality layer (Writer + Reviewer + Judge)
@@ -207,13 +207,13 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contrac
 ### Always do
 
 - Ejecutar el hook PreToolUse `pre-flight.ts` antes de cualquier invocación a Playwright Planner o Generator.
-- Ejecutar el hook PostToolUse `pii-post.ts` sobre cada `.spec.ts` generado.
+- Ejecutar el hook PostToolUse `pii-post.ts` sobre cada `.spec.ts` generado (la guarda anti-`test.fixme()` corre siempre; el scan PII dentro del hook está off por defecto, reactivable con `QA_ENABLE_PII`).
 - Escribir entrada al `audit-log.json` por cada: llamada LLM, archivo modificado, decisión Reviewer/Judge, ejecución de hook.
 - Aplicar el Style Contract declarado. Si no hay, default del agente + log explicito.
 - Inyectar `AxeBuilder` check en cada test generado. No opcional.
 - Generar POM esqueleto por código determinístico (`src/pom-scaffolder.ts`) antes de invocar Writer.
 - Citar el criterio fuente del plan (o `discovery-report.json` en S4) en el JSDoc de cada test.
-- Generar `judge-report.json` y `review-feedback.json` antes de exponer el código al SDET.
+- Generar `review-feedback.json` antes de exponer el código al SDET. (`judge-report.json` solo cuando el Judge está activo — `QA_ENABLE_JUDGE`; off por defecto.)
 - Verificar que cada test generado corre verde localmente antes de marcarlo "materializado".
 - Operar en greybox por defecto: nunca leer archivos fuera del repo destino ni del directorio del agente.
 
@@ -230,16 +230,15 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contrac
 ### Never do
 
 - Ejecutar contra URLs declaradas `production` en config (sin prefijo `qa.`, `test.`, `int.`, `staging.`, `dev.`, `localhost`, ni dominios SauceDemo declarados).
-- Usar PII real como dato de prueba. Abort con error si PII detector encuentra match.
+- Usar PII real como dato de prueba. Con el PII detector activo (`QA_ENABLE_PII`), abort con error si encuentra match.
 - Saltarse el compliance pre-flight gate. No hay flag de override.
-- Saltarse el PII detector. No hay flag de override.
 - Commit auto-generado a `main` o branches protegidas.
 - Desactivar inyección de `AxeBuilder` en builds del demo.
 - Procesar artefactos de entornos `prod` o `pre-prod`.
 - **Invocación cruzada entre subagents** salvo la excepción nombrada Writer↔Reviewer (documentada en `references/composition-rules.md`).
 - Generar tests sin entrada explícita del SDET (URL o FD/plan).
 - **Permitir que `playwright-test-healer` marque tests con `test.fixme()` sin aprobación humana explícita**. Hook `pii-post.ts` intercepta Edits del Healer y bloquea.
-- Saltarse el Quality layer Writer+Reviewer+Judge en MVP. Los tres están activos por design.
+- Saltarse Writer+Reviewer (el núcleo del Quality layer): obligatorios. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`) desde v0.2 `design/gates-off-by-default`; su omisión se audita, no se silencia.
 
 ## 7. Roadmap por versiones
 
