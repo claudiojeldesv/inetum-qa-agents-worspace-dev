@@ -1,0 +1,55 @@
+# Allowed targets — compliance pre-flight
+# Reglas en references/compliance-rules.md
+# El hook hooks/pre-flight.ts valida URL contra estos patrones.
+#
+# Esta es la allowlist del workspace. Para apuntar el agente a TU web:
+# añade aquí su patrón URL (entorno NO productivo) y, si usa credenciales de test
+# documentadas, decláralas en allowed_test_credentials. Compliance pre-flight bloquea
+# cualquier URL que no matche — no hay flag de override (regla dura del agente).
+
+version: 1
+mode: greybox                      # greybox | whitebox
+
+patterns:
+  # Demos públicos usados por los ejemplos del template
+  - 'https://www.saucedemo.com/*'            # ejemplo S4 (e-commerce)
+  - 'https://parabank.parasoft.com/*'        # ejemplo S2/S3/S4 (banca demo, auth + estado)
+  - 'https://demo.playwright.dev/*'
+  - 'https://todomvc.com/*'
+
+  # Entornos no productivos (cualquier subdominio) — añade los tuyos
+  - 'https://*.qa.*'
+  - 'https://*.test.*'
+  - 'https://*.int.*'
+  - 'https://*.staging.*'
+  - 'https://*.dev.*'
+  - 'https://*.uat.*'
+
+  # Local
+  - 'http://localhost:*'
+  - 'http://127.0.0.1:*'
+  - 'http://0.0.0.0:*'
+
+# Patrones explícitamente prohibidos (regla C2 — production-like)
+forbidden_patterns:
+  - 'https://www.*.com/login'      # heurística: prod
+  - 'https://prod.*'
+  - 'https://*.production.*'
+
+# Credenciales declaradas como test (no PII real, ver synthetic_fixtures en style-contract)
+allowed_test_credentials:
+  - username: standard_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'
+  - username: locked_out_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'
+  - username: problem_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'
+  - username: performance_glitch_user
+    password: secret_sauce
+    source: 'saucedemo.com - publicly documented'
+  - username: john
+    password: demo
+    source: 'parabank.parasoft.com - Parasoft demo account, publicly documented'

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "comment": "Settings versionado de ia4d-qa-automator. Cablea los 3 hooks de qa-automator (compliance pre-flight, PII/anti-fixme post-write, audit-write al cierre) que viven en hooks/hooks.json. Sin este wiring los hooks no se cargan (Claude Code lee hooks desde settings, no desde hooks/hooks.json suelto). Los permisos de maquina van en settings.local.json (gitignored).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__playwright-test__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx hooks/pre-flight.ts"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx hooks/pii-post.ts"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx hooks/audit-write.ts"
+          }
+        ]
+      }
+    ]
+  }
+}

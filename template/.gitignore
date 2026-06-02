@@ -1,0 +1,38 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Env local
+.env
+
+# Outputs & runtime
+/output/
+/playwright-report/
+/test-results/
+/.playwright-mcp/
+
+# Local settings (machine-specific)
+.claude/settings.local.json
+
+# Artefactos de run de qa-automator (recreados por sesión)
+/audit-log.json
+/judge-report.json
+/review-feedback.json
+/discovery-report.json
+/compliance-verdict.json
+/drift-report.json
+/qa-automator-run-summary.json
+/mode-routing.json
+/criteria.json
+# Planes del planner nativo (recreados por run)
+/*-plan.md
+
+# StorageState / auth (cookies de sesión, recreadas por el setup project)
+/playwright/.auth/
+
+# Seed scaffold resembrado por el MCP playwright-test en cada setup_page
+/tests/e2e/seed.spec.ts
+
+# OS
+.DS_Store
+Thumbs.db
