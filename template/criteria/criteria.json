@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "source_fd": "examples/parabank/parabank.feature",
+  "refined_timestamp": "2026-06-03T08:25:40.244Z",
+  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "criteria": [
+    {
+      "id": "RF-001",
+      "title": "Inicio de sesion con credenciales validas",
+      "flow": "login",
+      "given": "un cliente registrado no ha iniciado sesion",
+      "when": "el cliente introduce su usuario y contrasena correctos; confirma el acceso",
+      "then": "el sistema autentica al cliente y muestra el resumen de cuentas",
+      "source_ref": "parabank.feature:8 (REQ-LOGIN)",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-002",
+      "title": "Transferencia de fondos entre cuentas propias",
+      "flow": "transfer-funds",
+      "given": "el cliente ha iniciado sesion y dispone de al menos dos cuentas",
+      "when": "el cliente transfiere <amount> de una cuenta de origen a una cuenta de destino; confirma la transferencia",
+      "then": "el sistema ejecuta la transferencia y muestra la confirmacion con el importe",
+      "source_ref": "parabank.feature:15 (REQ-TRANSFER)",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": [],
+      "examples": {
+        "header": [
+          "amount"
+        ],
+        "rows": [
+          {
+            "amount": "1"
+          },
+          {
+            "amount": "2"
+          }
+        ]
+      }
+    },
+    {
+      "id": "RF-003",
+      "title": "Cierre de sesion",
+      "flow": "logout",
+      "given": "el cliente tiene una sesion activa",
+      "when": "el cliente ejecuta el cierre de sesion",
+      "then": "el sistema termina la sesion y devuelve a la pantalla de acceso",
+      "source_ref": "parabank.feature:27 (REQ-LOGOUT)",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-004",
+      "title": "Cierre de una cuenta del cliente",
+      "flow": "close-account",
+      "given": "el cliente ha iniciado sesion y dispone de una cuenta",
+      "when": "el cliente solicita el cierre de una de sus cuentas",
+      "then": "el sistema cierra la cuenta y deja de mostrarla en el resumen de cuentas",
+      "source_ref": "parabank.feature:33 (REQ-CLOSE)",
+      "confidence": "high",
+      "drift_risk": "high",
+      "assumptions": [],
+      "open_questions": []
+    }
+  ],
+  "brief": {
+    "flows": [
+      "login",
+      "transfer-funds",
+      "logout",
+      "close-account"
+    ],
+    "entry": "/parabank/index.htm",
+    "ignore": [],
+    "drift_flags": [
+      {
+        "flow": "close-account",
+        "rf": "RF-004",
+        "reason": "drift_risk=high declarado por tag @drift-risk:high en el .feature"
+      }
+    ]
+  },
+  "open_questions_ref": null,
+  "pii_redaction": {
+    "verdict": "pass",
+    "literals_found": [],
+    "downstream_note": "El .feature no contiene PII. Fixtures desde synthetic_fixtures del style-contract."
+  },
+  "refiner_notes": "Adaptado desde Gherkin por src/gherkin-to-criteria.ts. 4 scenarios → 4 criterios. 0 con Then ausente (bloqueados, enrutar a S3)."
+}
