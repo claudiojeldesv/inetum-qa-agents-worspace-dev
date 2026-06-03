@@ -37,6 +37,12 @@ el agente tenga Java disponible.
    corrieron con el reporter Allure: instruye a ejecutar `npx playwright test` (el
    `playwright.config.ts` ya tiene `allure-playwright` en el array de reporters). Termina.
 
+**Screenshots**: son evidencia de run-time, no del reporte — este command solo muestra los que
+el run capturó (`allure-playwright` los adjunta solo; el enricher no los toca). Si el run corrió
+con el default `only-on-failure`, los tests verdes no traen imagen: re-ejecuta los tests con
+`QA_SCREENSHOT=on` (o declara `evidence.screenshots: on` en el Style Contract del sitio) y
+vuelve a lanzar este command.
+
 ### 2. Enriquecer (determinístico)
 
 Ejecuta el enricher, que escribe los sidecars Allure (`environment.properties`,

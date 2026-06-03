@@ -102,7 +102,7 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 
 ## Verification step
 
-Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_BASE_URL` con `--url` (y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`).
+Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_BASE_URL` con `--url` (y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`; `QA_SCREENSHOT` si tiene `evidence.screenshots` distinto del default — evidencia visual para `/qa-automator:report`).
 
 ```sh
 # Con auth (PowerShell):

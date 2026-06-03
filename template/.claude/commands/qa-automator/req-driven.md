@@ -138,7 +138,8 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
 ## Verification step
 
 Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_BASE_URL` con `--url`
-(y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`).
+(y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`; `QA_SCREENSHOT` si tiene
+`evidence.screenshots` distinto del default — evidencia visual para `/qa-automator:report`).
 
 ```sh
 # Con auth (PowerShell):

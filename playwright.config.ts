@@ -25,7 +25,10 @@ export default defineConfig({
     // con el --url del target. Default SauceDemo para no romper specs históricos.
     baseURL: process.env.QA_BASE_URL || 'https://www.saucedemo.com/',
     trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    // evidencia visual para el reporte Allure: QA_SCREENSHOT='on' captura el estado final
+    // de cada test (pase o falle) y allure-playwright lo adjunta solo. El command la setea
+    // desde evidence.screenshots del contract. Sin la var → solo en fallo (comportamiento previo).
+    screenshot: (process.env.QA_SCREENSHOT as 'on' | 'off' | 'only-on-failure') || 'only-on-failure',
     testIdAttribute: 'data-test',
   },
   projects: [

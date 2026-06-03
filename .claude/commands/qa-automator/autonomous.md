@@ -96,9 +96,13 @@ setea `QA_ENABLE_PII=1` (PII scanner del hook) y/o `QA_ENABLE_JUDGE=1` (Acto 5).
 reactiva por-sitio con `fail_on_violations: true` en el Style Contract, no por env-var. Sin estas vars,
 el run corre sin PII scan, sin Judge y con a11y en modo warning.
 
+**Antes de ejecutar, borra `tests/e2e/seed.spec.ts` si existe.** Es el scaffold que el MCP `playwright-test` resiembra en cada `setup_page` (Planner/Generator); solo sirve durante la generación. Si queda en `testDir`, corre como un test vacío siempre-verde y contamina el output y el reporte Allure (decisión SDET: eliminarlo, no ignorarlo).
+
 Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo y el spec corre contra el sitio equivocado — hallazgo Fase B sitio 2).
 
 **Si el contract tiene `auth.enabled: true`**, setea además `QA_STORAGE_STATE` con `auth.storage_state`. Eso activa el setup project + `dependencies` en `playwright.config.ts`: el `auth.setup.ts` corre primero y escribe el estado, luego los specs lo heredan. **Ya no hace falta `--workers=1`** — el dependency garantiza el orden bajo `fullyParallel` (mata la race del hallazgo #10).
+
+**Si el contract tiene `evidence.screenshots`** (distinto del default `only-on-failure`), setea `QA_SCREENSHOT` con ese valor. Con `on`, Playwright captura el estado final de cada test (pase o falle) y `allure-playwright` lo adjunta al resultado — evidencia visual para `/qa-automator:report`. Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 ```sh
 # Sin auth (PowerShell):  $env:QA_BASE_URL='<--url>'; npx playwright test --reporter=list
@@ -108,6 +112,12 @@ Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del ru
 #   $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test --reporter=list
 # Con auth (bash):
 #   QA_BASE_URL='<--url>' QA_STORAGE_STATE='playwright/.auth/<project>.json' npx playwright test --reporter=list
+
+# Con evidencia visual para el reporte Allure (contract: evidence.screenshots: on).
+# OJO: SIN --reporter=list — el flag CLI sobrescribe los reporters del config y suprime
+# allure-results/, dejando a /qa-automator:report sin nada que enriquecer.
+#   (PowerShell)  $env:QA_BASE_URL='<--url>'; $env:QA_SCREENSHOT='on'; npx playwright test
+#   (bash)        QA_BASE_URL='<--url>' QA_SCREENSHOT='on' npx playwright test
 ```
 
 - Si todos verdes → run exitoso.
