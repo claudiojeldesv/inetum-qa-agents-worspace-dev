@@ -13,7 +13,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: [['html', { outputFolder: 'playwright-report', open: 'never' }], ['list']],
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    // allure-playwright produce allure-results/; /qa-automator:report lo enriquece
+    // con la evidencia del agente y genera el HTML estático (npx allure generate).
+    ['allure-playwright', { resultsDir: 'allure-results', detail: true }],
+  ],
   use: {
     // baseURL parametrizable por run (v0.2 Fase B): el command autonomous lo setea
     // con el --url del target. Default SauceDemo para no romper specs históricos.

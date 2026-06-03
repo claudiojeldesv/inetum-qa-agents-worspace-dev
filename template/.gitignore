@@ -8,6 +8,8 @@ npm-debug.log*
 # Outputs & runtime
 /output/
 /playwright-report/
+/allure-results/
+/allure-report/
 /test-results/
 /.playwright-mcp/
 
