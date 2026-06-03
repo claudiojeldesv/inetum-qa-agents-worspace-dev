@@ -41,6 +41,11 @@ a11y:
     - serious
     - critical
 
+# Evidencia visual para el reporte Allure: captura el estado final de cada test
+# (pase o falle). El command lo mapea a QA_SCREENSHOT en el Verification step.
+evidence:
+  screenshots: on
+
 # Credenciales publicadas por Sauce Labs — no son PII real
 synthetic_fixtures:
   credentials:

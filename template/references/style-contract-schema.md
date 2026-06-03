@@ -84,6 +84,16 @@ auth:
     type: string                    #   'url' (patrón de URL post-login) | 'locator' (elemento solo visible autenticado)
     value: string                   #   ej. '**/overview.htm'  o  "getByRole('link', { name: 'Log Out' })"
 
+# Política de evidencia visual para el reporte Allure. NO es un gate — no aborta nada.
+# El command lee este campo en el Verification step y exporta QA_SCREENSHOT antes de
+# `npx playwright test`; playwright.config.ts la consume como `screenshot:`. Los PNG
+# capturados los adjunta allure-playwright automáticamente (sin tocar el enricher).
+# Es evidencia de RUN-TIME: /qa-automator:report solo muestra lo que el run capturó.
+evidence:
+  screenshots: string               # 'on' | 'only-on-failure' | 'off' — default 'only-on-failure'
+                                    #   on → captura el estado final de cada test (pase o falle);
+                                    #        actívalo cuando el run alimenta un reporte Allure.
+
 # PII allowlist (datos test publicados por el target, no son PII real)
 synthetic_fixtures:
   credentials:

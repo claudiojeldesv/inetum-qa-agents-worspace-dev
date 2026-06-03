@@ -78,6 +78,8 @@ auth:
   enabled: false                  # true → setup project + storageState (mata la race sin --workers=1)
 a11y:
   fail_on_violations: false       # false → modo warning (anota, no aborta); true → gate que aborta
+evidence:
+  screenshots: only-on-failure    # on → captura el estado final de cada test; imágenes en el reporte Allure
 ```
 
 ## Gates opcionales (off por defecto)

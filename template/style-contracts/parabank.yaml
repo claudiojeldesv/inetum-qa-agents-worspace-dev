@@ -74,6 +74,11 @@ auth:
     type: locator
     value: "getByRole('link', { name: 'Log Out' })"
 
+# Evidencia visual para el reporte Allure: captura el estado final de cada test
+# (pase o falle). El command lo mapea a QA_SCREENSHOT en el Verification step.
+evidence:
+  screenshots: on
+
 # Credenciales demo públicas de Parasoft (cuenta compartida, no PII real).
 # Estado compartido: el balance de john cambia con cada ejecución de cualquiera
 # → el test NO debe assertar balance exacto, solo "Transfer Complete!" + monto.
