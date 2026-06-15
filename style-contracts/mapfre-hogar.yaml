@@ -1,0 +1,111 @@
+# Style Contract — precio.mapfre.es — Tarificador Seguro de Hogar (flujo fq)
+# Schema docs: references/style-contract-schema.md
+#
+# Asistente lineal de tarificación (sin login). Flujo navegacional: cada pantalla
+# acepta su entrada y avanza. Sin auth-handler (público, sin sesión persistente).
+#
+# Locators: tarificador con componentes custom (autocompletado de calle, dropdowns
+# dependientes). No se ha verificado el DOM en vivo; se declara css_fallback_attributes
+# [name, id] como red de seguridad para campos sin semántica accesible. El planner mapea
+# contra el DOM real; si un componente no resuelve con locator semántico ni atributo
+# whitelisteado, es trabajo del Healer al final, no del contract.
+#
+# A11y: inject del check axe siempre (hard rule SPEC). fail_on_violations=false → modo
+# WARNING auditable, no bloqueante. Sitio comercial de producción con probables
+# violaciones; no es el foco de esta prueba.
+
+version: 1
+project: mapfre-hogar
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByLabel
+    - getByRole
+    - getByPlaceholder
+    - getByText
+    - getByTestId
+  forbid_css_selectors: true
+  forbid_xpath: true
+  # Tarificador con componentes custom (autocomplete, dropdowns). Red de seguridad
+  # acotada a atributos, nunca CSS arbitrario. El enforcer solo cae aquí si NINGÚN
+  # locator semántico resuelve.
+  css_fallback_attributes:
+    - name
+    - id
+
+naming:
+  spec_pattern: '{feature}.{scenario}.spec.ts'
+  test_title_pattern: '{scenario_human_name}'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false        # gate off por defecto (v0.2 design/gates-off-by-default)
+  severity_threshold:
+    - serious
+    - critical
+
+# Sin login: el tarificador es público y no mantiene sesión persistente entre runs.
+auth:
+  enabled: false
+
+# Evidencia visual para el reporte Allure: captura el estado final de cada pantalla.
+evidence:
+  screenshots: on
+
+# Datos sintéticos del flujo. No hay credenciales (sin login). Los valores no-PII del
+# formulario (CP, calle, piso, fecha) también figuran en el FD como datos de ejemplo;
+# aquí son la fuente autorizada que el Writer consume. El DNI es sintético de prueba y
+# vive SOLO aquí (no en el FD) por el PII boundary; queda allowlisted para el PII scanner.
+synthetic_fixtures:
+  credentials: []
+  test_cards: []
+  test_iban: []
+  # DNI sintético de prueba (NO corresponde a persona real). Allowlist PII.
+  test_dni:
+    - "71416690B"
+  # Datos de entrada del asistente, pantalla a pantalla.
+  form_data:
+    codigo_postal: "03201"
+    calle_busqueda: "REINA"
+    calle_sugerencia: "CALLE REINA VICTORIA"   # texto real del autocompletado (verificado en DOM)
+    numero: "24"
+    # piso: el DOM real son radio-buttons, no dropdown. El equivalente a "01" es:
+    piso_opcion: "PISO O APARTAMENTO EN PLANTA PRIMERA"
+    tipo_vivienda: "Piso o apartamento"
+    sistema_electronico: "CON CONTRATO DE MANTENIMIENTO Y CON VIGILANCIA PERMANENTE"
+    proteccion_domotica: "NO"
+    # Fecha de nacimiento: 3 campos separados (día/mes/año), no uno.
+    fecha_nacimiento_dia: "01"
+    fecha_nacimiento_mes: "02"
+    fecha_nacimiento_anio: "1990"
+    # --- Datos de tránsito (pantallas obligatorias no cubiertas por el FD, validadas por
+    #     el planner contra el DOM real; ver drift-report.json). Necesarios para alcanzar
+    #     el assert terminal. No son criterios RF en este run.
+    metros_construidos: "80"
+    num_habitaciones: "3"
+    num_banios: "1"
+    anio_construccion: "1990"
+    # Capital continente (71055€) y contenido (27090€): valores recomendados pre-rellenados
+    # por la app; se aceptan sin modificar.
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

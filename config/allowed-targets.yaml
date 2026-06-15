@@ -17,6 +17,7 @@ patterns:
   - 'https://practice.expandtesting.com/*'
   - 'https://practicesoftwaretesting.com/*'
   - 'https://parabank.parasoft.com/*'    # sitio 3: banca demo (auth + estado)
+  - 'https://precio.mapfre.es/*'    # tarificador seguro hogar (prod real, autorizado SDET; run único happy-path)
 
   # Entornos no productivos (cualquier subdominio)
   - 'https://*.qa.*'

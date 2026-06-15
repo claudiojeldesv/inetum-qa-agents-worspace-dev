@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "source_fd": "demo/mapfre-hogar/fd-mapfre-hogar.md",
+  "refined_timestamp": "2026-06-05T00:00:00Z",
+  "target_url": "https://precio.mapfre.es/calcular-seguro-hogar/es/direccion?origen=SEO&PPPO=MINTER&flujo=fq",
+
+  "criteria": [
+    {
+      "id": "RF-001",
+      "title": "Introducir código postal y avanzar a pantalla de dirección",
+      "flow": "enter-postal-code",
+      "given": "El usuario accede al tarificador de seguro de hogar (flujo fq) en la pantalla de código postal",
+      "when": "El usuario introduce un código postal válido y pulsa 'Aceptar'",
+      "then": "El sistema avanza a la pantalla de dirección (calle y número)",
+      "source_ref": "fd-mapfre-hogar.md:30-36",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-002",
+      "title": "Introducir calle con autocompletado y número, avanzar a selección de dirección",
+      "flow": "enter-street-autocomplete",
+      "given": "El usuario se encuentra en la pantalla de calle y número",
+      "when": "El usuario escribe parte del nombre de la calle, selecciona la sugerencia de autocompletado, introduce el número de portal y pulsa 'Aceptar'",
+      "then": "El sistema avanza a la pantalla de selección de dirección resuelta",
+      "source_ref": "fd-mapfre-hogar.md:38-45",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-003",
+      "title": "Seleccionar la dirección resuelta y avanzar a datos de vivienda",
+      "flow": "select-resolved-address",
+      "given": "El usuario se encuentra en la pantalla de selección de direcciones resueltas",
+      "when": "El usuario pulsa el elemento clickable (link/button) cuyo texto contiene 'ARENAL 24'",
+      "then": "El sistema redirige a la pantalla de datos de la vivienda",
+      "source_ref": "fd-mapfre-hogar.md:49-60",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [
+        "[RESUELTO Q-001 — sign-off SDET] La opción a seleccionar es el literal 'ARENAL 24', confirmado como el resultado real de la resolución de dirección. Es un elemento clickable (link/button con texto e hipervínculo) que al pulsarlo redirige a la siguiente pantalla."
+      ],
+      "open_questions": []
+    },
+    {
+      "id": "RF-004",
+      "title": "Seleccionar piso y avanzar a pantalla de ocupación",
+      "flow": "select-floor",
+      "given": "El usuario se encuentra en la pantalla 'Dirección' que solicita el piso de la vivienda",
+      "when": "El usuario selecciona el piso en el desplegable y pulsa 'Aceptar'",
+      "then": "El sistema avanza a la pantalla de ocupación de la vivienda",
+      "source_ref": "fd-mapfre-hogar.md:62-68",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-005",
+      "title": "Confirmar ocupación de la vivienda y avanzar a sistemas electrónicos",
+      "flow": "confirm-occupancy",
+      "given": "El usuario se encuentra en la pantalla 'Ocupación de la vivienda' con un valor por defecto ya establecido",
+      "when": "El usuario pulsa 'Aceptar' sin modificar el valor por defecto",
+      "then": "El sistema avanza a la pantalla de sistemas electrónicos de seguridad",
+      "source_ref": "fd-mapfre-hogar.md:70-74",
+      "confidence": "medium",
+      "drift_risk": "low",
+      "assumptions": [
+        "[ASSUMPTION] El FD indica que la pantalla presenta datos con un valor por defecto pero no especifica cuál es ese valor. Se asume que el test confirma sin modificarlo, lo que es suficiente para el happy-path navegacional."
+      ],
+      "open_questions": ["Q-002"]
+    },
+    {
+      "id": "RF-006",
+      "title": "Seleccionar sistema electrónico de seguridad y avanzar a protección domótica",
+      "flow": "select-electronic-security",
+      "given": "El usuario se encuentra en la pantalla de sistemas electrónicos de seguridad",
+      "when": "El usuario selecciona una opción de sistema de seguridad",
+      "then": "El sistema avanza a la pantalla de protección domótica",
+      "source_ref": "fd-mapfre-hogar.md:76-83",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-007",
+      "title": "Elegir opción de protección domótica y avanzar a sistemas NO electrónicos",
+      "flow": "select-domotics",
+      "given": "El usuario se encuentra en la pantalla '¿Dispones de sistema de protección domótica?'",
+      "when": "El usuario elige una opción (Sí o No)",
+      "then": "El sistema avanza a la pantalla de sistemas NO electrónicos de seguridad",
+      "source_ref": "fd-mapfre-hogar.md:85-91",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "RF-008",
+      "title": "Confirmar sistemas NO electrónicos de seguridad y avanzar a documento de identidad",
+      "flow": "confirm-non-electronic-security",
+      "given": "El usuario se encuentra en la pantalla 'Sistemas NO electrónicos de seguridad' con un valor por defecto ya establecido",
+      "when": "El usuario pulsa 'Aceptar' sin modificar el valor por defecto",
+      "then": "El sistema avanza a la pantalla de documento de identidad",
+      "source_ref": "fd-mapfre-hogar.md:93-97",
+      "confidence": "medium",
+      "drift_risk": "low",
+      "assumptions": [
+        "[ASSUMPTION] Al igual que en RF-005, el FD indica valor por defecto sin especificarlo. Se asume confirmación sin modificación para el happy-path."
+      ],
+      "open_questions": ["Q-003"]
+    },
+    {
+      "id": "RF-009",
+      "title": "Introducir DNI y avanzar a pantalla de fecha de nacimiento",
+      "flow": "enter-dni",
+      "given": "El usuario se encuentra en la pantalla 'Documento de identidad'",
+      "when": "El usuario introduce el DNI de prueba sintético y confirma",
+      "then": "El sistema avanza a la pantalla de fecha de nacimiento",
+      "source_ref": "fd-mapfre-hogar.md:99-105",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [
+        "[ASSUMPTION] El FD no especifica si el avance de pantalla se hace pulsando 'Aceptar' o si el campo tiene acción inmediata al completar el DNI. Se asume 'Aceptar' por consistencia con el patrón del resto de pantallas."
+      ],
+      "open_questions": ["Q-004"]
+    },
+    {
+      "id": "RF-010",
+      "title": "Introducir fecha de nacimiento — criterio de éxito del flujo",
+      "flow": "enter-birth-date",
+      "given": "El usuario se encuentra en la pantalla 'Fecha de nacimiento', que presenta tres campos separados: día, mes y año",
+      "when": "El usuario introduce la fecha en los tres campos: día '01', mes '02', año '1990'",
+      "then": "Los tres campos de fecha quedan con su valor introducido (día='01', mes='02', año='1990'). Este es el criterio de éxito terminal del flujo; la prueba termina aquí.",
+      "source_ref": "fd-mapfre-hogar.md:107-113",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [
+        "[RESUELTO Q-005 — sign-off SDET] La pantalla son tres campos (día/mes/año), no uno. El assert es que los tres campos contienen su valor escrito (toHaveValue por campo). No se verifica avance ni precio: la prueba termina al confirmar que los tres campos quedaron rellenos."
+      ],
+      "open_questions": []
+    }
+  ],
+
+  "brief": {
+    "flows": [
+      "enter-postal-code",
+      "enter-street-autocomplete",
+      "select-resolved-address",
+      "select-floor",
+      "confirm-occupancy",
+      "select-electronic-security",
+      "select-domotics",
+      "confirm-non-electronic-security",
+      "enter-dni",
+      "enter-birth-date"
+    ],
+    "entry": "/calcular-seguro-hogar/es/direccion?origen=SEO&PPPO=MINTER&flujo=fq",
+    "ignore": [
+      "pantallas posteriores a fecha de nacimiento (coberturas, precio, contratación)",
+      "flujos de origen distintos de SEO/MINTER"
+    ],
+    "drift_flags": []
+  },
+
+  "open_questions_ref": "docs/findings/faseF-mapfre/refinement-questions.md",
+  "pii_redaction": {
+    "verdict": "pass",
+    "literals_found": [
+      "03201 (código postal — no es PII; dato de dirección genérico; incluido en form_data del style-contract)",
+      "01/02/1990 (fecha de nacimiento — potencialmente PII; incluida en form_data del style-contract como dato sintético; NO reproducida en criteria.json como fixture)"
+    ],
+    "downstream_note": "El DNI de prueba vive exclusivamente en style-contracts/mapfre-hogar.yaml → synthetic_fixtures.test_dni[0]. El Writer debe referenciarlo desde ahí, nunca desde el FD. La fecha de nacimiento también vive en synthetic_fixtures.form_data.fecha_nacimiento."
+  },
+  "refiner_notes": "Flujo lineal de tarificación sin login. Los 10 criterios siguen el orden de aparición en el FD (§2-§11). Ningún criterio tiene drift_risk alto: el FD describe explícitamente el scope del tarificador y no hay indicios de que alguna pantalla no exista en staging. Las ambigüedades son de tipo 'indicador de éxito no especificado' (Q-005, criterio de fin de flujo) y 'inconsistencia en datos de ejemplo' (Q-001, ARENAL 24 vs REINA VICTORIA 24), más dos pantallas con 'valor por defecto' no especificado (Q-002, Q-003) y una duda de interacción de campo DNI (Q-004). Ninguna de estas ambigüedades bloquea la generación del happy-path navegacional salvo Q-005 (el assert terminal). Los 9 primeros RF tienen then concreto y testeable; el RF-010 tiene then marcado como AMBIGUO."
+}

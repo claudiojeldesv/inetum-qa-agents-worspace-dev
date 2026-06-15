@@ -1,0 +1,51 @@
+{
+  "target_url": "https://precio.mapfre.es/calcular-seguro-hogar/es/direccion?origen=SEO&PPPO=MINTER&flujo=fq",
+  "source_fd": "demo/mapfre-hogar/fd-mapfre-hogar.md",
+  "generated": "2026-06-05",
+  "drift": [
+    {
+      "type": "fd_declares_not_in_app",
+      "rf": "RF-003",
+      "flow": "select-resolved-address",
+      "fd_source_ref": "fd-mapfre-hogar.md:49-60",
+      "reason": "El FD (y el script de origen) declaran una pantalla de selección de dirección resuelta con un elemento clickable 'ARENAL 24'. Con los datos de prueba (CP 03201 + CALLE REINA VICTORIA 24) el backend de Mapfre (POST /api/pages/direccion-completa) devuelve next='piso-o-unifamiliar' directamente, sin pantalla de desambiguación. El texto 'ARENAL 24' no aparece en el DOM. No se fabrica el test.",
+      "verdict": "not_generated"
+    },
+    {
+      "type": "control_discrepancy",
+      "rf": "RF-004",
+      "flow": "select-floor",
+      "fd_source_ref": "fd-mapfre-hogar.md:62-68",
+      "reason": "El FD declara un desplegable 'Piso' con valor '01'. El DOM real presenta radio-buttons (4 opciones de planta), no un select/combobox. El equivalente funcional de '01' es 'PISO O APARTAMENTO EN PLANTA PRIMERA'. La pantalla y el flujo existen; difiere el control. RF-004 se cubre con el control real.",
+      "verdict": "covered_with_discrepancy"
+    },
+    {
+      "type": "app_exposes_not_in_fd",
+      "rf": null,
+      "flow": "pantallas-transito-no-cubiertas",
+      "fd_source_ref": null,
+      "reason": "La app expone 7 pantallas obligatorias que el FD no describe, intercaladas en el wizard: tipo-vivienda, metros-construidos, numero-habitaciones-banios, anio-construccion, codigo-postal (confirmación), capital-continente-propietario, capital-contenido. Son obligatorias para alcanzar el assert terminal. En este run se atraviesan como pasos de tránsito con datos sintéticos declarados (style-contract synthetic_fixtures.form_data); NO se generaron criterios RF para ellas. Decisión SDET: ampliar el FD con estas pantallas en un paso posterior.",
+      "verdict": "transit_only_pending_fd_extension",
+      "screens": [
+        "tipo-vivienda",
+        "metros-construidos",
+        "numero-habitaciones-banios",
+        "anio-construccion",
+        "codigo-postal-confirmacion",
+        "capital-continente-propietario",
+        "capital-contenido"
+      ]
+    }
+  ],
+  "covered": [
+    { "rf": "RF-001", "flow": "enter-postal-code", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-002", "flow": "enter-street-autocomplete", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-004", "flow": "select-floor", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-005", "flow": "confirm-occupancy", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-006", "flow": "select-electronic-security", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-007", "flow": "select-domotics", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-008", "flow": "confirm-non-electronic-security", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-009", "flow": "enter-dni", "scenario": "wizard-tarificacion-completo" },
+    { "rf": "RF-010", "flow": "enter-birth-date", "scenario": "wizard-tarificacion-completo" }
+  ]
+}
