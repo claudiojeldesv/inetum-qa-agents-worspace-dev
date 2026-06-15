@@ -6,7 +6,7 @@
  * Detecta también inserción no autorizada de test.fixme() por el Healer.
  * Sin override.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
@@ -35,7 +35,6 @@ function loadSyntheticAllowlist(): SyntheticAllowlist {
   if (!existsSync(dir)) return result;
 
   try {
-    const { readdirSync } = require('node:fs') as typeof import('node:fs');
     for (const file of readdirSync(dir)) {
       if (!file.endsWith('.yaml') && !file.endsWith('.yml')) continue;
       const raw = readFileSync(resolve(dir, file), 'utf8');

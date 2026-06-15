@@ -73,7 +73,7 @@ export function scaffoldPage(
   const seenKeys = new Set<string>();
   const locatorAssignments = elements
     .map((el, idx) => {
-      let key = el.test_id
+      const key = el.test_id
         ? toCamelCase(el.test_id)
         : el.name
           ? toCamelCase(el.name)
