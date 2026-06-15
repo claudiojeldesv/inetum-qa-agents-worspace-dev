@@ -62,7 +62,7 @@ El Writer y el Reviewer se invocan **directamente** vía Task tool (excepción n
 
 Video reproducible y bundle de ejemplos donde:
 
-1. Se ejecuta `/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml`.
+1. Se ejecuta `/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml`.
 2. El sistema orquesta los 5 actos contra SauceDemo.
 3. Se generan ≥3 archivos `.spec.ts` cubriendo el flujo golden path (login + add to cart + checkout).
 4. Cada test incluye `AxeBuilder` check, POM aplicado, Style Contract enforce, citación del criterio.
@@ -106,11 +106,9 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 
 ```
 /
-├── CLAUDE.md
-├── SPEC.md
-├── README.md
+├── CLAUDE.md  SPEC.md  README.md  CHANGELOG.md  METODOLOGIA AISD.md
 ├── package.json  tsconfig.json  playwright.config.ts  vitest.config.ts
-├── .eslintrc.json  .prettierrc.json
+├── .eslintrc.json  .prettierrc.json  .mcp.json
 ├── .claude/
 │   ├── agents/
 │   │   ├── playwright-test-{planner,generator,healer}.md              (nativos Microsoft)
@@ -118,44 +116,34 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 │   │   │        a11y-injector}.md                                      (capa transversal)
 │   │   ├── ia4d-{writer,reviewer,judge}.md                             (Quality layer)
 │   │   ├── ia4d-{discovery-analyzer,mode-router}.md                    (S4 + dispatcher)
-│   │   └── ia4d-{code-analyzer,spec-parser,spec-refiner}.md            (stubs S1/S2/S3)
+│   │   └── ia4d-{code-analyzer,spec-parser,spec-refiner}.md            (S1 stub / S2-S3 funcionales)
 │   ├── commands/qa-automator/
-│   │   ├── healthcheck.md  autonomous.md
-│   │   └── code-driven.md  req-driven.md  spec-refiner.md              (stubs)
-│   └── settings.local.json
-├── src/
-│   ├── pom-scaffolder.ts                       (POM esqueleto determinístico)
-│   ├── native-agents.ts                        (constantes con nombres de los nativos)
-│   └── audit-log.ts                            (helper writer del audit log)
+│   │   ├── healthcheck.md  autonomous.md  report.md
+│   │   ├── req-driven.md  spec-refiner.md                             (S2/S3 funcionales)
+│   │   └── code-driven.md                                             (S1 stub)
+│   └── settings.json  settings.local.json
+├── src/                                           (lógica determinística TS)
+│   ├── pom-scaffolder.ts  gherkin-to-criteria.ts  judge-scoring.ts
+│   ├── compliance-preflight.ts  pii-detector.ts  audit-log.ts
+│   ├── allure-enricher.ts  native-agents.ts
+│   └── scripts/                                   (CLI auxiliares: healthcheck, scaffold-poms, slice65-judge)
 ├── hooks/
-│   ├── pre-flight.ts  pii-post.ts  audit-write.ts
-│   └── hooks.json
+│   └── pre-flight.ts  pii-post.ts  audit-write.ts  hooks.json
 ├── config/
-│   └── allowed-targets.yaml
-├── style-contracts/
-│   └── saucedemo.yaml
-├── references/
-│   ├── compliance-rules.md  pii-patterns.md  audit-log-schema.md
-│   ├── style-contract-schema.md  composition-rules.md
-│   └── writer-reviewer-protocol.md
-├── demo/
-│   └── saucedemo/
-│       ├── HOW-TO-REPRODUCE.md  script.md
-│       └── expected-output/
+│   ├── allowed-targets.yaml                       (compliance pre-flight)
+│   └── style-contracts/                           (contratos de estilo por sitio)
 ├── tests/
-│   ├── unit/                                   (vitest)
-│   ├── integration/
-│   ├── e2e/                                    (Playwright, generados por el agente)
-│   └── pages/                                  (POM)
+│   ├── unit/  integration/                        (vitest)
+│   └── e2e/  pages/                               (Playwright + POM)
 ├── docs/
-│   ├── findings/spike-playwright-mcp.md        (mediciones Slice 0.5)
-│   ├── spike/spike-protocol.md
-│   ├── spike/artifacts/                        (outputs del Slice 0.5)
-│   └── Inetum/Catalogo/
-│       ├── ia4d-qa-automator.md                (ficha canónica del catálogo)
-│       └── ...                                  (otras fichas existentes)
-└── tasks/
-    ├── plan.md  todo.md                        (referencias al plan aprobado)
+│   ├── references/                                (reglas/schemas: compliance, pii, style-contract, audit-log, ...)
+│   ├── demo/                                      (casos demo: saucedemo, ...)
+│   ├── tasks/                                     (plan.md, todo.md)
+│   ├── findings/                                  (evidencia por fase: spike, faseA-F, ...)
+│   ├── spike/                                     (protocolo + artefactos del Slice 0.5)
+│   └── Inetum/Catalogo/                           (ficha canónica del catálogo + otras)
+├── template/                                      (workspace de arranque autocontenido para el SDET)
+└── .work/                                         (efímero, gitignored: reports Playwright/Allure + JSON del agente; borrable sin impacto)
 ```
 
 **Nota sobre `.claude/agents/`**: el directorio mezcla deliberadamente subagents nativos de Microsoft con los nuestros. No los aislamos en subcarpetas porque el formato Claude Code los descubre todos planos. La convención `ia4d-*` los distingue visualmente.
@@ -174,7 +162,7 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 
 ### Para los tests generados por el agente (output al SDET)
 
-Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contracts/saucedemo.yaml` con estos defaults:
+Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-contracts/saucedemo.yaml` con estos defaults:
 
 - POM en `tests/pages/<feature>.page.ts` con clase `*Page`.
 - Locators con prioridad: `getByTestId` (SauceDemo tiene `data-test` en todo) > `getByRole` > `getByLabel` > `getByText`. Nunca CSS bruto sin justificación.
@@ -235,7 +223,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contrac
 - Commit auto-generado a `main` o branches protegidas.
 - Desactivar inyección de `AxeBuilder` en builds del demo.
 - Procesar artefactos de entornos `prod` o `pre-prod`.
-- **Invocación cruzada entre subagents** salvo la excepción nombrada Writer↔Reviewer (documentada en `references/composition-rules.md`).
+- **Invocación cruzada entre subagents** salvo la excepción nombrada Writer↔Reviewer (documentada en `docs/references/composition-rules.md`).
 - Generar tests sin entrada explícita del SDET (URL o FD/plan).
 - **Permitir que `playwright-test-healer` marque tests con `test.fixme()` sin aprobación humana explícita**. Hook `pii-post.ts` intercepta Edits del Healer y bloquea.
 - Saltarse Writer+Reviewer (el núcleo del Quality layer): obligatorios. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`) desde v0.2 `design/gates-off-by-default`; su omisión se audita, no se silencia.
@@ -417,4 +405,4 @@ Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4
 6. **Healer nativo puede silenciar tests con `test.fixme()`**. Hook `pii-post.ts` intercepta y bloquea.
 7. **Generator nativo sin memoria entre runs**. Mitigado por `discovery-report.json` cacheado opcional.
 8. **Quality layer (Writer+Reviewer+Judge) añade coste vs ejecutar solo Generator nativo**. Esperado ~2x tokens por test. Compensa por confianza estructural ("QA es juez").
-9. **El "Reviewer puede invocar Writer" rompe la regla de no invocación cruzada**. Documentado como excepción nombrada en `references/composition-rules.md`. Defendible ante I+D.
+9. **El "Reviewer puede invocar Writer" rompe la regla de no invocación cruzada**. Documentado como excepción nombrada en `docs/references/composition-rules.md`. Defendible ante I+D.
