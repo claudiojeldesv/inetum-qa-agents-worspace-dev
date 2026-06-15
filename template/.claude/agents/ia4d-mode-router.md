@@ -42,7 +42,7 @@ target — is not implemented; it would break the green-run/real-locators value 
 
 ## Output
 
-Write to `mode-routing.json` in workspace root:
+Write to `.work/mode-routing.json`:
 
 ```json
 {
@@ -64,3 +64,5 @@ Write to `mode-routing.json` in workspace root:
 
 ## Reference
 
+- [`SPEC.md`](../../SPEC.md) §1 "Cuatro módulos de entrada"
+- [`SPEC.md`](../../SPEC.md) §7 "Roadmap por versiones"

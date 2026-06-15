@@ -535,7 +535,7 @@ export function enrich(options: EnrichOptions): EnrichOutcome {
 }
 
 // ---------------------------------------------------------------------------
-// CLI: npx tsx src/allure-enricher.ts --results-dir=allure-results --summary=qa-automator-run-summary.json
+// CLI: npx tsx src/allure-enricher.ts --results-dir=.work/allure-results --summary=.work/qa-automator-run-summary.json
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv: string[]): Record<string, string> {
@@ -554,8 +554,8 @@ function isMain(): boolean {
 
 if (isMain()) {
   const args = parseArgs(process.argv.slice(2));
-  const resultsDir = resolve(process.cwd(), args['results-dir'] ?? 'allure-results');
-  const summaryPath = resolve(process.cwd(), args['summary'] ?? 'qa-automator-run-summary.json');
+  const resultsDir = resolve(process.cwd(), args['results-dir'] ?? '.work/allure-results');
+  const summaryPath = resolve(process.cwd(), args['summary'] ?? '.work/qa-automator-run-summary.json');
 
   try {
     const { plan, warnings } = enrich({

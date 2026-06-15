@@ -13,7 +13,7 @@ El refiner **extrae lo que el FD enuncia y marca lo que falta**. No inventa crit
 ```json
 {
   "version": 1,
-  "source_fd": "demo/parabank/fd-parabank.md",
+  "source_fd": "docs/demo/parabank/fd-parabank.md",
   "refined_timestamp": "<ISO 8601>",
   "target_url": "https://parabank.parasoft.com/parabank/index.htm",
 
@@ -119,4 +119,4 @@ FD (markdown libre) ──► ia4d-spec-refiner ──► criteria.json + brief 
 - [`SPEC.md`](../SPEC.md) §7 — "S3 — diseño decidido: Forma B"
 - [`.claude/agents/ia4d-spec-refiner.md`](../.claude/agents/ia4d-spec-refiner.md) — productor de este artefacto
 - [`.claude/agents/ia4d-discovery-analyzer.md`](../.claude/agents/ia4d-discovery-analyzer.md) — consumidor (taggea `criterion_ref`)
-- [`references/style-contract-schema.md`](style-contract-schema.md) — `synthetic_fixtures` (única fuente de datos de prueba; el FD no los aporta)
+- [`docs/references/style-contract-schema.md`](style-contract-schema.md) — `synthetic_fixtures` (única fuente de datos de prueba; el FD no los aporta)

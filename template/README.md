@@ -46,9 +46,9 @@ falta.
 .claude/          Subagents, commands y settings (cablea hooks + MCP)
 src/              Lógica determinística (POM scaffolder, compliance, PII, parser Gherkin, judge)
 hooks/            Compliance pre-flight, PII/anti-fixme post-write, audit-write
-references/       Contratos y reglas que los agentes leen (compliance, PII, style-contract...)
+docs/references/       Contratos y reglas que los agentes leen (compliance, PII, style-contract...)
 config/           allowed-targets.yaml — la allowlist de URLs (compliance, sin override)
-style-contracts/  Convenciones por sitio (saucedemo, parabank — añade el tuyo)
+config/style-contracts/  Convenciones por sitio (saucedemo, parabank — añade el tuyo)
 examples/         Inputs listos para practicar (solo inputs; tú generas los tests)
 tests/            Donde el agente escribe los tests (unit/ valida el runtime)
 scripts/          healthcheck.ts

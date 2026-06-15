@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { appendAuditEntry } from '../src/audit-log.ts';
 
 async function main(): Promise<number> {
-  const logPath = resolve(process.cwd(), 'audit-log.json');
+  const logPath = resolve(process.cwd(), '.work/audit-log.json');
   if (!existsSync(logPath)) {
     appendAuditEntry({
       source: 'audit-write',

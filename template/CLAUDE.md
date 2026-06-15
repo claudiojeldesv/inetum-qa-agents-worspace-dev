@@ -56,7 +56,7 @@ Empieza por [`examples/`](examples/): SauceDemo (S4) y ParaBank (S2/S3/S4), ya p
    Compliance pre-flight bloquea cualquier URL que no matche. No hay override.
 2. Si usa credenciales de test documentadas, decláralas en `allowed_test_credentials` del
    mismo archivo (no son PII; nunca pongas credenciales reales).
-3. (Opcional) Declara un **Style Contract** para tu sitio en `style-contracts/<tu-sitio>.yaml`
+3. (Opcional) Declara un **Style Contract** para tu sitio en `config/style-contracts/<tu-sitio>.yaml`
    con tus convenciones. Si no hay contract, el agente usa defaults y lo registra.
 4. Lanza `/qa-automator:autonomous --url=<tu-url>`.
 
@@ -64,13 +64,13 @@ Empieza por [`examples/`](examples/): SauceDemo (S4) y ParaBank (S2/S3/S4), ya p
 
 El Style Contract declara cómo quieres los tests: estrategia de locators, naming, estructura
 POM, fixtures, datos sintéticos, auth y excepciones. El agente lo lee y lo **enforce** sobre
-el output. Schema completo en [`references/style-contract-schema.md`](references/style-contract-schema.md);
-ejemplos en [`style-contracts/`](style-contracts/).
+el output. Schema completo en [`docs/references/style-contract-schema.md`](docs/references/style-contract-schema.md);
+ejemplos en [`config/style-contracts/`](config/style-contracts/).
 
 Campos que probablemente quieras tocar para tu proyecto:
 
 ```yaml
-# style-contracts/<tu-sitio>.yaml
+# config/style-contracts/<tu-sitio>.yaml
 locators:
   strategy: role-first            # role-first | testid-first | ...
   css_fallback_attributes: []     # whitelist legacy, p.ej. [name, id]

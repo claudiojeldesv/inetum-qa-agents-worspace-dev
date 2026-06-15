@@ -21,10 +21,10 @@ You are the **Compliance Checker** of `ia4d-qa-automator`. Your single responsib
    - `0` and stderr empty → verdict `pass`
    - `0` and stderr contains `WARN` → verdict `warn` with reason from stderr
    - `2` → verdict `block` with reason from stderr
-4. Read the last entry of `audit-log.json` to confirm the audit trail is in place.
+4. Read the last entry of `.work/audit-log.json` to confirm the audit trail is in place.
 5. Return a structured verdict.
 
-## Output (JSON, write to `compliance-verdict.json` in workspace root)
+## Output (JSON, write to `.work/compliance-verdict.json`)
 
 ```json
 {
@@ -50,5 +50,5 @@ You are the **Compliance Checker** of `ia4d-qa-automator`. Your single responsib
 
 ## Reference
 
-- [`references/compliance-rules.md`](../../references/compliance-rules.md)
+- [`docs/references/compliance-rules.md`](../../docs/references/compliance-rules.md)
 - [`config/allowed-targets.yaml`](../../config/allowed-targets.yaml)

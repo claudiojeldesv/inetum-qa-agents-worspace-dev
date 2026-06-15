@@ -18,7 +18,7 @@ Reglas que el hook `hooks/pre-flight.ts` y el subagent `ia4d-compliance-checker`
 | ID | Regla | Acción |
 |---|---|---|
 | W1 | URL en allowed pero sin prefijo `qa.`, `test.`, `int.`, `staging.`, `dev.`, `localhost` | Warning, ask-first |
-| W2 | Style Contract no presente en `style-contracts/` | Warning, usa default explícito |
+| W2 | Style Contract no presente en `config/style-contracts/` | Warning, usa default explícito |
 | W3 | `discovery-report.json` cacheado >24h | Warning, sugiere re-ejecutar Planner |
 
 ## Patrones URL prohibidos (regex aplicada en C2)

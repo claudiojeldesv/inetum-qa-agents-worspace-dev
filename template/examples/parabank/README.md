@@ -47,5 +47,5 @@ adivinar el `Then`.
 
 ParaBank mata el `JSESSIONID` server-side al hacer logout. Si un test de logout comparte el
 `storageState` con tests autenticados concurrentes, los envenena. El auth-handler (Fase C) lo
-resuelve con sesión aislada; el style-contract `style-contracts/parabank.yaml` ya trae `auth:`
+resuelve con sesión aislada; el style-contract `config/style-contracts/parabank.yaml` ya trae `auth:`
 configurado. No necesitas `--workers=1`.

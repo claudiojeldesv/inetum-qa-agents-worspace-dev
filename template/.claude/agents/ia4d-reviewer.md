@@ -15,13 +15,13 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 - `--test-file=<path>` — the `.spec.ts` to audit.
 - `--plan-entry=<path>` — the plan section the test should cover.
 - `--style-contract=<path>` — the Style Contract YAML.
-- `--discovery-report=<path>` — discovery-report.json with selectors available.
+- `--discovery-report=<path>` — .work/discovery-report.json with selectors available.
 - `--iteration=<0|1|2>` — current iteration number from the Writer.
 
 ## Process
 
 1. Read all inputs.
-2. Apply review criteria from [`references/writer-reviewer-protocol.md`](../../references/writer-reviewer-protocol.md).
+2. Apply review criteria from [`docs/references/writer-reviewer-protocol.md`](../../docs/references/writer-reviewer-protocol.md).
 
 ### Must-fix criteria (rejection)
 
@@ -64,7 +64,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 }
 ```
 
-4. Append to `review-feedback.json` (JSON lines).
+4. Append to `.work/review-feedback.json` (JSON lines).
 5. Append `audit-log` entry: `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.
 
 ## Decision rules
@@ -82,5 +82,5 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 
 ## Reference
 
-- [`references/writer-reviewer-protocol.md`](../../references/writer-reviewer-protocol.md)
-- [`references/composition-rules.md`](../../references/composition-rules.md)
+- [`docs/references/writer-reviewer-protocol.md`](../../docs/references/writer-reviewer-protocol.md)
+- [`docs/references/composition-rules.md`](../../docs/references/composition-rules.md)

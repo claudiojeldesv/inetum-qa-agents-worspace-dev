@@ -37,7 +37,7 @@ El `.feature` ya tiene los `Then`. El parser determinístico lo convierte a crit
 el agente los mapea contra el DOM y genera tests con trazabilidad `@criterion`.
 
 ```
-/qa-automator:req-driven --gherkin=examples/saucedemo/saucedemo.feature --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml
+/qa-automator:req-driven --gherkin=examples/saucedemo/saucedemo.feature --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
 ```
 
 Qué observar: el scenario `login-locked` es un **caso negativo** — el test pasa afirmando el
@@ -50,7 +50,7 @@ El FD no tiene identificadores ni `Then` explícitos. El refiner lo estructura e
 contra el DOM y genera tests con `@criterion`.
 
 ```
-/qa-automator:spec-refiner --fd=examples/saucedemo/saucedemo-fd.md --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml
+/qa-automator:spec-refiner --fd=examples/saucedemo/saucedemo-fd.md --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
 ```
 
 Qué observar: a diferencia del FD de ParaBank, este no trae ambigüedad ni flujos no expuestos —
@@ -68,5 +68,5 @@ los tres criterios son claros y mapeables, así que ninguno queda bloqueado en
 
 SauceDemo **no** necesita auth-setup project: no mata sesiones server-side y los casos de login
 prueban el login mismo. Cada test se loguea en su propio flujo. No necesitas `--workers=1` ni
-`QA_STORAGE_STATE`. El style-contract `style-contracts/saucedemo.yaml` deja `auth` desactivado a
+`QA_STORAGE_STATE`. El style-contract `config/style-contracts/saucedemo.yaml` deja `auth` desactivado a
 propósito. (Para el contraste con auth persistente, mira el ejemplo de ParaBank.)

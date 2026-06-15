@@ -13,9 +13,9 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 
 - `--fd=<path>` (obligatorio): FD en markdown.
 - `--url=<URL>` (obligatorio): URL de staging, debe estar en `config/allowed-targets.yaml`. **Forma B exige URL** — sin target no hay DOM, locators ni run verde (Forma A descartada).
-- `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `style-contracts/parabank.yaml`): YAML del Style Contract.
+- `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `config/style-contracts/parabank.yaml`): YAML del Style Contract.
 - `--output-dir=<path>` (opcional, default: `tests/e2e`): dónde se escriben los `.spec.ts`.
-- `--criteria-dir=<path>` (opcional, default: `criteria`): dónde el refiner escribe `criteria.json` + `refinement-questions.md`.
+- `--criteria-dir=<path>` (opcional, default: `docs/findings/faseD-s3`): dónde el refiner escribe `criteria.json` + `refinement-questions.md`.
 
 ## Procedure (los 5 actos)
 
@@ -49,10 +49,10 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
    ```
    Esperar `<saved-plan>.md` + `planner_save_plan`.
 9. Invoca `ia4d-discovery-analyzer` con el plan **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode):
-   - Output: `discovery-report.json` con el bloque `criteria_mapping` (`mapped` rf↔scenario, `unmapped_flows`).
+   - Output: `.work/discovery-report.json` con el bloque `criteria_mapping` (`mapped` rf↔scenario, `unmapped_flows`).
 
 **9.b — Diff de drift (determinístico, en el command — no LLM):**
-10. Calcula `drift = brief.flows − {flows en criteria_mapping.mapped}`. Cruza con `criteria.json` para anotar el RF de cada flujo en drift. Escribe `drift-report.json`:
+10. Calcula `drift = brief.flows − {flows en criteria_mapping.mapped}`. Cruza con `criteria.json` para anotar el RF de cada flujo en drift. Escribe `.work/drift-report.json`:
     ```json
     { "target_url": "<url>", "source_fd": "<--fd>",
       "drift": [ { "rf": "RF-005", "flow": "bill-pay",
@@ -64,12 +64,12 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 
 ### Acto 3 — Estructurar
 
-11. Ejecuta el POM scaffolder sobre `discovery-report.json` (igual que S4):
+11. Ejecuta el POM scaffolder sobre `.work/discovery-report.json` (igual que S4):
     ```sh
     npx tsx -e "
     import { readFileSync } from 'node:fs';
     import { scaffold } from './src/pom-scaffolder.ts';
-    const dr = JSON.parse(readFileSync('discovery-report.json', 'utf8'));
+    const dr = JSON.parse(readFileSync('.work/discovery-report.json', 'utf8'));
     scaffold(dr.screens, { outputDir: 'tests/pages' });
     "
     ```
@@ -87,18 +87,18 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 
 ### Acto 5 — Juzgar
 
-15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (`echo $env:QA_ENABLE_JUDGE`) invoca `ia4d-judge` por cada `.spec.ts` con el `review-feedback.json` consolidado. Si no, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`.
+15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (`echo $env:QA_ENABLE_JUDGE`) invoca `ia4d-judge` por cada `.spec.ts` con el `.work/review-feedback.json` consolidado. Si no, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`.
 16. (Solo si el Judge corrió) Lee scores. Si >30% < 0.5 → pausa ask-first.
-17. Genera `qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`), verdicts, axe results, **criterios bloqueados (pendientes de respuesta SDET)** y **drift** (RF declarados sin cobertura).
+17. Genera `.work/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`), verdicts, axe results, **criterios bloqueados (pendientes de respuesta SDET)** y **drift** (RF declarados sin cobertura).
 
 ## Outputs (consolidados)
 
 - `criteria.json` + `refinement-questions.md` (ingestión del FD)
-- `drift-report.json` (RF declarados no mapeados en staging)
-- `discovery-report.json` (con `criteria_mapping`)
+- `.work/drift-report.json` (RF declarados no mapeados en staging)
+- `.work/discovery-report.json` (con `criteria_mapping`)
 - `tests/pages/*.page.ts`, `tests/e2e/*.spec.ts` (con `@criterion RF-NNN`)
-- `review-feedback.json`, `judge-report.json`, `audit-log.json`
-- `qa-automator-run-summary.json`
+- `.work/review-feedback.json`, `.work/judge-report.json`, `.work/audit-log.json`
+- `.work/qa-automator-run-summary.json`
 
 ## Verification step
 
@@ -122,5 +122,7 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_BAS
 
 ## Reference
 
-- [`references/fd-criteria-schema.md`](../../../references/fd-criteria-schema.md) — contrato de `criteria.json`
+- [`SPEC.md`](../../../SPEC.md) §7 — "S3 — diseño decidido: Forma B"
+- [`docs/references/fd-criteria-schema.md`](../../../docs/references/fd-criteria-schema.md) — contrato de `criteria.json`
 - [`.claude/commands/qa-automator/autonomous.md`](autonomous.md) — el motor S4 que S3 reusa (Actos 3-5 idénticos)
+- [`docs/findings/wild-sites-report.md`](../../../docs/findings/wild-sites-report.md) — validación parabank (back-end reusado)

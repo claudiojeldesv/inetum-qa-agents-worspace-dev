@@ -114,7 +114,7 @@ const DRIFT_TAG = /^@drift-risk:(low|medium|high)$/i;
 const ENTRY_TAG = /^@entry:(.+)$/i;
 const IGNORE_TAG = /^@ignore:(.+)$/i;
 
-// ES PII heuristics — mirror references/pii-patterns.md. The adapter never lifts
+// ES PII heuristics — mirror docs/references/pii-patterns.md. The adapter never lifts
 // example data that looks like real PII into the output; it redacts and reports.
 const PII_PATTERNS: Array<{ kind: string; re: RegExp }> = [
   { kind: 'dni', re: /\b\d{8}[A-Za-z]\b/ },

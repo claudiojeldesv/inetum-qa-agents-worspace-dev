@@ -83,3 +83,4 @@ The file rewritten, plus a one-line report of the gate mode applied so the comma
 
 - WCAG 2.1 AA: https://www.w3.org/WAI/standards-guidelines/wcag/
 - @axe-core/playwright: https://github.com/dequelabs/axe-core-npm/blob/develop/packages/playwright/README.md
+- [`SPEC.md`](../../SPEC.md) §6 "Always do"

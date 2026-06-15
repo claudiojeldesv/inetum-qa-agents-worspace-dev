@@ -1,11 +1,11 @@
 ---
 description: Genera un reporte HTML Allure enriquecido con la evidencia del agente (trazabilidad RF-NNN, judge, Writer/Reviewer, drift, compliance) a partir de los artefactos de un run ya ejecutado. Post-proceso desacoplado, re-ejecutable.
-argument-hint: "[--results-dir=allure-results] [--summary=qa-automator-run-summary.json] [--output=allure-report] [--open]"
+argument-hint: "[--results-dir=.work/allure-results] [--summary=.work/qa-automator-run-summary.json] [--output=.work/allure-report] [--open]"
 ---
 
 # /qa-automator:report
 
-Post-proceso de reporting de `ia4d-qa-automator`. Toma los `allure-results/` que el reporter
+Post-proceso de reporting de `ia4d-qa-automator`. Toma los `.work/allure-results/` que el reporter
 `allure-playwright` dejó al correr los tests y los **enriquece de forma determinística** (no LLM)
 con la evidencia propia del agente, luego renderiza el HTML estático de Allure.
 
@@ -15,22 +15,22 @@ regenerar nada (coherente con el principio "sanación/post-proceso al final" y l
 ## Prerequisito de runtime
 
 `npx allure generate` es **Java-based** (Allure 2.x vía `allure-commandline`). Requiere un JRE
-en el PATH (Java 8+ vale). El reporter `allure-playwright` que produce `allure-results/` NO
+en el PATH (Java 8+ vale). El reporter `allure-playwright` que produce `.work/allure-results/` NO
 necesita Java; solo la generación del HTML estático. En CI on-prem (Jenkins) asegúrate de que
 el agente tenga Java disponible.
 
 ## Arguments
 
-- `--results-dir=<path>` (opcional, default: `allure-results`): dir con los `*-result.json`.
-- `--summary=<path>` (opcional, default: `qa-automator-run-summary.json`): fuente del mapeo RF-NNN→spec.
-- `--output=<path>` (opcional, default: `allure-report`): dir destino del HTML estático.
+- `--results-dir=<path>` (opcional, default: `.work/allure-results`): dir con los `*-result.json`.
+- `--summary=<path>` (opcional, default: `.work/qa-automator-run-summary.json`): fuente del mapeo RF-NNN→spec.
+- `--output=<path>` (opcional, default: `.work/allure-report`): dir destino del HTML estático.
 - `--open` (opcional): abre el reporte tras generarlo (`npx allure open`).
 
 ## Procedure
 
 ### 1. Preflight (sin override)
 
-1. Verifica que existe `--summary` (`qa-automator-run-summary.json`). Si no →
+1. Verifica que existe `--summary` (`.work/qa-automator-run-summary.json`). Si no →
    instruye al SDET a correr primero una generación (`/qa-automator:autonomous`,
    `:req-driven` o `:spec-refiner`) que lo produce. Termina.
 2. Verifica que existe `--results-dir` y contiene `*-result.json`. Si no → los tests no se
@@ -54,8 +54,8 @@ npx tsx src/allure-enricher.ts --results-dir=<results-dir> --summary=<summary>
 ```
 
 Fuentes opcionales que el enricher consume si existen (junto al results-dir o su parent):
-`judge-report.json` (si Judge está off, se omiten los attachments de judge, sin error) y
-`review-feedback.json`. Reporta al SDET los warnings que emita (p.ej. specs sin resultado
+`.work/judge-report.json` (si Judge está off, se omiten los attachments de judge, sin error) y
+`.work/review-feedback.json`. Reporta al SDET los warnings que emita (p.ej. specs sin resultado
 Allure matcheado: se enriquecen solo a nivel global, **nunca se truncan en silencio**).
 
 ### 3. Generar el HTML
@@ -70,7 +70,7 @@ Si se pasó `--open`, además: `npx allure open <output>`.
 
 1. Imprime la ruta del reporte (`<output>/index.html`) y el comando para abrirlo
    (`npx allure open <output>`).
-2. Registra en `audit-log.json` la escritura del reporte vía `appendAuditEntry` de
+2. Registra en `.work/audit-log.json` la escritura del reporte vía `appendAuditEntry` de
    `src/audit-log.ts`:
    ```
    { source: 'command', action: 'write_file', target: '<output>/',
@@ -81,16 +81,16 @@ Si se pasó `--open`, además: `npx allure open <output>`.
 
 ```
 [allure-enricher] sidecars: 3, specs matcheados: 3, attachments: 6, mutaciones: 3
-Reporte Allure generado: allure-report/index.html
+Reporte Allure generado: .work/allure-report/index.html
   Environment: target_url, compliance_verdict, judge_mean_score, drift_count
   Categorías: triaje de fallos + a11y
   Por test: label RF-NNN, link TMS (source_ref), attachment judge + Writer/Reviewer
-Abrir: npx allure open allure-report
+Abrir: npx allure open .work/allure-report
 ```
 
 ## Failure modes
 
-- Falta `qa-automator-run-summary.json` o `allure-results/` → preflight bloquea con instrucción.
-- Java ausente → `npx allure generate` falla; el enricher (paso 2) ya dejó los `allure-results/`
+- Falta `.work/qa-automator-run-summary.json` o `.work/allure-results/` → preflight bloquea con instrucción.
+- Java ausente → `npx allure generate` falla; el enricher (paso 2) ya dejó los `.work/allure-results/`
   enriquecidos, así que el HTML puede generarse luego en una máquina/CI con Java.
 - Spec del summary sin resultado Allure → warning + enriquecimiento global; no aborta.

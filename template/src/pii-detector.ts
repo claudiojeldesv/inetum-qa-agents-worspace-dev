@@ -1,6 +1,6 @@
 /**
  * PII detector — patrones banca-ES.
- * Documentación de reglas: references/pii-patterns.md
+ * Documentación de reglas: docs/references/pii-patterns.md
  *
  * Cada función expone:
  *  - `detect(text)`: devuelve Array<Match> con location y tipo.
