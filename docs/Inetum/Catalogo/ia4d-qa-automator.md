@@ -179,7 +179,7 @@ ia4d-spec-refiner (stub)
 
 Entradas
 
-- Solo URL (S4, funcional): https://www.saucedemo.com/ + opcionalmente style-contracts/<project>.yaml
+- Solo URL (S4, funcional): https://www.saucedemo.com/ + opcionalmente config/style-contracts/<project>.yaml
 - Repo frontend (S1, v0.3): path al repo + framework
 - Gherkin u OpenAPI (S2, v0.3): paths a los specs
 - FD flojo / PDF / Jira (S3, v0.2): path al documento + URL opcional
@@ -207,7 +207,7 @@ Ejemplo:
 Módulo S4. Funcional en v0.1. Orquesta los 5 actos contra una URL.
 
 Ejemplo:
-/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml
+/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
 
 /qa-automator:code-driven (stub v0.1, funcional v0.3)
 Módulo S1. Analiza un repo frontend.

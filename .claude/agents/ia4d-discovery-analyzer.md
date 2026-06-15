@@ -22,7 +22,7 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
    - `name`: kebab-case identifier.
    - `url_pattern`: URL fragment (e.g. `/inventory.html`).
    - `interactive_elements`: list of elements visible in the plan with their `test_id` (`data-test` attr), `role`, `name`, `label`.
-4. Cross-reference with `style-contracts/saucedemo.yaml` if available to honor `locators.priority`.
+4. Cross-reference with `config/style-contracts/saucedemo.yaml` if available to honor `locators.priority`.
 5. Write `discovery-report.json` in workspace root.
 
 ## Output schema (discovery-report.json)

@@ -16,7 +16,7 @@
 
 - `[x]` Mover artefactos del spike a `docs/spike/artifacts/`.
 - `[x]` Eliminar archivos del reset (test-pilot SPEC/plan/todo, seed.spec.ts, audit-log.json, output/, node_modules/, directorios vacíos).
-- `[x]` Crear estructura de directorios (`hooks/`, `config/`, `style-contracts/`, `docs/references/`, `docs/demo/saucedemo/`, `tests/{unit,integration,pages}/`, `.claude/commands/qa-automator/`, `src/`).
+- `[x]` Crear estructura de directorios (`hooks/`, `config/`, `config/style-contracts/`, `docs/references/`, `docs/demo/saucedemo/`, `tests/{unit,integration,pages}/`, `.claude/commands/qa-automator/`, `src/`).
 - `[x]` `package.json`, `tsconfig.json`, `.eslintrc.json`, `.prettierrc.json`, `vitest.config.ts`, `playwright.config.ts`, `.gitignore` actualizado.
 - `[x]` Limpiar `.claude/settings.local.json` (referencia a `test-pilot:plan`).
 - `[x]` Reescribir `CLAUDE.md`.
@@ -51,7 +51,7 @@
 
 ## Slice 6 — Flujo SauceDemo verde (parcial)
 
-- `[x]` `style-contracts/saucedemo.yaml`.
+- `[x]` `config/style-contracts/saucedemo.yaml`.
 - `[x]` `docs/demo/saucedemo/HOW-TO-REPRODUCE.md`.
 - `[ ]` `docs/demo/saucedemo/expected-output/` baseline (limpiado — pendiente repoblado por Slice 6.5).
 - `[~]` Ejecutar flujo end-to-end y validar verde. **Parcial**: la suite resultante corrió verde, pero los artefactos (discovery, POMs, specs) fueron escritos manualmente por el agente principal apoyándose en outputs del spike Slice 0.5. No demuestra orquestación end-to-end.
@@ -86,7 +86,7 @@ Roadmap detallado en `docs/tasks/plan.md` y `SPEC.md` §7. Tareas:
 ### Fase A — Cierre v0.1
 
 - `[ ]` **v0.2.A-T1** Abrir sesión Claude Code nueva en este repo. Verificar que los 12 subagents `ia4d-*` aparecen en la lista de Task tool.
-- `[ ]` **v0.2.A-T2** Ejecutar `/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml`. Validar composición Writer↔Reviewer LLM-LLM real. Documentar resultados en `docs/findings/spike-playwright-mcp.md` (sección "v0.1 closeout — end-to-end LLM-LLM").
+- `[ ]` **v0.2.A-T2** Ejecutar `/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml`. Validar composición Writer↔Reviewer LLM-LLM real. Documentar resultados en `docs/findings/spike-playwright-mcp.md` (sección "v0.1 closeout — end-to-end LLM-LLM").
 - `[ ]` **v0.2.A-T3** Borrar residuales del v0.1: `tests/e2e/*.spec.ts`, `tests/pages/*.page.ts`, `audit-log.json`, `judge-report.json`, `discovery-report.json`, `saucedemo-slice65-plan.md`. Mantener `tests/unit/*` y todo `src/`.
 
 ### Fase B — Recolección honesta contra sitios reales

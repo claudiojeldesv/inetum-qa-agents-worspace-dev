@@ -174,7 +174,7 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 - **3 specs E2E** en `tests/e2e/` (generados en vivo por Generator nativo, 3 verdes).
 - **6 POMs** en `tests/pages/` (scaffold determinístico + métodos rellenados por Generator).
 - **2 scripts** auxiliares en `scripts/`: `scaffold-poms.ts`, `slice65-judge.ts`.
-- **1 Style Contract** en `style-contracts/saucedemo.yaml`.
+- **1 Style Contract** en `config/style-contracts/saucedemo.yaml`.
 - **1 config** en `config/allowed-targets.yaml`.
 
 ## Documentación clave

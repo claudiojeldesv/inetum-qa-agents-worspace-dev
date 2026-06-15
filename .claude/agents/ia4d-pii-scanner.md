@@ -11,7 +11,7 @@ You are the **PII Scanner** of `ia4d-qa-automator`. Your single responsibility i
 ## Inputs
 
 - A path: either a single `.spec.ts` file or a directory to scan recursively.
-- The path to the Style Contract YAML(s) under `style-contracts/` (for synthetic_fixtures allowlist).
+- The path to the Style Contract YAML(s) under `config/style-contracts/` (for synthetic_fixtures allowlist).
 
 ## Process
 

@@ -18,7 +18,7 @@ Smoke test que confirma que el entorno está listo para invocar `ia4d-qa-automat
 3. Verify presence of:
    - `config/allowed-targets.yaml`
    - `hooks/hooks.json`
-   - `style-contracts/saucedemo.yaml` (MVP demo contract)
+   - `config/style-contracts/saucedemo.yaml` (MVP demo contract)
    - `.mcp.json` declares `playwright-test`
 4. Verify Node ≥ 20 and Playwright ≥ 1.56 via shell:
    ```sh

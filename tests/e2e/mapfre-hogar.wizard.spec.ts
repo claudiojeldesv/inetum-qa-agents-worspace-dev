@@ -15,7 +15,7 @@
  * Scenario: wizard-tarificacion-completo
  * SPA lineal: NO se puede navegar directamente a pantallas intermedias.
  * El test recorre las 16 pantallas en secuencia desde la URL de entrada.
- * Datos: todos desde style-contracts/mapfre-hogar.yaml → synthetic_fixtures.
+ * Datos: todos desde config/style-contracts/mapfre-hogar.yaml → synthetic_fixtures.
  */
 
 import { test, expect } from '@playwright/test';
@@ -38,7 +38,7 @@ import { ContenidoPage }                from '../pages/contenido.page';
 import { DocumentoIdentidadPage }       from '../pages/documento-identidad.page';
 import { FechaNacimientoPage }          from '../pages/fecha-nacimiento.page';
 
-// Synthetic fixtures — source of truth: style-contracts/mapfre-hogar.yaml
+// Synthetic fixtures — source of truth: config/style-contracts/mapfre-hogar.yaml
 const FIXTURES = {
   codigoPostal:       '03201',
   calleBusqueda:      'REINA',

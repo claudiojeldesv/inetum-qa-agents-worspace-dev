@@ -25,7 +25,7 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
 - `--gherkin=<path>` (obligatorio): archivo `.feature` Gherkin.
 - `--url=<URL>` (obligatorio): URL de staging, debe estar en `config/allowed-targets.yaml`. Sin
   target no hay DOM, locators ni run verde.
-- `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `style-contracts/parabank.yaml`).
+- `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `config/style-contracts/parabank.yaml`).
 - `--output-dir=<path>` (opcional, default: `tests/e2e`).
 - `--criteria-dir=<path>` (opcional, default: `docs/findings/faseE-s2`): dónde el parser escribe
   `criteria.json` + `refinement-questions.md`.

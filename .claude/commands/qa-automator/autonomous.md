@@ -12,7 +12,7 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 ## Arguments
 
 - `--url=<URL>` (obligatorio): URL del target, debe estar en `config/allowed-targets.yaml`.
-- `--style=<path>` (opcional, default: `style-contracts/saucedemo.yaml`): YAML del Style Contract.
+- `--style=<path>` (opcional, default: `config/style-contracts/saucedemo.yaml`): YAML del Style Contract.
 - `--output-dir=<path>` (opcional, default: `tests/e2e`): directorio donde se escriben los `.spec.ts`.
 - `--flows=<a,b,c>` (opcional): flujos / happy-paths a cubrir, separados por coma (ej. `checkout,registro`). Acota qué mapea el planner.
 - `--entry=<ruta|url>` (opcional, default: `--url`): punto de entrada profundo para empezar la exploración (ej. `/catalog`, no la home).

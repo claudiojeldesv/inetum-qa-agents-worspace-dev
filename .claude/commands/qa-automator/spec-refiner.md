@@ -13,7 +13,7 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 
 - `--fd=<path>` (obligatorio): FD en markdown.
 - `--url=<URL>` (obligatorio): URL de staging, debe estar en `config/allowed-targets.yaml`. **Forma B exige URL** — sin target no hay DOM, locators ni run verde (Forma A descartada).
-- `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `style-contracts/parabank.yaml`): YAML del Style Contract.
+- `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `config/style-contracts/parabank.yaml`): YAML del Style Contract.
 - `--output-dir=<path>` (opcional, default: `tests/e2e`): dónde se escriben los `.spec.ts`.
 - `--criteria-dir=<path>` (opcional, default: `docs/findings/faseD-s3`): dónde el refiner escribe `criteria.json` + `refinement-questions.md`.
 

@@ -58,7 +58,7 @@ npx playwright test --reporter=list
 Forma B (orquestación completa en Claude Code):
 
 ```
-/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=style-contracts/saucedemo.yaml
+/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
 ```
 
 Esto invoca los 5 actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar).
@@ -107,5 +107,5 @@ Tras el flujo completo se encuentran en workspace root:
 |---|---|---|
 | `getByTestId(...)` timeout | `testIdAttribute: 'data-test'` no configurado en playwright.config.ts | Verificar `use.testIdAttribute` |
 | Compliance pre-flight bloquea SauceDemo | `config/allowed-targets.yaml` no declara `saucedemo.com` | Verificar lista `patterns` |
-| PII scanner falla sobre tests con `standard_user` | `style-contracts/saucedemo.yaml` no declara credenciales en `synthetic_fixtures` | Verificar la sección |
+| PII scanner falla sobre tests con `standard_user` | `config/style-contracts/saucedemo.yaml` no declara credenciales en `synthetic_fixtures` | Verificar la sección |
 | `npx tsx` no encuentra el script | Falta `npm install` | Reinstalar |

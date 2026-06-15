@@ -1,5 +1,5 @@
 /**
- * @criterion auth-handler setup — style-contracts/orangehrm.yaml auth.*
+ * @criterion auth-handler setup — config/style-contracts/orangehrm.yaml auth.*
  * @writer-iterations 1
  * @reviewer-verdict pass
  *

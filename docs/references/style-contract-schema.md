@@ -110,7 +110,7 @@ banned_apis:
   - xpath
 ```
 
-## Ejemplo: `style-contracts/saucedemo.yaml`
+## Ejemplo: `config/style-contracts/saucedemo.yaml`
 
 (creado en Slice 6)
 

@@ -31,7 +31,7 @@ function loadSyntheticAllowlist(): SyntheticAllowlist {
     syntheticIbans: [],
     syntheticUsernames: [],
   };
-  const dir = resolve(process.cwd(), 'style-contracts');
+  const dir = resolve(process.cwd(), 'config/style-contracts');
   if (!existsSync(dir)) return result;
 
   try {
