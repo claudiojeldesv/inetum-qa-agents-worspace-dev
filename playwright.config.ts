@@ -9,16 +9,17 @@ const storageState = process.env.QA_STORAGE_STATE;
 
 export default defineConfig({
   testDir: './tests/e2e',
+  outputDir: '.work/test-results',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['html', { outputFolder: '.work/playwright-report', open: 'never' }],
     // allure-playwright produce allure-results/; /qa-automator:report lo enriquece
     // con la evidencia del agente y genera el HTML estático (npx allure generate).
-    ['allure-playwright', { resultsDir: 'allure-results', detail: true }],
+    ['allure-playwright', { resultsDir: '.work/allure-results', detail: true }],
   ],
   use: {
     // baseURL parametrizable por run (v0.2 Fase B): el command autonomous lo setea

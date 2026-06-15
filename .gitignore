@@ -7,13 +7,17 @@ yarn-error.log*
 # Env local (machine-specific, posibles secretos)
 .env
 
-# Outputs & runtime
+# Outputs & runtime — destino nuevo: todo lo efímero del agente bajo .work/
+/.work/
+# .playwright-mcp lo crea el MCP server (ubicación no configurable desde el repo)
+/.playwright-mcp/
+# Artefactos runtime legacy en root (runs previos al refactor de .work/);
+# se ignoran por robustez. Son regenerables: pueden borrarse sin impacto.
 /output/
 /playwright-report/
 /allure-results/
 /allure-report/
 /test-results/
-/.playwright-mcp/
 
 # Local settings (machine-specific)
 .claude/settings.local.json
@@ -31,7 +35,7 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Audit log local runs (recreated per session)
+# Artefactos JSON del agente — destino nuevo .work/; entradas legacy en root por robustez
 /audit-log.json
 /judge-report.json
 /review-feedback.json

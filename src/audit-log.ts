@@ -41,7 +41,7 @@ export interface AuditLogEntry {
   metadata?: Record<string, unknown>;
 }
 
-const DEFAULT_LOG_PATH = resolve(process.cwd(), 'audit-log.json');
+const DEFAULT_LOG_PATH = resolve(process.cwd(), '.work/audit-log.json');
 
 export function appendAuditEntry(
   entry: Omit<AuditLogEntry, 'timestamp'> & { timestamp?: string },

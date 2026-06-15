@@ -41,7 +41,7 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
    - **Modo ciego**: prompt de exploración completa (comportamiento v0.1).
    - Esperar el output: `<saved-plan>.md` con escenarios + `planner_save_plan` ejecutado.
 7. Invoca `ia4d-discovery-analyzer` con el plan saved como input.
-   - Output: `discovery-report.json` en workspace root.
+   - Output: `.work/discovery-report.json` (dir de trabajo efímero del agente).
 
 ### Acto 3 — Estructurar
 
@@ -50,7 +50,7 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
    npx tsx -e "
    import { readFileSync } from 'node:fs';
    import { scaffold } from './src/pom-scaffolder.ts';
-   const dr = JSON.parse(readFileSync('discovery-report.json', 'utf8'));
+   const dr = JSON.parse(readFileSync('.work/discovery-report.json', 'utf8'));
    scaffold(dr.screens, { outputDir: 'tests/pages' });
    "
    ```
@@ -75,19 +75,19 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 
 ### Acto 5 — Juzgar
 
-12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
+12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `.work/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
 13. (Solo si el Judge corrió) Lee todos los scores. Si >30% < 0.5 → pausa con ask-first.
-14. Genera summary `qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results.
+14. Genera summary `.work/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results.
 
 ## Outputs (consolidados)
 
-- `discovery-report.json`
+- `.work/discovery-report.json`
 - `tests/pages/*.page.ts` (POM esqueletos + locators rellenos por Writer)
 - `tests/e2e/*.spec.ts` (≥3 archivos del flujo golden path)
-- `review-feedback.json` (todas las reviews)
-- `judge-report.json` (scores)
-- `audit-log.json` (traza completa)
-- `qa-automator-run-summary.json`
+- `.work/review-feedback.json` (todas las reviews)
+- `.work/judge-report.json` (scores)
+- `.work/audit-log.json` (traza completa)
+- `.work/qa-automator-run-summary.json`
 
 ## Verification step (ejecuta `npx playwright test`)
 

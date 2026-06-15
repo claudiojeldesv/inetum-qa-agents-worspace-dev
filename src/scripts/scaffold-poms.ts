@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { scaffold, type DiscoveryScreen } from '../pom-scaffolder.ts';
 
-const discoveryPath = process.argv[2] ?? 'discovery-report.json';
+const discoveryPath = process.argv[2] ?? '.work/discovery-report.json';
 const outputDir = process.argv[3] ?? 'tests/pages';
 
 const raw = readFileSync(resolve(discoveryPath), 'utf8');

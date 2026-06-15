@@ -14,7 +14,7 @@ You are the **Judge** of the Quality layer. After the Writer+Reviewer protocol h
 
 - `--test-file=<path>` — the final `.spec.ts`.
 - `--reviewer-verdict=<pass|iteration_2_exhausted>` — from the last review.
-- `--review-feedback=<path>` — `review-feedback.json` (consolidated).
+- `--review-feedback=<path>` — `.work/review-feedback.json` (consolidated).
 
 ## Scoring axes (each 0.0-1.0)
 
@@ -37,7 +37,7 @@ You are the **Judge** of the Quality layer. After the Writer+Reviewer protocol h
 5. Reduce 0.1 if `reviewer-verdict == 'iteration_2_exhausted'` (penalty for unresolved must-fix).
 6. Clamp to [0, 1].
 
-## Output (append to `judge-report.json`, JSON lines)
+## Output (append to `.work/judge-report.json`, JSON lines)
 
 ```json
 {

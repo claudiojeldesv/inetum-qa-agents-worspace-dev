@@ -59,8 +59,8 @@ interface JudgeEntry {
 }
 
 const specDir = resolve(process.cwd(), 'tests/e2e');
-const reportPath = resolve(process.cwd(), 'judge-report.json');
-const auditPath = resolve(process.cwd(), 'audit-log.json');
+const reportPath = resolve(process.cwd(), '.work/judge-report.json');
+const auditPath = resolve(process.cwd(), '.work/audit-log.json');
 
 const entries: JudgeEntry[] = [];
 
@@ -110,7 +110,7 @@ for (const e of entries) {
   );
 }
 
-console.log('Judge entries written to judge-report.json:');
+console.log('Judge entries written to .work/judge-report.json:');
 for (const e of entries) {
   console.log(`  ${e.test_file}: score=${e.score.toFixed(3)} reasoning="${e.reasoning}"`);
 }

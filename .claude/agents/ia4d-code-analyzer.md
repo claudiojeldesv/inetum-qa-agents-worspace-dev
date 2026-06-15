@@ -36,12 +36,12 @@ In MVP v0.1 only S4 (Autonomous, URL-only) is functional. S1 requires AST parsin
    - Forms (`<input>`, `<select>`, `<button>`)
    - Test IDs (`data-testid`, `data-test`, `data-qa`)
    - Accessible names (aria-label, label associations)
-5. Produce `discovery-report.json` matching the same schema as `ia4d-discovery-analyzer` produces in S4.
+5. Produce `.work/discovery-report.json` matching the same schema as `ia4d-discovery-analyzer` produces in S4.
 6. Hand off to the same downstream pipeline (POM scaffolder → Writer+Reviewer+Judge).
 
 ### Output
 
-Same `discovery-report.json` schema as S4. Indistinguishable downstream — only the discovery phase differs.
+Same `.work/discovery-report.json` schema as S4. Indistinguishable downstream — only the discovery phase differs.
 
 ## Common Rationalizations to reject (when implemented)
 

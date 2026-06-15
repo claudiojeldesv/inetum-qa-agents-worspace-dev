@@ -42,7 +42,7 @@ target — is not implemented; it would break the green-run/real-locators value 
 
 ## Output
 
-Write to `mode-routing.json` in workspace root:
+Write to `.work/mode-routing.json`:
 
 ```json
 {

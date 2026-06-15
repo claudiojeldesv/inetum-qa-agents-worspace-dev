@@ -23,9 +23,9 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
    - `url_pattern`: URL fragment (e.g. `/inventory.html`).
    - `interactive_elements`: list of elements visible in the plan with their `test_id` (`data-test` attr), `role`, `name`, `label`.
 4. Cross-reference with `config/style-contracts/saucedemo.yaml` if available to honor `locators.priority`.
-5. Write `discovery-report.json` in workspace root.
+5. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
 
-## Output schema (discovery-report.json)
+## Output schema (.work/discovery-report.json)
 
 ```json
 {
@@ -63,7 +63,7 @@ NOT find (the raw material for drift detection — which the *command* decides, 
    mapped a screen/scenario for it (a screen exists, with real interactive elements, that
    realizes that flow). Use the plan faithfully — do not assume a flow was mapped because the
    FD wanted it to be.
-2. Add a top-level `criteria_mapping` block to `discovery-report.json`:
+2. Add a top-level `criteria_mapping` block to `.work/discovery-report.json`:
 
 ```json
 "criteria_mapping": {
@@ -79,7 +79,7 @@ NOT find (the raw material for drift detection — which the *command* decides, 
 
 3. `scenarios_recommended` stays as today (the Writer reads it). The `criteria_mapping.mapped`
    is what lets the Writer cite the right `RF-NNN`. `unmapped_flows` is what the command diffs
-   into `drift-report.json`.
+   into `.work/drift-report.json`.
 4. **Do not fabricate a mapping.** If the FD declared a flow the plan never reached, it goes to
    `unmapped_flows` — never invent a screen to make the criterion look covered. This is the
    no-fabricate hard rule (the same one that keeps `test_id: null` when there's no data) applied

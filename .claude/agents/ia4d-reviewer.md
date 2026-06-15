@@ -15,7 +15,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 - `--test-file=<path>` — the `.spec.ts` to audit.
 - `--plan-entry=<path>` — the plan section the test should cover.
 - `--style-contract=<path>` — the Style Contract YAML.
-- `--discovery-report=<path>` — discovery-report.json with selectors available.
+- `--discovery-report=<path>` — .work/discovery-report.json with selectors available.
 - `--iteration=<0|1|2>` — current iteration number from the Writer.
 
 ## Process
@@ -64,7 +64,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 }
 ```
 
-4. Append to `review-feedback.json` (JSON lines).
+4. Append to `.work/review-feedback.json` (JSON lines).
 5. Append `audit-log` entry: `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.
 
 ## Decision rules

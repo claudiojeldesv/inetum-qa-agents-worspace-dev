@@ -19,7 +19,7 @@ This module is documented but not implemented in MVP v0.1.
 Planned for v0.3. The S1 (Code-driven) module will:
   1. Parse a frontend source repo (React/Vue/HTML) via AST.
   2. Extract routes, components, forms, test IDs.
-  3. Produce a discovery-report.json from the code (no browser needed).
+  3. Produce a .work/discovery-report.json from the code (no browser needed).
   4. Hand off to the same downstream pipeline (POM scaffolder → Writer → Reviewer → Judge).
 
 For MVP v0.1, use `/qa-automator:autonomous --url=<URL>` instead (S4 module, functional).
