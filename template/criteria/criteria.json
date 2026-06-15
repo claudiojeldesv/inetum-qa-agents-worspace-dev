@@ -1,17 +1,17 @@
 {
   "version": 1,
-  "source_fd": "examples/parabank/parabank.feature",
-  "refined_timestamp": "2026-06-03T08:25:40.244Z",
-  "target_url": "https://parabank.parasoft.com/parabank/index.htm",
+  "source_fd": "examples/saucedemo/saucedemo.feature",
+  "refined_timestamp": "2026-06-03T16:26:39.765Z",
+  "target_url": "https://www.saucedemo.com/",
   "criteria": [
     {
       "id": "RF-001",
       "title": "Inicio de sesion con credenciales validas",
       "flow": "login",
-      "given": "un cliente registrado no ha iniciado sesion",
-      "when": "el cliente introduce su usuario y contrasena correctos; confirma el acceso",
-      "then": "el sistema autentica al cliente y muestra el resumen de cuentas",
-      "source_ref": "parabank.feature:8 (REQ-LOGIN)",
+      "given": "un usuario no ha iniciado sesion en la tienda",
+      "when": "el usuario introduce el usuario standard_user y la contrasena secret_sauce; confirma el acceso",
+      "then": "el sistema autentica al usuario y muestra el listado de productos",
+      "source_ref": "saucedemo.feature:10 (REQ-LOGIN)",
       "confidence": "high",
       "drift_risk": "low",
       "assumptions": [],
@@ -19,53 +19,27 @@
     },
     {
       "id": "RF-002",
-      "title": "Transferencia de fondos entre cuentas propias",
-      "flow": "transfer-funds",
-      "given": "el cliente ha iniciado sesion y dispone de al menos dos cuentas",
-      "when": "el cliente transfiere <amount> de una cuenta de origen a una cuenta de destino; confirma la transferencia",
-      "then": "el sistema ejecuta la transferencia y muestra la confirmacion con el importe",
-      "source_ref": "parabank.feature:15 (REQ-TRANSFER)",
-      "confidence": "high",
-      "drift_risk": "low",
-      "assumptions": [],
-      "open_questions": [],
-      "examples": {
-        "header": [
-          "amount"
-        ],
-        "rows": [
-          {
-            "amount": "1"
-          },
-          {
-            "amount": "2"
-          }
-        ]
-      }
-    },
-    {
-      "id": "RF-003",
-      "title": "Cierre de sesion",
-      "flow": "logout",
-      "given": "el cliente tiene una sesion activa",
-      "when": "el cliente ejecuta el cierre de sesion",
-      "then": "el sistema termina la sesion y devuelve a la pantalla de acceso",
-      "source_ref": "parabank.feature:27 (REQ-LOGOUT)",
+      "title": "Inicio de sesion rechazado para un usuario bloqueado",
+      "flow": "login-locked",
+      "given": "un usuario no ha iniciado sesion en la tienda",
+      "when": "el usuario introduce el usuario locked_out_user y la contrasena secret_sauce; confirma el acceso",
+      "then": "el sistema rechaza el acceso y muestra el mensaje de error de usuario bloqueado",
+      "source_ref": "saucedemo.feature:17 (REQ-LOGIN-LOCKED)",
       "confidence": "high",
       "drift_risk": "low",
       "assumptions": [],
       "open_questions": []
     },
     {
-      "id": "RF-004",
-      "title": "Cierre de una cuenta del cliente",
-      "flow": "close-account",
-      "given": "el cliente ha iniciado sesion y dispone de una cuenta",
-      "when": "el cliente solicita el cierre de una de sus cuentas",
-      "then": "el sistema cierra la cuenta y deja de mostrarla en el resumen de cuentas",
-      "source_ref": "parabank.feature:33 (REQ-CLOSE)",
+      "id": "RF-003",
+      "title": "Compra de un producto hasta la confirmacion del pedido",
+      "flow": "checkout",
+      "given": "el usuario ha iniciado sesion y esta en el listado de productos",
+      "when": "el usuario anade un producto al carrito; abre el carrito y continua al checkout; introduce sus datos de envio y confirma la compra",
+      "then": "el sistema completa el pedido y muestra la confirmacion de pedido realizado",
+      "source_ref": "saucedemo.feature:24 (REQ-CHECKOUT)",
       "confidence": "high",
-      "drift_risk": "high",
+      "drift_risk": "low",
       "assumptions": [],
       "open_questions": []
     }
@@ -73,19 +47,12 @@
   "brief": {
     "flows": [
       "login",
-      "transfer-funds",
-      "logout",
-      "close-account"
+      "login-locked",
+      "checkout"
     ],
-    "entry": "/parabank/index.htm",
+    "entry": "/",
     "ignore": [],
-    "drift_flags": [
-      {
-        "flow": "close-account",
-        "rf": "RF-004",
-        "reason": "drift_risk=high declarado por tag @drift-risk:high en el .feature"
-      }
-    ]
+    "drift_flags": []
   },
   "open_questions_ref": null,
   "pii_redaction": {
@@ -93,5 +60,5 @@
     "literals_found": [],
     "downstream_note": "El .feature no contiene PII. Fixtures desde synthetic_fixtures del style-contract."
   },
-  "refiner_notes": "Adaptado desde Gherkin por src/gherkin-to-criteria.ts. 4 scenarios → 4 criterios. 0 con Then ausente (bloqueados, enrutar a S3)."
+  "refiner_notes": "Adaptado desde Gherkin por src/gherkin-to-criteria.ts. 3 scenarios → 3 criterios. 0 con Then ausente (bloqueados, enrutar a S3)."
 }

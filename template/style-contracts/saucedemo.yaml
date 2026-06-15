@@ -63,6 +63,10 @@ synthetic_fixtures:
       password: wrong_password
   test_cards: []
   test_iban: []
+  shipping_info:
+    - first_name: Test
+      last_name: User
+      postal_code: "12345"
 
 banned_apis:
   - page.waitForTimeout
