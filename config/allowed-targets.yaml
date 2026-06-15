@@ -17,6 +17,7 @@ patterns:
   - 'https://practice.expandtesting.com/*'
   - 'https://practicesoftwaretesting.com/*'
   - 'https://parabank.parasoft.com/*'    # sitio 3: banca demo (auth + estado)
+  - 'https://opensource-demo.orangehrmlive.com/*'    # HR portal demo (auth + SPA)
   - 'https://precio.mapfre.es/*'    # tarificador seguro hogar (prod real, autorizado SDET; run único happy-path)
 
   # Entornos no productivos (cualquier subdominio)
@@ -58,3 +59,6 @@ allowed_test_credentials:
   - username: john
     password: demo
     source: 'parabank.parasoft.com - Parasoft demo account, publicly documented'
+  - username: Admin
+    password: admin123
+    source: 'opensource-demo.orangehrmlive.com - OrangeHRM demo account, publicly documented on login page'

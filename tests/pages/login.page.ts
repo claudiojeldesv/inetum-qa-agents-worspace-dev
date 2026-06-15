@@ -3,45 +3,46 @@ import { type Locator, type Page } from '@playwright/test';
 /**
  * LoginPage — Page Object Model for the "login" screen.
  * Scaffolded by src/pom-scaffolder.ts. Locators below come from discovery-report.
- * Actions filled by ia4d-writer (S3 mode, RF-001).
- *
- * Locator note: ParaBank JSP legacy has no labels on the credential inputs — the
- * inputs are identified via name attribute (css_fallback:name declared in style-contract).
- * getByRole('textbox') would match both fields; css_fallback by name is the correct
- * unambiguous selector here per contract whitelist.
+ * Actions and intermediate methods are added by ia4d-writer.
  */
 export class LoginPage {
   readonly page: Page;
-  // css-fallback: name — no label/aria on these inputs (ParaBank JSP legacy); css_fallback_attributes.name declared in style-contract
   readonly username: Locator;
-  // css-fallback: name — same reason as above
   readonly password: Locator;
-  // getByRole resolves the submit button semantically
-  readonly logIn: Locator;
-  /** Heading "Customer Login" — presence confirms the unauthenticated login screen is displayed. */
-  readonly customerLoginHeading: Locator;
+  readonly login: Locator;
+  readonly login2: Locator;
+  /** Alert shown when credentials are invalid. Text "Invalid credentials" verified in vivo by planner. */
+  readonly invalidCredentialsAlert: Locator;
+  /** Validation messages rendered by OrangeHRM below empty required fields.
+   *  OrangeHRM renders the exact text "Required" (verified in vivo) as two
+   *  separate span elements — one beneath Username, one beneath Password.
+   *  Semantic locator via getByText; CSS class oxd-input--error is forbidden
+   *  by contract (forbid_css_selectors: true). */
+  readonly requiredMessages: Locator;
 
   constructor(page: Page) {
     this.page = page;
-    // css-fallback: name
-    this.username = this.page.locator("input[name='username']");
-    // css-fallback: name
-    this.password = this.page.locator("input[name='password']");
-    this.logIn = this.page.getByRole('button', { name: 'Log In' });
-    this.customerLoginHeading = this.page.getByRole('heading', { name: 'Customer Login' });
+    this.username = this.page.getByRole('textbox', { name: 'Username' });
+    this.password = this.page.getByRole('textbox', { name: 'Password' });
+    this.login = this.page.getByRole('button', { name: 'Login' });
+    this.login2 = this.page.getByRole('heading', { name: 'Login' });
+    this.invalidCredentialsAlert = this.page.getByText('Invalid credentials');
+    // { exact: true } prevents matching partial strings containing "Required"
+    this.requiredMessages = this.page.getByText('Required', { exact: true });
   }
 
-  async goto(): Promise<void> {
-    await this.page.goto('/parabank/index.htm', { waitUntil: 'domcontentloaded' });
+  async goto() {
+    await this.page.goto('/web/index.php/auth/login');
   }
 
-  /**
-   * Fills the credential form and submits it.
-   * Used by both login.spec.ts and auth.setup.ts.
-   */
-  async login(username: string, password: string): Promise<void> {
+  async doLogin(username: string, password: string) {
     await this.username.fill(username);
     await this.password.fill(password);
-    await this.logIn.click();
+    await this.login.click();
+  }
+
+  async submitEmpty() {
+    // Fields are already empty on a fresh page load; click Login to trigger client-side validation
+    await this.login.click();
   }
 }
