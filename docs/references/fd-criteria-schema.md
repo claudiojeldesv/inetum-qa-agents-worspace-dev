@@ -13,7 +13,7 @@ El refiner **extrae lo que el FD enuncia y marca lo que falta**. No inventa crit
 ```json
 {
   "version": 1,
-  "source_fd": "demo/parabank/fd-parabank.md",
+  "source_fd": "docs/demo/parabank/fd-parabank.md",
   "refined_timestamp": "<ISO 8601>",
   "target_url": "https://parabank.parasoft.com/parabank/index.htm",
 

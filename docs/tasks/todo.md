@@ -16,7 +16,7 @@
 
 - `[x]` Mover artefactos del spike a `docs/spike/artifacts/`.
 - `[x]` Eliminar archivos del reset (test-pilot SPEC/plan/todo, seed.spec.ts, audit-log.json, output/, node_modules/, directorios vacíos).
-- `[x]` Crear estructura de directorios (`hooks/`, `config/`, `style-contracts/`, `docs/references/`, `demo/saucedemo/`, `tests/{unit,integration,pages}/`, `.claude/commands/qa-automator/`, `src/`).
+- `[x]` Crear estructura de directorios (`hooks/`, `config/`, `style-contracts/`, `docs/references/`, `docs/demo/saucedemo/`, `tests/{unit,integration,pages}/`, `.claude/commands/qa-automator/`, `src/`).
 - `[x]` `package.json`, `tsconfig.json`, `.eslintrc.json`, `.prettierrc.json`, `vitest.config.ts`, `playwright.config.ts`, `.gitignore` actualizado.
 - `[x]` Limpiar `.claude/settings.local.json` (referencia a `test-pilot:plan`).
 - `[x]` Reescribir `CLAUDE.md`.
@@ -52,8 +52,8 @@
 ## Slice 6 — Flujo SauceDemo verde (parcial)
 
 - `[x]` `style-contracts/saucedemo.yaml`.
-- `[x]` `demo/saucedemo/HOW-TO-REPRODUCE.md`.
-- `[ ]` `demo/saucedemo/expected-output/` baseline (limpiado — pendiente repoblado por Slice 6.5).
+- `[x]` `docs/demo/saucedemo/HOW-TO-REPRODUCE.md`.
+- `[ ]` `docs/demo/saucedemo/expected-output/` baseline (limpiado — pendiente repoblado por Slice 6.5).
 - `[~]` Ejecutar flujo end-to-end y validar verde. **Parcial**: la suite resultante corrió verde, pero los artefactos (discovery, POMs, specs) fueron escritos manualmente por el agente principal apoyándose en outputs del spike Slice 0.5. No demuestra orquestación end-to-end.
 
 ## Slice 6.5 — Validar flujo autonomous LLM en vivo (gate real del MVP)
@@ -125,7 +125,7 @@ Cada subtarea entra solo si la Fase B muestra que su categoría tiene frecuencia
 
 ## Slice 8 — Entrega
 
-- `[ ]` `demo/saucedemo/script.md` (guion).
+- `[ ]` `docs/demo/saucedemo/script.md` (guion).
 - `[ ]` `docs/Inetum/Catalogo/ia4d-qa-automator.md` (ficha catálogo formato canónico).
-- `[ ]` `demo/recordings/` (placeholder para video).
+- `[ ]` `docs/demo/recordings/` (placeholder para video).
 - `[ ]` `README.md` raíz.

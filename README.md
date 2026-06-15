@@ -184,7 +184,7 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 - [`docs/tasks/plan.md`](docs/tasks/plan.md), [`docs/tasks/todo.md`](docs/tasks/todo.md) — plan vivo
 - [`docs/findings/spike-playwright-mcp.md`](docs/findings/spike-playwright-mcp.md) — mediciones Slice 0.5 + Slice 6.5
 - [`docs/Inetum/Catalogo/ia4d-qa-automator.md`](docs/Inetum/Catalogo/ia4d-qa-automator.md) — ficha canónica Inetum
-- [`demo/saucedemo/HOW-TO-REPRODUCE.md`](demo/saucedemo/HOW-TO-REPRODUCE.md) — reproducción del demo
+- [`docs/demo/saucedemo/HOW-TO-REPRODUCE.md`](docs/demo/saucedemo/HOW-TO-REPRODUCE.md) — reproducción del demo
 - [`docs/references/composition-rules.md`](docs/references/composition-rules.md) — excepción Writer↔Reviewer
 - [`docs/references/writer-reviewer-protocol.md`](docs/references/writer-reviewer-protocol.md) — protocolo ping-pong N≤2
 
