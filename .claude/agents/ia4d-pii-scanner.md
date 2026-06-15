@@ -1,6 +1,6 @@
 ---
 name: ia4d-pii-scanner
-description: Use this agent to scan a directory (or single file) for PII patterns according to references/pii-patterns.md. Hard gate — no override. Detects also unauthorized test.fixme() insertions by the Healer.
+description: Use this agent to scan a directory (or single file) for PII patterns according to docs/references/pii-patterns.md. Hard gate — no override. Detects also unauthorized test.fixme() insertions by the Healer.
 tools: Read, Glob, Bash
 model: haiku
 color: red
@@ -60,5 +60,5 @@ You are the **PII Scanner** of `ia4d-qa-automator`. Your single responsibility i
 
 ## Reference
 
-- [`references/pii-patterns.md`](../../references/pii-patterns.md)
+- [`docs/references/pii-patterns.md`](../../docs/references/pii-patterns.md)
 - [`src/pii-detector.ts`](../../src/pii-detector.ts)

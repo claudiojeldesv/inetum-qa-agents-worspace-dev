@@ -64,7 +64,7 @@ Peer subagents en `.claude/agents/`, orquestados por commands en `.claude/comman
 ├── code-driven.md  req-driven.md  spec-refiner.md      (stubs)
 ```
 
-**Regla arquitectónica suavizada**: por defecto, los subagents `ia4d-*` no se invocan entre sí — la orquestación vive en los commands con handoff por archivos. **Excepción documentada y nombrada**: el par Writer↔Reviewer se invoca directamente vía Task tool dentro del Writer (composición explícita del patrón Writer+Reviewer, no acoplamiento ad-hoc). Auditabilidad se preserva por `audit-log.json`, no por estructura. Ver [`references/composition-rules.md`](references/composition-rules.md).
+**Regla arquitectónica suavizada**: por defecto, los subagents `ia4d-*` no se invocan entre sí — la orquestación vive en los commands con handoff por archivos. **Excepción documentada y nombrada**: el par Writer↔Reviewer se invoca directamente vía Task tool dentro del Writer (composición explícita del patrón Writer+Reviewer, no acoplamiento ad-hoc). Auditabilidad se preserva por `audit-log.json`, no por estructura. Ver [`docs/references/composition-rules.md`](docs/references/composition-rules.md).
 
 Detalle completo en [`SPEC.md`](SPEC.md).
 
@@ -123,12 +123,12 @@ Carga **lazy** (Claude lee cuando la tarea lo pide):
 |---|---|
 | [`SPEC.md`](SPEC.md) | Definición del agente: objective, modos, commands, structure, code style, boundaries, roadmap |
 | [`docs/findings/spike-playwright-mcp.md`](docs/findings/spike-playwright-mcp.md) | Mediciones reales del Planner+Generator, decisiones data-dependent cerradas |
-| [`references/compliance-rules.md`](references/compliance-rules.md) | Qué bloquea el pre-flight, sin override |
-| [`references/pii-patterns.md`](references/pii-patterns.md) | Regex DNI/IBAN/Luhn/teléfono/email ES |
-| [`references/composition-rules.md`](references/composition-rules.md) | Excepción Writer↔Reviewer documentada |
-| [`references/writer-reviewer-protocol.md`](references/writer-reviewer-protocol.md) | Ping-pong, criterios de salida, N=2 rondas máximo |
-| [`references/style-contract-schema.md`](references/style-contract-schema.md) | Schema YAML del Style Contract |
-| [`references/audit-log-schema.md`](references/audit-log-schema.md) | Schema JSON del audit log |
+| [`docs/references/compliance-rules.md`](docs/references/compliance-rules.md) | Qué bloquea el pre-flight, sin override |
+| [`docs/references/pii-patterns.md`](docs/references/pii-patterns.md) | Regex DNI/IBAN/Luhn/teléfono/email ES |
+| [`docs/references/composition-rules.md`](docs/references/composition-rules.md) | Excepción Writer↔Reviewer documentada |
+| [`docs/references/writer-reviewer-protocol.md`](docs/references/writer-reviewer-protocol.md) | Ping-pong, criterios de salida, N=2 rondas máximo |
+| [`docs/references/style-contract-schema.md`](docs/references/style-contract-schema.md) | Schema YAML del Style Contract |
+| [`docs/references/audit-log-schema.md`](docs/references/audit-log-schema.md) | Schema JSON del audit log |
 | [`METODOLOGIA AISD.md`](METODOLOGIA%20AISD.md) | Manual operativo del catálogo Inetum — 10 fases DF→MVP |
 | [`docs/Inetum/Catalogo/`](docs/Inetum/Catalogo/) | Fichas de agentes ya admitidos en el catálogo Inetum |
 | [`.claude/agents/playwright-test-*.md`](.claude/agents/) | Subagents nativos Microsoft (referencia técnica, no editar) |

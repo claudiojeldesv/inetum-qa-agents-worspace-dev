@@ -84,4 +84,4 @@ Componentes nuevos previstos. Cada uno entra solo si la Fase B muestra que su ca
 
 ## Detalle por tarea
 
-Ver `tasks/todo.md`.
+Ver `docs/tasks/todo.md`.

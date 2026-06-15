@@ -249,6 +249,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `style-contrac
 | **v0.2.x (continuación)** | TMS connectors (Jira/Xray) + knowledge graph SQLite + budget cap LLM persistente | Mismos | Solo cuando v0.2 cierre con evidencia de uso real |
 | **v0.3** | S1 (Code-driven) | + S1 | AST analyzers React/Vue |
 | **v0.4** | S2 OpenAPI (API tests, `ia4d-api-test-writer`) + Context Injector* + PR automation | Todos | OpenAPI no comparte el motor DOM (necesita writer de API propio). Endgame visión Gemini. Asterisco: el Injector **rompe genericidad** y requiere adaptadores por cliente. No es feature del catálogo, es engagement aparte. |
+| **S5 Incremental (candidato, sin versión asignada)** | **Extender una suite existente** en vez de generar desde cero | Reusa S2/S3 | El salto de "demo greenfield" a "herramienta de diario vivir". Detalle abajo. Pendiente de priorización vs S1. |
 
 ### v0.2 detallado — "Interactuar con el caos"
 
@@ -351,6 +352,38 @@ Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4
 - Tokens proyectados de Planner contra app real: 2-3x lo medido en SauceDemo (~32k → 65-100k).
 - Wall-clock proyectado: 2-3x lo de Slice 6.5 (~14 min secuencial → 30-45 min). Paralelismo crítico.
 - A11y violations en portales reales: decenas serious/critical. Threshold actual inviable sin baseline.
+
+### Mejora candidata — Modo Incremental (S5): extender suites, no solo crearlas
+
+**Punto de mejora anotado 2026-06-15. No comprometido en versión; pendiente de priorización vs S1.**
+
+**Problema.** Los cuatro modos actuales (S1/S2/S3/S4) son **bootstrap-only**: parten de un input externo y generan la suite desde cero. El SDET pasa el ~80% de su vida en **régimen permanente** — mantener y extender suites existentes — no en el momento cero. Caso canónico: "tengo 10 casos de regresión, añade 5 de una feature nueva, coherentes con lo que ya hay, sin duplicar ni romper". Hoy el agente re-descubriría el sitio y probablemente duplicaría POMs y solaparía cobertura.
+
+**Tesis de diseño.** No es un motor nuevo: es S2/S3 **precedidos de un Acto 0 de comprensión de lo existente**. Sigue siendo "de un requisito a tests con juicio"; cambia el punto de partida.
+
+**Mapeo a los 5 actos** (reinterpretados, sin cambiar el marco):
+- **Comprender** — además de validar target, **ingiere la suite**: POMs y sus locators, specs y su cobertura (qué RF/flujos), style-contract vigente (explícito en YAML o inferido de los tests).
+- **Mapear** — mapea solo la superficie del requisito nuevo y la cruza con el inventario: ¿esta pantalla ya tiene POM? ¿reutilizo / extiendo / creo?
+- **Estructurar** — reutiliza POMs/fixtures, respeta el contract vigente (no impone el default del agente).
+- **Materializar** — el Writer genera **solo el delta**, citando qué reutilizó.
+- **Juzgar** — el Reviewer audita una dimensión nueva: **coherencia con lo existente** (no duplica, no contradice, respeta naming), además de la calidad intrínseca.
+
+**Reusa (~70% del motor):** Writer, Reviewer, Judge, POM scaffolder, style-enforcer, a11y-injector, compliance pre-flight.
+
+**Capability nueva (lo caro):**
+1. **Ingest de suite ajena** — leer tests que el agente no escribió (legacy del cliente, otro estilo) y producir un inventario: POMs, cobertura, contract implícito.
+2. **Inferencia de contract implícito** — lo normal es que el cliente no tenga style-contract YAML; deducir convenciones de los tests existentes y proponer un contract derivado que el SDET valida.
+3. **Reconciliación / dedup** — cruzar requisito nuevo con cobertura existente (solapa / contradice / comparte pantalla).
+
+**Decisiones de diseño ABIERTAS (las define el SDET antes de construir):**
+- **(a) Alcance v1 — ¿extender POMs existentes, o añadir-only?** Extender es DRY pero arriesga romper los tests vigentes que dependen del POM compartido; añadir-only es seguro pero duplica. **Esta decisión define el tamaño del v1.**
+- **(b) ¿Quién manda el estilo cuando lo existente es malo?** Respetar estructura, no propagar anti-patrones nuevos, **no refactorizar lo viejo** (scope discipline). Marcar deuda, no arreglarla sin pedirlo.
+- **(c) No-regresión como entregable** — correr los N existentes tras generar el delta y garantizar que siguen verdes (conecta con el hallazgo de Fase E: storageState compartido envenenado). Buena parte del valor vendible.
+- **(d) Drift gana un segundo eje** — además de FD↔app, aparece requisito-nuevo↔suite-existente. Reusa la detección de drift apuntando a otro objetivo.
+
+**Nomenclatura.** Inclinación: **modo propio (S5) que internamente despacha a S2 o S3** según el formato del requisito nuevo. El SDET piensa distinto cuando extiende que cuando crea; merece command propio.
+
+**Riesgo que puede matar la idea.** El ingest de suites arbitrarias (Cypress/WebdriverIO/Playwright-sin-POM) es un pozo sin fondo. **Acotar v1 duro**: solo suites Playwright + POM con estructura reconocible (idealmente las que el propio agente generaría). Validar contra un caso real (la suite 10+5 del SDET), no inventado.
 
 ---
 

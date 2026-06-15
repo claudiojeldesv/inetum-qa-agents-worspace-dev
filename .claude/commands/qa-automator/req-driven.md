@@ -164,7 +164,7 @@ Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_
 ## Reference
 
 - [`SPEC.md`](../../../SPEC.md) §1, §7 — "Cuatro módulos" / "Roadmap"
-- [`references/fd-criteria-schema.md`](../../../references/fd-criteria-schema.md) — contrato de `criteria.json` (compartido con S3)
+- [`docs/references/fd-criteria-schema.md`](../../../docs/references/fd-criteria-schema.md) — contrato de `criteria.json` (compartido con S3)
 - [`.claude/commands/qa-automator/spec-refiner.md`](spec-refiner.md) — el command S3 que S2 replica (Actos 2-5 idénticos)
 - [`.claude/commands/qa-automator/autonomous.md`](autonomous.md) — el motor S4 que ambos reusan
 - [`docs/findings/wild-sites-report.md`](../../../docs/findings/wild-sites-report.md) — validación parabank (back-end reusado)

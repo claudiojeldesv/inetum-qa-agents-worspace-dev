@@ -2,7 +2,7 @@
 /**
  * PostToolUse hook — PII scanner sobre archivos .spec.ts recién escritos.
  *
- * Aplica reglas en references/pii-patterns.md.
+ * Aplica reglas en docs/references/pii-patterns.md.
  * Detecta también inserción no autorizada de test.fixme() por el Healer.
  * Sin override.
  */

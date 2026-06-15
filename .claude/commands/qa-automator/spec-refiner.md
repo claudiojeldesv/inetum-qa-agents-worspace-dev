@@ -123,6 +123,6 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_BAS
 ## Reference
 
 - [`SPEC.md`](../../../SPEC.md) §7 — "S3 — diseño decidido: Forma B"
-- [`references/fd-criteria-schema.md`](../../../references/fd-criteria-schema.md) — contrato de `criteria.json`
+- [`docs/references/fd-criteria-schema.md`](../../../docs/references/fd-criteria-schema.md) — contrato de `criteria.json`
 - [`.claude/commands/qa-automator/autonomous.md`](autonomous.md) — el motor S4 que S3 reusa (Actos 3-5 idénticos)
 - [`docs/findings/wild-sites-report.md`](../../../docs/findings/wild-sites-report.md) — validación parabank (back-end reusado)

@@ -71,7 +71,7 @@ yours.
 ## Reference
 
 - [`src/gherkin-to-criteria.ts`](../../src/gherkin-to-criteria.ts) — the deterministic parser you invoke
-- [`references/fd-criteria-schema.md`](../../references/fd-criteria-schema.md) — the `criteria.json` contract (shared with S3)
+- [`docs/references/fd-criteria-schema.md`](../../docs/references/fd-criteria-schema.md) — the `criteria.json` contract (shared with S3)
 - [`.claude/agents/ia4d-spec-refiner.md`](ia4d-spec-refiner.md) — the S3 analog (FD prose → same contract)
 - [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer of `criterion_ref`
 - [`SPEC.md`](../../SPEC.md) §1, §7

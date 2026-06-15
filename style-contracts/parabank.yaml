@@ -1,5 +1,5 @@
 # Style Contract — parabank.parasoft.com — v0.2 Fase B, sitio 3
-# Schema docs: references/style-contract-schema.md
+# Schema docs: docs/references/style-contract-schema.md
 # Nota Fase B: ParaBank es banca demo JSP clásica (sin data-test). Inputs por
 # name (username/password), comboboxes para account #, botones por texto.
 # La prioridad de locators invierte el orden de los sitios anteriores:

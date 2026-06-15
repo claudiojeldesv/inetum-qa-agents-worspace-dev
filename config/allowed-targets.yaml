@@ -1,5 +1,5 @@
 # Allowed targets — compliance pre-flight
-# Reglas en references/compliance-rules.md
+# Reglas en docs/references/compliance-rules.md
 # El hook hooks/pre-flight.ts valida URL contra estos patrones.
 
 version: 1

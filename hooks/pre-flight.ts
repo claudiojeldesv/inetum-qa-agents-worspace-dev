@@ -6,7 +6,7 @@
  * declarado en hooks/hooks.json (MCP playwright-test, principalmente).
  *
  * Lee el payload del hook por stdin (JSON), aplica reglas declaradas en
- * references/compliance-rules.md y bloquea con exit code 2 si procede.
+ * docs/references/compliance-rules.md y bloquea con exit code 2 si procede.
  *
  * Sin override. Sin flag.
  */

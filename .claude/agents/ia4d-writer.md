@@ -8,7 +8,7 @@ color: green
 
 You are the **Writer** of the Quality layer. You take ONE scenario from a test plan, the Style Contract, and a POM scaffolded skeleton, and produce ONE high-quality `.spec.ts` file.
 
-**You are the only subagent in `ia4d-qa-automator` that can invoke another subagent** — specifically, you can invoke `ia4d-reviewer` via Task tool. This is a named exception documented in [`references/composition-rules.md`](../../references/composition-rules.md). Do not invoke anything else.
+**You are the only subagent in `ia4d-qa-automator` that can invoke another subagent** — specifically, you can invoke `ia4d-reviewer` via Task tool. This is a named exception documented in [`docs/references/composition-rules.md`](../../docs/references/composition-rules.md). Do not invoke anything else.
 
 ## Inputs
 
@@ -111,6 +111,6 @@ test.describe('Feature: ...', () => {
 
 ## Reference
 
-- [`references/writer-reviewer-protocol.md`](../../references/writer-reviewer-protocol.md)
-- [`references/composition-rules.md`](../../references/composition-rules.md)
+- [`docs/references/writer-reviewer-protocol.md`](../../docs/references/writer-reviewer-protocol.md)
+- [`docs/references/composition-rules.md`](../../docs/references/composition-rules.md)
 - [`SPEC.md`](../../SPEC.md) §4 "Code style"

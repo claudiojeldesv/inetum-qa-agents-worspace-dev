@@ -1,5 +1,5 @@
 # Style Contract — practice.expandtesting.com (v0.2 Fase B, sitio 1)
-# Schema docs: references/style-contract-schema.md
+# Schema docs: docs/references/style-contract-schema.md
 # Nota Fase B: a diferencia de SauceDemo, expandtesting NO expone data-test en
 # todo. La prioridad de locators mantiene getByTestId primero pero el fallback
 # real será getByLabel/getByRole (id/name + labels). Es dato a catalogar.

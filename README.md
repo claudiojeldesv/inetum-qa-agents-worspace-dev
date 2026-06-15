@@ -98,7 +98,7 @@ Los subagents `ia4d-*` creados en esta sesión están todos en `.claude/agents/`
    - `ia4d-pii-scanner` (en lugar de scan programático)
    - `ia4d-judge` (en lugar de `scripts/slice65-judge.ts`)
 
-El Slice 6.5 demostró que **la lógica equivalente** ejecutada programáticamente produce el resultado esperado. Lo pendiente es validar la composición LLM-LLM en runtime — específicamente que `ia4d-writer` invoque a `ia4d-reviewer` via Task tool sin romper la regla suavizada del `references/composition-rules.md`.
+El Slice 6.5 demostró que **la lógica equivalente** ejecutada programáticamente produce el resultado esperado. Lo pendiente es validar la composición LLM-LLM en runtime — específicamente que `ia4d-writer` invoque a `ia4d-reviewer` via Task tool sin romper la regla suavizada del `docs/references/composition-rules.md`.
 
 ## Avance por slice
 
@@ -145,7 +145,7 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 `Writer → Reviewer (iter 0) → [iter 1 si rechaza] → [iter 2 si rechaza] → Judge`
 
 - Los tres subagents creados.
-- Writer↔Reviewer es la **única excepción documentada** a la regla "subagents no se invocan entre sí" (ver [`references/composition-rules.md`](references/composition-rules.md)).
+- Writer↔Reviewer es la **única excepción documentada** a la regla "subagents no se invocan entre sí" (ver [`docs/references/composition-rules.md`](docs/references/composition-rules.md)).
 - **Pendiente validar en runtime el ping-pong real Writer↔Reviewer en una sesión nueva.** En Slice 6.5 se reemplazó por `playwright-test-generator` nativo (que es lo más cercano a un "Writer" disponible en esta sesión).
 - Judge scoring sí validado runtime (programático sobre 3 specs, scores 0.90-0.96).
 
@@ -168,7 +168,7 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 - **15 subagents** en `.claude/agents/`: 3 nativos Microsoft (`playwright-test-{planner,generator,healer}`) + 12 propios `ia4d-*` (9 funcionales + 3 stubs).
 - **5 commands** en `.claude/commands/qa-automator/`.
 - **3 hooks** registrados en `hooks/hooks.json` (PreToolUse, PostToolUse, Stop).
-- **6 referencias técnicas** en `references/`.
+- **6 referencias técnicas** en `docs/references/`.
 - **6 módulos TypeScript** en `src/`: `audit-log`, `compliance-preflight`, `judge-scoring`, `native-agents`, `pii-detector`, `pom-scaffolder`.
 - **4 suites unit** en `tests/unit/` (42 tests verdes).
 - **3 specs E2E** en `tests/e2e/` (generados en vivo por Generator nativo, 3 verdes).
@@ -181,12 +181,12 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 
 - [`CLAUDE.md`](CLAUDE.md) — convenciones del proyecto, vocabulario hacia I+D vs interno
 - [`SPEC.md`](SPEC.md) — definición completa, boundaries, roadmap por versiones
-- [`tasks/plan.md`](tasks/plan.md), [`tasks/todo.md`](tasks/todo.md) — plan vivo
+- [`docs/tasks/plan.md`](docs/tasks/plan.md), [`docs/tasks/todo.md`](docs/tasks/todo.md) — plan vivo
 - [`docs/findings/spike-playwright-mcp.md`](docs/findings/spike-playwright-mcp.md) — mediciones Slice 0.5 + Slice 6.5
 - [`docs/Inetum/Catalogo/ia4d-qa-automator.md`](docs/Inetum/Catalogo/ia4d-qa-automator.md) — ficha canónica Inetum
 - [`demo/saucedemo/HOW-TO-REPRODUCE.md`](demo/saucedemo/HOW-TO-REPRODUCE.md) — reproducción del demo
-- [`references/composition-rules.md`](references/composition-rules.md) — excepción Writer↔Reviewer
-- [`references/writer-reviewer-protocol.md`](references/writer-reviewer-protocol.md) — protocolo ping-pong N≤2
+- [`docs/references/composition-rules.md`](docs/references/composition-rules.md) — excepción Writer↔Reviewer
+- [`docs/references/writer-reviewer-protocol.md`](docs/references/writer-reviewer-protocol.md) — protocolo ping-pong N≤2
 
 ## Roadmap
 
@@ -198,7 +198,7 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 | v0.3 | S1 (Code-driven) + S2 (Req-driven) + AST parsers React/Vue/Gherkin | Backlog |
 | v0.4 | Context Injector* + PR automation | Backlog |
 
-Detalle del v0.2 en [`SPEC.md`](SPEC.md) §7 y [`tasks/todo.md`](tasks/todo.md).
+Detalle del v0.2 en [`SPEC.md`](SPEC.md) §7 y [`docs/tasks/todo.md`](docs/tasks/todo.md).
 
 ## Workspace cleanup
 

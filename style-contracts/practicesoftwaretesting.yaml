@@ -1,5 +1,5 @@
 # Style Contract — practicesoftwaretesting.com (Toolshop) — v0.2 Fase B, sitio 2
-# Schema docs: references/style-contract-schema.md
+# Schema docs: docs/references/style-contract-schema.md
 # Nota Fase B: Toolshop (Angular SPA) SÍ expone data-test en sus elementos
 # (contraste con expandtesting). getByTestId vuelve a ser prioridad real aquí.
 # Flujo acotado: add-to-cart (sin auth). synthetic_fixtures vacío a propósito.

@@ -1,5 +1,5 @@
 # Style Contract — precio.mapfre.es — Tarificador Seguro de Hogar (flujo fq)
-# Schema docs: references/style-contract-schema.md
+# Schema docs: docs/references/style-contract-schema.md
 #
 # Asistente lineal de tarificación (sin login). Flujo navegacional: cada pantalla
 # acepta su entrada y avanza. Sin auth-handler (público, sin sesión persistente).

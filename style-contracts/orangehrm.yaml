@@ -1,5 +1,5 @@
 # Style Contract — opensource-demo.orangehrmlive.com — HR portal demo (auth + SPA)
-# Schema docs: references/style-contract-schema.md
+# Schema docs: docs/references/style-contract-schema.md
 # OrangeHRM OS 5.8: SPA moderna (no JSP legacy). Login y dashboard exponen
 # buenos roles/nombres accesibles — locators semánticos resuelven sin fallback CSS
 # (DOM verificado en vivo: textbox "Username"/"Password", button "Login",

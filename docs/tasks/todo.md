@@ -16,16 +16,16 @@
 
 - `[x]` Mover artefactos del spike a `docs/spike/artifacts/`.
 - `[x]` Eliminar archivos del reset (test-pilot SPEC/plan/todo, seed.spec.ts, audit-log.json, output/, node_modules/, directorios vacíos).
-- `[x]` Crear estructura de directorios (`hooks/`, `config/`, `style-contracts/`, `references/`, `demo/saucedemo/`, `tests/{unit,integration,pages}/`, `.claude/commands/qa-automator/`, `src/`).
+- `[x]` Crear estructura de directorios (`hooks/`, `config/`, `style-contracts/`, `docs/references/`, `demo/saucedemo/`, `tests/{unit,integration,pages}/`, `.claude/commands/qa-automator/`, `src/`).
 - `[x]` `package.json`, `tsconfig.json`, `.eslintrc.json`, `.prettierrc.json`, `vitest.config.ts`, `playwright.config.ts`, `.gitignore` actualizado.
 - `[x]` Limpiar `.claude/settings.local.json` (referencia a `test-pilot:plan`).
 - `[x]` Reescribir `CLAUDE.md`.
 - `[x]` Crear nuevo `SPEC.md`.
-- `[x]` Crear `tasks/plan.md` y `tasks/todo.md`.
+- `[x]` Crear `docs/tasks/plan.md` y `docs/tasks/todo.md`.
 
 ## Slice 2 — Capa transversal
 
-- `[ ]` `references/compliance-rules.md`, `pii-patterns.md`, `audit-log-schema.md`, `style-contract-schema.md`, `composition-rules.md`.
+- `[ ]` `docs/references/compliance-rules.md`, `pii-patterns.md`, `audit-log-schema.md`, `style-contract-schema.md`, `composition-rules.md`.
 - `[ ]` `config/allowed-targets.yaml`.
 - `[ ]` `src/audit-log.ts` (writer helper).
 - `[ ]` `hooks/pre-flight.ts`, `pii-post.ts`, `audit-write.ts`, `hooks.json`.
@@ -34,7 +34,7 @@
 
 ## Slice 3 — Quality layer
 
-- `[ ]` `references/writer-reviewer-protocol.md`.
+- `[ ]` `docs/references/writer-reviewer-protocol.md`.
 - `[ ]` `.claude/agents/ia4d-writer.md`, `ia4d-reviewer.md`, `ia4d-judge.md`.
 - `[ ]` `tests/unit/judge-scoring.test.ts`.
 
@@ -81,7 +81,7 @@ Pasos atómicos:
 
 ## v0.2 — Interactuar con el caos (post commit v0.1)
 
-Roadmap detallado en `tasks/plan.md` y `SPEC.md` §7. Tareas:
+Roadmap detallado en `docs/tasks/plan.md` y `SPEC.md` §7. Tareas:
 
 ### Fase A — Cierre v0.1
 
@@ -105,11 +105,11 @@ Cada subtarea entra solo si la Fase B muestra que su categoría tiene frecuencia
 - `[ ]` **v0.2.C-T2** `ia4d-pre-flight-cleaner` (alta probabilidad) — extensión del hook `pre-flight.ts` o subagent separado que cierra cookies banner GDPR y modales antes de exploración.
 - `[ ]` **v0.2.C-T3** `ia4d-auth-handler` (media-alta) — `globalSetup` que captura `storageState` reutilizable. Soporte TOTP via lib `authenticator`. SAML/OAuth como flow específico.
 - `[ ]` **v0.2.C-T4** `ia4d-test-data-architect` (media) — lifecycle setup/teardown, fixtures contra OpenAPI/DB schema, factories faker.js con seed reproducible.
-- `[ ]` **v0.2.C-T5** A11y baseline aprobada (media-alta) — extensión del `ia4d-a11y-injector`: mecanismo de baseline aprobada por SDET (no todo-o-nada). Schema en `references/a11y-baseline-schema.md`.
+- `[ ]` **v0.2.C-T5** A11y baseline aprobada (media-alta) — extensión del `ia4d-a11y-injector`: mecanismo de baseline aprobada por SDET (no todo-o-nada). Schema en `docs/references/a11y-baseline-schema.md`.
 
 ### Fase D — Ajustes Quality layer
 
-- `[ ]` **v0.2.D-T1** Writer↔Reviewer N=3 o fallback `@status pending-sdet-review`. Editar `references/writer-reviewer-protocol.md`.
+- `[ ]` **v0.2.D-T1** Writer↔Reviewer N=3 o fallback `@status pending-sdet-review`. Editar `docs/references/writer-reviewer-protocol.md`.
 - `[ ]` **v0.2.D-T2** Judge scoring con ejes ajustables por Style Contract. Refactor `src/judge-scoring.ts` para leer pesos de `style-contract.yaml`.
 - `[ ]` **v0.2.D-T3** `ia4d-spec-refiner` (S3) funcional. Promueve el stub a runtime. Soporta FD markdown + Jira ticket (texto plano por ahora, sin Jira connector).
 

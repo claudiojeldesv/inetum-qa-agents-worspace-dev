@@ -86,4 +86,4 @@ The orchestrating command (not you) checks: if **>30% of tests in the batch have
 ## Reference
 
 - [`SPEC.md`](../../SPEC.md) §6 "Boundaries"
-- [`references/writer-reviewer-protocol.md`](../../references/writer-reviewer-protocol.md)
+- [`docs/references/writer-reviewer-protocol.md`](../../docs/references/writer-reviewer-protocol.md)

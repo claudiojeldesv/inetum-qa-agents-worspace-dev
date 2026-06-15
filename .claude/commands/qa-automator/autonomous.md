@@ -133,5 +133,5 @@ Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del ru
 ## Reference
 
 - [`SPEC.md`](../../../SPEC.md) §1 (DoD MVP), §2 (Commands), §6 (Boundaries)
-- [`references/composition-rules.md`](../../../references/composition-rules.md)
+- [`docs/references/composition-rules.md`](../../../docs/references/composition-rules.md)
 - [`docs/findings/spike-playwright-mcp.md`](../../../docs/findings/spike-playwright-mcp.md)
