@@ -96,7 +96,7 @@ Los subagents `ia4d-*` creados en esta sesión están todos en `.claude/agents/`
    - `ia4d-style-enforcer` (en lugar de grep + Edit manual)
    - `ia4d-a11y-injector` (en lugar de verificación grep)
    - `ia4d-pii-scanner` (en lugar de scan programático)
-   - `ia4d-judge` (en lugar de `scripts/slice65-judge.ts`)
+   - `ia4d-judge` (en lugar de `src/scripts/slice65-judge.ts`)
 
 El Slice 6.5 demostró que **la lógica equivalente** ejecutada programáticamente produce el resultado esperado. Lo pendiente es validar la composición LLM-LLM en runtime — específicamente que `ia4d-writer` invoque a `ia4d-reviewer` via Task tool sin romper la regla suavizada del `docs/references/composition-rules.md`.
 
@@ -173,7 +173,7 @@ Transversal por disciplina QA propia, no fase 07 estricta de AISD. Justificació
 - **4 suites unit** en `tests/unit/` (42 tests verdes).
 - **3 specs E2E** en `tests/e2e/` (generados en vivo por Generator nativo, 3 verdes).
 - **6 POMs** en `tests/pages/` (scaffold determinístico + métodos rellenados por Generator).
-- **2 scripts** auxiliares en `scripts/`: `scaffold-poms.ts`, `slice65-judge.ts`.
+- **2 scripts** auxiliares en `src/scripts/`: `scaffold-poms.ts`, `slice65-judge.ts`.
 - **1 Style Contract** en `config/style-contracts/saucedemo.yaml`.
 - **1 config** en `config/allowed-targets.yaml`.
 

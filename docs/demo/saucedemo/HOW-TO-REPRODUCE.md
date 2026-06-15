@@ -49,7 +49,7 @@ Forma A (manual, reproducible):
 cp demo/saucedemo/expected-output/discovery-report.json discovery-report.json
 
 # 2. Scaffold POMs
-npx tsx scripts/scaffold-poms.ts discovery-report.json tests/pages
+npx tsx src/scripts/scaffold-poms.ts discovery-report.json tests/pages
 
 # 3. Run the generated E2E suite
 npx playwright test --reporter=list

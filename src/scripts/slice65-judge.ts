@@ -4,7 +4,7 @@
  */
 import { readFileSync, readdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { computeScore, type JudgeAxes } from '../src/judge-scoring.ts';
+import { computeScore, type JudgeAxes } from '../judge-scoring.ts';
 
 interface Inspection {
   axe_present: boolean;

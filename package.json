@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "report": "tsx src/allure-enricher.ts && allure generate allure-results -o allure-report --clean",
-    "qa:healthcheck": "tsx scripts/healthcheck.ts"
+    "qa:healthcheck": "tsx src/scripts/healthcheck.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",

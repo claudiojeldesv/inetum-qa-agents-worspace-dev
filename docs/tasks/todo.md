@@ -65,10 +65,10 @@ Pasos atómicos:
 - `[x]` **S6.5-T1** Acto 1 — Comprender. Compliance pre-flight ejecutado programáticamente via `npx tsx hooks/pre-flight.ts` (subagent `ia4d-compliance-checker` no invocable en esta sesión). Verdict `pass`, exit 0, audit log con `action: allow`.
 - `[x]` **S6.5-T2** Acto 2 — Mapear. `playwright-test-planner` nativo invocado vía Task tool contra SauceDemo. 21,602 tokens, 22 tool uses, 99 seg. Plan `saucedemo-slice65-plan.md` con 3 escenarios golden path.
 - `[~]` **S6.5-T3** Acto 2b — Discovery extraído programáticamente (no via `ia4d-discovery-analyzer` que no es invocable). `discovery-report.json` con 6 screens + 3 scenarios_recommended. **Pendiente validación real del subagent en nueva sesión.**
-- `[x]` **S6.5-T4** Acto 3 — `scripts/scaffold-poms.ts` ejecutado. 6 POMs generados en `tests/pages/`.
+- `[x]` **S6.5-T4** Acto 3 — `src/scripts/scaffold-poms.ts` ejecutado. 6 POMs generados en `tests/pages/`.
 - `[~]` **S6.5-T5** Acto 4 — Sustituido por `playwright-test-generator` nativo invocado 3 veces (login, add-to-cart, checkout). 66,163 tokens, 69 tool uses, 305 seg. **Composición Writer↔Reviewer real (LLM-LLM) pendiente nueva sesión.**
 - `[~]` **S6.5-T6** Post-procesado — verificación programática de style + A11y + criterion + PII. Detectó 2 raw selectors en login spec; aplicada corrección manual replicando `ia4d-style-enforcer`. **Subagents pendientes nueva sesión.**
-- `[~]` **S6.5-T7** Acto 5 — Judge programático via `scripts/slice65-judge.ts` aplicando los 7 ejes del SPEC. Scores 0.900-0.964 sobre 3 specs. Ask-first threshold no superado. **Subagent `ia4d-judge` pendiente nueva sesión.**
+- `[~]` **S6.5-T7** Acto 5 — Judge programático via `src/scripts/slice65-judge.ts` aplicando los 7 ejes del SPEC. Scores 0.900-0.964 sobre 3 specs. Ask-first threshold no superado. **Subagent `ia4d-judge` pendiente nueva sesión.**
 - `[x]` **S6.5-T8** `npx playwright test`. **3/3 verdes en 9.7 seg paralelos**. Hallazgo: violación A11y critical real en SauceDemo `/inventory.html` (`select-name`) detectada por axe — el agente cumplió su misión QA.
 - `[x]` **S6.5-T9** Findings actualizado con sección "Slice 6.5 — Validación flujo LLM end-to-end".
 - `[x]` **S6.5-T10** README actualizado con resultados reales.

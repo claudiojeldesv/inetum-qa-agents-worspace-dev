@@ -38,7 +38,7 @@ Mostrar `cat config/allowed-targets.yaml | head -20`. Saucedemo declarado.
 ```sh
 # Forma A (manual reproducible — la grabación usa esta para ser corta):
 cp demo/saucedemo/expected-output/discovery-report.json discovery-report.json
-npx tsx scripts/scaffold-poms.ts discovery-report.json tests/pages
+npx tsx src/scripts/scaffold-poms.ts discovery-report.json tests/pages
 ls tests/pages/
 ```
 
