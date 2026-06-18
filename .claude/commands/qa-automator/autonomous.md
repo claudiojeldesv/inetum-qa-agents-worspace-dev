@@ -7,7 +7,7 @@ argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--entry=/pa
 
 Módulo **S4 Autonomous** del agente `ia4d-qa-automator`. Recibe una URL y, opcionalmente, un Style Contract. Orquesta los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar) contra el target.
 
-Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`) que acota el reconocimiento al happy-path. Sin brief, el command pregunta antes de explorar (no explora a ciegas por defecto). Es el plumbing instrumental de v0.2 (ver SPEC §7, estrategia de reconocimiento happy-path).
+Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que acota el reconocimiento por **módulos / flujos**. Acotar es el camino recomendado y, salvo confirmación explícita del SDET, **obligatorio**: este command **no explora una web entera a ciegas** (ver paso 5.b — warning + confirmación). Es el plumbing instrumental de v0.2 (ver SPEC §7, estrategia de reconocimiento happy-path).
 
 ## Arguments
 
@@ -28,10 +28,26 @@ Acepta además un **brief de exploración** opcional (`--flows/--entry/--ignore`
 4. Si verdict = `block` → aborta, muestra razón al SDET, termina con exit 2.
 5. Si verdict = `warn` → muestra warning y pregunta al SDET si continúa (ask-first).
 
-**5.b — Captura del brief de exploración** (acota el Acto Mapear al happy-path):
-- Si llega al menos uno de `--flows/--entry/--ignore` → **modo dirigido**: compón el brief con lo recibido.
-- Si no llega ninguno → **intake mínimo** (ask-first): pregunta al SDET los flujos críticos, el punto de entrada y qué ignorar. Si el SDET no aporta nada → **modo ciego** (exploración exhaustiva, comportamiento v0.1) y déjalo registrado. Default ante ausencia de brief: preguntar, NO explorar a ciegas.
-- Registra el brief efectivo al audit-log: `{ source: 'command', action: 'exploration_brief', metadata: { flows, entry, ignore, mode } }`.
+**5.b — Captura del brief de exploración (acotar por módulos es OBLIGATORIO salvo confirmación explícita)**:
+
+Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `transfer`) no es una optimización opcional. En webs medianas o grandes, explorar a ciegas satura la ventana de contexto del agente con casuística irrelevante y degrada la calidad del plan: el agente se vuelve un caballo sin riendas. Por eso este command **no explora una web entera a ciegas por defecto**.
+
+- Si llega al menos uno de `--flows/--entry/--ignore` → **modo dirigido**: compón el brief con lo recibido. Camino recomendado.
+- Si no llega ninguno → **NO explores todavía**. Muestra al SDET este WARNING y pídele los módulos:
+
+  > ⚠️ Vas a lanzar el reconocimiento autónomo SIN acotar por módulos.
+  > En webs medianas o grandes esto satura el contexto del agente y baja la
+  > calidad del plan (un caballo sin riendas). Recomendado: indica los módulos
+  > o flujos a cubrir, p.ej. `--flows=login,checkout`.
+  >
+  > Responde con los flujos a cubrir, o escribe EXACTAMENTE `EXPLORAR SIN ACOTAR`
+  > para continuar en modo ciego bajo tu responsabilidad.
+
+  - Si el SDET responde con flujos → **modo dirigido** con esos flujos.
+  - Si el SDET responde **exactamente** `EXPLORAR SIN ACOTAR` → **modo ciego** (exploración exhaustiva, comportamiento v0.1), `blind_acknowledged: true`.
+  - Cualquier otra respuesta, respuesta ambigua o silencio → **no explores**: repite el warning o aborta con exit 2. **Nunca** entres en modo ciego sin esa confirmación explícita.
+
+- Registra el brief efectivo al audit-log: `{ source: 'command', action: 'exploration_brief', metadata: { flows, entry, ignore, mode, blind_acknowledged } }`.
 - Nota: el intake aquí es mínimo (plumbing v0.2). El intake adaptativo —preguntas y pre-scout derivados de la recolección— es Fase C.
 
 ### Acto 2 — Mapear
@@ -132,6 +148,7 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 - Cada invocación de subagent registra al audit-log.
 - No saltar Acto 1 (compliance pre-flight). Sin override.
+- No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
 - Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.
 - Paralelismo del Acto 4 es prioritario: invocar los Writers de los N escenarios concurrentemente cuando sea posible.
 

@@ -14,8 +14,9 @@ patterns:
   # Demos públicos usados por los ejemplos del template
   - 'https://www.saucedemo.com/*'            # ejemplo S4 (e-commerce)
   - 'https://parabank.parasoft.com/*'        # ejemplo S2/S3/S4 (banca demo, auth + estado)
+  - 'https://opensource-demo.orangehrmlive.com/*'  # ejemplo S4 (HR portal SPA, auth persistente)
   - 'https://demo.playwright.dev/*'
-  - 'https://todomvc.com/*'
+  - 'https://todomvc.com/*'                  # lab-desafío (brief abierto)
 
   # Entornos no productivos (cualquier subdominio) — añade los tuyos
   - 'https://*.qa.*'
@@ -53,3 +54,6 @@ allowed_test_credentials:
   - username: john
     password: demo
     source: 'parabank.parasoft.com - Parasoft demo account, publicly documented'
+  - username: Admin
+    password: admin123
+    source: 'opensource-demo.orangehrmlive.com - OrangeHRM demo account, publicly documented on login page'

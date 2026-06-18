@@ -1,22 +1,47 @@
 # Workspace QA con `ia4d-qa-automator`
 
 Este workspace trae el agente **`ia4d-qa-automator`** listo para usar. Generas tests E2E
-Playwright estructurados (POM, accesibilidad baked-in, trazabilidad auditable) a partir de
-lo que tengas: solo una URL, un Gherkin, o un documento funcional. Un Reviewer independiente
-audita los tests antes de exponerlos.
+Playwright estructurados (POM, accesibilidad baked-in, trazabilidad auditable) a partir de lo
+que tengas: solo una URL, un Gherkin, o un documento funcional. Un Reviewer independiente audita
+los tests antes de exponerlos.
 
-> Esto es una **guía de uso**. No describe cómo se construyó el agente. Si quieres extender
-> el agente, ese es otro repo.
+> Esto es una **guía de uso para el SDET** (y para Claude Code cuando trabaja en este workspace).
+> No describe cómo se construyó el agente. Si quieres extenderlo, ese es otro repo.
+
+## Empieza por los labs
+
+En [`examples/`](examples/) hay cuatro labs reproducibles, ordenados por dificultad. Hazlos en
+orden la primera vez:
+
+1. [`01-saucedemo`](examples/01-saucedemo/) — las tres puertas (S2/S3/S4) sobre e-commerce limpio.
+2. [`02-parabank`](examples/02-parabank/) — auth persistente, drift y ambigüedad.
+3. [`03-orangehrm`](examples/03-orangehrm/) — autónomo acotado por módulos sobre una SPA con sesión.
+4. [`04-todomvc`](examples/04-todomvc/) — reto: lo resuelves tú, sin solución.
+
+Cada lab trae solo **inputs**; los tests los genera el agente al ejecutar el command.
 
 ## Qué es (y qué no)
 
-El agente opera como **juez QA independiente**, no como el dev que escribe tests sobre su
-propio código. Trabaja en greybox o black-box. No sustituye a las herramientas de testing del
-dev: tiene otra misión.
+El agente opera como **juez QA independiente**, no como el dev que escribe tests sobre su propio
+código. Trabaja en greybox o black-box. No sustituye a las herramientas de testing del dev: tiene
+otra misión.
 
-Núcleo siempre activo: **compliance pre-flight** (valida la URL objetivo, sin flag de
-override), **Writer + Reviewer** (el Reviewer audita al Writer, hasta 2 iteraciones), **scan
-de accesibilidad** (axe-core inyectado en cada test) y **audit-log** JSON.
+Núcleo **siempre activo**: **compliance pre-flight** (valida la URL objetivo contra
+`config/allowed-targets.yaml`, sin flag de override), **Writer + Reviewer** (el Reviewer audita al
+Writer, hasta 2 iteraciones), **scan de accesibilidad** (axe-core inyectado en cada test) y
+**audit-log** JSON.
+
+## Regla del autónomo: acota SIEMPRE por módulos
+
+El modo S4 (autónomo) **no explora una web entera a ciegas**. En webs medianas o grandes, explorar
+sin acotar satura la ventana de contexto del agente con casuística irrelevante y degrada la calidad
+del plan: el agente se vuelve un caballo sin riendas.
+
+- Lanza siempre con un **brief de módulos**: `--flows=login,checkout` (módulos o flujos a cubrir).
+- Si lanzas el autónomo **sin** `--flows`, el command te muestra un **warning** y te pide los
+  módulos. Solo continúa a ciegas si confirmas **explícitamente** (tecleando `EXPLORAR SIN ACOTAR`).
+- Pensar en módulos (login, checkout, transfer, dashboard…) es la unidad de trabajo correcta: un lab
+  acotado es más rápido, más barato y más fiable que un barrido ciego.
 
 ## Los cuatro modos de entrada
 
@@ -29,45 +54,43 @@ Eliges el modo por lo que tengas a mano. El agente enruta solo si no se lo indic
 | **S2 Req-driven** | Un `.feature` Gherkin maduro + URL | `/qa-automator:req-driven` | Funcional (Gherkin; OpenAPI no) |
 | **S1 Code-driven** | Repo frontend (React/Vue/HTML) | `/qa-automator:code-driven` | No implementado (stub) |
 
-S3 refina lo ambiguo: extrae criterios RF-NNN, **marca los huecos** en
-`refinement-questions.md` y no inventa lo que falta. S2 parsea el Gherkin de forma
-determinística (sin LLM) y materializa `Scenario Outline` + `Examples` como tests
-data-driven. Ambos detectan **drift** entre la spec y lo que la app realmente expone, y lo
-reportan sin fabricar tests para lo que no existe.
+S3 refina lo ambiguo: extrae criterios RF-NNN, **marca los huecos** en `refinement-questions.md` y
+no inventa lo que falta. S2 parsea el Gherkin de forma determinística (sin LLM) y materializa
+`Scenario Outline` + `Examples` como tests data-driven. Ambos detectan **drift** entre la spec y lo
+que la app realmente expone, y lo reportan sin fabricar tests para lo que no existe.
 
 ## Comandos
 
 ```
-/qa-automator:healthcheck                       # verifica que el runtime está completo
-/qa-automator:autonomous   --url=<URL>          # S4
-/qa-automator:spec-refiner --fd=<path> --url=<URL>     # S3
-/qa-automator:req-driven   --feature=<path> --url=<URL> # S2
+/qa-automator:healthcheck                                    # verifica que el runtime está completo
+/qa-automator:autonomous   --url=<URL> --flows=<módulos>     # S4 (acota por módulos)
+/qa-automator:spec-refiner --fd=<path> --url=<URL>           # S3
+/qa-automator:req-driven   --gherkin=<path> --url=<URL>      # S2
+/qa-automator:report                                         # reporte Allure enriquecido (post-run)
 ```
 
-Flags útiles del autónomo: `--flows=login,checkout` acota el reconocimiento (más rápido,
-menos tokens); `--entry=<path>` fija el punto de entrada; `--ignore=<glob>` excluye zonas.
-
-Empieza por [`examples/`](examples/): SauceDemo (S4) y ParaBank (S2/S3/S4), ya permitidos en
-`config/allowed-targets.yaml`.
+Flags del autónomo: `--flows=login,checkout` acota por módulos (recomendado); `--entry=<path>` fija
+el punto de entrada profundo; `--ignore=<glob>` excluye zonas. Flag común opcional:
+`--style=<contract.yaml>`.
 
 ## Apuntar el agente a TU web
 
-1. Añade el patrón URL de tu entorno **no productivo** a `config/allowed-targets.yaml`.
-   Compliance pre-flight bloquea cualquier URL que no matche. No hay override.
-2. Si usa credenciales de test documentadas, decláralas en `allowed_test_credentials` del
-   mismo archivo (no son PII; nunca pongas credenciales reales).
-3. (Opcional) Declara un **Style Contract** para tu sitio en `config/style-contracts/<tu-sitio>.yaml`
-   con tus convenciones. Si no hay contract, el agente usa defaults y lo registra.
-4. Lanza `/qa-automator:autonomous --url=<tu-url>`.
+1. Añade el patrón URL de tu entorno **no productivo** a `config/allowed-targets.yaml`. Compliance
+   pre-flight bloquea cualquier URL que no matche. No hay override.
+2. Si usa credenciales de test documentadas, decláralas en `allowed_test_credentials` del mismo
+   archivo (no son PII; nunca pongas credenciales reales).
+3. (Opcional) Declara un **Style Contract** en `config/style-contracts/<tu-sitio>.yaml`. Si no hay
+   contract, el agente usa defaults y lo registra.
+4. Lanza `/qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`.
 
 ## Style Contract — tus convenciones
 
-El Style Contract declara cómo quieres los tests: estrategia de locators, naming, estructura
-POM, fixtures, datos sintéticos, auth y excepciones. El agente lo lee y lo **enforce** sobre
-el output. Schema completo en [`docs/references/style-contract-schema.md`](docs/references/style-contract-schema.md);
-ejemplos en [`config/style-contracts/`](config/style-contracts/).
+El Style Contract declara cómo quieres los tests: estrategia de locators, naming, estructura POM,
+fixtures, datos sintéticos, auth y excepciones. El agente lo lee y lo **enforce** sobre el output.
+Schema completo en [`docs/references/style-contract-schema.md`](docs/references/style-contract-schema.md);
+ejemplos en [`config/style-contracts/`](config/style-contracts/) (saucedemo, parabank, orangehrm).
 
-Campos que probablemente quieras tocar para tu proyecto:
+Campos que probablemente quieras tocar:
 
 ```yaml
 # config/style-contracts/<tu-sitio>.yaml
@@ -83,16 +106,15 @@ evidence:
   screenshots: only-on-failure    # solo en level minimal (captura final). full lo fuerza a on
 ```
 
-**Reporte Allure PRO**: con `evidence.level: full` el agente genera tests con `test.step()` por
-acción + screenshot bajo cada paso + trace navegable. `/qa-automator:report` (→ `npm run report`)
-los enriquece con trazabilidad RF-NNN (epic→feature→story), severity, descripción y **Trends**
-entre runs (history persistente en `.allure-history/`). Mira `config/style-contracts/saucedemo.yaml`
-como ejemplo de referencia.
+**Reporte Allure PRO**: con `evidence.level: full` el agente instrumenta cada acción con `test.step()`
++ screenshot por paso + trace navegable. `/qa-automator:report` (→ `npm run report`) los enriquece
+con trazabilidad RF-NNN (epic→feature→story), severity, descripción y **Trends** entre runs
+(history en `.allure-history/`). `config/style-contracts/saucedemo.yaml` es el ejemplo de referencia.
 
 ## Gates opcionales (off por defecto)
 
-Tres funcionalidades vienen apagadas y se encienden cuando las necesitas. Las piezas están
-completas en el runtime; el toggle solo las activa.
+Tres funcionalidades vienen apagadas y se encienden cuando las necesitas. Las piezas están completas
+en el runtime; el toggle solo las activa.
 
 | Gate | Cómo encenderlo | Qué hace |
 |---|---|---|
@@ -110,5 +132,6 @@ Rellena esto con lo tuyo (el agente lo lee como contexto):
 - **Aplicación bajo prueba**: [TU APP — qué es, dominio]
 - **Stack**: [TU STACK FRONTEND]
 - **Entorno(s) de staging**: [TUS URLs NO PRODUCTIVAS]
+- **Módulos / flujos críticos**: [LOGIN, CHECKOUT, … — los que acotarás con --flows]
 - **Convenciones de test**: [POM, naming, framework de asserts, fixtures — o "ver style-contract"]
 - **Restricciones de compliance**: [si aplica — banca, salud, etc.]

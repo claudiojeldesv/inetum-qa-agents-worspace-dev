@@ -3,7 +3,7 @@
 Genera tests E2E Playwright (POM + accesibilidad + trazabilidad) desde una URL, un Gherkin o
 un documento funcional, con un Reviewer independiente que audita antes de exponer el código.
 
-Este workspace ya trae el agente y dos ejemplos. La guía de uso completa está en
+Este workspace ya trae el agente y cuatro labs reproducibles. La guía de uso completa está en
 [`CLAUDE.md`](CLAUDE.md).
 
 ## Requisitos
@@ -25,20 +25,24 @@ npm run qa:healthcheck
 # 3. (Opcional) Copia el .env de ejemplo y ajusta toggles
 cp .env.example .env
 
-# 4. Abre el workspace en Claude Code y lanza el primer ejemplo
-#    /qa-automator:autonomous --url=https://www.saucedemo.com/
+# 4. Abre el workspace en Claude Code y lanza el primer lab
+#    /qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
 ```
 
 `qa:healthcheck` debe terminar en `Healthcheck OK`. Si falla, te dice qué pieza del runtime
 falta.
 
-## Primeros pasos
+## Primeros pasos — los labs
 
-1. **El "hola mundo"**: [`examples/saucedemo/`](examples/saucedemo/) — modo S4, solo URL.
-2. **El alcance completo**: [`examples/parabank/`](examples/parabank/) — modos S2/S3/S4 con
-   auth, estado y detección de drift.
-3. **Tu propia web**: añade su URL (entorno no productivo) a `config/allowed-targets.yaml` y
-   lanza `/qa-automator:autonomous --url=<tu-url>`. Detalle en [`CLAUDE.md`](CLAUDE.md).
+Cuatro labs reproducibles en [`examples/`](examples/), ordenados por dificultad. Hazlos en orden:
+
+1. [`01-saucedemo`](examples/01-saucedemo/) — las tres puertas (S2/S3/S4), e-commerce limpio.
+2. [`02-parabank`](examples/02-parabank/) — auth persistente, drift y ambigüedad.
+3. [`03-orangehrm`](examples/03-orangehrm/) — autónomo acotado por módulos sobre una SPA con sesión.
+4. [`04-todomvc`](examples/04-todomvc/) — reto: lo resuelves tú.
+
+Luego, **tu propia web**: añade su URL (entorno no productivo) a `config/allowed-targets.yaml` y
+lanza `/qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`. Detalle en [`CLAUDE.md`](CLAUDE.md).
 
 ## Estructura
 
@@ -48,8 +52,8 @@ src/              Lógica determinística (POM scaffolder, compliance, PII, pars
 hooks/            Compliance pre-flight, PII/anti-fixme post-write, audit-write
 docs/references/       Contratos y reglas que los agentes leen (compliance, PII, style-contract...)
 config/           allowed-targets.yaml — la allowlist de URLs (compliance, sin override)
-config/style-contracts/  Convenciones por sitio (saucedemo, parabank — añade el tuyo)
-examples/         Inputs listos para practicar (solo inputs; tú generas los tests)
+config/style-contracts/  Convenciones por sitio (saucedemo, parabank, orangehrm — añade el tuyo)
+examples/         Cuatro labs reproducibles (solo inputs; tú generas los tests)
 tests/            Donde el agente escribe los tests (unit/ valida el runtime)
 scripts/          healthcheck.ts
 ```
