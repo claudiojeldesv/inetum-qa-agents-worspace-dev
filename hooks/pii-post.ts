@@ -8,7 +8,6 @@
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parse as parseYaml } from 'yaml';
 
 import { scanText, scanForUnauthorizedTestFixme, type PiiMatch } from '../src/pii-detector.ts';
 import { appendAuditEntry } from '../src/audit-log.ts';
@@ -25,7 +24,7 @@ interface SyntheticAllowlist {
   syntheticUsernames: string[];
 }
 
-function loadSyntheticAllowlist(): SyntheticAllowlist {
+async function loadSyntheticAllowlist(): Promise<SyntheticAllowlist> {
   const result: SyntheticAllowlist = {
     syntheticTestCards: [],
     syntheticIbans: [],
@@ -33,6 +32,19 @@ function loadSyntheticAllowlist(): SyntheticAllowlist {
   };
   const dir = resolve(process.cwd(), 'config/style-contracts');
   if (!existsSync(dir)) return result;
+
+  // `yaml` se carga de forma diferida y solo cuando el PII scanner está ON: así el camino por
+  // defecto (PII off) del hook NO depende de node_modules y la guarda anti-test.fixme() corre
+  // aunque el workspace no esté instalado. Si el paquete falta con PII ON, degrada sin crashear.
+  let parseYaml: (raw: string) => unknown;
+  try {
+    ({ parse: parseYaml } = await import('yaml'));
+  } catch {
+    process.stderr.write(
+      '[pii-post] PII scanner ON pero falta el paquete `yaml` (ejecuta `npm install`). Omito la allowlist sintética.\n',
+    );
+    return result;
+  }
 
   try {
     for (const file of readdirSync(dir)) {
@@ -93,7 +105,7 @@ async function main(): Promise<number> {
   );
 
   const allowlist = piiEnabled
-    ? loadSyntheticAllowlist()
+    ? await loadSyntheticAllowlist()
     : { syntheticTestCards: [], syntheticIbans: [], syntheticUsernames: [] };
   let hardFailures = 0;
 

@@ -10,7 +10,11 @@
  *
  * Sin override. Sin flag.
  */
-import { runPreflight } from '../src/compliance-preflight.ts';
+interface PreflightResult {
+  verdict: string;
+  rule?: string;
+  reason?: string;
+}
 
 interface HookPayload {
   tool_name?: string;
@@ -46,6 +50,21 @@ async function main(): Promise<number> {
   if (!url) {
     // No hay URL en el payload, nada que validar.
     return 0;
+  }
+
+  // El validador de compliance parsea YAML (paquete `yaml`). Se carga de forma diferida: si el
+  // workspace no está instalado, el `import` falla. Compliance es una regla dura sin fail-open:
+  // en vez de crashear críptico (exit 1, no-bloqueante, dejaba pasar el run sin gate), bloqueamos
+  // limpio (exit 2) con un mensaje accionable.
+  let runPreflight: (url: string) => PreflightResult;
+  try {
+    ({ runPreflight } = await import('../src/compliance-preflight.ts'));
+  } catch {
+    process.stderr.write(
+      '[pre-flight] No puedo cargar el validador de compliance (¿falta `npm install`?). ' +
+        'Bloqueo por seguridad: instala dependencias y reintenta.\n',
+    );
+    return 2;
   }
 
   const result = runPreflight(url);
