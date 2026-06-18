@@ -49,6 +49,14 @@ Thumbs.db
 # Saved plans del planner nativo (recreados por run; evidencia va a docs/findings/)
 /*-plan.md
 
+# Dirs de trabajo del agente: specs/ (plans del planner), criteria/ (criteria.json
+# + refinement-questions del refiner). Son outputs regenerables por run — solo se
+# versiona el .gitkeep para preservar el dir. Evita que el debris se vuelva a commitear.
+/specs/*
+!/specs/.gitkeep
+/criteria/*
+!/criteria/.gitkeep
+
 # StorageState / auth artifacts (session cookies, recreated by login spec at runtime)
 /playwright/.auth/
 
