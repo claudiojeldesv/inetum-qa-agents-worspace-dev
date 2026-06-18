@@ -25,7 +25,9 @@ export default defineConfig({
     // baseURL parametrizable por run (v0.2 Fase B): el command autonomous lo setea
     // con el --url del target. Default SauceDemo para no romper specs históricos.
     baseURL: process.env.QA_BASE_URL || 'https://www.saucedemo.com/',
-    trace: 'on-first-retry',
+    // trace parametrizable (evidence.level: full → el command exporta QA_TRACE='on').
+    // Sin la var → on-first-retry (comportamiento previo). Allure embebe el trace navegable.
+    trace: (process.env.QA_TRACE as 'on' | 'off' | 'on-first-retry' | 'retain-on-failure') || 'on-first-retry',
     // evidencia visual para el reporte Allure: QA_SCREENSHOT='on' captura el estado final
     // de cada test (pase o falle) y allure-playwright lo adjunta solo. El command la setea
     // desde evidence.screenshots del contract. Sin la var → solo en fallo (comportamiento previo).

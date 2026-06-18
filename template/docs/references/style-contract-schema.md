@@ -85,14 +85,18 @@ auth:
     value: string                   #   ej. '**/overview.htm'  o  "getByRole('link', { name: 'Log Out' })"
 
 # Política de evidencia visual para el reporte Allure. NO es un gate — no aborta nada.
-# El command lee este campo en el Verification step y exporta QA_SCREENSHOT antes de
-# `npx playwright test`; playwright.config.ts la consume como `screenshot:`. Los PNG
-# capturados los adjunta allure-playwright automáticamente (sin tocar el enricher).
 # Es evidencia de RUN-TIME: /qa-automator:report solo muestra lo que el run capturó.
+# El command lee `level` en el Verification step y exporta QA_SCREENSHOT / QA_TRACE
+# antes de `npx playwright test`; playwright.config.ts los consume. El nivel `level`
+# además guía al ia4d-writer sobre cómo estructurar el .spec.ts (test.step + attachments).
 evidence:
-  screenshots: string               # 'on' | 'only-on-failure' | 'off' — default 'only-on-failure'
-                                    #   on → captura el estado final de cada test (pase o falle);
-                                    #        actívalo cuando el run alimenta un reporte Allure.
+  level: string                     # 'minimal' | 'steps' | 'full' — default 'minimal' (sin regresión)
+                                    #   minimal → comentarios `// Step N` + screenshot final (según screenshots)
+                                    #   steps   → cada acción lógica en `await test.step('desc')` → timeline en Allure
+                                    #   full    → steps + screenshot por paso (test.info().attach) + trace 'on'
+  screenshots: string               # 'on' | 'only-on-failure' | 'off' — default 'only-on-failure'.
+                                    #   Solo aplica a level 'minimal' (captura final). En 'full' el command
+                                    #   fuerza screenshots=on + trace=on automáticamente.
 
 # PII allowlist (datos test publicados por el target, no son PII real)
 synthetic_fixtures:

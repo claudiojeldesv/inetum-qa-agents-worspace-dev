@@ -29,7 +29,7 @@ You are the **Writer** of the Quality layer. You take ONE scenario from a test p
    - Use locator priority from Style Contract (`getByTestId` first for SauceDemo).
    - First action: `await page.goto(...)` to the relevant URL.
    - Immediately after goto: inject the `AxeBuilder({ page }).analyze()` check.
-   - Materialize each step using semantic actions + POM methods.
+   - Materialize each step using semantic actions + POM methods, **structured according to `evidence.level`** of the Style Contract (see "Instrumentación de evidencia" below).
    - Add asserts that verify functional state, not just navigation.
    - Add JSDoc with `@criterion` citation referencing the plan entry.
 4. Write the file to `--output`.
@@ -84,6 +84,27 @@ The example values come **only** from `examples.rows` in `criteria.json`. Never 
 invent values. If a row contains a value that looks like real PII, the parser already flagged it in
 `pii_redaction` — use the style-contract `synthetic_fixtures` instead, do not reproduce the literal.
 A plain `Scenario` (no `examples`) → a single test, exactly as before.
+
+## Instrumentación de evidencia (`evidence.level` del Style Contract)
+
+Read `evidence.level` from the Style Contract (default `minimal` if absent). It controls **only how you structure the test body** — locators, POM, asserts, `@criterion` citation and A11y are unchanged across all levels.
+
+- **`minimal`** (default, current behavior): plain body with `// Step N:` comments. No `test.step()`. Zero regression vs historical specs.
+- **`steps`**: wrap each logical action (a navigation, a submit, a meaningful assertion milestone) in `await test.step('<human description>', async () => { … })`. Allure renders these as a collapsible timeline. The initial AxeBuilder check goes in a first `await test.step('a11y scan', …)`.
+- **`full`**: same as `steps`, plus **a screenshot attached at the END of each step** so Allure shows the image under that step:
+
+```typescript
+await test.step('submit credentials', async () => {
+  await loginPage.doLogin(username, password);
+  await test.info().attach('post-submit', { body: await page.screenshot(), contentType: 'image/png' });
+});
+```
+
+Rules for `steps`/`full`:
+- The step description is human-readable and traces the scenario's intent (reuse the plan/criterion `when`/`then` wording).
+- A11y, POM, locator priority, `@criterion` citation and the no-fabricate rules are **identical** to `minimal` — only the wrapping changes.
+- Data-driven tests (the `examples` loop) instrument each `test()` the same way.
+- `page.screenshot()` defaults to viewport (not `fullPage`) to keep the report light. The command also sets `QA_SCREENSHOT=on` + `QA_TRACE=on` for `full`, so allure-playwright captures the final state and the navigable trace too.
 
 ## Output
 

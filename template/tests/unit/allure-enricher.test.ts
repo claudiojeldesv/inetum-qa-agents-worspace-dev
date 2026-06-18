@@ -8,6 +8,9 @@ import {
   indexReviewByFile,
   matchResultToSpec,
   planEnrichment,
+  severityFor,
+  storyFor,
+  buildTestDescription,
   type RunSummary,
   type AllureResult,
 } from '../../src/allure-enricher.ts';
@@ -165,6 +168,9 @@ describe('planEnrichment — enriquecido', () => {
     const mutated = plan.resultMutations[0].json;
     expect(mutated.labels).toContainEqual({ name: 'feature', value: 'RF-001' });
     expect(mutated.labels).toContainEqual({ name: 'tag', value: 'RF-001' });
+    expect(mutated.labels).toContainEqual({ name: 'story', value: 'login.spec.ts' });
+    expect(mutated.labels).toContainEqual({ name: 'severity', value: 'normal' });
+    expect(mutated.description).toContain('RF-001');
     expect(mutated.links).toContainEqual({ name: 'RF-001', url: 'parabank.feature:8 (REQ-LOGIN)', type: 'tms' });
     expect(mutated.attachments?.some((a) => a.type === 'application/json')).toBe(true);
     expect(mutated.attachments?.some((a) => a.type === 'text/markdown')).toBe(true);
@@ -172,6 +178,20 @@ describe('planEnrichment — enriquecido', () => {
     expect(plan.attachmentFiles.some((a) => a.source === 'abc-123-judge-attachment.json')).toBe(true);
     expect(plan.attachmentFiles.some((a) => a.source === 'abc-123-review-attachment.md')).toBe(true);
     expect(plan.sidecars.map((s) => s.file)).toEqual(['environment.properties', 'categories.json', 'executor.json']);
+  });
+
+  it('story usa scenario si está presente; severity declarada se respeta', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [
+        { spec: 'tests/e2e/checkout.spec.ts', rf: 'RF-002', scenario: 'Compra completa', severity: 'critical' },
+      ],
+    };
+    const results = [{ file: '/r/x-result.json', json: { uuid: 'x', fullName: 'tests/e2e/checkout.spec.ts:y' } as AllureResult }];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    const mutated = plan.resultMutations[0].json;
+    expect(mutated.labels).toContainEqual({ name: 'story', value: 'Compra completa' });
+    expect(mutated.labels).toContainEqual({ name: 'severity', value: 'critical' });
   });
 
   it('camino judge-off: sin judge-report no añade attachment de judge ni rompe', () => {
@@ -200,5 +220,43 @@ describe('planEnrichment — enriquecido', () => {
     expect(plan.matchedSpecs).toEqual([]);
     expect(plan.resultMutations).toEqual([]);
     expect(plan.sidecars).toHaveLength(3);
+  });
+});
+
+describe('builders de enriquecimiento PRO', () => {
+  it('severityFor: respeta severidad Allure válida, default normal si ausente o inválida', () => {
+    expect(severityFor({ spec: 's', severity: 'critical' })).toBe('critical');
+    expect(severityFor({ spec: 's', severity: 'inventada' })).toBe('normal');
+    expect(severityFor({ spec: 's' })).toBe('normal');
+  });
+
+  it('storyFor: usa scenario si existe, si no el basename del spec', () => {
+    expect(storyFor({ spec: 'tests/e2e/login.spec.ts', scenario: 'Login OK' })).toBe('Login OK');
+    expect(storyFor({ spec: 'tests/e2e/login.spec.ts' })).toBe('login.spec.ts');
+  });
+
+  it('buildTestDescription: incluye criterio, módulo, verdict, judge y drift del mismo RF', () => {
+    const desc = buildTestDescription(
+      { spec: 'tests/e2e/x.spec.ts', rf: 'RF-004', source_ref: 'f.feature:33', reviewer_verdict: 'pass', writer_iterations: 1, judge_score: 0.9 },
+      SUMMARY,
+    );
+    expect(desc).toContain('RF-004');
+    expect(desc).toContain('f.feature:33');
+    expect(desc).toContain('S2');
+    expect(desc).toContain('pass');
+    expect(desc).toContain('0.9');
+    // SUMMARY.drift tiene RF-004 → debe aparecer en "Drift relacionado"
+    expect(desc).toContain('Drift relacionado');
+    expect(desc).toContain('close-account');
+  });
+
+  it('buildTestDescription: sin campos opcionales degrada a string vacío o mínimo', () => {
+    expect(buildTestDescription({ spec: 's' }, {}).trim()).toBe('');
+  });
+
+  it('buildCategories incluye triaje ampliado (timeout, selector) además de a11y', () => {
+    const names = buildCategories().map((c) => c.name);
+    expect(names).toContain('Timeout / espera');
+    expect(names).toContain('Selector no encontrado');
   });
 });

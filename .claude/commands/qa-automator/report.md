@@ -43,28 +43,28 @@ con el default `only-on-failure`, los tests verdes no traen imagen: re-ejecuta l
 `QA_SCREENSHOT=on` (o declara `evidence.screenshots: on` en el Style Contract del sitio) y
 vuelve a lanzar este command.
 
-### 2. Enriquecer (determinístico)
+### 2. Enriquecer + generar + trends — un solo paso: `npm run report`
 
-Ejecuta el enricher, que escribe los sidecars Allure (`environment.properties`,
-`categories.json`, `executor.json`) y muta los `*-result.json` con labels RF-NNN, links TMS
-(RF-NNN → `source_ref`) y attachments (judge score+axes, protocolo Writer/Reviewer):
+`npm run report` (→ `src/scripts/build-report.mjs`) orquesta de forma determinística:
 
-```sh
-npx tsx src/allure-enricher.ts --results-dir=<results-dir> --summary=<summary>
-```
+1. **History IN** — restaura `.allure-history/` (si existe) en `.work/allure-results/history`.
+2. **Enricher** (`src/allure-enricher.ts`) — sidecars (`environment.properties`, `categories.json`
+   con triaje ampliado a11y/timeout/selector, `executor.json`) y muta los `*-result.json` con:
+   labels RF-NNN (behaviors epic→feature→story), `severity`, links TMS (RF-NNN → `source_ref`),
+   **description markdown** (criterio, módulo, verdict, judge, drift relacionado) y attachments
+   (judge score+axes, protocolo Writer/Reviewer). Consume `.work/judge-report.json` y
+   `.work/review-feedback.json` si existen (Judge off → sin attachment de judge, sin error).
+3. **Generate** — `allure generate .work/allure-results -o .work/allure-report --clean` (requiere
+   Java en el PATH; si falta, el enricher igual corrió sobre `.work/allure-results`).
+4. **History OUT** — persiste `.work/allure-report/history` → `.allure-history/` para que los
+   **Trends** acumulen entre runs (`.allure-history/` NO es efímero como `.work/`).
 
-Fuentes opcionales que el enricher consume si existen (junto al results-dir o su parent):
-`.work/judge-report.json` (si Judge está off, se omiten los attachments de judge, sin error) y
-`.work/review-feedback.json`. Reporta al SDET los warnings que emita (p.ej. specs sin resultado
-Allure matcheado: se enriquecen solo a nivel global, **nunca se truncan en silencio**).
+Los **screenshots por paso** y el **trace** los captura el run según `evidence.level` del Style
+Contract (`full` = `test.step` + screenshot por paso + trace); allure-playwright los adjunta solo.
+El enricher **nunca** los toca. Reporta los warnings del enricher (p.ej. specs sin resultado
+matcheado: se enriquecen a nivel global, **nunca se truncan en silencio**).
 
-### 3. Generar el HTML
-
-```sh
-npx allure generate <results-dir> -o <output> --clean
-```
-
-Si se pasó `--open`, además: `npx allure open <output>`.
+Si se pasó `--open`, además: `npx allure open .work/allure-report`.
 
 ### 4. Cierre
 

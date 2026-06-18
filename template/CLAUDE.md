@@ -79,8 +79,15 @@ auth:
 a11y:
   fail_on_violations: false       # false → modo warning (anota, no aborta); true → gate que aborta
 evidence:
-  screenshots: only-on-failure    # on → captura el estado final de cada test; imágenes en el reporte Allure
+  level: minimal                  # minimal | steps | full. full → test.step() + screenshot por paso + trace
+  screenshots: only-on-failure    # solo en level minimal (captura final). full lo fuerza a on
 ```
+
+**Reporte Allure PRO**: con `evidence.level: full` el agente genera tests con `test.step()` por
+acción + screenshot bajo cada paso + trace navegable. `/qa-automator:report` (→ `npm run report`)
+los enriquece con trazabilidad RF-NNN (epic→feature→story), severity, descripción y **Trends**
+entre runs (history persistente en `.allure-history/`). Mira `config/style-contracts/saucedemo.yaml`
+como ejemplo de referencia.
 
 ## Gates opcionales (off por defecto)
 

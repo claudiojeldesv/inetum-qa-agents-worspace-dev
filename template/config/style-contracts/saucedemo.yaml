@@ -41,9 +41,11 @@ a11y:
     - serious
     - critical
 
-# Evidencia visual para el reporte Allure: captura el estado final de cada test
-# (pase o falle). El command lo mapea a QA_SCREENSHOT en el Verification step.
+# Evidencia visual para el reporte Allure. level: full → el ia4d-writer instrumenta cada
+# acción con test.step() + screenshot por paso, y el command exporta QA_SCREENSHOT=on +
+# QA_TRACE=on (captura final + trace navegable). Es el ejemplo de referencia "PRO".
 evidence:
+  level: full
   screenshots: on
 
 # Credenciales publicadas por Sauce Labs — no son PII real

@@ -11,6 +11,8 @@ yarn-error.log*
 /.work/
 # .playwright-mcp lo crea el MCP server (ubicación no configurable desde el repo)
 /.playwright-mcp/
+# History/Trends de Allure: persiste ENTRE runs (no efímero como .work/), pero no se versiona
+/.allure-history/
 # Artefactos runtime legacy en root (runs previos al refactor de .work/);
 # se ignoran por robustez. Son regenerables: pueden borrarse sin impacto.
 /output/

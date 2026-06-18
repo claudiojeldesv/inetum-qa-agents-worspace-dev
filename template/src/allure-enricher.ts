@@ -36,6 +36,8 @@ export interface RunSummaryTest {
   data_driven?: boolean;
   cases?: unknown[];
   notes?: string;
+  severity?: string; // blocker | critical | normal | minor | trivial (Allure); default normal
+  scenario?: string; // nombre del scenario para el label 'story' (behaviors)
 }
 
 export interface RunSummaryDrift {
@@ -110,6 +112,7 @@ export interface AllureResult {
   name?: string;
   fullName?: string;
   status?: string;
+  description?: string;
   labels?: AllureLabel[];
   links?: AllureLink[];
   attachments?: AllureAttachment[];
@@ -258,7 +261,51 @@ export function buildCategories(): AllureCategory[] {
       matchedStatuses: ['failed', 'broken'],
       messageRegex: '.*(axe|accessibilit|wcag).*',
     },
+    {
+      name: 'Timeout / espera',
+      matchedStatuses: ['failed', 'broken'],
+      messageRegex: '.*(timeout|exceeded|timed out).*',
+    },
+    {
+      name: 'Selector no encontrado',
+      matchedStatuses: ['failed', 'broken'],
+      messageRegex: '.*(locator|strict mode|no element|not found|not visible).*',
+    },
   ];
+}
+
+const ALLURE_SEVERITIES = new Set(['blocker', 'critical', 'normal', 'minor', 'trivial']);
+
+/** Severity Allure del test (label). Default 'normal' si no se declara o es inválida. */
+export function severityFor(test: RunSummaryTest): string {
+  return test.severity && ALLURE_SEVERITIES.has(test.severity) ? test.severity : 'normal';
+}
+
+/** Nombre de 'story' (hoja del árbol behaviors epic→feature→story). */
+export function storyFor(test: RunSummaryTest): string {
+  return test.scenario?.trim() || basename(test.spec);
+}
+
+/** Descripción markdown por test: criterio, módulo, verdict, judge, drift relacionado, notas. */
+export function buildTestDescription(test: RunSummaryTest, summary: RunSummary): string {
+  const lines: string[] = [];
+  if (test.rf) lines.push(`**Criterio:** ${test.rf}${test.source_ref ? ` — \`${test.source_ref}\`` : ''}`);
+  if (summary.module) {
+    lines.push(`**Módulo:** ${summary.module}${summary.input_format ? ` (${summary.input_format})` : ''}`);
+  }
+  if (test.reviewer_verdict) {
+    const it = test.writer_iterations !== undefined ? ` · ${test.writer_iterations} iteración(es) Writer` : '';
+    lines.push(`**Reviewer:** ${test.reviewer_verdict}${it}`);
+  }
+  if (typeof test.judge_score === 'number') lines.push(`**Judge score:** ${test.judge_score}`);
+  if (test.data_driven) lines.push(`**Data-driven:** ${test.cases?.length ?? '?'} caso(s)`);
+  const related = (summary.drift ?? []).filter((d) => d.rf && d.rf === test.rf);
+  if (related.length) {
+    lines.push('', '**Drift relacionado:**');
+    for (const d of related) lines.push(`- ${d.flow ?? '?'}${d.reason ? `: ${d.reason}` : ''}`);
+  }
+  if (test.notes) lines.push('', test.notes);
+  return lines.join('\n');
 }
 
 export function buildExecutor(summary: RunSummary): Record<string, unknown> {
@@ -416,6 +463,12 @@ export function planEnrichment(inputs: PlanInputs): EnrichmentPlan {
         upsertLabel(json, 'tag', test.rf);
       }
       if (summary.module) upsertLabel(json, 'epic', `Module ${summary.module}`);
+
+      // Behaviors (hoja) + severidad + descripción markdown enriquecida.
+      upsertLabel(json, 'story', storyFor(test));
+      upsertLabel(json, 'severity', severityFor(test));
+      const desc = buildTestDescription(test, summary);
+      if (desc) json.description = desc;
 
       // Link TMS RF-NNN → source_ref.
       if (test.rf && test.source_ref) {

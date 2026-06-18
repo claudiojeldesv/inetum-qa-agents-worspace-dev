@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "report": "tsx src/allure-enricher.ts && allure generate .work/allure-results -o .work/allure-report --clean",
+    "report": "node src/scripts/build-report.mjs",
     "qa:healthcheck": "tsx src/scripts/healthcheck.ts",
     "build:template": "node src/scripts/build-template.mjs"
   },
