@@ -16,8 +16,8 @@ Al terminar sabrás:
 ## Duración y prerrequisitos
 
 ~25 min. Antes de empezar:
-- Lab 01 completado (entiendes las tres puertas).
-- `/qa-automator:healthcheck` en verde.
+- Lab 01 completado (entiendes las tres puertas y el **Paso 0** de preparación del workspace).
+- `/qa-automator:healthcheck` en verde (si no, repasa el Paso 0 del Lab 01).
 - ParaBank ya está permitido en `config/allowed-targets.yaml`; la cuenta de test (`john` / `demo`)
   declarada como test-cred.
 

@@ -4,6 +4,11 @@ Cuatro labs reproducibles, ordenados por dificultad. Cada carpeta es **un proyec
 trae solo **inputs**: los tests los genera el agente cuando ejecutas el command, así practicas el
 flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 
+> **Antes de nada — prepara el workspace una vez.** Desde la raíz (la carpeta `template/` que
+> descargaste): `npm install` → `npx playwright install chromium` → `npm run qa:healthcheck` (debe
+> dar `Healthcheck OK`). Sin esto, el agente no funciona. El detalle paso a paso está en el
+> **Paso 0** del [Lab 01](01-saucedemo/).
+
 | # | Lab | Modos | Qué aprendes | Auth | Drift |
 |---|---|---|---|---|---|
 | 01 | [SauceDemo](01-saucedemo/) | S2, S3, S4 | Las tres puertas sobre e-commerce limpio. Todo verde, sin complejidad. | — | — |

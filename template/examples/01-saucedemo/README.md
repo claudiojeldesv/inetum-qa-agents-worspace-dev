@@ -14,12 +14,29 @@ Al terminar sabrás:
 
 ## Duración y prerrequisitos
 
-~15 min. Antes de empezar:
-- `npm install` y `npx playwright install chromium` ya ejecutados en el workspace.
-- `/qa-automator:healthcheck` en verde (runtime completo, MCP de Playwright cargado).
-- SauceDemo ya está permitido en `config/allowed-targets.yaml` y sus credenciales públicas
-  (`standard_user` / `secret_sauce`, `locked_out_user` / `secret_sauce`) declaradas como
-  test-creds (no son PII).
+~15 min. Necesitas Node ≥ 20 y Claude Code (CLI o extensión IDE). SauceDemo ya está permitido en
+`config/allowed-targets.yaml` con sus credenciales públicas (`standard_user` / `secret_sauce`,
+`locked_out_user` / `secret_sauce`, declaradas como test-creds, no son PII). La preparación del
+workspace es el **Paso 0** de abajo.
+
+## Paso 0 — Prepara el workspace (una sola vez, OBLIGATORIO)
+
+Antes de invocar el agente, instala dependencias y verifica el runtime. **Hazlo antes de lanzar
+cualquier command**: el agente usa hooks que necesitan las dependencias instaladas; si lanzas el
+autónomo sin esto, el pre-flight de compliance te bloqueará pidiéndote `npm install` (y antes del
+arreglo, reventaba con un error críptico).
+
+```
+npm install
+npx playwright install chromium
+npm run qa:healthcheck
+```
+
+**Resultado esperado:** `npm run qa:healthcheck` termina con `Healthcheck OK: runtime ... completo
+(18 comprobaciones)`. Si falla, te dice qué pieza del runtime falta — resuélvelo antes de seguir.
+
+> Ejecuta esto desde la raíz del workspace (la carpeta `template/` que descargaste **es** la raíz).
+> Solo hace falta una vez por workspace; los siguientes labs ya lo dan por hecho.
 
 ## Escenario
 

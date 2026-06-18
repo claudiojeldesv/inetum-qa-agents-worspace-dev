@@ -16,8 +16,8 @@ Al terminar sabrás:
 ## Duración y prerrequisitos
 
 ~25 min. Antes de empezar:
-- Labs 01 y 02 completados.
-- `/qa-automator:healthcheck` en verde.
+- Labs 01 y 02 completados (incluida la preparación del workspace, **Paso 0** del Lab 01).
+- `/qa-automator:healthcheck` en verde (si no, repasa el Paso 0 del Lab 01).
 - OrangeHRM ya está permitido en `config/allowed-targets.yaml`; la cuenta de test
   (`Admin` / `admin123`, publicada en la propia pantalla de login) declarada como test-cred. El
   style-contract `config/style-contracts/orangehrm.yaml` ya trae `auth:` configurado.

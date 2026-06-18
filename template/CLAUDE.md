@@ -10,6 +10,19 @@ los tests antes de exponerlos.
 
 ## Empieza por los labs
 
+**Prepara el workspace primero (una vez).** Desde la raíz (la carpeta `template/` que descargaste
+**es** la raíz):
+
+```
+npm install
+npx playwright install chromium
+npm run qa:healthcheck        # debe terminar en "Healthcheck OK"
+```
+
+Sin esto el agente no funciona: sus hooks (compliance pre-flight, guarda anti-`fixme`) necesitan
+las dependencias instaladas. Si lanzas un command sin haber instalado, el pre-flight te bloquea con
+un mensaje pidiéndote `npm install` en vez de fallar de forma críptica.
+
 En [`examples/`](examples/) hay cuatro labs reproducibles, ordenados por dificultad. Hazlos en
 orden la primera vez:
 
