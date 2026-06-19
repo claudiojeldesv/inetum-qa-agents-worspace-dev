@@ -194,6 +194,41 @@ describe('planEnrichment — enriquecido', () => {
     expect(mutated.labels).toContainEqual({ name: 'severity', value: 'critical' });
   });
 
+  it('S4: tc_id y tags → label tc_id + un label tag por cada tag + TC en la descripción', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [
+        {
+          spec: 'tests/e2e/login.spec.ts',
+          scenario: 'login válido',
+          tc_id: 'TC-01',
+          tags: ['@smoke', '@happy-path', '@critical'],
+        },
+      ],
+    };
+    const results = [{ file: '/r/t-result.json', json: { uuid: 't', fullName: 'tests/e2e/login.spec.ts:z' } as AllureResult }];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    const mutated = plan.resultMutations[0].json;
+
+    expect(mutated.labels).toContainEqual({ name: 'tc_id', value: 'TC-01' });
+    expect(mutated.labels).toContainEqual({ name: 'tag', value: '@smoke' });
+    expect(mutated.labels).toContainEqual({ name: 'tag', value: '@happy-path' });
+    expect(mutated.labels).toContainEqual({ name: 'tag', value: '@critical' });
+    // tres tags distintos coexisten como labels 'tag' (upsert dedupe por name+value).
+    expect(mutated.labels?.filter((l) => l.name === 'tag')).toHaveLength(3);
+    expect(mutated.description).toContain('TC-01');
+  });
+
+  it('S4: tag sin @ se normaliza a @tag', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [{ spec: 'tests/e2e/x.spec.ts', tags: ['smoke'] }],
+    };
+    const results = [{ file: '/r/u-result.json', json: { uuid: 'u', fullName: 'tests/e2e/x.spec.ts:1' } as AllureResult }];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    expect(plan.resultMutations[0].json.labels).toContainEqual({ name: 'tag', value: '@smoke' });
+  });
+
   it('camino judge-off: sin judge-report no añade attachment de judge ni rompe', () => {
     const reviewByFile = indexReviewByFile([
       { test_file: 'tests/e2e/login.spec.ts', iteration: 0, verdict: 'approved' },

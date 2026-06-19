@@ -1,6 +1,6 @@
 ---
 description: Módulo S4 — generación autónoma de tests E2E desde una URL. Orquesta los 5 actos del marco QA propio. Funcional en MVP v0.1.
-argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--entry=/path] [--ignore=x,y]"
+argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--entry=/path] [--ignore=x,y] [--max-scenarios=N]"
 ---
 
 # /qa-automator:autonomous
@@ -17,6 +17,9 @@ Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que aco
 - `--flows=<a,b,c>` (opcional): flujos / happy-paths a cubrir, separados por coma (ej. `checkout,registro`). Acota qué mapea el planner.
 - `--entry=<ruta|url>` (opcional, default: `--url`): punto de entrada profundo para empezar la exploración (ej. `/catalog`, no la home).
 - `--ignore=<x,y,z>` (opcional): zonas a NO explorar (ej. `blog,footer,soporte`).
+- `--max-scenarios=<N>` (opcional, default 8): tope de escenarios a materializar. Si el catálogo
+  descubierto lo supera, el Acto 2.5 (Checkpoint) pausa y te deja seleccionar. Acotar el blow-up de
+  tokens y el ruido en sitios grandes.
 
 ## Procedure (los 5 actos)
 
@@ -57,20 +60,52 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
    - **Modo ciego**: prompt de exploración completa (comportamiento v0.1).
    - Esperar el output: `<saved-plan>.md` con escenarios + `planner_save_plan` ejecutado.
 7. Invoca `ia4d-discovery-analyzer` con el plan saved como input.
-   - Output: `.work/discovery-report.json` (dir de trabajo efímero del agente).
+   - Output: `.work/discovery-report.json` (dir de trabajo efímero del agente), que ahora incluye
+     `scenarios_catalog[]` (TC-NN, `suite_tags`, `criticality`, `rank`).
+
+### Acto 2.5 — Checkpoint (cap + selección + tags)
+
+Lee `scenarios_catalog` del discovery-report y aplica el tope `--max-scenarios` (default 8):
+
+- **Si `count(scenarios_catalog) ≤ max`** → no pauses. Continúa con TODOS los escenarios.
+  Registra `{ source: 'command', action: 'scenario_selection', result: 'pass', metadata: { total: <count>, cap: <max>, selected: <count>, mode: 'auto-under-cap' } }`.
+
+- **Si `count(scenarios_catalog) > max`** → **PAUSA** (ask-first). Imprime la tabla ordenada por `rank`:
+
+  ```
+  El descubrimiento devolvió <total> escenarios; el cap es <max>. Selecciona cuáles materializar.
+
+  TC      Escenario                          Tags propuestos                 Rank  Criticidad
+  TC-01   login.standard-user-happy-path     @smoke @happy-path @critical    1     critical
+  TC-02   checkout.complete-flow             @smoke @happy-path @critical    2     critical
+  TC-03   cart.add-and-view                  @regression @happy-path         3     normal
+  ...
+  ```
+
+  > Selecciona los TC a materializar (ej. `TC-01,TC-02,TC-03`), o escribe `TOP` para los <max> de
+  > mayor rank, o `TODOS` para ignorar el cap bajo tu responsabilidad. Puedes editar tags de un TC
+  > con `TC-03:@regression,@negative`.
+
+  - Respuesta con lista de TC → materializa solo esos (respetando ediciones de tags).
+  - `TOP` → los `max` primeros por `rank`.
+  - `TODOS` → todo el catálogo (cap ignorado, `mode: 'all-acknowledged'`).
+  - Respuesta ambigua o silencio → **no generes**: repite la tabla o aborta con exit 2.
+  - Registra `{ source: 'command', action: 'scenario_selection', result: 'pass', metadata: { total, cap, selected: <n>, mode: 'checkpoint' } }`.
+
+El conjunto seleccionado (con su `tc_id` y `suite_tags` efectivos) es lo que alimenta el Acto 4.
+Los escenarios NO seleccionados no se materializan (no es un fallo: es la rienda).
 
 ### Acto 3 — Estructurar
 
-8. Ejecuta el POM scaffolder programáticamente:
+8. Ejecuta el POM scaffolder programáticamente (`src/scripts/scaffold-poms.ts` lee `screens` y
+   `components` del discovery-report):
    ```sh
-   npx tsx -e "
-   import { readFileSync } from 'node:fs';
-   import { scaffold } from './src/pom-scaffolder.ts';
-   const dr = JSON.parse(readFileSync('.work/discovery-report.json', 'utf8'));
-   scaffold(dr.screens, { outputDir: 'tests/pages' });
-   "
+   npx tsx src/scripts/scaffold-poms.ts .work/discovery-report.json tests/pages
    ```
-   Esto produce `tests/pages/*.page.ts` esqueletos.
+   Produce `tests/pages/base.page.ts` (BasePage común), `tests/pages/*.page.ts` (uno por screen,
+   `extends BasePage`) y, si el discovery declaró `components[]`, `tests/components/*.component.ts`
+   (objetos compartidos nav/header que las pages exponen como campo). Los toggles `pom.base_page` /
+   `pom.components` del Style Contract (default ambos `true`) deciden si se emiten.
 
 ### Acto 4 — Materializar
 
@@ -79,9 +114,9 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
 - El setup project + `dependencies` + `storageState` los activa `playwright.config.ts` vía `QA_STORAGE_STATE` (ver Verification step). Los specs del resto de flujos NO re-loguean: heredan el estado por el dependency.
 - Registra al audit-log: `{ source: 'command', action: 'write_file', target: 'tests/e2e/auth.setup.ts', rule: 'auth-handler', reason: 'setup project for persistent session' }`.
 
-9. Para cada `scenario` en `discovery-report.scenarios_recommended` (paralelizable):
-   - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir`, `--output`, `--discovery-report`.
-   - El Writer escribe el `.spec.ts` e invoca internamente al Reviewer (ping-pong N≤2).
+9. Para cada escenario **seleccionado en el Acto 2.5** (paralelizable):
+   - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir`, `--output`, `--discovery-report`, y además `--tc-id=<TC-NN>` y `--tags=<@a,@b,@c>` tomados de su entrada en `scenarios_catalog` (con las ediciones de tags del checkpoint, si las hubo).
+   - El Writer escribe el `.spec.ts` con los tags nativos e invoca internamente al Reviewer (ping-pong N≤2).
    - Cada `.spec.ts` pasa por el hook PostToolUse `pii-post.ts` automáticamente.
 10. (Opcional) Invoca `ia4d-style-enforcer` por cada `.spec.ts` para enforce final del Style Contract.
 11. (Obligatorio) Invoca `ia4d-a11y-injector` por cada `.spec.ts` **pasándole `--style-contract`** para asegurar el `AxeBuilder` scan y aplicar el gate del contract:
@@ -93,7 +128,7 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
 
 12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `.work/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
 13. (Solo si el Judge corrió) Lee todos los scores. Si >30% < 0.5 → pausa con ask-first.
-14. Genera summary `.work/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results.
+14. Genera summary `.work/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results. **Cada entrada de `tests_generated[]` incluye `tc_id` y `tags[]`** (del catálogo/checkpoint); el top-level añade `scenarios_total` y `scenarios_selected`. El enricher de `/qa-automator:report` los lleva a Allure como labels.
 
 ## Outputs (consolidados)
 
@@ -149,6 +184,7 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 - Cada invocación de subagent registra al audit-log.
 - No saltar Acto 1 (compliance pre-flight). Sin override.
 - No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
+- El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del SDET. Truncar sin avisar rompe el principio "no silent caps".
 - Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.
 - Paralelismo del Acto 4 es prioritario: invocar los Writers de los N escenarios concurrentemente cuando sea posible.
 

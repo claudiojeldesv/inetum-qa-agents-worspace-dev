@@ -95,7 +95,7 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 | Comando | Estado MVP | Responsabilidad | Output |
 |---|---|---|---|
 | `/qa-automator:healthcheck` | Funcional | Smoke test: versión, subagents detectados, MCP server status | Mensaje de estado |
-| `/qa-automator:autonomous` | Funcional | Módulo S4. Toma `--url=` + `--style=`. Orquesta los 5 actos | discovery-report.json + plan.md + N `.spec.ts` + judge-report.json + review-feedback.json + audit-log.json |
+| `/qa-automator:autonomous` | Funcional | Módulo S4. Toma `--url=` + `--style=` + `--flows/--entry/--ignore` + `--max-scenarios=N` (default 8). Orquesta los 5 actos + un **Acto 2.5 (Checkpoint)** que aplica el cap y, si se supera, pausa para seleccionar TC y confirmar tags | discovery-report.json (con `scenarios_catalog`: TC-NN, suite_tags, rank) + plan.md + N `.spec.ts` (con tags nativos `{ tag: [...] }` y `@tc-id`) + judge-report.json + review-feedback.json + audit-log.json |
 | `/qa-automator:code-driven` | Stub v0.1 | Módulo S1 (v0.3) | Mensaje "stub v0.1, planificado v0.3" |
 | `/qa-automator:req-driven` | **Funcional (Gherkin, v0.2 Fase E)** | Módulo S2. Toma `--gherkin=` + `--url=` + `--style=`. Ingiere el `.feature` (determinístico) y reusa el motor S3/S4 | criteria.json + drift-report.json + discovery-report.json + N `.spec.ts` (con `@criterion RF-NNN`) + judge-report.json + audit-log.json |
 | `/qa-automator:spec-refiner` | **Funcional (v0.2 Fase D)** | Módulo S3 Forma B. Toma `--fd=` + `--url=` | criteria.json + drift-report.json + N `.spec.ts` + judge-report.json + audit-log.json |
@@ -199,8 +199,10 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-
 - Escribir entrada al `audit-log.json` por cada: llamada LLM, archivo modificado, decisión Reviewer/Judge, ejecución de hook.
 - Aplicar el Style Contract declarado. Si no hay, default del agente + log explicito.
 - Inyectar `AxeBuilder` check en cada test generado. No opcional.
-- Generar POM esqueleto por código determinístico (`src/pom-scaffolder.ts`) antes de invocar Writer.
+- Generar POM esqueleto por código determinístico (`src/pom-scaffolder.ts`) antes de invocar Writer: `BasePage` común + una clase por screen (`extends BasePage`) + component objects compartidos cuando el discovery declara `components[]` (toggles `pom.base_page`/`pom.components`, default true).
 - Citar el criterio fuente del plan (o `discovery-report.json` en S4) en el JSDoc de cada test.
+- En S4, aplicar el cap `--max-scenarios` en el Acto 2.5: si el `scenarios_catalog` lo supera, pausar y pedir selección (no truncar en silencio). Etiquetar cada test con los tags nativos del catálogo (`@smoke/@regression/@critical/@happy-path/@negative`) y su `@tc-id`.
+- Cuando el Style Contract declara `test_design.require_business_postcondition: true`, exigir que cada test afirme la post-condición de negocio del flujo (Reviewer MF-9), no solo navegación.
 - Generar `review-feedback.json` antes de exponer el código al SDET. (`judge-report.json` solo cuando el Judge está activo — `QA_ENABLE_JUDGE`; off por defecto.)
 - Verificar que cada test generado corre verde localmente antes de marcarlo "materializado".
 - Operar en greybox por defecto: nunca leer archivos fuera del repo destino ni del directorio del agente.

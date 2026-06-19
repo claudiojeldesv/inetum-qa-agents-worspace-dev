@@ -17,13 +17,17 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
 ## Process
 
 1. Read the planner output.
-2. Identify the screens explored. For SauceDemo, expect at minimum: `login`, `inventory`, `cart`, `checkout-step-one`, `checkout-step-two`, `checkout-complete`.
+2. Identify the screens explored — whatever the plan actually contains. Derive screen names from the
+   plan, do not assume any fixed set. (SauceDemo is one example among many; never expect a specific
+   list of screens — read what is there.)
 3. For each screen, derive:
    - `name`: kebab-case identifier.
    - `url_pattern`: URL fragment (e.g. `/inventory.html`).
    - `interactive_elements`: list of elements visible in the plan with their `test_id` (`data-test` attr), `role`, `name`, `label`.
-4. Cross-reference with `config/style-contracts/saucedemo.yaml` if available to honor `locators.priority`.
-5. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
+4. Cross-reference with the active Style Contract (`config/style-contracts/*.yaml`) if available to honor `locators.priority`.
+5. Build `scenarios_recommended` (flat list of scenario refs, as today) AND the `scenarios_catalog`
+   (see "Scenario catalog" below) — the catalog is what lets the command cap, rank and tag.
+6. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
 
 ## Output schema (.work/discovery-report.json)
 
@@ -42,15 +46,98 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
         { "role": "button", "name": "Login", "test_id": "login-button" }
       ]
     },
-    { "name": "inventory", "url_pattern": "/inventory.html", "interactive_elements": [...] }
+    { "name": "inventory", "url_pattern": "/inventory.html", "interactive_elements": [...], "components": ["nav"] }
+  ],
+  "components": [
+    {
+      "name": "nav",
+      "interactive_elements": [
+        { "role": "link", "name": "Cart", "test_id": "shopping-cart-link" }
+      ]
+    }
   ],
   "scenarios_recommended": [
     "login.standard-user-happy-path",
     "cart.add-and-view",
     "checkout.complete-flow"
+  ],
+  "scenarios_catalog": [
+    {
+      "tc_id": "TC-01",
+      "scenario": "login.standard-user-happy-path",
+      "suite_tags": ["@smoke", "@happy-path", "@critical"],
+      "criticality": "critical",
+      "rank": 1,
+      "rationale": "login es flujo crítico de entrada; happy-path"
+    },
+    {
+      "tc_id": "TC-02",
+      "scenario": "checkout.complete-flow",
+      "suite_tags": ["@smoke", "@happy-path", "@critical"],
+      "criticality": "critical",
+      "rank": 2,
+      "rationale": "checkout es flujo crítico de negocio; happy-path"
+    },
+    {
+      "tc_id": "TC-03",
+      "scenario": "cart.add-and-view",
+      "suite_tags": ["@regression", "@happy-path"],
+      "criticality": "normal",
+      "rank": 3,
+      "rationale": "flujo de soporte, no crítico"
+    }
   ]
 }
 ```
+
+## Shared components (`components`) — opcional, conservador
+
+Si un mismo elemento interactivo (mismo `role`+`name`, p.ej. un enlace "Cart" o un header de
+navegación) aparece en **≥2 screens**, extráelo a `components[]` (top-level) en vez de repetirlo en
+cada screen, y referencia el componente por nombre en `screen.components` de cada screen que lo usa.
+El scaffolder generará un component object compartido (`tests/components/<name>.component.ts`) que las
+pages exponen como campo.
+
+- Conservador: solo extrae lo que **realmente** se repite en ≥2 screens y es navegación/chrome
+  reutilizable (nav, header, footer, search bar). No inventes componentes ni muevas elementos
+  específicos de una sola pantalla.
+- Si nada se repite, omite `components` por completo (campo opcional). Sin regresión.
+
+## Scenario catalog (`scenarios_catalog`) — ranking + tags
+
+Cada entrada de `scenarios_catalog` corresponde 1:1 con un ref de `scenarios_recommended`. El
+**command** lo usa para aplicar el cap (`--max-scenarios`), mostrar el checkpoint y pasar `tc_id`/tags
+al Writer. Tú solo lo construyes; no decides el cap ni truncas (eso es del command).
+
+- `tc_id`: `TC-NN` secuencial **por orden de `rank`** (TC-01 = rank 1). Efímero por-run, sin estado.
+- `rank`: entero desde 1, por impacto×frecuencia. Ordena: primero los `@critical` happy-path, luego
+  el resto de happy-paths, luego los negativos. Empates → orden de aparición en el plan.
+- `criticality`: `"critical"` si el flujo cae en la lista de **keywords críticas** abajo; si no, `"normal"`.
+- `rationale`: una línea, por qué ese rank/criticidad. No prosa larga.
+
+### Taxonomía de `suite_tags` (dos ejes + criticidad)
+
+Reglas **determinísticas** (no interpretes libremente; aplícalas):
+
+- **Eje SUITE** (exactamente uno): `@smoke` si es happy-path de flujo crítico; `@regression` en todo
+  lo demás (happy-path no crítico y todos los negativos).
+- **Eje NATURALEZA** (exactamente uno): `@happy-path` si el escenario recorre el camino esperado;
+  `@negative` si valida un error/validación/estado inválido (login inválido, campos requeridos,
+  permisos, datos mal formados).
+- **CRITICIDAD** (opcional): añade `@critical` si el flujo cae en las keywords críticas.
+
+Combinaciones resultantes:
+- happy-path de flujo crítico → `["@smoke", "@happy-path", "@critical"]`
+- happy-path de flujo no crítico → `["@regression", "@happy-path"]`
+- negativo (crítico o no) → `["@regression", "@negative"]` (los negativos no son smoke por defecto)
+
+### Keywords de flujo crítico
+
+Un escenario es de flujo crítico si su nombre o el del screen contiene (case-insensitive):
+`login`, `logout`, `auth`, `signin`, `signup`, `register`, `checkout`, `payment`, `pay`, `transfer`,
+`order`, `purchase`, `billing`. Esta lista es el criterio; no añadas criticidad por intuición.
+
+El SDET ajusta tags y selección en el checkpoint del command — tú solo propones.
 
 ## S3 mode (when `--criteria` is present)
 
@@ -92,6 +179,10 @@ NOT find (the raw material for drift detection — which the *command* decides, 
 - Use the Planner's data faithfully. If a selector is not in the plan, do not invent — leave it absent and the Writer flags it.
 - If the Planner missed a screen (e.g. checkout-complete is implicit), add it with empty `interactive_elements` and a TODO.
 - In S3 mode, never fabricate a `criteria_mapping.mapped` entry for a flow the plan did not reach. Unmapped → `unmapped_flows`.
+- `scenarios_catalog` has exactly one entry per `scenarios_recommended` ref — no more, no less. Do not
+  invent scenarios to pad the catalog, and do not drop scenarios from it. Apply the taxonomy rules
+  literally; if a scenario's nature is genuinely unclear, default to `@regression @happy-path` and say
+  so in `rationale` rather than guessing `@negative`/`@critical`.
 
 ## Reference
 

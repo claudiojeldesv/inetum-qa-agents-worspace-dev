@@ -85,6 +85,11 @@ Un test se rechaza (`rejected`) si tiene **cualquiera** de:
 6. JSDoc sin cita del criterio del plan (`/** @criterion ... */` o equivalente declarado en Style Contract).
 7. Uso de datos PII potencialmente reales (DNI/IBAN/email dominio real fuera de allowlist).
 8. Estado compartido entre tests (sin `test.afterEach` cuando hay setup).
+9. **(MF-9, condicional)** Test sin post-condición de negocio cuando el Style Contract declara
+   `test_design.require_business_postcondition: true`. Extiende el punto 4: un test cuyos únicos
+   asserts son navegación/URL/visibilidad de chrome se rechaza; debe afirmar el *resultado* del flujo
+   (p.ej. número de pedido tras checkout, elemento solo-autenticado tras login), y al menos
+   `test_design.min_functional_asserts` asserts funcionales. Sin bloque `test_design` → no aplica.
 
 ## Criterios should-fix (no bloquean pero el Writer debe corregir si puede)
 
