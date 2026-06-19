@@ -1,0 +1,77 @@
+# Style Contract — www.mapfre.es/ahorro-inversion/ — Sección Ahorro e Inversión
+# Schema docs: docs/references/style-contract-schema.md
+#
+# Sección informativa/landing corporativa de productos de ahorro e inversión
+# (planes de pensiones, fondos, unit linked, etc.). Sin login (público). El
+# happy-path se descubre en el Acto 2 (planner contra DOM real); este contract
+# declara solo convenciones, NO form_data específico (a diferencia de
+# mapfre-hogar.yaml, que es un wizard cerrado con campos conocidos).
+#
+# Convenciones heredadas del cliente Mapfre: locators semánticos prioritarios,
+# fallback CSS acotado a [name, id] como red de seguridad para componentes
+# custom corporativos, a11y en modo warning (sitio prod comercial, no foco).
+
+version: 1
+project: mapfre-ahorro-inversion
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByLabel
+    - getByRole
+    - getByPlaceholder
+    - getByText
+    - getByTestId
+  forbid_css_selectors: true
+  forbid_xpath: true
+  css_fallback_attributes:
+    - name
+    - id
+
+naming:
+  spec_pattern: '{feature}.{scenario}.spec.ts'
+  test_title_pattern: '{scenario_human_name}'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false        # gate off (modo warning auditable)
+  severity_threshold:
+    - serious
+    - critical
+
+# Sección pública sin sesión persistente.
+auth:
+  enabled: false
+
+# Evidencia visual para Allure (estado final de cada test).
+evidence:
+  screenshots: on
+
+# Sin form_data ni credenciales: la sección es informativa. Si el discovery
+# encuentra simuladores/calculadoras con inputs, se rellenan con datos sintéticos
+# declarados aquí post-mapping (no se inventan upfront).
+synthetic_fixtures:
+  credentials: []
+  test_cards: []
+  test_iban: []
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

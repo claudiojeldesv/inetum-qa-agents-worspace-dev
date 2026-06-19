@@ -1,0 +1,7 @@
+{
+  "verdict": "pass",
+  "rule": "W1",
+  "url": "https://www.mapfre.es/ahorro-inversion/",
+  "reason": "URL allowed but lacks non-prod prefix",
+  "audit_logged": true
+}
