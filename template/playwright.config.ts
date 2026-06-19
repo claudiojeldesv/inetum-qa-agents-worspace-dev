@@ -10,6 +10,10 @@ const storageState = process.env.QA_STORAGE_STATE;
 export default defineConfig({
   testDir: './tests/e2e',
   outputDir: '.work/test-results',
+  // Limpia .work/allure-results antes de cada run (allure-playwright nunca limpia: acumula
+  // resultados entre corridas → el reporte mezclaría runs viejos, skipped rancios y fallos ya
+  // corregidos). Determinista, aplica a todos los commands y runs manuales. No toca .allure-history.
+  globalSetup: './playwright.global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

@@ -47,6 +47,7 @@ const COPY_FILES = [
   'tsconfig.json',
   'vitest.config.ts',
   'playwright.config.ts',
+  'playwright.global-setup.ts',
   '.eslintrc.json',
   '.eslintignore',
   '.prettierrc.json',

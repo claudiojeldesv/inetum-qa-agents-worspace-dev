@@ -149,6 +149,8 @@ el run corre sin PII scan, sin Judge y con a11y en modo warning.
 
 **Antes de ejecutar, borra `tests/e2e/seed.spec.ts` si existe.** Es el scaffold que el MCP `playwright-test` resiembra en cada `setup_page` (Planner/Generator); solo sirve durante la generación. Si queda en `testDir`, corre como un test vacío siempre-verde y contamina el output y el reporte Allure (decisión SDET: eliminarlo, no ignorarlo).
 
+**`allure-results` se limpia solo.** El `globalSetup` de `playwright.config.ts` (`playwright.global-setup.ts`) vacía `.work/allure-results` al inicio de cada `npx playwright test`. Así el reporte refleja SOLO esta corrida — no hace falta `rm` manual y no se acumulan runs viejos (duplicados / `skipped` rancios). Los Trends se preservan (`.allure-history/` queda intacto; el report lo re-inyecta).
+
 Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo y el spec corre contra el sitio equivocado — hallazgo Fase B sitio 2).
 
 **Si el contract tiene `auth.enabled: true`**, setea además `QA_STORAGE_STATE` con `auth.storage_state`. Eso activa el setup project + `dependencies` en `playwright.config.ts`: el `auth.setup.ts` corre primero y escribe el estado, luego los specs lo heredan. **Ya no hace falta `--workers=1`** — el dependency garantiza el orden bajo `fullyParallel` (mata la race del hallazgo #10).
