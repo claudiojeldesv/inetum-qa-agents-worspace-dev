@@ -80,6 +80,16 @@ synthetic_fixtures:
   test_cards: []
   test_iban: []
 
+# Política de diseño de test ("validar con cabeza") — enforced por ia4d-reviewer (MF-9).
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  coverage:
+    happy_path: always
+    negative: regression_only
+  no_assume_undiscovered_flows: true
+
 banned_apis:
   - page.waitForTimeout
   - assert.equal

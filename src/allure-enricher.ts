@@ -38,6 +38,8 @@ export interface RunSummaryTest {
   notes?: string;
   severity?: string; // blocker | critical | normal | minor | trivial (Allure); default normal
   scenario?: string; // nombre del scenario para el label 'story' (behaviors)
+  tc_id?: string; // S4 Autonomous: identificador efímero por-run (TC-NN). Label propio + en descripción.
+  tags?: string[]; // S4 Autonomous: tags nativos Playwright (@smoke/@regression/...) → labels 'tag' en Allure.
 }
 
 export interface RunSummaryDrift {
@@ -289,6 +291,7 @@ export function storyFor(test: RunSummaryTest): string {
 /** Descripción markdown por test: criterio, módulo, verdict, judge, drift relacionado, notas. */
 export function buildTestDescription(test: RunSummaryTest, summary: RunSummary): string {
   const lines: string[] = [];
+  if (test.tc_id) lines.push(`**TC:** ${test.tc_id}${test.tags?.length ? ` · ${test.tags.join(' ')}` : ''}`);
   if (test.rf) lines.push(`**Criterio:** ${test.rf}${test.source_ref ? ` — \`${test.source_ref}\`` : ''}`);
   if (summary.module) {
     lines.push(`**Módulo:** ${summary.module}${summary.input_format ? ` (${summary.input_format})` : ''}`);
@@ -463,6 +466,12 @@ export function planEnrichment(inputs: PlanInputs): EnrichmentPlan {
         upsertLabel(json, 'tag', test.rf);
       }
       if (summary.module) upsertLabel(json, 'epic', `Module ${summary.module}`);
+
+      // S4 Autonomous: TC-NN como label propio + tags nativos como labels 'tag' de Allure.
+      if (test.tc_id) upsertLabel(json, 'tc_id', test.tc_id);
+      for (const tag of test.tags ?? []) {
+        upsertLabel(json, 'tag', tag.startsWith('@') ? tag : `@${tag}`);
+      }
 
       // Behaviors (hoja) + severidad + descripción markdown enriquecida.
       upsertLabel(json, 'story', storyFor(test));

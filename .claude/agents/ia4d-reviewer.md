@@ -35,6 +35,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 | MF-6 | Synthetic data not declared in `style-contract.synthetic_fixtures` |
 | MF-7 | Shared state between tests without `test.afterEach` cleanup |
 | MF-8 | POM not used when a Page class exists for the screen |
+| MF-9 | Test does not assert a **business post-condition** when `test_design.require_business_postcondition: true`. Extends MF-3: a test whose only assertions are navigation/URL/visibility of chrome (`toHaveURL`, a nav element visible) is a violation. It must assert the *outcome* of the flow — e.g. after checkout, the order confirmation/number is visible; after login, an authenticated-only element is present. Also fails if fewer than `test_design.min_functional_asserts` functional asserts. Only enforced when the contract carries a `test_design` block with the flag on (absent block → not enforced, no regression). |
 
 ### Should-fix criteria (non-blocking but reported)
 
@@ -71,6 +72,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 
 - If any MF-* criterion fails → `verdict: 'rejected'`.
 - If all MF-* pass → `verdict: 'approved'` (regardless of should-fix items, which are reported but not blocking).
+- MF-9 is only in play when the Style Contract has a `test_design` block with `require_business_postcondition: true`. Without it, ignore MF-9 entirely (do not invent a post-condition requirement).
 - At iteration 2 with persistent must-fix → still `verdict: 'rejected'` (the Writer will see and escalate per protocol).
 
 ## Hard rules

@@ -13,6 +13,12 @@ pom:
   enabled: boolean                  # default true
   location: string                  # default 'tests/pages'
   class_suffix: string              # default 'Page'
+  base_page: boolean                # default true. Emite tests/pages/base.page.ts (BasePage con
+                                    #   page + goto/waitForReady) y las pages la extienden. false →
+                                    #   clases standalone (comportamiento previo).
+  components: boolean               # default true. Si el discovery declara components[] (elementos
+                                    #   repetidos en ≥2 screens), genera component objects compartidos
+                                    #   en tests/components/. false → no se generan.
 
 # Estrategia de locators (orden de prioridad)
 locators:
@@ -97,6 +103,22 @@ evidence:
   screenshots: string               # 'on' | 'only-on-failure' | 'off' — default 'only-on-failure'.
                                     #   Solo aplica a level 'minimal' (captura final). En 'full' el command
                                     #   fuerza screenshots=on + trace=on automáticamente.
+
+# Política de diseño de test ("validar con cabeza"). Semántica, no sintáctica:
+# la enforce el ia4d-reviewer (regla MF-9), no el style-enforcer. Bloque OPCIONAL —
+# si falta, no se enforce nada nuevo (sin regresión vs specs históricos).
+test_design:
+  require_business_postcondition: boolean   # default false. true → cada test debe afirmar la
+                                            #   post-condición de negocio del flujo (resultado), no
+                                            #   solo navegación/URL/visibilidad de chrome. Reviewer MF-9.
+  min_functional_asserts: integer           # default 1. Mínimo de asserts funcionales (no-navegación) por test.
+  forbid_navigation_only_test: boolean      # default true cuando el bloque existe. Un test cuyo único
+                                            #   assert es toHaveURL / nav visible → rechazado por MF-9.
+  coverage:                                 # guía de cobertura por naturaleza de escenario
+    happy_path: string                      #   'always' (default) — el happy path siempre se cubre
+    negative: string                        #   'regression_only' (default) — negativos solo en suite regression
+  no_assume_undiscovered_flows: boolean     # default true. No materializar flujos/elementos que no
+                                            #   estén en discovery (refuerza la hard rule del Writer).
 
 # PII allowlist (datos test publicados por el target, no son PII real)
 synthetic_fixtures:

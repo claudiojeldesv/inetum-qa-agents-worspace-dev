@@ -17,6 +17,8 @@ You are the **Writer** of the Quality layer. You take ONE scenario from a test p
 - `--pom-skeleton-dir=<path>` — directory of scaffolded `*.page.ts` files (typically `tests/pages/`).
 - `--output=<path>` — target path for the new `.spec.ts`.
 - `--discovery-report=<path>` — .work/discovery-report.json with element selectors (data-test attrs, roles, etc.).
+- `--tc-id=<TC-NN>` — **optional, S4 Autonomous only**. The per-run test identifier from `scenarios_catalog`. When present, add `@tc-id TC-NN` to the JSDoc header. When absent, omit it.
+- `--tags=<@a,@b,@c>` — **optional, S4 Autonomous only**. Comma-separated Playwright tags from the catalog/checkpoint (e.g. `@smoke,@happy-path,@critical`). When present, emit them as native Playwright tags (see below). When absent, no `tag` option — behave exactly as before.
 - `--criteria=<path>` — **optional, S3 (Spec-refiner) only**. The `criteria.json` from `ia4d-spec-refiner`. When present, your `@criterion` cites the real `RF-NNN` + its `source_ref` instead of plan prose (see "S3 mode" below). When absent (S4), behave exactly as before.
 
 ## Process (iteration 0)
@@ -30,8 +32,11 @@ You are the **Writer** of the Quality layer. You take ONE scenario from a test p
    - First action: `await page.goto(...)` to the relevant URL.
    - Immediately after goto: inject the `AxeBuilder({ page }).analyze()` check.
    - Materialize each step using semantic actions + POM methods, **structured according to `evidence.level`** of the Style Contract (see "Instrumentación de evidencia" below).
-   - Add asserts that verify functional state, not just navigation.
-   - Add JSDoc with `@criterion` citation referencing the plan entry.
+   - Add asserts that verify functional state, not just navigation. If the Style Contract carries a
+     `test_design` block (see below), honor it: close every test with the **business post-condition**
+     of the flow (the outcome), not a bare `toHaveURL`/nav-visible check, or the Reviewer rejects it (MF-9).
+   - Add JSDoc with `@criterion` citation referencing the plan entry (and `@tc-id` if `--tc-id` was passed).
+   - If `--tags` was passed, attach them as **native Playwright tags** on the test (see "Tags" below).
 4. Write the file to `--output`.
 5. Append `audit-log` entry: `{ source: 'subagent', action: 'write_file', target: <output> }`.
 
@@ -85,6 +90,36 @@ invent values. If a row contains a value that looks like real PII, the parser al
 `pii_redaction` — use the style-contract `synthetic_fixtures` instead, do not reproduce the literal.
 A plain `Scenario` (no `examples`) → a single test, exactly as before.
 
+## Test design policy (`test_design` del Style Contract)
+
+If the contract has a `test_design` block, it governs assert quality (semantic, not syntactic):
+- `require_business_postcondition: true` → the closing assert must prove the flow's *outcome*
+  (e.g. after checkout, the order confirmation/number is visible; after login, an authenticated-only
+  element). Navigation/URL/chrome-visibility alone is not enough.
+- `min_functional_asserts` → at least this many non-navigation asserts per test.
+- `coverage` → which scenarios get negative cases (negatives go to `@regression`, not `@smoke`).
+- `no_assume_undiscovered_flows: true` → never materialize an element/flow absent from discovery.
+Absent block → behave as before (this is the no-regression default). The Reviewer enforces this as MF-9.
+
+## Tags (`--tags`, S4 Autonomous)
+
+When `--tags` is passed, emit them as the **native Playwright `tag` option** (Playwright v1.42+), not
+as text in the title. The tag option goes as the second argument of `test()` / `test.describe()`:
+
+```typescript
+test('Scenario: login con usuario válido', { tag: ['@smoke', '@happy-path', '@critical'] }, async ({ page }) => {
+  // ...
+});
+```
+
+Rules:
+- Use the tags **exactly** as received (already in `@tag` form). Do not invent, add or drop tags — the
+  taxonomy was decided by the discovery-analyzer and confirmed by the SDET at the checkpoint.
+- Apply the same `tag` array to **every** `test()` of the spec, including each case of a data-driven
+  `examples` loop. If you also tag the `test.describe`, do not duplicate on the inner tests.
+- Tags are orthogonal to `evidence.level`, A11y, POM and `@criterion` — none of those change.
+- No `--tags` → no `tag` option at all (zero regression vs historical specs).
+
 ## Instrumentación de evidencia (`evidence.level` del Style Contract)
 
 Read `evidence.level` from the Style Contract (default `minimal` if absent). It controls **only how you structure the test body** — locators, POM, asserts, `@criterion` citation and A11y are unchanged across all levels.
@@ -113,11 +148,13 @@ The test file at `--output`, with a JSDoc header like:
 ```typescript
 /**
  * @criterion <plan-entry citation>          // S4: plan prose. S3: RF-NNN (source_ref), e.g. RF-001 (fd-parabank.md:20-24)
+ * @tc-id <TC-NN>                             // S4 only, when --tc-id passed. Omit otherwise.
  * @writer-iterations <N>
  * @reviewer-verdict <pass|iteration_2_exhausted>
  */
 test.describe('Feature: ...', () => {
-  test('Scenario: ...', async ({ page }) => { ... });
+  // { tag: [...] } present only when --tags was passed (S4).
+  test('Scenario: ...', { tag: ['@smoke', '@happy-path'] }, async ({ page }) => { ... });
 });
 ```
 

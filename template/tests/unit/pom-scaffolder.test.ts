@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scaffoldPage, scaffold } from '../../src/pom-scaffolder.ts';
+import { scaffoldPage, scaffoldBasePage, scaffold } from '../../src/pom-scaffolder.ts';
 
 describe('pom-scaffolder scaffoldPage', () => {
   it('generates a Page class with PascalCase name from a kebab-case screen name', () => {
@@ -53,10 +53,51 @@ describe('pom-scaffolder scaffoldPage', () => {
     });
     expect(result.content).toContain("name: 'User\\'s profile'");
   });
+
+  it('extends BasePage and imports it by default', () => {
+    const result = scaffoldPage({ name: 'login' });
+    expect(result.content).toContain('extends BasePage');
+    expect(result.content).toContain("import { BasePage } from './base.page'");
+    expect(result.content).toContain('super(page);');
+  });
+
+  it('produces a standalone class (no BasePage) when basePage:false', () => {
+    const result = scaffoldPage({ name: 'login' }, { basePage: false });
+    expect(result.content).not.toContain('extends BasePage');
+    expect(result.content).toContain('readonly page: Page;');
+    expect(result.content).toContain('this.page = page;');
+  });
+
+  it('names anonymous elements by role+index instead of element0', () => {
+    const result = scaffoldPage({
+      name: 'widget',
+      interactive_elements: [{ role: 'button' }],
+    });
+    expect(result.content).toContain('readonly button0: Locator;');
+    expect(result.content).not.toContain('element0');
+  });
+
+  it('exposes a declared component as a field and imports it', () => {
+    const result = scaffoldPage({ name: 'home', components: ['nav'] });
+    expect(result.content).toContain('readonly nav: NavComponent;');
+    expect(result.content).toContain('this.nav = new NavComponent(page);');
+    expect(result.content).toContain("import { NavComponent } from '../components/nav.component'");
+  });
+});
+
+describe('pom-scaffolder scaffoldBasePage', () => {
+  it('emits a BasePage class with goto and waitForReady helpers', () => {
+    const base = scaffoldBasePage();
+    expect(base.className).toBe('BasePage');
+    expect(base.fileName).toBe('base.page.ts');
+    expect(base.content).toContain('export class BasePage');
+    expect(base.content).toContain('async goto(path');
+    expect(base.content).toContain('async waitForReady()');
+  });
 });
 
 describe('pom-scaffolder scaffold (in-memory)', () => {
-  it('produces one file per screen without writing to disk when writeToDisk=false', () => {
+  it('emits BasePage plus one file per screen when writeToDisk=false', () => {
     const result = scaffold(
       [
         { name: 'login', url_pattern: 'https://www.saucedemo.com/' },
@@ -66,11 +107,29 @@ describe('pom-scaffolder scaffold (in-memory)', () => {
       {},
       false,
     );
-    expect(result.files).toHaveLength(3);
-    expect(result.files.map((f) => f.className)).toEqual([
-      'LoginPage',
-      'InventoryPage',
-      'CheckoutStepOnePage',
-    ]);
+    expect(result.files).toHaveLength(4); // BasePage + 3 pages
+    const classNames = result.files.map((f) => f.className);
+    expect(classNames).toContain('BasePage');
+    expect(classNames).toContain('LoginPage');
+    expect(classNames).toContain('InventoryPage');
+    expect(classNames).toContain('CheckoutStepOnePage');
+  });
+
+  it('emits shared component files into the components dir', () => {
+    const result = scaffold(
+      [{ name: 'home', components: ['nav'] }],
+      { components: [{ name: 'nav', interactive_elements: [{ role: 'link', name: 'Home' }] }] },
+      false,
+    );
+    const nav = result.files.find((f) => f.className === 'NavComponent');
+    expect(nav).toBeDefined();
+    expect(nav?.path.replace(/\\/g, '/')).toContain('components/nav.component.ts');
+    expect(nav?.content).toContain("getByRole('link', { name: 'Home' })");
+  });
+
+  it('omits BasePage when basePage:false', () => {
+    const result = scaffold([{ name: 'login' }], { basePage: false }, false);
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0].className).toBe('LoginPage');
   });
 });

@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { scaffold, type DiscoveryScreen } from '../pom-scaffolder.ts';
+import { scaffold, type DiscoveryScreen, type DiscoveryComponent } from '../pom-scaffolder.ts';
 
 const discoveryPath = process.argv[2] ?? '.work/discovery-report.json';
 const outputDir = process.argv[3] ?? 'tests/pages';
 
 const raw = readFileSync(resolve(discoveryPath), 'utf8');
-const dr = JSON.parse(raw) as { screens: DiscoveryScreen[] };
+const dr = JSON.parse(raw) as { screens: DiscoveryScreen[]; components?: DiscoveryComponent[] };
 
-const result = scaffold(dr.screens, { outputDir });
+const result = scaffold(dr.screens, { outputDir, components: dr.components });
 
 console.log(`Scaffolded ${result.files.length} POM file(s) to ${outputDir}:`);
 for (const f of result.files) {

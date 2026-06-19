@@ -59,8 +59,25 @@ synthetic_fixtures:
       password: secret_sauce
     - username: performance_glitch_user
       password: secret_sauce
+  buyer_info:
+    - firstName: John
+      lastName: Doe
+      postalCode: '12345'
+  invalid_credentials:
+    - username: standard_user
+      password: wrong_password   # deliberately invalid — triggers "Username and password do not match" error
   test_cards: []
   test_iban: []
+
+# Política de diseño de test ("validar con cabeza") — enforced por ia4d-reviewer (MF-9).
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  coverage:
+    happy_path: always
+    negative: regression_only
+  no_assume_undiscovered_flows: true
 
 banned_apis:
   - page.waitForTimeout
