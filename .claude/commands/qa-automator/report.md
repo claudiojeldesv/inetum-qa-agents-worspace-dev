@@ -1,6 +1,6 @@
 ---
 description: Genera un reporte HTML Allure enriquecido con la evidencia del agente (trazabilidad RF-NNN, judge, Writer/Reviewer, drift, compliance) a partir de los artefactos de un run ya ejecutado. Post-proceso desacoplado, re-ejecutable.
-argument-hint: "[--results-dir=.work/allure-results] [--summary=.work/qa-automator-run-summary.json] [--output=.work/allure-report] [--open]"
+argument-hint: "[--results-dir=.work/allure-results] [--summary=.work/qa-automator-run-summary.json] [--output=.work/allure-report] [--no-open]"
 ---
 
 # /qa-automator:report
@@ -24,7 +24,8 @@ el agente tenga Java disponible.
 - `--results-dir=<path>` (opcional, default: `.work/allure-results`): dir con los `*-result.json`.
 - `--summary=<path>` (opcional, default: `.work/qa-automator-run-summary.json`): fuente del mapeo RF-NNN→spec.
 - `--output=<path>` (opcional, default: `.work/allure-report`): dir destino del HTML estático.
-- `--open` (opcional): abre el reporte tras generarlo (`npx allure open`).
+- `--no-open` (opcional): NO abre el reporte tras generarlo. Por defecto el command lo sirve por
+  HTTP con `npx allure open` (ver Cierre). Útil en CI o cuando solo quieres el HTML estático.
 
 ## Procedure
 
@@ -64,12 +65,16 @@ Contract (`full` = `test.step` + screenshot por paso + trace); allure-playwright
 El enricher **nunca** los toca. Reporta los warnings del enricher (p.ej. specs sin resultado
 matcheado: se enriquecen a nivel global, **nunca se truncan en silencio**).
 
-Si se pasó `--open`, además: `npx allure open .work/allure-report`.
-
 ### 4. Cierre
 
-1. Imprime la ruta del reporte (`<output>/index.html`) y el comando para abrirlo
-   (`npx allure open <output>`).
+1. **Auto-open (default)**: salvo que se haya pasado `--no-open`, sirve el reporte por HTTP con
+   `npx allure open <output>` **en segundo plano** (no bloquees el turno) e imprime la URL que
+   Allure reporta. Esto es obligatorio porque el HTML de Allure es un SPA que hace `fetch()` de
+   `data/*.json`: abierto con doble-clic (`file://`) el navegador bloquea esos fetch y da el
+   "500 / Failed to fetch". Servido por HTTP funciona. Avisa al SDET de que el servidor queda
+   corriendo y se cierra con Ctrl+C (o que te pida pararlo).
+   Si se pasó `--no-open`, omite el servidor e imprime la ruta del reporte (`<output>/index.html`)
+   y el comando manual (`npx allure open <output>`) — recordando que el doble-clic NO funciona.
 2. Registra en `.work/audit-log.json` la escritura del reporte vía `appendAuditEntry` de
    `src/audit-log.ts`:
    ```
@@ -85,7 +90,8 @@ Reporte Allure generado: .work/allure-report/index.html
   Environment: target_url, compliance_verdict, judge_mean_score, drift_count
   Categorías: triaje de fallos + a11y
   Por test: label RF-NNN, link TMS (source_ref), attachment judge + Writer/Reviewer
-Abrir: npx allure open .work/allure-report
+Sirviendo por HTTP (auto-open): http://127.0.0.1:<puerto>  — Ctrl+C para parar
+(con --no-open: imprime la ruta y `npx allure open .work/allure-report`; el doble-clic NO sirve)
 ```
 
 ## Failure modes
