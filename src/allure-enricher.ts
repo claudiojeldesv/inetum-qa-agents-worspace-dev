@@ -115,6 +115,7 @@ export interface AllureResult {
   fullName?: string;
   status?: string;
   description?: string;
+  descriptionHtml?: string;
   labels?: AllureLabel[];
   links?: AllureLink[];
   attachments?: AllureAttachment[];
@@ -311,6 +312,65 @@ export function buildTestDescription(test: RunSummaryTest, summary: RunSummary):
   return lines.join('\n');
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Descripción HTML por test, sanitizer-safe. Allure 2 elimina `style`, `class` y
+ * `data-*` del `descriptionHtml` (verificado contra 2.34 single-file); conserva
+ * tags estructurales: table/tbody/tr/td, b, code, a[href], blockquote, div, dl.
+ * Por eso el COLOR no vive aquí sino en el CSS inyectado en build-report.mjs sobre
+ * `.description__text` (la clase con que Allure envuelve esta descripción). Aquí
+ * solo damos JERARQUÍA: tabla de metadatos + IDs en <code> + callouts en blockquote.
+ */
+export function buildTestDescriptionHtml(test: RunSummaryTest, summary: RunSummary): string {
+  const rows: string[] = [];
+  const row = (k: string, vHtml: string): void => {
+    rows.push(`<tr><td><b>${k}</b></td><td>${vHtml}</td></tr>`);
+  };
+
+  if (test.tc_id) {
+    const tags = (test.tags ?? []).map((t) => `<code>${escapeHtml(t)}</code>`).join(' ');
+    row('TC', `<code>${escapeHtml(test.tc_id)}</code>${tags ? ` ${tags}` : ''}`);
+  }
+  if (test.rf) {
+    const ref = test.source_ref ? ` — <code>${escapeHtml(test.source_ref)}</code>` : '';
+    row('Criterio', `<code>${escapeHtml(test.rf)}</code>${ref}`);
+  }
+  if (summary.module) {
+    const fmt = summary.input_format ? ` (${escapeHtml(summary.input_format)})` : '';
+    row('Módulo', `${escapeHtml(summary.module)}${fmt}`);
+  }
+  if (test.reviewer_verdict) {
+    const it = test.writer_iterations !== undefined ? ` · ${test.writer_iterations} iteración(es) Writer` : '';
+    row('Reviewer', escapeHtml(`${test.reviewer_verdict}${it}`));
+  }
+  if (test.severity && ALLURE_SEVERITIES.has(test.severity)) {
+    row('Severidad', escapeHtml(test.severity));
+  }
+  if (typeof test.judge_score === 'number') row('Judge score', escapeHtml(test.judge_score));
+  if (test.data_driven) row('Data-driven', `${escapeHtml(test.cases?.length ?? '?')} caso(s)`);
+
+  const blocks: string[] = [];
+  if (rows.length) blocks.push(`<table><tbody>${rows.join('')}</tbody></table>`);
+
+  const related = (summary.drift ?? []).filter((d) => d.rf && d.rf === test.rf);
+  if (related.length) {
+    const items = related
+      .map((d) => `${escapeHtml(d.flow ?? '?')}${d.reason ? `: ${escapeHtml(d.reason)}` : ''}`)
+      .join('<br>');
+    blocks.push(`<blockquote><b>Drift relacionado:</b><br>${items}</blockquote>`);
+  }
+  if (test.notes) blocks.push(`<blockquote>${escapeHtml(test.notes)}</blockquote>`);
+
+  return blocks.join('');
+}
+
 export function buildExecutor(summary: RunSummary): Record<string, unknown> {
   return {
     name: 'ia4d-qa-automator',
@@ -400,6 +460,38 @@ function upsertLabel(result: AllureResult, name: string, value: string): void {
   }
 }
 
+/**
+ * Deduplica attachments por `source`. El enricher añade el adjunto judge/review con `.push`
+ * (no idempotente); re-correr el reporte sobre los `*-result.json` ya mutados los apilaba. Cada
+ * `source` es estable por test, así que dedupe por source limpia lo acumulado y previene futuros.
+ * Los screenshots de allure-playwright tienen `source` único → se conservan.
+ */
+export function dedupeAttachmentsBySource(result: AllureResult): void {
+  if (!result.attachments) return;
+  const seen = new Set<string>();
+  result.attachments = result.attachments.filter((a) => {
+    if (!a.source) return true; // sin source no se puede dedupe; se mantiene
+    if (seen.has(a.source)) return false;
+    seen.add(a.source);
+    return true;
+  });
+}
+
+/**
+ * Colapsa labels `tag` que solo difieren en el `@` inicial. `allure-playwright` emite los
+ * tags de Playwright SIN `@` (`smoke`); el enricher los añade CON `@` (`@smoke`). Sin esto
+ * coexisten ambos y el reporte muestra el tag duplicado. Nos quedamos con la forma `@` cuando
+ * existe; los tags sin equivalente `@` (p.ej. `RF-001`) se dejan intactos.
+ */
+export function collapseTagDuplicates(result: AllureResult): void {
+  const labels = result.labels;
+  if (!labels) return;
+  const tagValues = new Set(labels.filter((l) => l.name === 'tag').map((l) => l.value));
+  result.labels = labels.filter(
+    (l) => !(l.name === 'tag' && !l.value.startsWith('@') && tagValues.has(`@${l.value}`)),
+  );
+}
+
 function renderJudgeAttachment(judge: JudgeEntry): string {
   return JSON.stringify(
     {
@@ -472,12 +564,18 @@ export function planEnrichment(inputs: PlanInputs): EnrichmentPlan {
       for (const tag of test.tags ?? []) {
         upsertLabel(json, 'tag', tag.startsWith('@') ? tag : `@${tag}`);
       }
+      // allure-playwright ya emitió los tags de Playwright sin '@'; colapsa los duplicados.
+      collapseTagDuplicates(json);
 
       // Behaviors (hoja) + severidad + descripción markdown enriquecida.
       upsertLabel(json, 'story', storyFor(test));
       upsertLabel(json, 'severity', severityFor(test));
       const desc = buildTestDescription(test, summary);
       if (desc) json.description = desc;
+      // descriptionHtml: Allure UI lo prioriza sobre description (markdown), que se
+      // mantiene como dato portable para otros consumidores del JSON.
+      const descHtml = buildTestDescriptionHtml(test, summary);
+      if (descHtml) json.descriptionHtml = descHtml;
 
       // Link TMS RF-NNN → source_ref.
       if (test.rf && test.source_ref) {
@@ -502,6 +600,9 @@ export function planEnrichment(inputs: PlanInputs): EnrichmentPlan {
         attachmentFiles.push({ source, content: renderReviewAttachment(test, reviews) });
         json.attachments.push({ name: 'Writer/Reviewer protocol', source, type: 'text/markdown' });
       }
+
+      // Idempotencia: re-correr el reporte no debe apilar los adjuntos del agente.
+      dedupeAttachmentsBySource(json);
     }
   }
 

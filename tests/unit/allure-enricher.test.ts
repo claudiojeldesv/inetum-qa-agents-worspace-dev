@@ -11,6 +11,9 @@ import {
   severityFor,
   storyFor,
   buildTestDescription,
+  buildTestDescriptionHtml,
+  collapseTagDuplicates,
+  dedupeAttachmentsBySource,
   type RunSummary,
   type AllureResult,
 } from '../../src/allure-enricher.ts';
@@ -171,6 +174,8 @@ describe('planEnrichment — enriquecido', () => {
     expect(mutated.labels).toContainEqual({ name: 'story', value: 'login.spec.ts' });
     expect(mutated.labels).toContainEqual({ name: 'severity', value: 'normal' });
     expect(mutated.description).toContain('RF-001');
+    expect(mutated.descriptionHtml).toContain('<table>');
+    expect(mutated.descriptionHtml).toContain('<code>RF-001</code>');
     expect(mutated.links).toContainEqual({ name: 'RF-001', url: 'parabank.feature:8 (REQ-LOGIN)', type: 'tms' });
     expect(mutated.attachments?.some((a) => a.type === 'application/json')).toBe(true);
     expect(mutated.attachments?.some((a) => a.type === 'text/markdown')).toBe(true);
@@ -217,6 +222,82 @@ describe('planEnrichment — enriquecido', () => {
     // tres tags distintos coexisten como labels 'tag' (upsert dedupe por name+value).
     expect(mutated.labels?.filter((l) => l.name === 'tag')).toHaveLength(3);
     expect(mutated.description).toContain('TC-01');
+  });
+
+  it('S4: colapsa el tag duplicado (allure-playwright "smoke" + enricher "@smoke" → solo @smoke)', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [{ spec: 'tests/e2e/login.spec.ts', rf: 'RF-001', tags: ['@smoke', '@happy-path'] }],
+    };
+    // El resultado ya trae los tags SIN @, como los emite allure-playwright.
+    const results = [
+      {
+        file: '/r/t-result.json',
+        json: {
+          uuid: 't',
+          fullName: 'tests/e2e/login.spec.ts:z',
+          labels: [
+            { name: 'tag', value: 'smoke' },
+            { name: 'tag', value: 'happy-path' },
+          ],
+        } as AllureResult,
+      },
+    ];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    const tags = plan.resultMutations[0].json.labels?.filter((l) => l.name === 'tag').map((l) => l.value);
+    // sin duplicados sin @, con la forma @, y RF-001 intacto (no tiene equivalente @)
+    expect(tags).toContain('@smoke');
+    expect(tags).toContain('@happy-path');
+    expect(tags).toContain('RF-001');
+    expect(tags).not.toContain('smoke');
+    expect(tags).not.toContain('happy-path');
+  });
+
+  it('dedupeAttachmentsBySource: colapsa adjuntos repetidos por source, conserva screenshots únicos', () => {
+    const result: AllureResult = {
+      attachments: [
+        { name: 'Writer/Reviewer protocol', source: 'abc-review-attachment.md', type: 'text/markdown' },
+        { name: 'Writer/Reviewer protocol', source: 'abc-review-attachment.md', type: 'text/markdown' },
+        { name: 'Writer/Reviewer protocol', source: 'abc-review-attachment.md', type: 'text/markdown' },
+        { name: 'post-navigate', source: 'screenshot-1.png', type: 'image/png' },
+        { name: 'post-submit', source: 'screenshot-2.png', type: 'image/png' },
+      ],
+    };
+    dedupeAttachmentsBySource(result);
+    expect(result.attachments).toHaveLength(3);
+    expect(result.attachments?.filter((a) => a.source === 'abc-review-attachment.md')).toHaveLength(1);
+    expect(result.attachments?.some((a) => a.source === 'screenshot-1.png')).toBe(true);
+    expect(result.attachments?.some((a) => a.source === 'screenshot-2.png')).toBe(true);
+  });
+
+  it('planEnrichment: re-correr no apila el adjunto Writer/Reviewer (idempotente)', () => {
+    const reviewByFile = indexReviewByFile([
+      { test_file: 'tests/e2e/login.spec.ts', iteration: 0, verdict: 'approved', feedback_summary: '0 must-fix' },
+    ]);
+    const json = loginResult();
+    const run = () =>
+      planEnrichment({ summary: SUMMARY, results: [{ file: '/r/abc-123-result.json', json }], judgeByFile: new Map(), reviewByFile });
+    run();
+    run();
+    run();
+    const reviewAtts = json.attachments?.filter((a) => a.name === 'Writer/Reviewer protocol');
+    expect(reviewAtts).toHaveLength(1);
+  });
+
+  it('collapseTagDuplicates: deja intactos los tags sin equivalente @ (RF-NNN) y los @ ya únicos', () => {
+    const result: AllureResult = {
+      labels: [
+        { name: 'tag', value: 'RF-001' },
+        { name: 'tag', value: '@regression' },
+        { name: 'tag', value: 'regression' },
+        { name: 'epic', value: 'Module S4' },
+      ],
+    };
+    collapseTagDuplicates(result);
+    const tags = result.labels?.filter((l) => l.name === 'tag').map((l) => l.value);
+    expect(tags).toEqual(['RF-001', '@regression']);
+    // no toca labels de otro tipo
+    expect(result.labels).toContainEqual({ name: 'epic', value: 'Module S4' });
   });
 
   it('S4: tag sin @ se normaliza a @tag', () => {
@@ -287,6 +368,44 @@ describe('builders de enriquecimiento PRO', () => {
 
   it('buildTestDescription: sin campos opcionales degrada a string vacío o mínimo', () => {
     expect(buildTestDescription({ spec: 's' }, {}).trim()).toBe('');
+  });
+
+  it('buildTestDescriptionHtml: tabla con IDs en <code>, callouts en blockquote, sanitizer-safe', () => {
+    const html = buildTestDescriptionHtml(
+      {
+        spec: 'tests/e2e/x.spec.ts',
+        tc_id: 'TC-07',
+        tags: ['@regression', '@negative'],
+        rf: 'RF-004',
+        source_ref: 'f.feature:33',
+        reviewer_verdict: 'approved',
+        writer_iterations: 1,
+        judge_score: 0.94,
+        notes: 'Heal: negativa re-expresada como submit toBeDisabled.',
+      },
+      SUMMARY,
+    );
+    expect(html).toContain('<table><tbody>');
+    expect(html).toContain('<code>TC-07</code>');
+    expect(html).toContain('<code>@regression</code>');
+    expect(html).toContain('<code>RF-004</code>');
+    expect(html).toContain('<code>f.feature:33</code>');
+    expect(html).toContain('approved · 1 iteración(es) Writer');
+    // SUMMARY.drift tiene RF-004 → blockquote de drift relacionado
+    expect(html).toContain('<blockquote><b>Drift relacionado:</b>');
+    expect(html).toContain('close-account');
+    // notes → su propio blockquote (el "Heal:" vive en el texto de notes, no se sintetiza)
+    expect(html).toContain('<blockquote>Heal: negativa re-expresada como submit toBeDisabled.</blockquote>');
+    // sin style/class/data: el sanitizer de Allure los elimina, el color va por CSS inyectado
+    expect(html).not.toContain('style=');
+    expect(html).not.toContain('class=');
+  });
+
+  it('buildTestDescriptionHtml: escapa HTML en valores y degrada a vacío sin campos', () => {
+    expect(buildTestDescriptionHtml({ spec: 's' }, {})).toBe('');
+    const html = buildTestDescriptionHtml({ spec: 's', notes: '<img src=x onerror=alert(1)>' }, {});
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).not.toContain('<img');
   });
 
   it('buildCategories incluye triaje ampliado (timeout, selector) además de a11y', () => {
