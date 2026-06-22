@@ -43,12 +43,16 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 - Redundant asserts.
 - Naming not semantic.
 - POM call could be more granular.
+- **Naturaleza en el nombre/título**: the test title or `describe` contains the nature
+  (`happy-path`, `happy`, `negative`, `smoke`) instead of describing the condition + expected outcome.
+  The nature belongs **only** in the `tag` option. Title should follow `naming.test_title_pattern`
+  (default `condición → resultado`, Spanish). Report it; the Writer fixes on next iteration.
 
 3. Produce structured feedback:
 
 ```json
 {
-  "test_file": "tests/e2e/login.happy-path.spec.ts",
+  "test_file": "tests/e2e/TC-001_inicio-sesion.usuario-valido.spec.ts",
   "iteration": 0,
   "verdict": "approved | rejected",
   "feedback": [

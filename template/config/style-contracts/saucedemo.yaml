@@ -19,8 +19,15 @@ locators:
   forbid_xpath: true
 
 naming:
-  spec_pattern: '{feature}.{scenario}.spec.ts'
-  test_title_pattern: '{scenario_human_name}'
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'   # prefijo de ID estable + feature.condicion (español, sin tildes/ñ)
+  test_title_pattern: '{condicion} → {resultado}'        # título legible español; naturaleza NO va aquí (vive en tag)
+
+# Registro de IDs estables del caso (resuelve el prefijo {id} del archivo).
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/saucedemo.json'
+  id_prefix: 'TC'                                         # fallback cuando no hay key de gestor: TC-001, TC-002…
 
 asserts:
   semantic_only: true
@@ -76,8 +83,14 @@ test_design:
   min_functional_asserts: 1
   forbid_navigation_only_test: true
   coverage:
-    happy_path: always
-    negative: regression_only
+    default:
+      - happy                       # flujos no listados → solo camino feliz
+    by_flow:
+      inicio-sesion:                # login es crítico: happy + negativos (usuario bloqueado, credenciales inválidas)
+        - happy
+        - negative
+      pago:                         # checkout: solo camino feliz
+        - happy
   no_assume_undiscovered_flows: true
 
 banned_apis:

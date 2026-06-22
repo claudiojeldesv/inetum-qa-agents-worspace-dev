@@ -41,10 +41,37 @@ locators:
     - name
     - id
 
-# Naming
+# Naming (estándar v0.2 design/gates-off-by-default — español, naturaleza fuera del nombre)
 naming:
-  spec_pattern: string              # default '{feature}.{scenario}.spec.ts'
-  test_title_pattern: string        # default '{scenario_human_name}'
+  language: string                  # default 'es'. Idioma de los identificadores legibles
+                                    #   (feature, condición, título). 'es' → traduce anglicismos
+                                    #   técnicos vía glosario (ver ia4d-discovery-analyzer).
+  spec_pattern: string              # default '{id}_{feature}.{condicion}.spec.ts'
+                                    #   - {id}: ID ESTABLE del caso (key del gestor de pruebas o
+                                    #     TC-NNN persistido — ver tc_registry abajo). Prefijo + '_'.
+                                    #   - {feature}: flujo en kebab-case español sin tildes/ñ (ej. 'pago').
+                                    #   - {condicion}: condición que se prueba, NO la naturaleza
+                                    #     (ej. 'tarjeta-valida', 'usuario-bloqueado'). NUNCA 'happy-path'
+                                    #     en el nombre — la naturaleza vive en el tag.
+                                    #   Ej.: 'MAPFRE-T1234_pago.tarjeta-valida.spec.ts'.
+  test_title_pattern: string        # default '{condicion} → {resultado}'. Título legible en español
+                                    #   que se lee en Allure. Ej. 'compra con tarjeta válida → muestra
+                                    #   confirmación de pedido'. La naturaleza NO va en el título.
+
+# Registro de IDs estables de caso (v0.2). Resuelve el prefijo {id} del nombre de archivo.
+# Un ID efímero por-run (rank) NO sirve en un nombre permanente: renombraría archivos entre
+# runs. Por eso el ID se persiste en un registro versionado, por sitio.
+tc_registry:
+  enabled: boolean                  # default true. false → sin prefijo de ID (archivo = feature.condicion).
+  path: string                      # default 'config/tc-registry/<site-id>.json'. Mapea el slug estable
+                                    #   '<feature>.<condicion>' → { id, source }. Versionado, auditable.
+  id_prefix: string                 # default 'TC'. Prefijo del ID que ASIGNA el agente cuando no hay key
+                                    #   de gestor (TC-001, TC-002…). Secuencial estable, NO por rank.
+  # source por entrada del registro:
+  #   'xray'  → el id es el key del gestor de pruebas (lo rellena el SDET; el agente NUNCA lo inventa).
+  #   'agent' → el id es el TC-NNN que asignó y persistió el agente (fallback cuando no hay key).
+  # Resolución por escenario en cada run: si el slug ya está en el registro → reusa su id;
+  # si es nuevo → el agente asigna el siguiente TC-NNN libre, source:'agent', y lo añade al registro.
 
 # Asserts
 asserts:
@@ -114,9 +141,19 @@ test_design:
   min_functional_asserts: integer           # default 1. Mínimo de asserts funcionales (no-navegación) por test.
   forbid_navigation_only_test: boolean      # default true cuando el bloque existe. Un test cuyo único
                                             #   assert es toHaveURL / nav visible → rechazado por MF-9.
-  coverage:                                 # guía de cobertura por naturaleza de escenario
-    happy_path: string                      #   'always' (default) — el happy path siempre se cubre
-    negative: string                        #   'regression_only' (default) — negativos solo en suite regression
+  coverage:                                 # cobertura por flujo — qué naturalezas materializar (v0.2).
+                                            #   Reemplaza al antiguo global happy_path/negative.
+    default:                                #   naturalezas para flujos NO listados en by_flow.
+      - happy                               #     default ['happy'] — solo camino feliz (S4 no encarece
+                                            #     todos los runs ni mete al planner a provocar errores).
+    by_flow:                                #   override por flujo (clave = slug del flujo en español).
+      # <slug-flujo>: [happy, negative]     #   ej. inicio-sesion: [happy, negative]; pago: [happy]
+                                            #   'happy'    → materializa el/los camino(s) esperado(s).
+                                            #   'negative' → materializa también los casos de error/validación.
+                                            #   En S4 los negativos son OPT-IN: solo se generan para los
+                                            #   flujos que lo declaren aquí (o vía override del brief CLI).
+                                            #   En S2/S3 la naturaleza la dan los criterios RF; este bloque
+                                            #   no fuerza nada que el FD/Gherkin no contemple.
   no_assume_undiscovered_flows: boolean     # default true. No materializar flujos/elementos que no
                                             #   estén en discovery (refuerza la hard rule del Writer).
 

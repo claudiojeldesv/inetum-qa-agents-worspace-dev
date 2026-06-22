@@ -17,7 +17,10 @@ You are the **Writer** of the Quality layer. You take ONE scenario from a test p
 - `--pom-skeleton-dir=<path>` — directory of scaffolded `*.page.ts` files (typically `tests/pages/`).
 - `--output=<path>` — target path for the new `.spec.ts`.
 - `--discovery-report=<path>` — .work/discovery-report.json with element selectors (data-test attrs, roles, etc.).
-- `--tc-id=<TC-NN>` — **optional, S4 Autonomous only**. The per-run test identifier from `scenarios_catalog`. When present, add `@tc-id TC-NN` to the JSDoc header. When absent, omit it.
+- `--tc-id=<ID>` — **optional, S4 Autonomous only**. The **stable** test identifier the command
+  resolved from the `tc_registry` (a test-management key like `MAPFRE-T1234`, or an agent-assigned
+  `TC-NNN`). When present, add `@tc-id <ID>` to the JSDoc header. The same ID already prefixes the
+  `--output` filename (the command built it); you do not construct the filename. When absent, omit it.
 - `--tags=<@a,@b,@c>` — **optional, S4 Autonomous only**. Comma-separated Playwright tags from the catalog/checkpoint (e.g. `@smoke,@happy-path,@critical`). When present, emit them as native Playwright tags (see below). When absent, no `tag` option — behave exactly as before.
 - `--criteria=<path>` — **optional, S3 (Spec-refiner) only**. The `criteria.json` from `ia4d-spec-refiner`. When present, your `@criterion` cites the real `RF-NNN` + its `source_ref` instead of plan prose (see "S3 mode" below). When absent (S4), behave exactly as before.
 
@@ -35,6 +38,11 @@ You are the **Writer** of the Quality layer. You take ONE scenario from a test p
    - Add asserts that verify functional state, not just navigation. If the Style Contract carries a
      `test_design` block (see below), honor it: close every test with the **business post-condition**
      of the flow (the outcome), not a bare `toHaveURL`/nav-visible check, or the Reviewer rejects it (MF-9).
+   - **Naming (español, naturaleza fuera del nombre)**: the `test.describe` is `Feature: <feature>`
+     (e.g. `Feature: Pago`). The `test()` title follows `naming.test_title_pattern` of the contract,
+     default `{condicion} → {resultado}` in Spanish — describe the **condition tested and the expected
+     outcome**, e.g. `'compra con tarjeta válida → muestra confirmación de pedido'`. **Never** put the
+     nature (`happy-path`/`negative`) in the title or describe — it lives only in the `tag`.
    - Add JSDoc with `@criterion` citation referencing the plan entry (and `@tc-id` if `--tc-id` was passed).
    - If `--tags` was passed, attach them as **native Playwright tags** on the test (see "Tags" below).
 4. Write the file to `--output`.
@@ -143,18 +151,21 @@ Rules for `steps`/`full`:
 
 ## Output
 
-The test file at `--output`, with a JSDoc header like:
+The test file at `--output` (filename already built by the command: `<id>_<feature>.<condicion>.spec.ts`),
+with a JSDoc header like:
 
 ```typescript
 /**
  * @criterion <plan-entry citation>          // S4: plan prose. S3: RF-NNN (source_ref), e.g. RF-001 (fd-parabank.md:20-24)
- * @tc-id <TC-NN>                             // S4 only, when --tc-id passed. Omit otherwise.
+ * @tc-id <ID>                                // S4 only, when --tc-id passed. Stable ID (xray key or TC-NNN). Omit otherwise.
  * @writer-iterations <N>
  * @reviewer-verdict <pass|iteration_2_exhausted>
  */
-test.describe('Feature: ...', () => {
-  // { tag: [...] } present only when --tags was passed (S4).
-  test('Scenario: ...', { tag: ['@smoke', '@happy-path'] }, async ({ page }) => { ... });
+test.describe('Feature: Pago', () => {
+  // { tag: [...] } present only when --tags was passed (S4). Nature lives ONLY here, never in the title.
+  test('compra con tarjeta válida → muestra confirmación de pedido',
+    { tag: ['@smoke', '@happy-path', '@critical'] },
+    async ({ page }) => { ... });
 });
 ```
 

@@ -25,9 +25,16 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
    - `url_pattern`: URL fragment (e.g. `/inventory.html`).
    - `interactive_elements`: list of elements visible in the plan with their `test_id` (`data-test` attr), `role`, `name`, `label`.
 4. Cross-reference with the active Style Contract (`config/style-contracts/*.yaml`) if available to honor `locators.priority`.
-5. Build `scenarios_recommended` (flat list of scenario refs, as today) AND the `scenarios_catalog`
+5. Build `scenarios_recommended` (flat list of scenario refs) AND the `scenarios_catalog`
    (see "Scenario catalog" below) — the catalog is what lets the command cap, rank and tag.
-6. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
+   Scenario refs use the **stable Spanish slug** `<feature>.<condicion>` (see "Naming de escenarios"),
+   never the nature (`happy-path`/`negative`) in the slug.
+6. **Coverage por flujo** — read `test_design.coverage` from the Style Contract (if present). For each
+   discovered flow, materialize the natures it asks for (see "Cobertura por flujo" below): always the
+   `happy` scenario(s); add `negative` scenario(s) **only** for flows whose `by_flow` (or the brief
+   override the command passes you) lists `negative`. Negatives are derived from declared negative
+   fixtures / obvious validation on the SAME discovered screen — never from an undiscovered flow.
+7. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
 
 ## Output schema (.work/discovery-report.json)
 
@@ -57,38 +64,59 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
     }
   ],
   "scenarios_recommended": [
-    "login.standard-user-happy-path",
-    "cart.add-and-view",
-    "checkout.complete-flow"
+    "inicio-sesion.usuario-valido",
+    "inicio-sesion.usuario-bloqueado",
+    "pago.compra-completa",
+    "carrito.agregar-y-ver"
   ],
   "scenarios_catalog": [
     {
-      "tc_id": "TC-01",
-      "scenario": "login.standard-user-happy-path",
+      "scenario_slug": "inicio-sesion.usuario-valido",
+      "feature": "inicio-sesion",
+      "condicion": "usuario-valido",
+      "nature": "happy",
       "suite_tags": ["@smoke", "@happy-path", "@critical"],
       "criticality": "critical",
       "rank": 1,
-      "rationale": "login es flujo crítico de entrada; happy-path"
+      "rationale": "login es flujo crítico de entrada; camino feliz"
     },
     {
-      "tc_id": "TC-02",
-      "scenario": "checkout.complete-flow",
-      "suite_tags": ["@smoke", "@happy-path", "@critical"],
+      "scenario_slug": "inicio-sesion.usuario-bloqueado",
+      "feature": "inicio-sesion",
+      "condicion": "usuario-bloqueado",
+      "nature": "negative",
+      "suite_tags": ["@regression", "@negative"],
       "criticality": "critical",
       "rank": 2,
-      "rationale": "checkout es flujo crítico de negocio; happy-path"
+      "rationale": "negativo de login pedido por coverage.by_flow; credencial locked_out de fixtures"
     },
     {
-      "tc_id": "TC-03",
-      "scenario": "cart.add-and-view",
+      "scenario_slug": "pago.compra-completa",
+      "feature": "pago",
+      "condicion": "compra-completa",
+      "nature": "happy",
+      "suite_tags": ["@smoke", "@happy-path", "@critical"],
+      "criticality": "critical",
+      "rank": 3,
+      "rationale": "checkout es flujo crítico de negocio; camino feliz"
+    },
+    {
+      "scenario_slug": "carrito.agregar-y-ver",
+      "feature": "carrito",
+      "condicion": "agregar-y-ver",
+      "nature": "happy",
       "suite_tags": ["@regression", "@happy-path"],
       "criticality": "normal",
-      "rank": 3,
+      "rank": 4,
       "rationale": "flujo de soporte, no crítico"
     }
   ]
 }
 ```
+
+El `tc_id` / ID estable del archivo **NO lo asignas tú**: el command lo resuelve contra el registro
+(`tc_registry`) usando el `scenario_slug` como clave. Tú aportas el slug estable, el `rank`, los tags,
+la criticidad y la naturaleza; el command pega el ID. El `rank` solo ordena el checkpoint.
 
 ## Shared components (`components`) — opcional, conservador
 
@@ -103,17 +131,56 @@ pages exponen como campo.
   específicos de una sola pantalla.
 - Si nada se repite, omite `components` por completo (campo opcional). Sin regresión.
 
+## Naming de escenarios (slug estable español, naturaleza fuera del nombre)
+
+Cada escenario tiene un **slug estable** `<feature>.<condicion>`:
+
+- `feature`: el flujo, kebab-case **español sin tildes ni ñ**, traduciendo el anglicismo técnico vía
+  el **glosario** de abajo (`login` → `inicio-sesion`, `checkout` → `pago`…).
+- `condicion`: **qué condición se prueba**, no su naturaleza. `usuario-valido`, `tarjeta-valida`,
+  `usuario-bloqueado`, `credenciales-invalidas`, `campos-vacios`, `sin-resultados`. **NUNCA** metas
+  `happy-path` / `negative` en el slug — la naturaleza vive en `suite_tags` y en el campo `nature`.
+
+El `scenario_slug` es la **clave estable** que el command usa contra el registro `tc_registry` para
+resolver el ID del archivo. Mismo escenario en dos runs → mismo slug → mismo ID. Sé consistente.
+
+### Glosario de traducción (anglicismo técnico → español)
+
+`login`→`inicio-sesion`, `logout`→`cierre-sesion`, `signin`/`auth`→`inicio-sesion`,
+`signup`/`register`→`registro`, `checkout`/`pay`/`payment`→`pago`, `cart`→`carrito`,
+`search`→`busqueda`, `order`/`purchase`→`compra`, `transfer`→`transferencia`, `billing`→`facturacion`,
+`product`→`producto`, `profile`/`account`→`perfil`, `contact`→`contacto`, `coupon`→`cupon`,
+`checkout-step-one`→`pago-paso-uno`. Si un flujo no está en el glosario, tradúcelo al término QA
+español más natural (kebab-case, sin tildes). No inventes flujos; solo nombras lo descubierto.
+
+## Cobertura por flujo (`test_design.coverage`)
+
+Lee `test_design.coverage` del Style Contract (el command también puede pasarte un override del brief).
+Por cada flujo descubierto, materializa las naturalezas pedidas:
+
+- Siempre el/los escenario(s) `happy` (`nature: "happy"`).
+- Añade escenario(s) `negative` (`nature: "negative"`) **solo** si el flujo está en `coverage.by_flow`
+  (o el override) con `negative`. Si no, omite los negativos de ese flujo (default = solo happy).
+- Los negativos se derivan de **fixtures negativos declarados** en el contract (`synthetic_fixtures`,
+  p.ej. `invalid_credentials`, una credencial `locked_out`) o de validación evidente sobre la **misma
+  pantalla ya descubierta** (campo requerido vacío, formato inválido). Son caminos alternativos de una
+  pantalla descubierta, no flujos nuevos → no violan `no_assume_undiscovered_flows`.
+- Nunca fabriques un negativo que requiera un fixture o pantalla que no existe. Si la cobertura pide
+  `negative` pero no hay material para construirlo, omítelo y dilo en el `rationale` del happy.
+
 ## Scenario catalog (`scenarios_catalog`) — ranking + tags
 
 Cada entrada de `scenarios_catalog` corresponde 1:1 con un ref de `scenarios_recommended`. El
-**command** lo usa para aplicar el cap (`--max-scenarios`), mostrar el checkpoint y pasar `tc_id`/tags
-al Writer. Tú solo lo construyes; no decides el cap ni truncas (eso es del command).
+**command** lo usa para aplicar el cap (`--max-scenarios`), mostrar el checkpoint, resolver el ID
+contra el registro y pasar el ID/tags al Writer. Tú solo lo construyes; no decides el cap ni truncas
+ni asignas el ID (eso es del command).
 
-- `tc_id`: `TC-NN` secuencial **por orden de `rank`** (TC-01 = rank 1). Efímero por-run, sin estado.
-- `rank`: entero desde 1, por impacto×frecuencia. Ordena: primero los `@critical` happy-path, luego
-  el resto de happy-paths, luego los negativos. Empates → orden de aparición en el plan.
+- `scenario_slug`, `feature`, `condicion`: ver "Naming de escenarios".
+- `nature`: `"happy"` | `"negative"` — la naturaleza del escenario (gobierna tags y cobertura).
+- `rank`: entero desde 1, por impacto×frecuencia. Ordena: primero los `@critical` happy, luego
+  el resto de happy, luego los negativos. Empates → orden de aparición en el plan.
 - `criticality`: `"critical"` si el flujo cae en la lista de **keywords críticas** abajo; si no, `"normal"`.
-- `rationale`: una línea, por qué ese rank/criticidad. No prosa larga.
+- `rationale`: una línea, por qué ese rank/criticidad/naturaleza. No prosa larga.
 
 ### Taxonomía de `suite_tags` (dos ejes + criticidad)
 
@@ -133,9 +200,16 @@ Combinaciones resultantes:
 
 ### Keywords de flujo crítico
 
-Un escenario es de flujo crítico si su nombre o el del screen contiene (case-insensitive):
-`login`, `logout`, `auth`, `signin`, `signup`, `register`, `checkout`, `payment`, `pay`, `transfer`,
-`order`, `purchase`, `billing`. Esta lista es el criterio; no añadas criticidad por intuición.
+Un escenario es de flujo crítico si su slug (`feature`) **o** el nombre del screen contiene
+(case-insensitive) cualquiera de estas keywords. Como el slug es español pero la pantalla del planner
+suele venir en inglés, la lista es **bilingüe** — basta que matchee una:
+
+- Español (slug): `inicio-sesion`, `cierre-sesion`, `registro`, `pago`, `compra`, `transferencia`,
+  `facturacion`.
+- Inglés (screen del planner): `login`, `logout`, `auth`, `signin`, `signup`, `register`, `checkout`,
+  `payment`, `pay`, `transfer`, `order`, `purchase`, `billing`.
+
+Esta lista es el criterio; no añadas criticidad por intuición.
 
 El SDET ajusta tags y selección en el checkpoint del command — tú solo propones.
 
@@ -155,8 +229,8 @@ NOT find (the raw material for drift detection — which the *command* decides, 
 ```json
 "criteria_mapping": {
   "mapped": [
-    { "rf": "RF-001", "flow": "login", "scenario": "login.happy-path", "screen": "login" },
-    { "rf": "RF-003", "flow": "transfer-funds", "scenario": "transfer.happy-path", "screen": "transfer" }
+    { "rf": "RF-001", "flow": "login", "scenario": "inicio-sesion.usuario-valido", "screen": "login" },
+    { "rf": "RF-003", "flow": "transfer-funds", "scenario": "transferencia.monto-valido", "screen": "transfer" }
   ],
   "unmapped_flows": [
     { "flow": "bill-pay", "rf": "RF-005", "reason": "no screen/route for bill payment found in the plan" }

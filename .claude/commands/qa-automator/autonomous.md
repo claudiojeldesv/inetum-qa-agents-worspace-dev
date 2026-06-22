@@ -1,6 +1,6 @@
 ---
 description: Módulo S4 — generación autónoma de tests E2E desde una URL. Orquesta los 5 actos del marco QA propio. Funcional en MVP v0.1.
-argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--entry=/path] [--ignore=x,y] [--max-scenarios=N]"
+argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--coverage=flujo:happy+negative] [--entry=/path] [--ignore=x,y] [--max-scenarios=N]"
 ---
 
 # /qa-automator:autonomous
@@ -14,7 +14,11 @@ Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que aco
 - `--url=<URL>` (obligatorio): URL del target, debe estar en `config/allowed-targets.yaml`.
 - `--style=<path>` (opcional, default: `config/style-contracts/saucedemo.yaml`): YAML del Style Contract.
 - `--output-dir=<path>` (opcional, default: `tests/e2e`): directorio donde se escriben los `.spec.ts`.
-- `--flows=<a,b,c>` (opcional): flujos / happy-paths a cubrir, separados por coma (ej. `checkout,registro`). Acota qué mapea el planner.
+- `--flows=<a,b,c>` (opcional): flujos a cubrir, separados por coma (ej. `checkout,registro`). Acota qué mapea el planner.
+- `--coverage=<flujo:nat+nat,...>` (opcional): **override por-run** de la cobertura por flujo del Style
+  Contract. Naturalezas: `happy`, `negative`. Ej. `--coverage=inicio-sesion:happy+negative,pago:happy`.
+  Las claves de flujo son los **slugs en español** (ver glosario del discovery-analyzer). Si no se pasa,
+  manda `test_design.coverage` del contract. Negativos en S4 = opt-in: solo se generan donde se pidan.
 - `--entry=<ruta|url>` (opcional, default: `--url`): punto de entrada profundo para empezar la exploración (ej. `/catalog`, no la home).
 - `--ignore=<x,y,z>` (opcional): zonas a NO explorar (ej. `blog,footer,soporte`).
 - `--max-scenarios=<N>` (opcional, default 8): tope de escenarios a materializar. Si el catálogo
@@ -50,22 +54,32 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
   - Si el SDET responde **exactamente** `EXPLORAR SIN ACOTAR` → **modo ciego** (exploración exhaustiva, comportamiento v0.1), `blind_acknowledged: true`.
   - Cualquier otra respuesta, respuesta ambigua o silencio → **no explores**: repite el warning o aborta con exit 2. **Nunca** entres en modo ciego sin esa confirmación explícita.
 
-- Registra el brief efectivo al audit-log: `{ source: 'command', action: 'exploration_brief', metadata: { flows, entry, ignore, mode, blind_acknowledged } }`.
+- **Captura la cobertura por flujo**: si llegó `--coverage`, parséalo a un mapa `{ <slug-flujo>: [naturalezas] }`
+  (ej. `inicio-sesion:happy+negative` → `{ 'inicio-sesion': ['happy','negative'] }`). Este override pisa
+  `test_design.coverage` del contract para este run. Si no llegó, no hay override (manda el contract).
+- Registra el brief efectivo al audit-log: `{ source: 'command', action: 'exploration_brief', metadata: { flows, entry, ignore, coverage_override, mode, blind_acknowledged } }`.
 - Nota: el intake aquí es mínimo (plumbing v0.2). El intake adaptativo —preguntas y pre-scout derivados de la recolección— es Fase C.
 
 ### Acto 2 — Mapear
 
-6. Invoca `playwright-test-planner` (nativo) via Task tool. Compón el prompt con la URL **y el brief del paso 5.b**:
-   - **Modo dirigido**: `Crea un test plan para <url>. SCOPE — cubre solo estos flujos: <flows>. Punto de entrada: <entry>. NO explores: <ignore>. Mapea el happy-path de cada flujo listado; no exhaustivo.`
-   - **Modo ciego**: prompt de exploración completa (comportamiento v0.1).
-   - Esperar el output: `<saved-plan>.md` con escenarios + `planner_save_plan` ejecutado.
-7. Invoca `ia4d-discovery-analyzer` con el plan saved como input.
+6. Deriva el `<site-id>` del basename del `--style` sin extensión (ej. `config/style-contracts/saucedemo.yaml` → `saucedemo`; con el default del command → `saucedemo`). Invoca `playwright-test-planner` (nativo) via Task tool. Compón el prompt con la URL **y el brief del paso 5.b**, e **indícale la ruta de guardado**: el planner debe llamar a `planner_save_plan` con `fileName="docs/test-plans/<site-id>/<site-id>.plan.md"` (ruta relativa a la raíz del workspace; el tool crea el directorio si no existe). El plan es documentación auditable y vive en `docs/`, no en `tests/`.
+   - **Modo dirigido**: `Crea un test plan para <url>. SCOPE — cubre solo estos flujos: <flows>. Punto de entrada: <entry>. NO explores: <ignore>. Mapea el happy-path de cada flujo listado; no exhaustivo. Para los flujos cuya cobertura pida negativos (<flujos-con-negative>), recorre además una vez el camino de error/validación (ej. login con credenciales inválidas) para capturar los locators del estado de error (mensaje de error, banner), que el negativo necesitará para su assert. Guarda el plan con planner_save_plan en fileName="docs/test-plans/<site-id>/<site-id>.plan.md".`
+   - **Modo ciego**: prompt de exploración completa (comportamiento v0.1), con la misma instrucción de `fileName`.
+   - Esperar el output: `docs/test-plans/<site-id>/<site-id>.plan.md` con escenarios + `planner_save_plan` ejecutado.
+7. Invoca `ia4d-discovery-analyzer` con el plan saved como input. **Pásale la cobertura efectiva**: el
+   `coverage_override` del brief si existe, si no `test_design.coverage` del contract. El analyzer la usa
+   para proponer escenarios `negative` solo en los flujos que la pidan (default: solo `happy`).
    - Output: `.work/discovery-report.json` (dir de trabajo efímero del agente), que ahora incluye
-     `scenarios_catalog[]` (TC-NN, `suite_tags`, `criticality`, `rank`).
+     `scenarios_catalog[]` con `scenario_slug` (`<feature>.<condicion>` español, sin naturaleza en el
+     nombre), `feature`, `condicion`, `nature` (`happy`|`negative`), `suite_tags`, `criticality`, `rank`.
+     **El analyzer NO asigna el ID del archivo** — eso lo resuelve el Acto 2.5 contra el registro.
 
 ### Acto 2.5 — Checkpoint (cap + selección + tags)
 
-Lee `scenarios_catalog` del discovery-report y aplica el tope `--max-scenarios` (default 8):
+Lee `scenarios_catalog` del discovery-report y aplica el tope `--max-scenarios` (default 8). En la tabla
+muestra, por cada escenario, su **ID actual en el registro** si ya existe (columna `ID`), o `nuevo` si
+aún no está. Lee el registro `tc_registry.path` (default `config/tc-registry/<site-id>.json`; si no
+existe, trátalo como `{}`) y busca cada `scenario_slug`.
 
 - **Si `count(scenarios_catalog) ≤ max`** → no pauses. Continúa con TODOS los escenarios.
   Registra `{ source: 'command', action: 'scenario_selection', result: 'pass', metadata: { total: <count>, cap: <max>, selected: <count>, mode: 'auto-under-cap' } }`.
@@ -75,25 +89,35 @@ Lee `scenarios_catalog` del discovery-report y aplica el tope `--max-scenarios` 
   ```
   El descubrimiento devolvió <total> escenarios; el cap es <max>. Selecciona cuáles materializar.
 
-  TC      Escenario                          Tags propuestos                 Rank  Criticidad
-  TC-01   login.standard-user-happy-path     @smoke @happy-path @critical    1     critical
-  TC-02   checkout.complete-flow             @smoke @happy-path @critical    2     critical
-  TC-03   cart.add-and-view                  @regression @happy-path         3     normal
+  #     ID            Escenario (slug)                Naturaleza  Tags                          Rank  Crit.
+  1     MAPFRE-T1234  inicio-sesion.usuario-valido    happy       @smoke @happy-path @critical  1     critical
+  2     nuevo         inicio-sesion.usuario-bloqueado negative    @regression @negative         2     critical
+  3     nuevo         pago.compra-completa            happy       @smoke @happy-path @critical  3     critical
   ...
   ```
 
-  > Selecciona los TC a materializar (ej. `TC-01,TC-02,TC-03`), o escribe `TOP` para los <max> de
-  > mayor rank, o `TODOS` para ignorar el cap bajo tu responsabilidad. Puedes editar tags de un TC
-  > con `TC-03:@regression,@negative`.
+  > Selecciona los escenarios a materializar por su `#` (ej. `1,2,3`), o escribe `TOP` para los <max> de
+  > mayor rank, o `TODOS` para ignorar el cap bajo tu responsabilidad. Puedes editar tags con `3:@regression,@negative`.
 
-  - Respuesta con lista de TC → materializa solo esos (respetando ediciones de tags).
+  - Respuesta con lista de `#` → materializa solo esos (respetando ediciones de tags).
   - `TOP` → los `max` primeros por `rank`.
   - `TODOS` → todo el catálogo (cap ignorado, `mode: 'all-acknowledged'`).
   - Respuesta ambigua o silencio → **no generes**: repite la tabla o aborta con exit 2.
   - Registra `{ source: 'command', action: 'scenario_selection', result: 'pass', metadata: { total, cap, selected: <n>, mode: 'checkpoint' } }`.
 
-El conjunto seleccionado (con su `tc_id` y `suite_tags` efectivos) es lo que alimenta el Acto 4.
-Los escenarios NO seleccionados no se materializan (no es un fallo: es la rienda).
+**Resolución de IDs estables (registro `tc_registry`)** — solo para los escenarios **seleccionados**:
+
+1. Por cada seleccionado, busca su `scenario_slug` en el registro:
+   - **Existe** → usa su `id` (sea key de gestor `source:'xray'` o `TC-NNN` `source:'agent'`).
+   - **No existe** → asigna el siguiente `TC-NNN` libre (`id_prefix` del contract, default `TC`;
+     correlativo = max de los `TC-NNN` ya presentes + 1, 3 dígitos), `source:'agent'`, y **añádelo** al
+     registro. Nunca inventes un key de gestor: el SDET lo rellena después editando el registro.
+2. Escribe el registro actualizado de vuelta a `tc_registry.path` (Write). Es versionado y auditable.
+3. Registra `{ source: 'command', action: 'write_file', target: '<tc_registry.path>', rule: 'tc-registry', reason: 'persist stable ids' }`.
+
+El conjunto seleccionado (con su `id` estable resuelto, `feature`, `condicion`, `nature` y `suite_tags`
+efectivos) es lo que alimenta el Acto 4. Los escenarios NO seleccionados no se materializan ni se
+registran (no es un fallo: es la rienda).
 
 ### Acto 3 — Estructurar
 
@@ -115,7 +139,12 @@ Los escenarios NO seleccionados no se materializan (no es un fallo: es la rienda
 - Registra al audit-log: `{ source: 'command', action: 'write_file', target: 'tests/e2e/auth.setup.ts', rule: 'auth-handler', reason: 'setup project for persistent session' }`.
 
 9. Para cada escenario **seleccionado en el Acto 2.5** (paralelizable):
-   - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir`, `--output`, `--discovery-report`, y además `--tc-id=<TC-NN>` y `--tags=<@a,@b,@c>` tomados de su entrada en `scenarios_catalog` (con las ediciones de tags del checkpoint, si las hubo).
+   - **Construye el `--output`** con el patrón `naming.spec_pattern` (default `{id}_{feature}.{condicion}.spec.ts`):
+     `<output-dir>/<id>_<feature>.<condicion>.spec.ts`, donde `<id>` es el ID estable resuelto del
+     registro (ej. `MAPFRE-T1234_inicio-sesion.usuario-valido.spec.ts` o `TC-002_inicio-sesion.usuario-bloqueado.spec.ts`).
+     El `<feature>` y `<condicion>` vienen del catálogo (español, sin tildes/ñ). Si `tc_registry.enabled:false`,
+     omite el prefijo `<id>_`.
+   - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir`, `--output` (el que acabas de construir), `--discovery-report`, y además `--tc-id=<id estable>` y `--tags=<@a,@b,@c>` tomados de su entrada en `scenarios_catalog` (con las ediciones de tags del checkpoint, si las hubo).
    - El Writer escribe el `.spec.ts` con los tags nativos e invoca internamente al Reviewer (ping-pong N≤2).
    - Cada `.spec.ts` pasa por el hook PostToolUse `pii-post.ts` automáticamente.
 10. (Opcional) Invoca `ia4d-style-enforcer` por cada `.spec.ts` para enforce final del Style Contract.
@@ -132,9 +161,11 @@ Los escenarios NO seleccionados no se materializan (no es un fallo: es la rienda
 
 ## Outputs (consolidados)
 
+- `docs/test-plans/<site-id>/<site-id>.plan.md` (test plan del planner — documentación auditable, versionada)
 - `.work/discovery-report.json`
 - `tests/pages/*.page.ts` (POM esqueletos + locators rellenos por Writer)
-- `tests/e2e/*.spec.ts` (≥3 archivos del flujo golden path)
+- `tests/e2e/<id>_<feature>.<condicion>.spec.ts` (specs con prefijo de ID estable; naturaleza solo en tags)
+- `config/tc-registry/<site-id>.json` (registro de IDs estables, versionado — creado/actualizado en Acto 2.5)
 - `.work/review-feedback.json` (todas las reviews)
 - `.work/judge-report.json` (scores)
 - `.work/audit-log.json` (traza completa)
@@ -188,6 +219,8 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 - No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
 - El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del SDET. Truncar sin avisar rompe el principio "no silent caps".
 - Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.
+- **Registro de IDs (`tc_registry`)**: el ID del archivo es **estable**, nunca el rank efímero. Reusa el ID si el `scenario_slug` ya está en el registro; asigna `TC-NNN` y persístelo si es nuevo. **Nunca inventes un key de gestor de pruebas** (`source:'xray'`) — eso lo rellena el SDET. La naturaleza (`@happy-path`/`@negative`) va solo en el tag, jamás en el nombre del archivo ni en el título.
+- **Negativos opt-in (S4)**: solo se materializan los negativos de flujos que la cobertura (`test_design.coverage` o `--coverage`) pida. Sin esa declaración, solo happy path.
 - Paralelismo del Acto 4 es prioritario: invocar los Writers de los N escenarios concurrentemente cuando sea posible.
 
 ## Reference
