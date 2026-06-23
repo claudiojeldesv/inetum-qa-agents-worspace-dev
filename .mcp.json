@@ -5,6 +5,7 @@
       "args": [
         "/c",
         "npx",
+        "--no-install",
         "playwright",
         "run-test-mcp-server"
       ]
