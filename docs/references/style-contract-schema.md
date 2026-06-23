@@ -157,6 +157,28 @@ test_design:
   no_assume_undiscovered_flows: boolean     # default true. No materializar flujos/elementos que no
                                             #   estén en discovery (refuerza la hard rule del Writer).
 
+# Vocabulario de dominio (v0.2). Hace GENÉRICO el agente: el conocimiento de sector vive aquí
+# (capa de cliente), no hardcodeado en el subagent. El discovery-analyzer trae una semilla
+# TRANSVERSAL mínima (familia auth: login/logout/registro) válida en cualquier web; este bloque
+# la EXTIENDE con el vocabulario del dominio del cliente. Bloque OPCIONAL — si falta, solo aplica
+# la semilla transversal + el fallback de traducción del agente (sin regresión).
+taxonomy:
+  critical_keywords:                # default []. Flujos críticos del DOMINIO (slug español o término
+                                    #   del screen, case-insensitive). Se UNEN a la semilla auth del
+                                    #   agente, no la reemplazan. Un flujo que matchee → criticality
+                                    #   "critical" → tags @smoke/@critical. Si no matchea semilla ni
+                                    #   esta lista → "normal" (@regression).
+    - checkout                      #   ej. e-commerce: checkout, compra, pago
+    - transferencia                 #   ej. banca: transferencia, prestamo, domiciliacion
+    - siniestro                     #   ej. seguros: siniestro, poliza, tarificacion, contratacion
+  glossary:                         # default {}. Overrides de traducción anglicismo→español para que
+                                    #   los slugs sean consistentes y del dominio. Se aplica ENCIMA de
+                                    #   la semilla transversal del agente. Si un término no está aquí
+                                    #   ni en la semilla → el agente traduce al término QA español
+                                    #   natural (kebab-case, sin tildes) — fallback ya existente.
+    claim: siniestro                #   ej. { cart: carrito, checkout: pago, quote: tarificacion }
+    quote: tarificacion
+
 # PII allowlist (datos test publicados por el target, no son PII real)
 synthetic_fixtures:
   credentials:

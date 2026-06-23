@@ -93,6 +93,22 @@ test_design:
         - happy
   no_assume_undiscovered_flows: true
 
+# Vocabulario de dominio (e-commerce). Antes vivía hardcodeado en el discovery-analyzer; ahora
+# vive aquí (capa de cliente). La semilla transversal del agente (auth) sigue activa; esto la extiende.
+taxonomy:
+  critical_keywords:
+    - checkout
+    - pago
+    - compra
+    - purchase
+    - order
+  glossary:
+    cart: carrito
+    checkout: pago
+    coupon: cupon
+    product: producto
+    order: compra
+
 banned_apis:
   - page.waitForTimeout
   - assert.equal

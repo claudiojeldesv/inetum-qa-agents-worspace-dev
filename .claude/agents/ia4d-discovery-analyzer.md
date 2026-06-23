@@ -24,7 +24,7 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
    - `name`: kebab-case identifier.
    - `url_pattern`: URL fragment (e.g. `/inventory.html`).
    - `interactive_elements`: list of elements visible in the plan with their `test_id` (`data-test` attr), `role`, `name`, `label`.
-4. Cross-reference with the active Style Contract (`config/style-contracts/*.yaml`) if available to honor `locators.priority`.
+4. Cross-reference with the active Style Contract (`config/style-contracts/*.yaml`) if available to honor `locators.priority` **and read `taxonomy`** (`critical_keywords` + `glossary`) — feeds the criticality keywords and the translation glossary below.
 5. Build `scenarios_recommended` (flat list of scenario refs) AND the `scenarios_catalog`
    (see "Scenario catalog" below) — the catalog is what lets the command cap, rank and tag.
    Scenario refs use the **stable Spanish slug** `<feature>.<condicion>` (see "Naming de escenarios"),
@@ -146,12 +146,20 @@ resolver el ID del archivo. Mismo escenario en dos runs → mismo slug → mismo
 
 ### Glosario de traducción (anglicismo técnico → español)
 
-`login`→`inicio-sesion`, `logout`→`cierre-sesion`, `signin`/`auth`→`inicio-sesion`,
-`signup`/`register`→`registro`, `checkout`/`pay`/`payment`→`pago`, `cart`→`carrito`,
-`search`→`busqueda`, `order`/`purchase`→`compra`, `transfer`→`transferencia`, `billing`→`facturacion`,
-`product`→`producto`, `profile`/`account`→`perfil`, `contact`→`contacto`, `coupon`→`cupon`,
-`checkout-step-one`→`pago-paso-uno`. Si un flujo no está en el glosario, tradúcelo al término QA
-español más natural (kebab-case, sin tildes). No inventes flujos; solo nombras lo descubierto.
+El glosario se compone en TRES capas (de menor a mayor prioridad), para que el agente sea genérico y el
+vocabulario de dominio viva en el contract, no aquí:
+
+1. **Semilla transversal** (universal, siempre activa — solo términos que existen en casi cualquier web):
+   `login`/`signin`/`auth`→`inicio-sesion`, `logout`→`cierre-sesion`, `signup`/`register`→`registro`,
+   `search`→`busqueda`, `profile`/`account`→`perfil`, `contact`→`contacto`.
+2. **`taxonomy.glossary` del Style Contract** (overrides del dominio del cliente): p.ej.
+   `{ cart: carrito, checkout: pago, coupon: cupon, product: producto, claim: siniestro, quote: tarificacion }`.
+   Pisa la semilla si hay choque. Aquí vive lo específico de sector (e-commerce, banca, seguros).
+3. **Fallback** (si un término no está en 1 ni 2): tradúcelo al término QA español más natural
+   (kebab-case, sin tildes).
+
+No inventes flujos; solo nombras lo descubierto. **No hardcodees vocabulario de sector** (checkout, cart,
+siniestro…): si no está en la semilla transversal, sale del `taxonomy.glossary` del contract o del fallback.
 
 ## Cobertura por flujo (`test_design.coverage`)
 
@@ -198,18 +206,23 @@ Combinaciones resultantes:
 - happy-path de flujo no crítico → `["@regression", "@happy-path"]`
 - negativo (crítico o no) → `["@regression", "@negative"]` (los negativos no son smoke por defecto)
 
-### Keywords de flujo crítico
+### Keywords de flujo crítico (semilla transversal + contract)
 
 Un escenario es de flujo crítico si su slug (`feature`) **o** el nombre del screen contiene
-(case-insensitive) cualquiera de estas keywords. Como el slug es español pero la pantalla del planner
-suele venir en inglés, la lista es **bilingüe** — basta que matchee una:
+(case-insensitive) una keyword crítica. El conjunto de keywords críticas se compone de DOS fuentes —
+así el agente es genérico y el conocimiento de sector vive en el contract, no aquí:
 
-- Español (slug): `inicio-sesion`, `cierre-sesion`, `registro`, `pago`, `compra`, `transferencia`,
-  `facturacion`.
-- Inglés (screen del planner): `login`, `logout`, `auth`, `signin`, `signup`, `register`, `checkout`,
-  `payment`, `pay`, `transfer`, `order`, `purchase`, `billing`.
+1. **Semilla transversal** (universal, siempre activa — lo único crítico en cualquier web es la
+   autenticación): `login`, `logout`, `auth`, `signin`, `signup`, `register` (inglés del screen) +
+   `inicio-sesion`, `cierre-sesion`, `registro` (slug español).
+2. **`taxonomy.critical_keywords` del Style Contract** (lo crítico del DOMINIO del cliente): se UNE a la
+   semilla. Aquí entran `checkout`/`pago`/`compra` (e-commerce), `transferencia`/`prestamo` (banca),
+   `siniestro`/`poliza`/`tarificacion` (seguros)… El SDET lo declara por sitio.
 
-Esta lista es el criterio; no añadas criticidad por intuición.
+Un flujo que matchee la semilla o el contract → `criticality: "critical"`. Si no matchea ninguna →
+`"normal"` (no inventes criticidad por intuición). **No hardcodees keywords de sector aquí**: si no es
+transversal-auth, debe venir del `taxonomy.critical_keywords` del contract. Sin contract → solo auth es
+crítico, el resto `normal` (honesto: el SDET lo afina declarando su taxonomía).
 
 El SDET ajusta tags y selección en el checkpoint del command — tú solo propones.
 
