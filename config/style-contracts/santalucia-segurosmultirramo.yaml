@@ -31,8 +31,14 @@ locators:
     - id
 
 naming:
-  spec_pattern: '{feature}.{scenario}.spec.ts'
-  test_title_pattern: '{scenario_human_name}'
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/santalucia-segurosmultirramo.json'
+  id_prefix: 'TC'
 
 asserts:
   semantic_only: true
@@ -67,6 +73,21 @@ synthetic_fixtures:
   credentials: []
   test_cards: []
   test_iban: []
+
+# Vocabulario de dominio (seguros multirramo). Sitio público (sin auth); lo crítico
+# es tarificar/contratar y la gestión de pólizas/siniestros.
+taxonomy:
+  critical_keywords:
+    - tarificacion
+    - contratacion
+    - siniestro
+    - poliza
+    - presupuesto
+  glossary:
+    quote: tarificacion
+    claim: siniestro
+    policy: poliza
+    budget: presupuesto
 
 banned_apis:
   - page.waitForTimeout

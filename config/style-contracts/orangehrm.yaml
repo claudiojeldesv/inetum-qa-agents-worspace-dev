@@ -33,8 +33,14 @@ locators:
   forbid_xpath: true
 
 naming:
-  spec_pattern: '{feature}.{scenario}.spec.ts'
-  test_title_pattern: '{scenario_human_name}'
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/orangehrm.json'
+  id_prefix: 'TC'
 
 asserts:
   semantic_only: true
@@ -86,9 +92,13 @@ test_design:
   min_functional_asserts: 1
   forbid_navigation_only_test: true
   coverage:
-    happy_path: always
-    negative: regression_only
+    default:
+      - happy
   no_assume_undiscovered_flows: true
+
+# Sin bloque `taxonomy`: el flujo crítico de este lab es el login, que ya cubre la
+# semilla transversal del agente (auth). El dashboard/widgets son soporte, no crítico.
+# Caso didáctico del contrario a saucedemo/parabank: no todo sitio necesita taxonomy.
 
 banned_apis:
   - page.waitForTimeout

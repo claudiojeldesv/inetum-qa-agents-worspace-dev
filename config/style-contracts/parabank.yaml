@@ -40,8 +40,14 @@ locators:
     - id
 
 naming:
-  spec_pattern: '{feature}.{scenario}.spec.ts'
-  test_title_pattern: '{scenario_human_name}'
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/parabank.json'
+  id_prefix: 'TC'
 
 asserts:
   semantic_only: true
@@ -97,9 +103,24 @@ test_design:
   min_functional_asserts: 1
   forbid_navigation_only_test: true
   coverage:
-    happy_path: always
-    negative: regression_only
+    default:
+      - happy            # ParaBank lab: foco en auth persistente + drift, no en negativos
   no_assume_undiscovered_flows: true
+
+# Vocabulario de dominio (banca). La transferencia es el flujo crítico del lab;
+# va aquí (capa de cliente), no hardcodeado en el agente. La semilla transversal
+# (auth) cubre login/logout; esto añade lo bancario.
+taxonomy:
+  critical_keywords:
+    - transferencia
+    - transfer
+    - cuenta
+    - account
+  glossary:
+    transfer: transferencia
+    account: cuenta
+    overview: resumen-cuenta
+    bill-pay: pago-recibos
 
 banned_apis:
   - page.waitForTimeout

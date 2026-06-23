@@ -33,8 +33,14 @@ locators:
     - id
 
 naming:
-  spec_pattern: '{feature}.{scenario}.spec.ts'
-  test_title_pattern: '{scenario_human_name}'
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/mapfre-ahorro-inversion.json'
+  id_prefix: 'TC'
 
 asserts:
   semantic_only: true
@@ -70,6 +76,21 @@ synthetic_fixtures:
   credentials: []
   test_cards: []
   test_iban: []
+
+# Vocabulario de dominio (seguros — ahorro e inversión). La semilla transversal del
+# agente (auth) no aplica aquí (sitio público); lo crítico es la tarificación/contratación.
+taxonomy:
+  critical_keywords:
+    - tarificacion
+    - simulacion
+    - contratacion
+    - ahorro
+    - inversion
+  glossary:
+    quote: tarificacion
+    simulation: simulacion
+    savings: ahorro
+    investment: inversion
 
 banned_apis:
   - page.waitForTimeout
