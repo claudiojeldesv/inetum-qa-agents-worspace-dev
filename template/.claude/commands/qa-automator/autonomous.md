@@ -67,6 +67,29 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
    - **Modo dirigido**: `Crea un test plan para <url>. SCOPE — cubre solo estos flujos: <flows>. Punto de entrada: <entry>. NO explores: <ignore>. Mapea el flujo principal (el camino esperado que cumple el propósito) de cada flujo listado; no exhaustivo. Para los flujos que generan negativos (<flujos-con-negativos>), recorre además una vez el camino de error/validación (ej. login con credenciales inválidas) para capturar los locators del estado de error (mensaje de error, banner), que el negativo necesitará para su assert. Guarda el plan con planner_save_plan en fileName="docs/test-plans/<site-id>/<site-id>.plan.md".`
    - **Modo ciego**: prompt de exploración completa (comportamiento v0.1), con la misma instrucción de `fileName`.
    - Esperar el output: `docs/test-plans/<site-id>/<site-id>.plan.md` con escenarios + `planner_save_plan` ejecutado.
+
+**6.5 — Guarda anti-fabricación (NO negociable): verifica que el planner navegó de verdad.**
+
+El motor S4 vive del MCP `playwright-test`. Si ese MCP no está conectado en la sesión, el
+`playwright-test-planner` nativo se queda **sin tools de navegador** (`mcp__playwright-test__browser_*`)
+y, en vez de fallar, puede **fabricar** un plan adivinado (locators y secciones inventados). Pasar eso
+al discovery-analyzer produce tests contra un sitio que nunca se cargó. **Prohibido.** Antes de
+continuar al Acto 2/paso 7, comprueba TODAS estas señales de discovery real:
+
+- El archivo `docs/test-plans/<site-id>/<site-id>.plan.md` **existe** (el planner llamó a
+  `planner_save_plan`). Si no existe → el planner no guardó nada real.
+- El resumen del planner indica **uso de tools de navegador** (`browser_navigate`, `browser_snapshot`,
+  etc.). Si reporta que solo tuvo `Read/Grep/Glob` disponibles, o menciona que no había tools MCP de
+  navegador → **el MCP estaba caído**.
+- El plan contiene **locators/URLs concretos del sitio real**, no genéricos adivinados ("lo que un
+  sitio de este tipo tendría").
+
+Si **cualquiera** falla → **ABORTA con exit 2**, no invoques al discovery-analyzer, y registra al
+audit-log `{ source: 'command', action: 'block', rule: 'planner-fabrication-guard', reason: 'MCP playwright-test no disponible / planner no navegó: plan no fiable' }`. Mensaje al SDET: el MCP
+`playwright-test` no está conectado (reinicia la sesión / revisa `npm run qa:healthcheck`); el motor
+S4 no puede mapear el sitio y **no se fabrican tests**. El valor del agente es no inventar: sin
+discovery real, no hay generación.
+
 7. Invoca `ia4d-discovery-analyzer` con el plan saved como input. **Pásale los negativos efectivos**: el
    `negatives_override` del brief si existe, si no `test_design.coverage.negatives_by_flow` del contract.
    El analyzer genera siempre el flujo principal de cada flujo y añade `negative` solo en los pedidos.
@@ -218,6 +241,7 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 - Cada invocación de subagent registra al audit-log.
 - No saltar Acto 1 (compliance pre-flight). Sin override.
+- **Guarda anti-fabricación del planner (paso 6.5)**: si el planner no navegó de verdad (MCP `playwright-test` caído → sin tools de navegador → plan inventado), ABORTA con exit 2. Nunca pases un plan fabricado al discovery-analyzer. Sin discovery real, no hay generación.
 - No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
 - El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del SDET. Truncar sin avisar rompe el principio "no silent caps".
 - Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.

@@ -58,6 +58,32 @@ function chromiumInstalled(): boolean | null {
   }
 }
 
+/**
+ * ¿El servidor MCP `run-test-mcp-server` es invocable? `--help` sale 0 e imprime su uso sin abrir
+ * el server stdio. Caza el caso "el MCP ni siquiera puede arrancar" (Playwright ausente/desactualizado
+ * sin el subcomando) — el falso verde del run de farmacia. NO prueba que la sesión de Claude lo tenga
+ * conectado (eso lo gestiona el harness, no este script): de la desconexión en vivo se encarga la
+ * guarda anti-fabricación del command.
+ */
+function mcpServerInvokable(): { ok: boolean; detail: string } {
+  try {
+    const out = execSync('npx --no-install playwright run-test-mcp-server --help', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 60_000,
+    });
+    if (/MCP|Usage|run-test-mcp-server/i.test(out)) {
+      return { ok: true, detail: 'run-test-mcp-server responde (--help); config ≠ conexión viva en sesión' };
+    }
+    return { ok: false, detail: 'run-test-mcp-server no devolvió ayuda reconocible — revisa la versión de Playwright' };
+  } catch {
+    return {
+      ok: false,
+      detail: 'run-test-mcp-server NO arranca (Playwright ausente/desactualizado) — corre: npm ci && npx playwright install',
+    };
+  }
+}
+
 function fileCheck(label: string, rel: string): void {
   checks.push({ label, ok: existsSync(r(rel)), detail: rel });
 }
@@ -88,7 +114,7 @@ fileCheck('Gherkin→criteria (S2)', 'src/gherkin-to-criteria.ts');
 fileCheck('Judge scoring', 'src/judge-scoring.ts');
 // Config declarativa
 fileCheck('allowed-targets (compliance)', 'config/allowed-targets.yaml');
-fileCheck('MCP playwright-test', '.mcp.json');
+fileCheck('MCP playwright-test configurado (.mcp.json)', '.mcp.json');
 fileCheck('playwright.config.ts', 'playwright.config.ts');
 
 // Coherencia Playwright ↔ MCP (check #19). El planner/generator nativos corren sobre el
@@ -136,6 +162,12 @@ if (chromium === false) {
   checks.push({ label: 'Browser chromium de Playwright instalado', ok: true, detail: 'chromium presente en la cache' });
 }
 // chromium === null → no determinable (PLAYWRIGHT_BROWSERS_PATH=0 / cache atípica): no se chequea.
+
+// El servidor MCP arranca (check #21). Cierra el falso verde: antes el check solo veía que .mcp.json
+// existía, no que el server pudiera iniciar. Si esto falla, el motor S4 no puede navegar (el planner
+// fabricaría) — la guarda anti-fabricación del command lo aborta, pero esto avisa ANTES del run.
+const mcp = mcpServerInvokable();
+checks.push({ label: 'MCP run-test-mcp-server arranca', ok: mcp.ok, detail: mcp.detail });
 
 // Verificación de wiring: settings.json debe registrar los 3 hooks
 if (existsSync(r('.claude/settings.json'))) {

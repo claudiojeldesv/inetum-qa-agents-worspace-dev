@@ -69,6 +69,14 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
    NO inventes pasos ni pantallas para que parezca cubierto.
    ```
    Esperar `<saved-plan>.md` + `planner_save_plan`.
+
+   **8.5 — Guarda anti-fabricación (NO negociable)**: el planner necesita el MCP `playwright-test`. Si
+   está caído, el planner se queda sin tools de navegador y puede **fabricar** un plan adivinado. Antes
+   del paso 9, verifica discovery real: (a) el `<saved-plan>.md` existe (se llamó `planner_save_plan`);
+   (b) el planner reporta uso de tools de navegador (`browser_navigate`/`browser_snapshot`), no solo
+   `Read/Grep/Glob`; (c) el plan trae locators/URLs concretos del sitio, no genéricos. Si cualquiera
+   falla → **ABORTA con exit 2**, no invoques al discovery-analyzer, audit-log
+   `{ source: 'command', action: 'block', rule: 'planner-fabrication-guard', reason: 'MCP no disponible / planner no navegó' }`. Sin discovery real no hay mapeo fiable contra los criterios.
 9. Invoca `ia4d-discovery-analyzer` con el plan **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode, idéntico):
    - Output: `.work/discovery-report.json` con el bloque `criteria_mapping` (`mapped` rf↔scenario, `unmapped_flows`).
 
