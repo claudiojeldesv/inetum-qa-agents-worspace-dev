@@ -58,7 +58,7 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
       "drift": [ { "rf": "RF-005", "flow": "bill-pay",
                    "fd_source_ref": "fd-parabank.md:38-42",
                    "reason": "declarado en el FD, no mapeado en staging" } ],
-      "covered": [ { "rf": "RF-001", "flow": "login", "scenario": "login.happy-path" } ] }
+      "covered": [ { "rf": "RF-001", "flow": "login", "scenario": "inicio-sesion.usuario-valido" } ] }
     ```
     El drift se **reporta**, no se fabrica. Registra al audit-log: `{ source: 'command', action: 'drift_detected', metadata: { drift_count, rfs } }`.
 

@@ -45,7 +45,8 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 - POM call could be more granular.
 - **Naturaleza en el nombre/título**: the test title or `describe` contains the nature
   (`happy-path`, `happy`, `negative`, `smoke`) instead of describing the condition + expected outcome.
-  The nature belongs **only** in the `tag` option. Title should follow `naming.test_title_pattern`
+  La naturaleza no se nombra: solo el negativo se marca, y únicamente en el tag `@negative` (el flujo
+  principal no lleva tag de naturaleza). Title should follow `naming.test_title_pattern`
   (default `condición → resultado`, Spanish). Report it; the Writer fixes on next iteration.
 
 3. Produce structured feedback:

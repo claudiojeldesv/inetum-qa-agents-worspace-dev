@@ -80,7 +80,7 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
       "drift": [ { "rf": "RF-004", "flow": "close-account",
                    "source_ref": "parabank.feature:33 (REQ-CLOSE)",
                    "reason": "declarado en el .feature, no mapeado en staging" } ],
-      "covered": [ { "rf": "RF-001", "flow": "login", "scenario": "login.happy-path" } ] }
+      "covered": [ { "rf": "RF-001", "flow": "login", "scenario": "inicio-sesion.usuario-valido" } ] }
     ```
     El drift se **reporta**, no se fabrica. Registra al audit-log: `{ source: 'command', action: 'drift_detected', metadata: { drift_count, rfs } }`.
 

@@ -74,20 +74,8 @@ synthetic_fixtures:
   test_cards: []
   test_iban: []
 
-# Vocabulario de dominio (seguros multirramo). Sitio público (sin auth); lo crítico
-# es tarificar/contratar y la gestión de pólizas/siniestros.
-taxonomy:
-  critical_keywords:
-    - tarificacion
-    - contratacion
-    - siniestro
-    - poliza
-    - presupuesto
-  glossary:
-    quote: tarificacion
-    claim: siniestro
-    policy: poliza
-    budget: presupuesto
+# En S4 la criticidad se infiere por el propósito del sitio (seguros multirramo): tarificar/
+# contratar y la gestión de pólizas/siniestros son los flujos centrales. Ya no por keywords.
 
 banned_apis:
   - page.waitForTimeout

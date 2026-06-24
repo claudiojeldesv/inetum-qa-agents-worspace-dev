@@ -41,7 +41,7 @@ You are the **Judge** of the Quality layer. After the Writer+Reviewer protocol h
 
 ```json
 {
-  "test_file": "tests/e2e/login.happy-path.spec.ts",
+  "test_file": "tests/e2e/TC-001_inicio-sesion.usuario-valido.spec.ts",
   "score": 0.92,
   "axes": {
     "assertions": 0.95,

@@ -1,13 +1,13 @@
 ---
 description: Módulo S4 — generación autónoma de tests E2E desde una URL. Orquesta los 5 actos del marco QA propio. Funcional en MVP v0.1.
-argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--coverage=flujo:happy+negative] [--entry=/path] [--ignore=x,y] [--max-scenarios=N]"
+argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--negatives=flujo1,flujo2] [--entry=/path] [--ignore=x,y] [--max-scenarios=N]"
 ---
 
 # /qa-automator:autonomous
 
 Módulo **S4 Autonomous** del agente `ia4d-qa-automator`. Recibe una URL y, opcionalmente, un Style Contract. Orquesta los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar) contra el target.
 
-Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que acota el reconocimiento por **módulos / flujos**. Acotar es el camino recomendado y, salvo confirmación explícita del SDET, **obligatorio**: este command **no explora una web entera a ciegas** (ver paso 5.b — warning + confirmación). Es el plumbing instrumental de v0.2 (ver SPEC §7, estrategia de reconocimiento happy-path).
+Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que acota el reconocimiento por **módulos / flujos**. Acotar es el camino recomendado y, salvo confirmación explícita del SDET, **obligatorio**: este command **no explora una web entera a ciegas** (ver paso 5.b — warning + confirmación). Es el plumbing instrumental de v0.2 (ver SPEC §7, estrategia de reconocimiento del flujo principal).
 
 ## Arguments
 
@@ -15,10 +15,10 @@ Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que aco
 - `--style=<path>` (opcional, default: `config/style-contracts/saucedemo.yaml`): YAML del Style Contract.
 - `--output-dir=<path>` (opcional, default: `tests/e2e`): directorio donde se escriben los `.spec.ts`.
 - `--flows=<a,b,c>` (opcional): flujos a cubrir, separados por coma (ej. `checkout,registro`). Acota qué mapea el planner.
-- `--coverage=<flujo:nat+nat,...>` (opcional): **override por-run** de la cobertura por flujo del Style
-  Contract. Naturalezas: `happy`, `negative`. Ej. `--coverage=inicio-sesion:happy+negative,pago:happy`.
-  Las claves de flujo son los **slugs en español** (ver glosario del discovery-analyzer). Si no se pasa,
-  manda `test_design.coverage` del contract. Negativos en S4 = opt-in: solo se generan donde se pidan.
+- `--negatives=<flujo1,flujo2>` (opcional): **override por-run** de qué flujos generan además negativos.
+  El **flujo principal de cada flujo se genera siempre**; esto solo añade los negativos. Ej.
+  `--negatives=inicio-sesion`. Las claves son los **slugs en español** del flujo. Si no se pasa, manda
+  `test_design.coverage.negatives_by_flow` del contract. Negativos en S4 = opt-in: solo donde se pidan.
 - `--entry=<ruta|url>` (opcional, default: `--url`): punto de entrada profundo para empezar la exploración (ej. `/catalog`, no la home).
 - `--ignore=<x,y,z>` (opcional): zonas a NO explorar (ej. `blog,footer,soporte`).
 - `--max-scenarios=<N>` (opcional, default 8): tope de escenarios a materializar. Si el catálogo
@@ -54,25 +54,27 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
   - Si el SDET responde **exactamente** `EXPLORAR SIN ACOTAR` → **modo ciego** (exploración exhaustiva, comportamiento v0.1), `blind_acknowledged: true`.
   - Cualquier otra respuesta, respuesta ambigua o silencio → **no explores**: repite el warning o aborta con exit 2. **Nunca** entres en modo ciego sin esa confirmación explícita.
 
-- **Captura la cobertura por flujo**: si llegó `--coverage`, parséalo a un mapa `{ <slug-flujo>: [naturalezas] }`
-  (ej. `inicio-sesion:happy+negative` → `{ 'inicio-sesion': ['happy','negative'] }`). Este override pisa
-  `test_design.coverage` del contract para este run. Si no llegó, no hay override (manda el contract).
-- Registra el brief efectivo al audit-log: `{ source: 'command', action: 'exploration_brief', metadata: { flows, entry, ignore, coverage_override, mode, blind_acknowledged } }`.
+- **Captura los negativos pedidos**: si llegó `--negatives`, parséalo a una lista de slugs de flujo
+  (ej. `inicio-sesion` → `['inicio-sesion']`). Este override pisa `test_design.coverage.negatives_by_flow`
+  del contract para este run. Si no llegó, no hay override (manda el contract). El flujo principal de
+  cada flujo se genera siempre, con o sin override.
+- Registra el brief efectivo al audit-log: `{ source: 'command', action: 'exploration_brief', metadata: { flows, entry, ignore, negatives_override, mode, blind_acknowledged } }`.
 - Nota: el intake aquí es mínimo (plumbing v0.2). El intake adaptativo —preguntas y pre-scout derivados de la recolección— es Fase C.
 
 ### Acto 2 — Mapear
 
 6. Deriva el `<site-id>` del basename del `--style` sin extensión (ej. `config/style-contracts/saucedemo.yaml` → `saucedemo`; con el default del command → `saucedemo`). Invoca `playwright-test-planner` (nativo) via Task tool. Compón el prompt con la URL **y el brief del paso 5.b**, e **indícale la ruta de guardado**: el planner debe llamar a `planner_save_plan` con `fileName="docs/test-plans/<site-id>/<site-id>.plan.md"` (ruta relativa a la raíz del workspace; el tool crea el directorio si no existe). El plan es documentación auditable y vive en `docs/`, no en `tests/`.
-   - **Modo dirigido**: `Crea un test plan para <url>. SCOPE — cubre solo estos flujos: <flows>. Punto de entrada: <entry>. NO explores: <ignore>. Mapea el happy-path de cada flujo listado; no exhaustivo. Para los flujos cuya cobertura pida negativos (<flujos-con-negative>), recorre además una vez el camino de error/validación (ej. login con credenciales inválidas) para capturar los locators del estado de error (mensaje de error, banner), que el negativo necesitará para su assert. Guarda el plan con planner_save_plan en fileName="docs/test-plans/<site-id>/<site-id>.plan.md".`
+   - **Modo dirigido**: `Crea un test plan para <url>. SCOPE — cubre solo estos flujos: <flows>. Punto de entrada: <entry>. NO explores: <ignore>. Mapea el flujo principal (el camino esperado que cumple el propósito) de cada flujo listado; no exhaustivo. Para los flujos que generan negativos (<flujos-con-negativos>), recorre además una vez el camino de error/validación (ej. login con credenciales inválidas) para capturar los locators del estado de error (mensaje de error, banner), que el negativo necesitará para su assert. Guarda el plan con planner_save_plan en fileName="docs/test-plans/<site-id>/<site-id>.plan.md".`
    - **Modo ciego**: prompt de exploración completa (comportamiento v0.1), con la misma instrucción de `fileName`.
    - Esperar el output: `docs/test-plans/<site-id>/<site-id>.plan.md` con escenarios + `planner_save_plan` ejecutado.
-7. Invoca `ia4d-discovery-analyzer` con el plan saved como input. **Pásale la cobertura efectiva**: el
-   `coverage_override` del brief si existe, si no `test_design.coverage` del contract. El analyzer la usa
-   para proponer escenarios `negative` solo en los flujos que la pidan (default: solo `happy`).
+7. Invoca `ia4d-discovery-analyzer` con el plan saved como input. **Pásale los negativos efectivos**: el
+   `negatives_override` del brief si existe, si no `test_design.coverage.negatives_by_flow` del contract.
+   El analyzer genera siempre el flujo principal de cada flujo y añade `negative` solo en los pedidos.
+   El analyzer **infiere el dominio del sitio** y marca la criticidad por propósito (no hay keywords).
    - Output: `.work/discovery-report.json` (dir de trabajo efímero del agente), que ahora incluye
-     `scenarios_catalog[]` con `scenario_slug` (`<feature>.<condicion>` español, sin naturaleza en el
-     nombre), `feature`, `condicion`, `nature` (`happy`|`negative`), `suite_tags`, `criticality`, `rank`.
-     **El analyzer NO asigna el ID del archivo** — eso lo resuelve el Acto 2.5 contra el registro.
+     `inferred_domain` y `scenarios_catalog[]` con `scenario_slug` (`<feature>.<condicion>` español, sin
+     naturaleza en el nombre), `feature`, `condicion`, `nature` (`principal`|`negative`), `suite_tags`,
+     `criticality`, `rank`. **El analyzer NO asigna el ID del archivo** — eso lo resuelve el Acto 2.5.
 
 ### Acto 2.5 — Checkpoint (cap + selección + tags)
 
@@ -89,10 +91,10 @@ existe, trátalo como `{}`) y busca cada `scenario_slug`.
   ```
   El descubrimiento devolvió <total> escenarios; el cap es <max>. Selecciona cuáles materializar.
 
-  #     ID            Escenario (slug)                Naturaleza  Tags                          Rank  Crit.
-  1     MAPFRE-T1234  inicio-sesion.usuario-valido    happy       @smoke @happy-path @critical  1     critical
-  2     nuevo         inicio-sesion.usuario-bloqueado negative    @regression @negative         2     critical
-  3     nuevo         pago.compra-completa            happy       @smoke @happy-path @critical  3     critical
+  #     ID            Escenario (slug)                Naturaleza  Tags                  Rank  Crit.
+  1     MAPFRE-T1234  inicio-sesion.usuario-valido    principal   @smoke @critical      1     critical
+  2     nuevo         inicio-sesion.usuario-bloqueado negativo    @regression @negative 2     critical
+  3     nuevo         pago.compra-completa            principal   @smoke @critical      3     critical
   ...
   ```
 
@@ -219,8 +221,8 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 - No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
 - El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del SDET. Truncar sin avisar rompe el principio "no silent caps".
 - Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.
-- **Registro de IDs (`tc_registry`)**: el ID del archivo es **estable**, nunca el rank efímero. Reusa el ID si el `scenario_slug` ya está en el registro; asigna `TC-NNN` y persístelo si es nuevo. **Nunca inventes un key de gestor de pruebas** (`source:'xray'`) — eso lo rellena el SDET. La naturaleza (`@happy-path`/`@negative`) va solo en el tag, jamás en el nombre del archivo ni en el título.
-- **Negativos opt-in (S4)**: solo se materializan los negativos de flujos que la cobertura (`test_design.coverage` o `--coverage`) pida. Sin esa declaración, solo happy path.
+- **Registro de IDs (`tc_registry`)**: el ID del archivo es **estable**, nunca el rank efímero. Reusa el ID si el `scenario_slug` ya está en el registro; asigna `TC-NNN` y persístelo si es nuevo. **Nunca inventes un key de gestor de pruebas** (`source:'xray'`) — eso lo rellena el SDET. La naturaleza no se nombra: solo el negativo se marca, y únicamente en el tag `@negative` (jamás en el nombre del archivo ni en el título; el flujo principal no lleva tag de naturaleza).
+- **Negativos opt-in (S4)**: el flujo principal de cada flujo se genera siempre; los negativos solo en flujos que `test_design.coverage.negatives_by_flow` (o `--negatives`) pida. La criticidad la **infiere** el discovery-analyzer por el propósito del sitio, no por keywords.
 - Paralelismo del Acto 4 es prioritario: invocar los Writers de los N escenarios concurrentemente cuando sea posible.
 
 ## Reference

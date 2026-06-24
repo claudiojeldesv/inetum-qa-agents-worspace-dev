@@ -103,24 +103,11 @@ test_design:
   min_functional_asserts: 1
   forbid_navigation_only_test: true
   coverage:
-    default:
-      - happy            # ParaBank lab: foco en auth persistente + drift, no en negativos
+    negatives_by_flow: {}   # ParaBank lab: foco en auth persistente + drift, no en negativos
   no_assume_undiscovered_flows: true
 
-# Vocabulario de dominio (banca). La transferencia es el flujo crítico del lab;
-# va aquí (capa de cliente), no hardcodeado en el agente. La semilla transversal
-# (auth) cubre login/logout; esto añade lo bancario.
-taxonomy:
-  critical_keywords:
-    - transferencia
-    - transfer
-    - cuenta
-    - account
-  glossary:
-    transfer: transferencia
-    account: cuenta
-    overview: resumen-cuenta
-    bill-pay: pago-recibos
+# Sin taxonomy: en S4 el discovery-analyzer infiere el dominio (banca) y marca crítica la
+# transferencia/operación; la criticidad ya no se declara por keywords.
 
 banned_apis:
   - page.waitForTimeout

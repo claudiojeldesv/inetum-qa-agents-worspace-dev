@@ -83,31 +83,13 @@ test_design:
   min_functional_asserts: 1
   forbid_navigation_only_test: true
   coverage:
-    default:
-      - happy                       # flujos no listados → solo camino feliz
-    by_flow:
-      inicio-sesion:                # login es crítico: happy + negativos (usuario bloqueado, credenciales inválidas)
-        - happy
-        - negative
-      pago:                         # checkout: solo camino feliz
-        - happy
+    negatives_by_flow:
+      inicio-sesion: true           # login genera además negativos (usuario bloqueado, credenciales inválidas)
+      pago: false                   # checkout: solo el flujo principal
   no_assume_undiscovered_flows: true
 
-# Vocabulario de dominio (e-commerce). Antes vivía hardcodeado en el discovery-analyzer; ahora
-# vive aquí (capa de cliente). La semilla transversal del agente (auth) sigue activa; esto la extiende.
-taxonomy:
-  critical_keywords:
-    - checkout
-    - pago
-    - compra
-    - purchase
-    - order
-  glossary:
-    cart: carrito
-    checkout: pago
-    coupon: cupon
-    product: producto
-    order: compra
+# Sin taxonomy: en S4 el discovery-analyzer infiere el dominio (e-commerce) y marca críticos los
+# flujos centrales a la compra; la criticidad ya no se declara por keywords.
 
 banned_apis:
   - page.waitForTimeout

@@ -92,13 +92,11 @@ test_design:
   min_functional_asserts: 1
   forbid_navigation_only_test: true
   coverage:
-    default:
-      - happy
+    negatives_by_flow: {}   # solo el flujo principal de cada flujo
   no_assume_undiscovered_flows: true
 
-# Sin bloque `taxonomy`: el flujo crítico de este lab es el login, que ya cubre la
-# semilla transversal del agente (auth). El dashboard/widgets son soporte, no crítico.
-# Caso didáctico del contrario a saucedemo/parabank: no todo sitio necesita taxonomy.
+# En S4 la criticidad se infiere por el propósito del sitio. Aquí el flujo central es el login,
+# que la inferencia marca crítico igualmente (auth es siempre transversal); el dashboard es soporte.
 
 banned_apis:
   - page.waitForTimeout

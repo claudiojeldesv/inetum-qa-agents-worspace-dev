@@ -14,6 +14,15 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
 - `--planner-saved-plan=<path>` — typically the file the Planner saved via `planner_save_plan` (e.g. `saucedemo-plan.md`).
 - `--criteria=<path>` — **optional, S3 (Spec-refiner) only**. The `criteria.json` produced by `ia4d-spec-refiner`. When present, tag each recommended scenario with the `RF-NNN` it covers (see "S3 mode" below). When absent (S4 Autonomous), behave exactly as before — no criterion tagging.
 
+## Concepto interno: flujo principal (no se nombra "happy path")
+
+Todo flujo descubierto tiene un **flujo principal**: el camino esperado que cumple el propósito de
+ese flujo (en una tienda, completar la compra; en un banco, ejecutar la transferencia; en un
+tarificador, obtener el precio). Lo reconoces internamente para construir el escenario, pero **"happy
+path" NO es un término que aparezca en ningún sitio visible** — ni en el slug, ni en el título, ni en
+los tags. Es un concepto tuyo, no una etiqueta. Los escenarios se nombran por su **condición** y la
+única naturaleza que se marca explícitamente es la **negativa** (`@negative`).
+
 ## Process
 
 1. Read the planner output.
@@ -24,17 +33,18 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
    - `name`: kebab-case identifier.
    - `url_pattern`: URL fragment (e.g. `/inventory.html`).
    - `interactive_elements`: list of elements visible in the plan with their `test_id` (`data-test` attr), `role`, `name`, `label`.
-4. Cross-reference with the active Style Contract (`config/style-contracts/*.yaml`) if available to honor `locators.priority` **and read `taxonomy`** (`critical_keywords` + `glossary`) — feeds the criticality keywords and the translation glossary below.
-5. Build `scenarios_recommended` (flat list of scenario refs) AND the `scenarios_catalog`
-   (see "Scenario catalog" below) — the catalog is what lets the command cap, rank and tag.
-   Scenario refs use the **stable Spanish slug** `<feature>.<condicion>` (see "Naming de escenarios"),
-   never the nature (`happy-path`/`negative`) in the slug.
-6. **Coverage por flujo** — read `test_design.coverage` from the Style Contract (if present). For each
-   discovered flow, materialize the natures it asks for (see "Cobertura por flujo" below): always the
-   `happy` scenario(s); add `negative` scenario(s) **only** for flows whose `by_flow` (or the brief
-   override the command passes you) lists `negative`. Negatives are derived from declared negative
-   fixtures / obvious validation on the SAME discovered screen — never from an undiscovered flow.
-7. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
+4. Cross-reference with the active Style Contract (`config/style-contracts/*.yaml`) if available to honor `locators.priority`.
+5. **Infiere el dominio y la criticidad** (ver "Inferencia de dominio y criticidad"): razona qué es el
+   sitio y qué flujos son centrales a su propósito. No hay listas de keywords de sector — lo infieres.
+6. Build `scenarios_recommended` (flat list of scenario refs) AND the `scenarios_catalog`
+   (see "Scenario catalog" below). Scenario refs use the **stable Spanish slug** `<feature>.<condicion>`
+   (see "Naming de escenarios"), never the nature in the slug.
+7. **Coverage** — read `test_design.coverage.negatives_by_flow` from the Style Contract (the command may
+   pass a `--negatives` override). El **flujo principal de cada flujo descubierto se genera SIEMPRE**.
+   Añade escenario(s) `negative` **solo** para los flujos marcados `true` (ver "Cobertura"). Los
+   negativos salen de fixtures negativos declarados o de validación evidente sobre la MISMA pantalla
+   descubierta — nunca de un flujo no descubierto.
+8. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
 
 ## Output schema (.work/discovery-report.json)
 
@@ -43,6 +53,7 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
   "target_url": "https://www.saucedemo.com/",
   "discovery_timestamp": "<ISO>",
   "source_plan": "saucedemo-plan.md",
+  "inferred_domain": "e-commerce",
   "screens": [
     {
       "name": "login",
@@ -74,11 +85,11 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
       "scenario_slug": "inicio-sesion.usuario-valido",
       "feature": "inicio-sesion",
       "condicion": "usuario-valido",
-      "nature": "happy",
-      "suite_tags": ["@smoke", "@happy-path", "@critical"],
+      "nature": "principal",
+      "suite_tags": ["@smoke", "@critical"],
       "criticality": "critical",
       "rank": 1,
-      "rationale": "login es flujo crítico de entrada; camino feliz"
+      "rationale": "autenticación: flujo crítico transversal de entrada"
     },
     {
       "scenario_slug": "inicio-sesion.usuario-bloqueado",
@@ -88,27 +99,27 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
       "suite_tags": ["@regression", "@negative"],
       "criticality": "critical",
       "rank": 2,
-      "rationale": "negativo de login pedido por coverage.by_flow; credencial locked_out de fixtures"
+      "rationale": "negativo de login pedido por negatives_by_flow; credencial locked_out de fixtures"
     },
     {
       "scenario_slug": "pago.compra-completa",
       "feature": "pago",
       "condicion": "compra-completa",
-      "nature": "happy",
-      "suite_tags": ["@smoke", "@happy-path", "@critical"],
+      "nature": "principal",
+      "suite_tags": ["@smoke", "@critical"],
       "criticality": "critical",
       "rank": 3,
-      "rationale": "checkout es flujo crítico de negocio; camino feliz"
+      "rationale": "dominio e-commerce inferido: completar la compra es el propósito del sitio"
     },
     {
       "scenario_slug": "carrito.agregar-y-ver",
       "feature": "carrito",
       "condicion": "agregar-y-ver",
-      "nature": "happy",
-      "suite_tags": ["@regression", "@happy-path"],
+      "nature": "principal",
+      "suite_tags": ["@regression"],
       "criticality": "normal",
       "rank": 4,
-      "rationale": "flujo de soporte, no crítico"
+      "rationale": "flujo de soporte, no central al propósito del sitio"
     }
   ]
 }
@@ -135,46 +146,64 @@ pages exponen como campo.
 
 Cada escenario tiene un **slug estable** `<feature>.<condicion>`:
 
-- `feature`: el flujo, kebab-case **español sin tildes ni ñ**, traduciendo el anglicismo técnico vía
-  el **glosario** de abajo (`login` → `inicio-sesion`, `checkout` → `pago`…).
+- `feature`: el flujo, kebab-case **español sin tildes ni ñ**.
 - `condicion`: **qué condición se prueba**, no su naturaleza. `usuario-valido`, `tarjeta-valida`,
   `usuario-bloqueado`, `credenciales-invalidas`, `campos-vacios`, `sin-resultados`. **NUNCA** metas
-  `happy-path` / `negative` en el slug — la naturaleza vive en `suite_tags` y en el campo `nature`.
+  `happy-path`/`happy`/`negative` en el slug — la única naturaleza marcada es el tag `@negative`.
 
 El `scenario_slug` es la **clave estable** que el command usa contra el registro `tc_registry` para
 resolver el ID del archivo. Mismo escenario en dos runs → mismo slug → mismo ID. Sé consistente.
 
-### Glosario de traducción (anglicismo técnico → español)
+### Naming en español (semilla transversal + inferencia)
 
-El glosario se compone en TRES capas (de menor a mayor prioridad), para que el agente sea genérico y el
-vocabulario de dominio viva en el contract, no aquí:
+No hay glosario de sector hardcodeado. Nombras así:
 
-1. **Semilla transversal** (universal, siempre activa — solo términos que existen en casi cualquier web):
+1. **Semilla transversal** (universal, términos que existen en casi cualquier web):
    `login`/`signin`/`auth`→`inicio-sesion`, `logout`→`cierre-sesion`, `signup`/`register`→`registro`,
    `search`→`busqueda`, `profile`/`account`→`perfil`, `contact`→`contacto`.
-2. **`taxonomy.glossary` del Style Contract** (overrides del dominio del cliente): p.ej.
-   `{ cart: carrito, checkout: pago, coupon: cupon, product: producto, claim: siniestro, quote: tarificacion }`.
-   Pisa la semilla si hay choque. Aquí vive lo específico de sector (e-commerce, banca, seguros).
-3. **Fallback** (si un término no está en 1 ni 2): tradúcelo al término QA español más natural
-   (kebab-case, sin tildes).
+2. **Inferencia de dominio**: para el resto, traduce al término QA español más natural **según el
+   dominio del sitio** que infieras (e-commerce: `checkout`→`pago`, `cart`→`carrito`; banca:
+   `transfer`→`transferencia`; seguros: `quote`→`tarificacion`, `claim`→`siniestro`). Kebab-case, sin
+   tildes/ñ. No hardcodeas; razonas a partir de lo que el sitio es.
 
-No inventes flujos; solo nombras lo descubierto. **No hardcodees vocabulario de sector** (checkout, cart,
-siniestro…): si no está en la semilla transversal, sale del `taxonomy.glossary` del contract o del fallback.
+No inventes flujos; solo nombras lo descubierto.
 
-## Cobertura por flujo (`test_design.coverage`)
+## Inferencia de dominio y criticidad (S4 — inferido, no por keywords)
 
-Lee `test_design.coverage` del Style Contract (el command también puede pasarte un override del brief).
-Por cada flujo descubierto, materializa las naturalezas pedidas:
+En autónomo **no hay lista de keywords de sector**. Infieres la criticidad razonando:
 
-- Siempre el/los escenario(s) `happy` (`nature: "happy"`).
-- Añade escenario(s) `negative` (`nature: "negative"`) **solo** si el flujo está en `coverage.by_flow`
-  (o el override) con `negative`. Si no, omite los negativos de ese flujo (default = solo happy).
-- Los negativos se derivan de **fixtures negativos declarados** en el contract (`synthetic_fixtures`,
-  p.ej. `invalid_credentials`, una credencial `locked_out`) o de validación evidente sobre la **misma
+1. **Infiere el dominio/propósito del sitio** a partir del plan (pantallas, textos, acciones): ¿es un
+   e-commerce, un banco, un tarificador de seguros, una sede electrónica/ayuntamiento, un portal de
+   salud, un HR portal…? Anótalo en `inferred_domain` (texto libre corto).
+2. **Marca `criticality: "critical"`** los flujos **centrales al propósito** de ese dominio:
+   - e-commerce → completar compra / checkout, añadir al carrito de cara a comprar.
+   - banca → transferencia, consulta de saldo, pago/operación.
+   - seguros → tarificar/cotizar, contratar, gestionar póliza/siniestro.
+   - sede electrónica / ayuntamiento → enviar una solicitud/formulario, consultar un trámite.
+   - salud → completar el cuestionario/formulario de evaluación, obtener resultado.
+   La **autenticación (login/logout) es siempre crítica** (transversal, cualquier dominio).
+3. Lo demás (navegación de soporte, info estática, secundarios) → `criticality: "normal"`.
+4. En el `rationale` di **por qué** es crítico/normal según el propósito inferido (una línea). No
+   inventes criticidad por intuición: anclala al propósito del sitio.
+
+> Nota: esta inferencia es de S4 (exploratorio). En S2/S3 la criticidad la dan los criterios RF del
+> Gherkin/FD (determinista), no esta inferencia.
+
+## Cobertura (`test_design.coverage.negatives_by_flow`)
+
+El **flujo principal de cada flujo descubierto se genera SIEMPRE** (no se declara; es implícito).
+Lo único que se declara es **qué flujos generan además negativos**:
+
+- Lee `test_design.coverage.negatives_by_flow` del contract (mapa `<slug-flujo>: bool`). El command
+  puede pasar un override `--negatives=<flujo1,flujo2>`.
+- Para un flujo con `true` (o presente en el override) → añade escenario(s) `nature: "negative"`.
+- Para un flujo ausente o `false` → **solo** su flujo principal. Negativos = opt-in.
+- Los negativos se derivan de **fixtures negativos declarados** (`synthetic_fixtures`, p.ej.
+  `invalid_credentials`, una credencial `locked_out`) o de validación evidente sobre la **misma
   pantalla ya descubierta** (campo requerido vacío, formato inválido). Son caminos alternativos de una
   pantalla descubierta, no flujos nuevos → no violan `no_assume_undiscovered_flows`.
-- Nunca fabriques un negativo que requiera un fixture o pantalla que no existe. Si la cobertura pide
-  `negative` pero no hay material para construirlo, omítelo y dilo en el `rationale` del happy.
+- Nunca fabriques un negativo que requiera un fixture o pantalla que no existe. Si se pidió `negative`
+  pero no hay material, omítelo y dilo en el `rationale` del principal.
 
 ## Scenario catalog (`scenarios_catalog`) — ranking + tags
 
@@ -184,45 +213,27 @@ contra el registro y pasar el ID/tags al Writer. Tú solo lo construyes; no deci
 ni asignas el ID (eso es del command).
 
 - `scenario_slug`, `feature`, `condicion`: ver "Naming de escenarios".
-- `nature`: `"happy"` | `"negative"` — la naturaleza del escenario (gobierna tags y cobertura).
-- `rank`: entero desde 1, por impacto×frecuencia. Ordena: primero los `@critical` happy, luego
-  el resto de happy, luego los negativos. Empates → orden de aparición en el plan.
-- `criticality`: `"critical"` si el flujo cae en la lista de **keywords críticas** abajo; si no, `"normal"`.
+- `nature`: `"principal"` | `"negative"` — concepto interno (el principal es el camino esperado). Solo
+  el negativo se marca con tag; el principal no lleva tag de naturaleza.
+- `rank`: entero desde 1, por impacto×frecuencia. Ordena: primero los `@critical` principales, luego
+  el resto de principales, luego los negativos. Empates → orden de aparición en el plan.
+- `criticality`: `"critical"` | `"normal"`, inferida por propósito (ver "Inferencia de dominio").
 - `rationale`: una línea, por qué ese rank/criticidad/naturaleza. No prosa larga.
 
-### Taxonomía de `suite_tags` (dos ejes + criticidad)
+### Taxonomía de `suite_tags`
 
-Reglas **determinísticas** (no interpretes libremente; aplícalas):
+Reglas **determinísticas** (aplícalas; "happy path" NO es un valor):
 
-- **Eje SUITE** (exactamente uno): `@smoke` si es happy-path de flujo crítico; `@regression` en todo
-  lo demás (happy-path no crítico y todos los negativos).
-- **Eje NATURALEZA** (exactamente uno): `@happy-path` si el escenario recorre el camino esperado;
-  `@negative` si valida un error/validación/estado inválido (login inválido, campos requeridos,
-  permisos, datos mal formados).
-- **CRITICIDAD** (opcional): añade `@critical` si el flujo cae en las keywords críticas.
+- **Eje SUITE** (exactamente uno): `@smoke` si es el flujo principal de un flujo crítico; `@regression`
+  en todo lo demás (principal no crítico y todos los negativos).
+- **NATURALEZA**: solo se marca el negativo → añade `@negative` si el escenario valida un
+  error/validación/estado inválido. **El principal NO lleva tag de naturaleza** (es el default).
+- **CRITICIDAD** (opcional): añade `@critical` si el flujo es crítico (inferido por propósito).
 
 Combinaciones resultantes:
-- happy-path de flujo crítico → `["@smoke", "@happy-path", "@critical"]`
-- happy-path de flujo no crítico → `["@regression", "@happy-path"]`
+- principal de flujo crítico → `["@smoke", "@critical"]`
+- principal de flujo no crítico → `["@regression"]`
 - negativo (crítico o no) → `["@regression", "@negative"]` (los negativos no son smoke por defecto)
-
-### Keywords de flujo crítico (semilla transversal + contract)
-
-Un escenario es de flujo crítico si su slug (`feature`) **o** el nombre del screen contiene
-(case-insensitive) una keyword crítica. El conjunto de keywords críticas se compone de DOS fuentes —
-así el agente es genérico y el conocimiento de sector vive en el contract, no aquí:
-
-1. **Semilla transversal** (universal, siempre activa — lo único crítico en cualquier web es la
-   autenticación): `login`, `logout`, `auth`, `signin`, `signup`, `register` (inglés del screen) +
-   `inicio-sesion`, `cierre-sesion`, `registro` (slug español).
-2. **`taxonomy.critical_keywords` del Style Contract** (lo crítico del DOMINIO del cliente): se UNE a la
-   semilla. Aquí entran `checkout`/`pago`/`compra` (e-commerce), `transferencia`/`prestamo` (banca),
-   `siniestro`/`poliza`/`tarificacion` (seguros)… El SDET lo declara por sitio.
-
-Un flujo que matchee la semilla o el contract → `criticality: "critical"`. Si no matchea ninguna →
-`"normal"` (no inventes criticidad por intuición). **No hardcodees keywords de sector aquí**: si no es
-transversal-auth, debe venir del `taxonomy.critical_keywords` del contract. Sin contract → solo auth es
-crítico, el resto `normal` (honesto: el SDET lo afina declarando su taxonomía).
 
 El SDET ajusta tags y selección en el checkpoint del command — tú solo propones.
 
@@ -268,8 +279,10 @@ NOT find (the raw material for drift detection — which the *command* decides, 
 - In S3 mode, never fabricate a `criteria_mapping.mapped` entry for a flow the plan did not reach. Unmapped → `unmapped_flows`.
 - `scenarios_catalog` has exactly one entry per `scenarios_recommended` ref — no more, no less. Do not
   invent scenarios to pad the catalog, and do not drop scenarios from it. Apply the taxonomy rules
-  literally; if a scenario's nature is genuinely unclear, default to `@regression @happy-path` and say
-  so in `rationale` rather than guessing `@negative`/`@critical`.
+  literally; if a scenario's nature is genuinely unclear, default to `principal` (`@regression`, sin
+  tag de naturaleza) and say so in `rationale` rather than guessing `@negative`/`@critical`.
+- "happy path" / "happy" no es un valor ni una etiqueta: es solo el concepto interno del flujo
+  principal. No lo escribas en slugs, títulos ni tags.
 
 ## Reference
 

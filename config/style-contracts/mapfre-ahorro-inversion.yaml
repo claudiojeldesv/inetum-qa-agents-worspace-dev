@@ -77,20 +77,8 @@ synthetic_fixtures:
   test_cards: []
   test_iban: []
 
-# Vocabulario de dominio (seguros — ahorro e inversión). La semilla transversal del
-# agente (auth) no aplica aquí (sitio público); lo crítico es la tarificación/contratación.
-taxonomy:
-  critical_keywords:
-    - tarificacion
-    - simulacion
-    - contratacion
-    - ahorro
-    - inversion
-  glossary:
-    quote: tarificacion
-    simulation: simulacion
-    savings: ahorro
-    investment: inversion
+# En S4 la criticidad se infiere por el propósito del sitio (seguros — ahorro/inversión):
+# tarificar/simular/contratar son los flujos centrales. Ya no se declara por keywords.
 
 banned_apis:
   - page.waitForTimeout

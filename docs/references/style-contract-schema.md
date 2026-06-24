@@ -141,43 +141,21 @@ test_design:
   min_functional_asserts: integer           # default 1. Mínimo de asserts funcionales (no-navegación) por test.
   forbid_navigation_only_test: boolean      # default true cuando el bloque existe. Un test cuyo único
                                             #   assert es toHaveURL / nav visible → rechazado por MF-9.
-  coverage:                                 # cobertura por flujo — qué naturalezas materializar (v0.2).
-                                            #   Reemplaza al antiguo global happy_path/negative.
-    default:                                #   naturalezas para flujos NO listados en by_flow.
-      - happy                               #     default ['happy'] — solo camino feliz (S4 no encarece
-                                            #     todos los runs ni mete al planner a provocar errores).
-    by_flow:                                #   override por flujo (clave = slug del flujo en español).
-      # <slug-flujo>: [happy, negative]     #   ej. inicio-sesion: [happy, negative]; pago: [happy]
-                                            #   'happy'    → materializa el/los camino(s) esperado(s).
-                                            #   'negative' → materializa también los casos de error/validación.
-                                            #   En S4 los negativos son OPT-IN: solo se generan para los
-                                            #   flujos que lo declaren aquí (o vía override del brief CLI).
-                                            #   En S2/S3 la naturaleza la dan los criterios RF; este bloque
-                                            #   no fuerza nada que el FD/Gherkin no contemple.
+  coverage:                                 # cobertura por flujo (v0.2). El FLUJO PRINCIPAL de cada flujo
+                                            #   descubierto se genera SIEMPRE (implícito, no se declara).
+                                            #   Aquí solo se declara qué flujos generan ADEMÁS negativos.
+    negatives_by_flow:                      #   mapa <slug-flujo>: bool. default {} → ningún flujo genera
+      # inicio-sesion: true                 #   negativos en S4 (opt-in). El command acepta override
+      # pago: false                         #   --negatives=<flujo1,flujo2>. En S2/S3 la naturaleza la dan
+                                            #   los criterios RF; este bloque no fuerza nada extra.
   no_assume_undiscovered_flows: boolean     # default true. No materializar flujos/elementos que no
                                             #   estén en discovery (refuerza la hard rule del Writer).
 
-# Vocabulario de dominio (v0.2). Hace GENÉRICO el agente: el conocimiento de sector vive aquí
-# (capa de cliente), no hardcodeado en el subagent. El discovery-analyzer trae una semilla
-# TRANSVERSAL mínima (familia auth: login/logout/registro) válida en cualquier web; este bloque
-# la EXTIENDE con el vocabulario del dominio del cliente. Bloque OPCIONAL — si falta, solo aplica
-# la semilla transversal + el fallback de traducción del agente (sin regresión).
-taxonomy:
-  critical_keywords:                # default []. Flujos críticos del DOMINIO (slug español o término
-                                    #   del screen, case-insensitive). Se UNEN a la semilla auth del
-                                    #   agente, no la reemplazan. Un flujo que matchee → criticality
-                                    #   "critical" → tags @smoke/@critical. Si no matchea semilla ni
-                                    #   esta lista → "normal" (@regression).
-    - checkout                      #   ej. e-commerce: checkout, compra, pago
-    - transferencia                 #   ej. banca: transferencia, prestamo, domiciliacion
-    - siniestro                     #   ej. seguros: siniestro, poliza, tarificacion, contratacion
-  glossary:                         # default {}. Overrides de traducción anglicismo→español para que
-                                    #   los slugs sean consistentes y del dominio. Se aplica ENCIMA de
-                                    #   la semilla transversal del agente. Si un término no está aquí
-                                    #   ni en la semilla → el agente traduce al término QA español
-                                    #   natural (kebab-case, sin tildes) — fallback ya existente.
-    claim: siniestro                #   ej. { cart: carrito, checkout: pago, quote: tarificacion }
-    quote: tarificacion
+# NOTA — criticidad y naming de dominio (v0.2, inferido puro): NO hay bloque de keywords ni glosario
+# de sector en el contract. En S4 el `ia4d-discovery-analyzer` INFIERE el dominio del sitio (banca,
+# seguros, e-commerce, sede electrónica, salud…) y marca como críticos los flujos centrales a ese
+# propósito; la autenticación es siempre crítica (transversal). El naming español también se infiere
+# (semilla transversal auth + inferencia por dominio). En S2/S3 la criticidad la dan los criterios RF.
 
 # PII allowlist (datos test publicados por el target, no son PII real)
 synthetic_fixtures:
