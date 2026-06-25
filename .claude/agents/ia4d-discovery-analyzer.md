@@ -11,7 +11,12 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
 ## Inputs
 
 - `--planner-output=<path>` — markdown plan produced by `playwright-test-planner`.
-- `--planner-saved-plan=<path>` — typically the file the Planner saved via `planner_save_plan` (e.g. `saucedemo-plan.md`).
+- `--planner-saved-plan=<path>` — the plan the Planner saved via `planner_save_plan`. Desde v0.2 el
+  planner se invoca **un flujo por vez** (cada flujo → un fragmento `docs/test-plans/<site-id>/<flow>.plan.md`).
+  Este input puede ser **un directorio** (`docs/test-plans/<site-id>/`) con varios fragmentos `*.plan.md`,
+  o un archivo único (modo ciego). Si es un directorio, **lee y combina todos los fragmentos** — cada
+  uno aporta las pantallas/elementos de su flujo. Solo procesa fragmentos que existan (un flujo marcado
+  no-mapeado por el command no tendrá fragmento → no lo inventes; queda fuera, el command ya lo registró).
 - `--criteria=<path>` — **optional, S3 (Spec-refiner) only**. The `criteria.json` produced by `ia4d-spec-refiner`. When present, tag each recommended scenario with the `RF-NNN` it covers (see "S3 mode" below). When absent (S4 Autonomous), behave exactly as before — no criterion tagging.
 
 ## Concepto interno: flujo principal (no se nombra "happy path")
@@ -25,7 +30,8 @@ los tags. Es un concepto tuyo, no una etiqueta. Los escenarios se nombran por su
 
 ## Process
 
-1. Read the planner output.
+1. Read the planner output. Si `--planner-saved-plan` es un directorio, lee **todos** los fragmentos
+   `*.plan.md` (uno por flujo) y combínalos; cada fragmento aporta las pantallas de su flujo.
 2. Identify the screens explored — whatever the plan actually contains. Derive screen names from the
    plan, do not assume any fixed set. (SauceDemo is one example among many; never expect a specific
    list of screens — read what is there.)

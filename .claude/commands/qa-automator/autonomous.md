@@ -63,34 +63,52 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
 
 ### Acto 2 — Mapear
 
-6. Deriva el `<site-id>` del basename del `--style` sin extensión (ej. `config/style-contracts/saucedemo.yaml` → `saucedemo`; con el default del command → `saucedemo`). Invoca `playwright-test-planner` (nativo) via Task tool. Compón el prompt con la URL **y el brief del paso 5.b**, e **indícale la ruta de guardado**: el planner debe llamar a `planner_save_plan` con `fileName="docs/test-plans/<site-id>/<site-id>.plan.md"` (ruta relativa a la raíz del workspace; el tool crea el directorio si no existe). El plan es documentación auditable y vive en `docs/`, no en `tests/`.
-   - **Modo dirigido**: `Crea un test plan para <url>. SCOPE — cubre solo estos flujos: <flows>. Punto de entrada: <entry>. NO explores: <ignore>. Mapea el flujo principal (el camino esperado que cumple el propósito) de cada flujo listado; no exhaustivo. Para los flujos que generan negativos (<flujos-con-negativos>), recorre además una vez el camino de error/validación (ej. login con credenciales inválidas) para capturar los locators del estado de error (mensaje de error, banner), que el negativo necesitará para su assert. Guarda el plan con planner_save_plan en fileName="docs/test-plans/<site-id>/<site-id>.plan.md".`
-   - **Modo ciego**: prompt de exploración completa (comportamiento v0.1), con la misma instrucción de `fileName`.
-   - Esperar el output: `docs/test-plans/<site-id>/<site-id>.plan.md` con escenarios + `planner_save_plan` ejecutado.
+6. Deriva el `<site-id>` del basename del `--style` sin extensión (ej. `config/style-contracts/saucedemo.yaml` → `saucedemo`; con el default del command → `saucedemo`).
 
-**6.5 — Guarda anti-fabricación (NO negociable): verifica que el planner navegó de verdad.**
+   **Mapeo PLANNER POR FLUJO (secuencial, no monolítico).** El planner nativo se cuelga si se le pide
+   mapear muchos flujos de una vez (hallazgo: ~1h colgado con 6 flujos). Por eso se invoca **un flujo
+   por vez**, secuencial — **nunca en paralelo** (los planners comparten el navegador del MCP vía
+   `planner_setup_page`; concurrentes colisionan). No hay timeout programático sobre un subagente Task:
+   **acotar a un flujo es la mitigación** (navegación corta → retorna en minutos, no se cuelga).
 
-El motor S4 vive del MCP `playwright-test`. Si ese MCP no está conectado en la sesión, el
-`playwright-test-planner` nativo se queda **sin tools de navegador** (`mcp__playwright-test__browser_*`)
-y, en vez de fallar, puede **fabricar** un plan adivinado (locators y secciones inventados). Pasar eso
-al discovery-analyzer produce tests contra un sitio que nunca se cargó. **Prohibido.** Antes de
-continuar al Acto 2/paso 7, comprueba TODAS estas señales de discovery real:
+   - **Modo dirigido** (hay `--flows`): para **cada flujo** del brief, invoca `playwright-test-planner`
+     (nativo) via Task tool con un prompt acotado a ESE flujo, que guarda un **fragmento de plan** en
+     `docs/test-plans/<site-id>/<flow>.plan.md` (el tool crea el dir). Prompt por flujo:
+     `Mapea contra el DOM de <url> SOLO el flujo "<flow>". Punto de entrada: <entry>. NO explores otros flujos ni <ignore>. Mapea el flujo principal (el camino esperado que cumple el propósito); no exhaustivo. Si <flow> está en <flujos-con-negativos>, recorre además una vez el camino de error/validación para capturar los locators del estado de error. Guarda con planner_save_plan en fileName="docs/test-plans/<site-id>/<flow>.plan.md".`
+     - Tras cada flujo, ejecuta la **guarda 6.5 por-flujo** (abajo) sobre su fragmento.
+   - **Modo ciego** (`EXPLORAR SIN ACOTAR`): un único planner de exploración completa (comportamiento
+     v0.1) que guarda `docs/test-plans/<site-id>/<site-id>.plan.md`; la guarda 6.5 se aplica una vez al
+     plan completo.
+   - Output: el conjunto de fragmentos `docs/test-plans/<site-id>/*.plan.md` (modo dirigido) o el plan
+     único (modo ciego). Es documentación auditable, vive en `docs/`, no en `tests/`.
 
-- El archivo `docs/test-plans/<site-id>/<site-id>.plan.md` **existe** (el planner llamó a
-  `planner_save_plan`). Si no existe → el planner no guardó nada real.
+**6.5 — Guarda anti-fabricación POR FLUJO (NO negociable): verifica que el planner navegó de verdad.**
+
+El motor S4 vive del MCP `playwright-test`. Si ese MCP no está conectado, el planner se queda **sin
+tools de navegador** (`mcp__playwright-test__browser_*`) y, en vez de fallar, puede **fabricar** un plan
+adivinado, o **colgarse** sin retornar. Tras el planner de **cada flujo**, comprueba estas señales de
+discovery real sobre su fragmento `docs/test-plans/<site-id>/<flow>.plan.md`:
+
+- El fragmento **existe** (el planner llamó a `planner_save_plan`). Si no → no guardó nada real.
 - El resumen del planner indica **uso de tools de navegador** (`browser_navigate`, `browser_snapshot`,
-  etc.). Si reporta que solo tuvo `Read/Grep/Glob` disponibles, o menciona que no había tools MCP de
-  navegador → **el MCP estaba caído**.
-- El plan contiene **locators/URLs concretos del sitio real**, no genéricos adivinados ("lo que un
-  sitio de este tipo tendría").
+  etc.), no solo `Read/Grep/Glob`.
+- El fragmento trae **locators/URLs concretos del sitio real**, no genéricos adivinados.
 
-Si **cualquiera** falla → **ABORTA con exit 2**, no invoques al discovery-analyzer, y registra al
-audit-log `{ source: 'command', action: 'block', rule: 'planner-fabrication-guard', reason: 'MCP playwright-test no disponible / planner no navegó: plan no fiable' }`. Mensaje al SDET: el MCP
-`playwright-test` no está conectado (reinicia la sesión / revisa `npm run qa:healthcheck`); el motor
-S4 no puede mapear el sitio y **no se fabrican tests**. El valor del agente es no inventar: sin
-discovery real, no hay generación.
+**Reintento + protocolo de cuelgue (decisión del SDET, no automática):**
+- Si la guarda falla para un flujo (o el planner se interrumpe / cuelga y el SDET lo corta) →
+  **reintenta UNA vez** ese flujo solo.
+- Si tras el reintento sigue fallando → **PAUSA y pregunta al SDET** (ask-first), ofreciendo:
+  1. **Marcar el flujo como no-mapeado** → va a `unmapped_flows` del drift; el run continúa con el resto.
+  2. **Rescate con MCP directo**: el orquestador mapea ese flujo él mismo con llamadas MCP
+     (`browser_*`) pantalla por pantalla (navegación real, locators reales — cumple el espíritu de la
+     guarda). **Aviso**: consume la ventana de contexto del orquestador; no recomendado en runs grandes.
+  3. **Abortar el run** (exit 2).
+  Registra la elección al audit-log `{ source: 'command', action: 'warn'|'block', rule: 'planner-flow-recovery', metadata: { flow: '<flow>', choice } }`.
+- Un flujo que falle **no contamina a los demás**: los flujos ya mapeados con éxito siguen su curso.
+- **Nunca** pases al discovery-analyzer un fragmento que no pasó la guarda. Sin discovery real, no hay
+  generación de ese flujo.
 
-7. Invoca `ia4d-discovery-analyzer` con el plan saved como input. **Pásale los negativos efectivos**: el
+7. Invoca `ia4d-discovery-analyzer` con los **fragmentos de plan** del sitio como input. **Pásale los negativos efectivos**: el
    `negatives_override` del brief si existe, si no `test_design.coverage.negatives_by_flow` del contract.
    El analyzer genera siempre el flujo principal de cada flujo y añade `negative` solo en los pedidos.
    El analyzer **infiere el dominio del sitio** y marca la criticidad por propósito (no hay keywords).
@@ -241,7 +259,7 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 - Cada invocación de subagent registra al audit-log.
 - No saltar Acto 1 (compliance pre-flight). Sin override.
-- **Guarda anti-fabricación del planner (paso 6.5)**: si el planner no navegó de verdad (MCP `playwright-test` caído → sin tools de navegador → plan inventado), ABORTA con exit 2. Nunca pases un plan fabricado al discovery-analyzer. Sin discovery real, no hay generación.
+- **Planner por-flujo (paso 6) + guarda anti-fabricación por-flujo (paso 6.5)**: el planner se invoca un flujo por vez, secuencial (nunca en paralelo). Cada fragmento pasa la guarda; si un flujo falla tras un reintento, el command PAUSA y el SDET decide (no-mapeado / rescate MCP directo / abortar). Un flujo fallido no contamina a los demás. Nunca pases al discovery-analyzer un fragmento que no navegó de verdad. Sin discovery real, no hay generación.
 - No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
 - El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del SDET. Truncar sin avisar rompe el principio "no silent caps".
 - Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.

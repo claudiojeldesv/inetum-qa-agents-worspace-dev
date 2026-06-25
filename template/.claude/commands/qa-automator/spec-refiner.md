@@ -39,24 +39,35 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
 
-8. Invoca `playwright-test-planner` (nativo) via Task tool. Prompt en **modo mapear** (no exploración libre):
+8. **Mapeo PLANNER POR FLUJO (secuencial, no monolítico).** El planner nativo se cuelga si se le pide
+   mapear muchos flujos de una vez (hallazgo: ~1h colgado con 6 flujos). Invócalo **un flujo por vez**,
+   secuencial — **nunca en paralelo** (comparten el navegador del MCP). No hay timeout programático
+   sobre un subagente Task: **acotar a un flujo es la mitigación**. Para **cada** `<flow>` de
+   `brief.flows`, invoca `playwright-test-planner` (nativo) via Task tool, prompt en **modo mapear**:
    ```
-   Mapea contra el DOM de <url> los siguientes flujos del FD: <brief.flows>.
-   Punto de entrada: <brief.entry>. NO explores: <brief.ignore>.
-   Para CADA flujo, localiza las pantallas y elementos que lo realizan en el DOM real.
-   Si un flujo NO existe en el DOM (ruta/pantalla ausente), repórtalo como NO MAPEADO —
+   Mapea contra el DOM de <url> SOLO el flujo "<flow>" del FD.
+   Punto de entrada: <brief.entry>. NO explores otros flujos ni <brief.ignore>.
+   Localiza las pantallas y elementos que realizan <flow> en el DOM real.
+   Si <flow> NO existe en el DOM (ruta/pantalla ausente), repórtalo como NO MAPEADO —
    NO inventes pasos ni pantallas para que parezca cubierto.
+   Guarda con planner_save_plan en fileName="docs/test-plans/<site-id>/<flow>.plan.md".
    ```
-   Esperar `<saved-plan>.md` + `planner_save_plan`.
+   Tras cada flujo, aplica la **guarda 8.5 por-flujo** sobre su fragmento.
 
-   **8.5 — Guarda anti-fabricación (NO negociable)**: el planner necesita el MCP `playwright-test`. Si
-   está caído, el planner se queda sin tools de navegador y puede **fabricar** un plan adivinado. Antes
-   del paso 9, verifica discovery real: (a) el `<saved-plan>.md` existe (se llamó `planner_save_plan`);
-   (b) el planner reporta uso de tools de navegador (`browser_navigate`/`browser_snapshot`), no solo
-   `Read/Grep/Glob`; (c) el plan trae locators/URLs concretos del sitio, no genéricos. Si cualquiera
-   falla → **ABORTA con exit 2**, no invoques al discovery-analyzer, audit-log
-   `{ source: 'command', action: 'block', rule: 'planner-fabrication-guard', reason: 'MCP no disponible / planner no navegó' }`. Sin discovery real no hay mapeo fiable contra los criterios.
-9. Invoca `ia4d-discovery-analyzer` con el plan **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode):
+   **8.5 — Guarda anti-fabricación POR FLUJO (NO negociable)**: el planner necesita el MCP
+   `playwright-test`. Si está caído, se queda sin tools de navegador y puede **fabricar** un plan
+   adivinado o **colgarse**. Tras el planner de cada flujo, verifica sobre su fragmento
+   `docs/test-plans/<site-id>/<flow>.plan.md`: (a) existe (se llamó `planner_save_plan`); (b) el planner
+   reporta uso de tools de navegador (`browser_navigate`/`browser_snapshot`), no solo `Read/Grep/Glob`;
+   (c) trae locators/URLs concretos, no genéricos.
+   - Si falla (o el planner se cuelga y el SDET lo corta) → **reintenta UNA vez** ese flujo solo.
+   - Si tras el reintento sigue fallando → **PAUSA y pregunta al SDET**: (1) marcar el flujo como
+     no-mapeado (va a `unmapped_flows`, el run sigue con el resto); (2) rescate con MCP directo por el
+     orquestador (aviso: consume contexto); (3) abortar (exit 2). Registra al audit-log
+     `{ source: 'command', action: 'warn'|'block', rule: 'planner-flow-recovery', metadata: { flow, choice } }`.
+   - Un flujo fallido **no contamina a los demás**. Nunca pases al discovery-analyzer un fragmento que no
+     navegó de verdad — sin discovery real no hay mapeo fiable contra los criterios.
+9. Invoca `ia4d-discovery-analyzer` con los **fragmentos de plan** del sitio **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode):
    - Output: `.work/discovery-report.json` con el bloque `criteria_mapping` (`mapped` rf↔scenario, `unmapped_flows`).
 
 **9.b — Diff de drift (determinístico, en el command — no LLM):**
