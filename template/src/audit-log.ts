@@ -41,7 +41,9 @@ export interface AuditLogEntry {
   metadata?: Record<string, unknown>;
 }
 
-const DEFAULT_LOG_PATH = resolve(process.cwd(), '.work/audit-log.json');
+// Work dir por-sitio (v0.2): QA_WORK_DIR='.work/<site-id>' aísla el audit-log por sitio.
+// Sin la var → '.work' (comportamiento previo). Los tests pasan logPath explícito → no se afectan.
+const DEFAULT_LOG_PATH = resolve(process.cwd(), `${process.env.QA_WORK_DIR || '.work'}/audit-log.json`);
 
 export function appendAuditEntry(
   entry: Omit<AuditLogEntry, 'timestamp'> & { timestamp?: string },

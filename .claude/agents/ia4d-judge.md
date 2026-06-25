@@ -37,7 +37,11 @@ You are the **Judge** of the Quality layer. After the Writer+Reviewer protocol h
 5. Reduce 0.1 if `reviewer-verdict == 'iteration_2_exhausted'` (penalty for unresolved must-fix).
 6. Clamp to [0, 1].
 
-## Output (append to `.work/judge-report.json`, JSON lines)
+## Output (append to `judge-report.json`, JSON lines — under the run's work dir)
+
+Escribe bajo el work dir del run: `$QA_WORK_DIR/judge-report.json` si está seteado o el command te pasó
+el work dir namespaciado (`<workDir>`=`.work/<site-id>`); default `.work/judge-report.json`. Derívalo del
+`--review-feedback` que recibes (vive en el mismo work dir).
 
 ```json
 {

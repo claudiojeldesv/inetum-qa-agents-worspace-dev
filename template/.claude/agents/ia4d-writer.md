@@ -14,7 +14,10 @@ You are the **Writer** of the Quality layer. You take ONE scenario from a test p
 
 - `--plan-entry=<path>` — the specific scenario from the plan to materialize (or section identifier).
 - `--style-contract=<path>` — the YAML for this project.
-- `--pom-skeleton-dir=<path>` — directory of scaffolded `*.page.ts` files (typically `tests/pages/`).
+- `--pom-skeleton-dir=<path>` — directory of scaffolded `*.page.ts` files. Desde v0.2 está namespaciado
+  por sitio: `tests/pages/<site-id>/`. El `--output` del spec también es per-site (`tests/e2e/<site-id>/`).
+  **Construye el import del POM relativo a las rutas reales** (desde `tests/e2e/<site-id>/` a
+  `tests/pages/<site-id>/` el import es `../../pages/<site-id>/<x>.page.ts`). No asumas `tests/pages/` plano.
 - `--output=<path>` — target path for the new `.spec.ts`.
 - `--discovery-report=<path>` — .work/discovery-report.json with element selectors (data-test attrs, roles, etc.).
 - `--tc-id=<ID>` — **optional, S4 Autonomous only**. The **stable** test identifier the command
@@ -30,7 +33,7 @@ You are the **Writer** of the Quality layer. You take ONE scenario from a test p
 2. Identify the scenario: title, steps, expected outcomes, criterion citation.
 3. Generate the `.spec.ts`:
    - Import `@playwright/test` and `@axe-core/playwright`.
-   - Import the relevant POM class(es) from `tests/pages/`.
+   - Import the relevant POM class(es) from `--pom-skeleton-dir` (per-site `tests/pages/<site-id>/`), with the correct relative path from the spec's per-site location.
    - Use locator priority from Style Contract (`getByTestId` first for SauceDemo).
    - First action: `await page.goto(...)` to the relevant URL.
    - Immediately after goto: inject the `AxeBuilder({ page }).analyze()` check.
@@ -58,7 +61,9 @@ Review the test at <output>. Plan source: <plan-entry>. Style Contract: <style-c
 Verdict: approved | rejected with feedback[].
 ```
 
-Read the resulting `.work/review-feedback.json` (the Reviewer appends to it).
+Read the resulting `review-feedback.json` (the Reviewer appends to it) under the run's work dir
+(`<workDir>/review-feedback.json`, `<workDir>`=`.work/<site-id>` cuando el command lo namespacea; default `.work/`).
+Cuando invoques al Reviewer, pásale el `--discovery-report` namespaciado que recibiste para que escriba en el mismo work dir.
 
 ## Branch on verdict
 

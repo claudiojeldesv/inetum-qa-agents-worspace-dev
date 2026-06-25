@@ -13,7 +13,7 @@ Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que aco
 
 - `--url=<URL>` (obligatorio): URL del target, debe estar en `config/allowed-targets.yaml`.
 - `--style=<path>` (opcional, default: `config/style-contracts/saucedemo.yaml`): YAML del Style Contract.
-- `--output-dir=<path>` (opcional, default: `tests/e2e`): directorio donde se escriben los `.spec.ts`.
+- `--output-dir=<path>` (opcional, default: `tests/e2e/<site-id>`): directorio donde se escriben los `.spec.ts` (namespaced por sitio).
 - `--flows=<a,b,c>` (opcional): flujos a cubrir, separados por coma (ej. `checkout,registro`). Acota qué mapea el planner.
 - `--negatives=<flujo1,flujo2>` (opcional): **override por-run** de qué flujos generan además negativos.
   El **flujo principal de cada flujo se genera siempre**; esto solo añade los negativos. Ej.
@@ -61,9 +61,28 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
 - Registra el brief efectivo al audit-log: `{ source: 'command', action: 'exploration_brief', metadata: { flows, entry, ignore, negatives_override, mode, blind_acknowledged } }`.
 - Nota: el intake aquí es mínimo (plumbing v0.2). El intake adaptativo —preguntas y pre-scout derivados de la recolección— es Fase C.
 
+**5.c — Namespace por sitio + limpieza (NO negociable): cada sitio en su propio espacio.**
+
+Runs de sitios distintos NO deben contaminarse (hallazgo: el discovery de un sitio quedó mezclado con
+otro; specs de varios sitios convivían en `tests/e2e/` y hubo que filtrar a mano). Antes de mapear:
+
+- Deriva el **`<site-id>`** del basename del `--style` sin extensión (ej. `saucedemo`).
+- Define el **work dir del run**: `<workDir> = .work/<site-id>`. **TODOS** los artefactos efímeros del
+  agente van bajo `<workDir>/` (discovery-report, drift-report, review-feedback, judge-report,
+  run-summary, audit-log, compliance-verdict, allure-results/report). El registro `config/tc-registry/<site-id>.json`
+  es durable y vive fuera de `.work` (no se toca aquí).
+- **Define los dirs de test por-sitio**: `tests/e2e/<site-id>/`, `tests/pages/<site-id>/`,
+  `tests/components/<site-id>/`.
+- **Limpieza de arranque**: borra el contenido de `<workDir>/` (artefactos de un run previo del mismo
+  sitio) para empezar limpio. Sustituye al hack de "detectar y sobrescribir el stale". NO borres
+  `config/tc-registry/<site-id>.json`.
+- **Exporta `QA_WORK_DIR=<workDir>`** para todo el run: el código determinístico (audit-log,
+  playwright.config, build-report, enricher) lo lee y namespacea solo. A los subagentes que escriben por
+  prosa (discovery-analyzer, reviewer, judge) **pásales las rutas ya namespaciadas** (`--output=<workDir>/...`).
+
 ### Acto 2 — Mapear
 
-6. Deriva el `<site-id>` del basename del `--style` sin extensión (ej. `config/style-contracts/saucedemo.yaml` → `saucedemo`; con el default del command → `saucedemo`).
+6. El `<site-id>` y `<workDir>` ya están definidos (paso 5.c).
 
    **Mapeo PLANNER POR FLUJO (secuencial, no monolítico).** El planner nativo se cuelga si se le pide
    mapear muchos flujos de una vez (hallazgo: ~1h colgado con 6 flujos). Por eso se invoca **un flujo
@@ -108,11 +127,11 @@ discovery real sobre su fragmento `docs/test-plans/<site-id>/<flow>.plan.md`:
 - **Nunca** pases al discovery-analyzer un fragmento que no pasó la guarda. Sin discovery real, no hay
   generación de ese flujo.
 
-7. Invoca `ia4d-discovery-analyzer` con los **fragmentos de plan** del sitio como input. **Pásale los negativos efectivos**: el
+7. Invoca `ia4d-discovery-analyzer` pasándole `--planner-saved-plan=docs/test-plans/<site-id>/` (el **directorio de fragmentos** por-flujo) y `--output=<workDir>/discovery-report.json`. **Pásale los negativos efectivos**: el
    `negatives_override` del brief si existe, si no `test_design.coverage.negatives_by_flow` del contract.
    El analyzer genera siempre el flujo principal de cada flujo y añade `negative` solo en los pedidos.
    El analyzer **infiere el dominio del sitio** y marca la criticidad por propósito (no hay keywords).
-   - Output: `.work/discovery-report.json` (dir de trabajo efímero del agente), que ahora incluye
+   - Output: `<workDir>/discovery-report.json`, que ahora incluye
      `inferred_domain` y `scenarios_catalog[]` con `scenario_slug` (`<feature>.<condicion>` español, sin
      naturaleza en el nombre), `feature`, `condicion`, `nature` (`principal`|`negative`), `suite_tags`,
      `criticality`, `rank`. **El analyzer NO asigna el ID del archivo** — eso lo resuelve el Acto 2.5.
@@ -167,27 +186,27 @@ registran (no es un fallo: es la rienda).
 8. Ejecuta el POM scaffolder programáticamente (`src/scripts/scaffold-poms.ts` lee `screens` y
    `components` del discovery-report):
    ```sh
-   npx tsx src/scripts/scaffold-poms.ts .work/discovery-report.json tests/pages
+   npx tsx src/scripts/scaffold-poms.ts <workDir>/discovery-report.json tests/pages/<site-id> tests/components/<site-id>
    ```
-   Produce `tests/pages/base.page.ts` (BasePage común), `tests/pages/*.page.ts` (uno por screen,
-   `extends BasePage`) y, si el discovery declaró `components[]`, `tests/components/*.component.ts`
+   Produce `tests/pages/<site-id>/base.page.ts` (BasePage común), `tests/pages/<site-id>/*.page.ts` (uno por screen,
+   `extends BasePage`) y, si el discovery declaró `components[]`, `tests/components/<site-id>/*.component.ts`
    (objetos compartidos nav/header que las pages exponen como campo). Los toggles `pom.base_page` /
    `pom.components` del Style Contract (default ambos `true`) deciden si se emiten.
 
 ### Acto 4 — Materializar
 
 **8.b — Auth setup** (solo si el contract tiene `auth.enabled: true`):
-- Invoca `ia4d-writer` para generar `tests/e2e/auth.setup.ts`: un bloque `setup('authenticate', ...)` que navega a `auth.login_path`, rellena las credenciales de `synthetic_fixtures.credentials[auth.credentials_ref]`, verifica `auth.success_signal` (assert por `url` o `locator`), y guarda el estado con `await page.context().storageState({ path: <auth.storage_state> })`. Importa `setup` como `import { test as setup } from '@playwright/test'`. **NO** lleva AxeBuilder (es setup, no test del flujo). Los locators del login salen de discovery; si no hay semántica, aplica la excepción `css_fallback_attributes` (Componente CSS legacy).
+- Invoca `ia4d-writer` para generar `tests/e2e/<site-id>/auth.setup.ts`: un bloque `setup('authenticate', ...)` que navega a `auth.login_path`, rellena las credenciales de `synthetic_fixtures.credentials[auth.credentials_ref]`, verifica `auth.success_signal` (assert por `url` o `locator`), y guarda el estado con `await page.context().storageState({ path: <auth.storage_state> })`. Importa `setup` como `import { test as setup } from '@playwright/test'`. **NO** lleva AxeBuilder (es setup, no test del flujo). Los locators del login salen de discovery; si no hay semántica, aplica la excepción `css_fallback_attributes` (Componente CSS legacy).
 - El setup project + `dependencies` + `storageState` los activa `playwright.config.ts` vía `QA_STORAGE_STATE` (ver Verification step). Los specs del resto de flujos NO re-loguean: heredan el estado por el dependency.
-- Registra al audit-log: `{ source: 'command', action: 'write_file', target: 'tests/e2e/auth.setup.ts', rule: 'auth-handler', reason: 'setup project for persistent session' }`.
+- Registra al audit-log: `{ source: 'command', action: 'write_file', target: 'tests/e2e/<site-id>/auth.setup.ts', rule: 'auth-handler', reason: 'setup project for persistent session' }`.
 
 9. Para cada escenario **seleccionado en el Acto 2.5** (paralelizable):
-   - **Construye el `--output`** con el patrón `naming.spec_pattern` (default `{id}_{feature}.{condicion}.spec.ts`):
-     `<output-dir>/<id>_<feature>.<condicion>.spec.ts`, donde `<id>` es el ID estable resuelto del
-     registro (ej. `MAPFRE-T1234_inicio-sesion.usuario-valido.spec.ts` o `TC-002_inicio-sesion.usuario-bloqueado.spec.ts`).
+   - **Construye el `--output`** con el patrón `naming.spec_pattern` (default `{id}_{feature}.{condicion}.spec.ts`)
+     bajo el dir de test del sitio: `tests/e2e/<site-id>/<id>_<feature>.<condicion>.spec.ts`, donde `<id>`
+     es el ID estable resuelto del registro (ej. `tests/e2e/saucedemo/TC-002_inicio-sesion.usuario-bloqueado.spec.ts`).
      El `<feature>` y `<condicion>` vienen del catálogo (español, sin tildes/ñ). Si `tc_registry.enabled:false`,
      omite el prefijo `<id>_`.
-   - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir`, `--output` (el que acabas de construir), `--discovery-report`, y además `--tc-id=<id estable>` y `--tags=<@a,@b,@c>` tomados de su entrada en `scenarios_catalog` (con las ediciones de tags del checkpoint, si las hubo).
+   - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir=tests/pages/<site-id>`, `--output` (el que acabas de construir, bajo `tests/e2e/<site-id>/`), `--discovery-report=<workDir>/discovery-report.json`, y además `--tc-id=<id estable>` y `--tags=<@a,@b,@c>` tomados de su entrada en `scenarios_catalog` (con las ediciones de tags del checkpoint, si las hubo).
    - El Writer escribe el `.spec.ts` con los tags nativos e invoca internamente al Reviewer (ping-pong N≤2).
    - Cada `.spec.ts` pasa por el hook PostToolUse `pii-post.ts` automáticamente.
 10. (Opcional) Invoca `ia4d-style-enforcer` por cada `.spec.ts` para enforce final del Style Contract.
@@ -198,21 +217,21 @@ registran (no es un fallo: es la rienda).
 
 ### Acto 5 — Juzgar
 
-12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `.work/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
+12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
 13. (Solo si el Judge corrió) Lee todos los scores. Si >30% < 0.5 → pausa con ask-first.
-14. Genera summary `.work/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results. **Cada entrada de `tests_generated[]` incluye `tc_id` y `tags[]`** (del catálogo/checkpoint); el top-level añade `scenarios_total` y `scenarios_selected`. El enricher de `/qa-automator:report` los lleva a Allure como labels.
+14. Genera summary `<workDir>/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results. **Cada entrada de `tests_generated[]` incluye `tc_id` y `tags[]`** (del catálogo/checkpoint); el top-level añade `scenarios_total` y `scenarios_selected`. El enricher de `/qa-automator:report` los lleva a Allure como labels.
 
 ## Outputs (consolidados)
 
-- `docs/test-plans/<site-id>/<site-id>.plan.md` (test plan del planner — documentación auditable, versionada)
-- `.work/discovery-report.json`
-- `tests/pages/*.page.ts` (POM esqueletos + locators rellenos por Writer)
-- `tests/e2e/<id>_<feature>.<condicion>.spec.ts` (specs con prefijo de ID estable; naturaleza solo en tags)
-- `config/tc-registry/<site-id>.json` (registro de IDs estables, versionado — creado/actualizado en Acto 2.5)
-- `.work/review-feedback.json` (todas las reviews)
-- `.work/judge-report.json` (scores)
-- `.work/audit-log.json` (traza completa)
-- `.work/qa-automator-run-summary.json`
+- `docs/test-plans/<site-id>/*.plan.md` (fragmentos del planner, uno por flujo — documentación auditable, versionada)
+- `<workDir>/discovery-report.json` (`<workDir>` = `.work/<site-id>`)
+- `tests/pages/<site-id>/*.page.ts` + `tests/components/<site-id>/*.component.ts` (POM esqueletos + locators rellenos por Writer)
+- `tests/e2e/<site-id>/<id>_<feature>.<condicion>.spec.ts` (specs con prefijo de ID estable; naturaleza solo en tags)
+- `config/tc-registry/<site-id>.json` (registro de IDs estables, versionado, durable — fuera de `.work`)
+- `<workDir>/review-feedback.json` (todas las reviews)
+- `<workDir>/judge-report.json` (scores)
+- `<workDir>/audit-log.json` (traza completa)
+- `<workDir>/qa-automator-run-summary.json`
 
 ## Verification step (ejecuta `npx playwright test`)
 
@@ -221,11 +240,11 @@ setea `QA_ENABLE_PII=1` (PII scanner del hook) y/o `QA_ENABLE_JUDGE=1` (Acto 5).
 reactiva por-sitio con `fail_on_violations: true` en el Style Contract, no por env-var. Sin estas vars,
 el run corre sin PII scan, sin Judge y con a11y en modo warning.
 
-**Antes de ejecutar, borra `tests/e2e/seed.spec.ts` si existe.** Es el scaffold que el MCP `playwright-test` resiembra en cada `setup_page` (Planner/Generator); solo sirve durante la generación. Si queda en `testDir`, corre como un test vacío siempre-verde y contamina el output y el reporte Allure (decisión SDET: eliminarlo, no ignorarlo).
+**Antes de ejecutar, borra `tests/e2e/<site-id>/seed.spec.ts` si existe.** Es el scaffold que el MCP `playwright-test` resiembra en cada `setup_page` (Planner/Generator); solo sirve durante la generación. Si queda en `testDir`, corre como un test vacío siempre-verde y contamina el output y el reporte Allure (decisión SDET: eliminarlo, no ignorarlo).
 
-**`allure-results` se limpia solo.** El `globalSetup` de `playwright.config.ts` (`playwright.global-setup.ts`) vacía `.work/allure-results` al inicio de cada `npx playwright test`. Así el reporte refleja SOLO esta corrida — no hace falta `rm` manual y no se acumulan runs viejos (duplicados / `skipped` rancios). Los Trends se preservan (`.allure-history/` queda intacto; el report lo re-inyecta).
+**`allure-results` se limpia solo.** El `globalSetup` de `playwright.config.ts` (`playwright.global-setup.ts`) vacía `<workDir>/allure-results` (= `QA_WORK_DIR/allure-results`) al inicio de cada `npx playwright test`. Así el reporte refleja SOLO esta corrida — no hace falta `rm` manual y no se acumulan runs viejos (duplicados / `skipped` rancios). Los Trends se preservan (`.allure-history/` queda intacto; el report lo re-inyecta).
 
-Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo y el spec corre contra el sitio equivocado — hallazgo Fase B sitio 2).
+Tras los 5 actos, ejecuta el test **seteando `QA_WORK_DIR=<workDir>` (= `.work/<site-id>`)** para que los artefactos del run (allure-results, test-results, report) caigan en el espacio del sitio, **`QA_BASE_URL` con el `--url` del run** (los POM usan `goto('/')` relativo; sin esto el `baseURL` del config cae a SauceDemo — hallazgo Fase B sitio 2), y **filtrando por el dir del sitio**: `npx playwright test tests/e2e/<site-id>/` (corre solo los specs de este sitio, sin arrastrar otros — sustituye al filtrado a mano por features).
 
 **Si el contract tiene `auth.enabled: true`**, setea además `QA_STORAGE_STATE` con `auth.storage_state`. Eso activa el setup project + `dependencies` en `playwright.config.ts`: el `auth.setup.ts` corre primero y escribe el estado, luego los specs lo heredan. **Ya no hace falta `--workers=1`** — el dependency garantiza el orden bajo `fullyParallel` (mata la race del hallazgo #10).
 
@@ -237,19 +256,21 @@ Tras los 5 actos, ejecuta el test **seteando `QA_BASE_URL` con el `--url` del ru
 Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 ```sh
-# Sin auth (PowerShell):  $env:QA_BASE_URL='<--url>'; npx playwright test --reporter=list
-# Sin auth (bash):        QA_BASE_URL='<--url>' npx playwright test --reporter=list
+# Siempre: setea QA_WORK_DIR='.work/<site-id>' (aísla artefactos del sitio) y filtra por tests/e2e/<site-id>/.
+
+# Sin auth (PowerShell):  $env:QA_WORK_DIR='.work/<site-id>'; $env:QA_BASE_URL='<--url>'; npx playwright test tests/e2e/<site-id>/ --reporter=list
+# Sin auth (bash):        QA_WORK_DIR='.work/<site-id>' QA_BASE_URL='<--url>' npx playwright test tests/e2e/<site-id>/ --reporter=list
 
 # Con auth (PowerShell):
-#   $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test --reporter=list
+#   $env:QA_WORK_DIR='.work/<site-id>'; $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test tests/e2e/<site-id>/ --reporter=list
 # Con auth (bash):
-#   QA_BASE_URL='<--url>' QA_STORAGE_STATE='playwright/.auth/<project>.json' npx playwright test --reporter=list
+#   QA_WORK_DIR='.work/<site-id>' QA_BASE_URL='<--url>' QA_STORAGE_STATE='playwright/.auth/<project>.json' npx playwright test tests/e2e/<site-id>/ --reporter=list
 
 # Con evidencia visual para el reporte Allure (contract: evidence.level: full).
 # OJO: SIN --reporter=list — el flag CLI sobrescribe los reporters del config y suprime
 # allure-results/, dejando a /qa-automator:report sin nada que enriquecer.
-#   (PowerShell)  $env:QA_BASE_URL='<--url>'; $env:QA_SCREENSHOT='on'; $env:QA_TRACE='on'; npx playwright test
-#   (bash)        QA_BASE_URL='<--url>' QA_SCREENSHOT='on' QA_TRACE='on' npx playwright test
+#   (PowerShell)  $env:QA_WORK_DIR='.work/<site-id>'; $env:QA_BASE_URL='<--url>'; $env:QA_SCREENSHOT='on'; $env:QA_TRACE='on'; npx playwright test tests/e2e/<site-id>/
+#   (bash)        QA_WORK_DIR='.work/<site-id>' QA_BASE_URL='<--url>' QA_SCREENSHOT='on' QA_TRACE='on' npx playwright test tests/e2e/<site-id>/
 ```
 
 - Si todos verdes → run exitoso.
@@ -259,6 +280,7 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 - Cada invocación de subagent registra al audit-log.
 - No saltar Acto 1 (compliance pre-flight). Sin override.
+- **Namespace por sitio (paso 5.c)**: artefactos efímeros bajo `<workDir>=.work/<site-id>`; specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR=<workDir>` exportado en el run; `npx playwright test tests/e2e/<site-id>/`. Limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos NO se contaminan ni se filtran a mano.
 - **Planner por-flujo (paso 6) + guarda anti-fabricación por-flujo (paso 6.5)**: el planner se invoca un flujo por vez, secuencial (nunca en paralelo). Cada fragmento pasa la guarda; si un flujo falla tras un reintento, el command PAUSA y el SDET decide (no-mapeado / rescate MCP directo / abortar). Un flujo fallido no contamina a los demás. Nunca pases al discovery-analyzer un fragmento que no navegó de verdad. Sin discovery real, no hay generación.
 - No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
 - El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del SDET. Truncar sin avisar rompe el principio "no silent caps".

@@ -14,7 +14,10 @@ import { resolve } from 'node:path';
  * porque `build-report.mjs` re-inyecta el history en su paso "History IN" tras el run.
  */
 function globalSetup(): void {
-  rmSync(resolve(process.cwd(), '.work/allure-results'), { recursive: true, force: true });
+  // Work dir por-sitio (v0.2): QA_WORK_DIR='.work/<site-id>' aísla los allure-results por sitio.
+  // Sin la var → '.work' (comportamiento previo).
+  const workDir = process.env.QA_WORK_DIR || '.work';
+  rmSync(resolve(process.cwd(), `${workDir}/allure-results`), { recursive: true, force: true });
 }
 
 export default globalSetup;

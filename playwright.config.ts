@@ -7,9 +7,14 @@ import { defineConfig, devices } from '@playwright/test';
 // idéntico al actual: sin setup project, sin storageState (sitios sin auth no se rompen).
 const storageState = process.env.QA_STORAGE_STATE;
 
+// Work dir por-sitio (v0.2): el command setea QA_WORK_DIR='.work/<site-id>' para aislar los
+// artefactos de cada sitio (allure-results, test-results, report) y que runs de sitios distintos
+// no se contaminen. Sin la var → '.work' (comportamiento previo, sin regresión).
+const workDir = process.env.QA_WORK_DIR || '.work';
+
 export default defineConfig({
   testDir: './tests/e2e',
-  outputDir: '.work/test-results',
+  outputDir: `${workDir}/test-results`,
   // Limpia .work/allure-results antes de cada run (allure-playwright nunca limpia: acumula
   // resultados entre corridas → el reporte mezclaría runs viejos, skipped rancios y fallos ya
   // corregidos). Determinista, aplica a todos los commands y runs manuales. No toca .allure-history.
@@ -20,10 +25,10 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
-    ['html', { outputFolder: '.work/playwright-report', open: 'never' }],
+    ['html', { outputFolder: `${workDir}/playwright-report`, open: 'never' }],
     // allure-playwright produce allure-results/; /qa-automator:report lo enriquece
     // con la evidencia del agente y genera el HTML estático (npx allure generate).
-    ['allure-playwright', { resultsDir: '.work/allure-results', detail: true }],
+    ['allure-playwright', { resultsDir: `${workDir}/allure-results`, detail: true }],
   ],
   use: {
     // baseURL parametrizable por run (v0.2 Fase B): el command autonomous lo setea

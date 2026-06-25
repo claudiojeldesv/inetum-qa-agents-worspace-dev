@@ -26,7 +26,7 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
 - `--url=<URL>` (obligatorio): URL de staging, debe estar en `config/allowed-targets.yaml`. Sin
   target no hay DOM, locators ni run verde.
 - `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `config/style-contracts/parabank.yaml`).
-- `--output-dir=<path>` (opcional, default: `tests/e2e`).
+- `--output-dir=<path>` (opcional, default: `tests/e2e/<site-id>`, namespaced por sitio).
 - `--criteria-dir=<path>` (opcional, default: `docs/findings/faseE-s2`): dónde el parser escribe
   `criteria.json` + `refinement-questions.md`.
 - `--openapi=<path>`: **diferido a v0.4**. Si se pasa, el command informa y aborta (los tests de API
@@ -58,6 +58,12 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
    caso por `/qa-automator:spec-refiner` (S3). No se fabrica el resultado esperado.
 7. Registra al audit-log: `{ source: 'command', action: 'feature_ingested', metadata: { criteria_count, blocked_count, flows } }`.
 
+**7.b — Namespace por sitio + limpieza (igual que S4/S3, NO negociable):** deriva `<site-id>` del
+basename del `--style`; define `<workDir>=.work/<site-id>` (todos los artefactos efímeros ahí) y los
+dirs `tests/{e2e,pages,components}/<site-id>/`; **limpia `<workDir>/` al arrancar** (no toca
+`config/tc-registry/<site-id>.json`); **exporta `QA_WORK_DIR=<workDir>`** en el run. Pasa rutas
+namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
+
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
 
 8. **Mapeo PLANNER POR FLUJO (secuencial, no monolítico).** El planner nativo se cuelga si se le pide
@@ -88,12 +94,12 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
      `{ source: 'command', action: 'warn'|'block', rule: 'planner-flow-recovery', metadata: { flow, choice } }`.
    - Un flujo fallido **no contamina a los demás**. Nunca pases al discovery-analyzer un fragmento que no
      navegó de verdad — sin discovery real no hay mapeo fiable contra los criterios.
-9. Invoca `ia4d-discovery-analyzer` con los **fragmentos de plan** del sitio **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode, idéntico):
-   - Output: `.work/discovery-report.json` con el bloque `criteria_mapping` (`mapped` rf↔scenario, `unmapped_flows`).
+9. Invoca `ia4d-discovery-analyzer` con `--planner-saved-plan=docs/test-plans/<site-id>/` (directorio de fragmentos), `--output=<workDir>/discovery-report.json` **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode, idéntico):
+   - Output: `<workDir>/discovery-report.json` con el bloque `criteria_mapping` (`mapped` rf↔scenario, `unmapped_flows`).
 
 **9.b — Diff de drift (determinístico, en el command — no LLM):**
 10. Calcula `drift = brief.flows − {flows en criteria_mapping.mapped}`. Cruza con `criteria.json` para
-    anotar el RF de cada flujo en drift. Escribe `.work/drift-report.json`:
+    anotar el RF de cada flujo en drift. Escribe `<workDir>/drift-report.json`:
     ```json
     { "target_url": "<url>", "source_spec": "<--gherkin>",
       "drift": [ { "rf": "RF-004", "flow": "close-account",
@@ -105,16 +111,11 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
 
 ### Acto 3 — Estructurar
 
-11. Ejecuta el POM scaffolder sobre `.work/discovery-report.json` (igual que S4/S3):
+11. Ejecuta el POM scaffolder sobre `<workDir>/discovery-report.json` (igual que S4/S3), namespaciado por sitio:
     ```sh
-    npx tsx -e "
-    import { readFileSync } from 'node:fs';
-    import { scaffold } from './src/pom-scaffolder.ts';
-    const dr = JSON.parse(readFileSync('.work/discovery-report.json', 'utf8'));
-    scaffold(dr.screens, { outputDir: 'tests/pages' });
-    "
+    npx tsx src/scripts/scaffold-poms.ts <workDir>/discovery-report.json tests/pages/<site-id> tests/components/<site-id>
     ```
-    (Si el `-e` inline falla en win32 —hallazgo Fase B #14— usar un `.mjs` en el workspace.)
+    (Si necesitas inline y el `-e` falla en win32 —hallazgo Fase B #14— usa un `.mjs` en `<workDir>/`.)
 
 ### Acto 4 — Materializar
 
@@ -123,8 +124,8 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
 
 12. Para cada `scenario` en `discovery-report.scenarios_recommended` **cuyo RF NO esté bloqueado por
     open_questions y NO esté en drift** (paralelizable):
-    - Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir`,
-      `--output`, `--discovery-report` **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3
+    - **Construye el `--output`** bajo `tests/e2e/<site-id>/<id>_<feature>.<condicion>.spec.ts` (ID estable del registro). Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir=tests/pages/<site-id>`,
+      `--output` (el construido), `--discovery-report=<workDir>/discovery-report.json` **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3
       mode: `@criterion` cita RF-NNN + source_ref; usa given/when/then del criterio).
     - **Parameterización**: si el criterio del RF trae un bloque `examples` (venido de un `Scenario
       Outline`), el Writer materializa un test data-driven (un caso por fila), todos citando el mismo
@@ -138,31 +139,31 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
 ### Acto 5 — Juzgar
 
 15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (`echo $env:QA_ENABLE_JUDGE`)
-    invoca `ia4d-judge` por cada `.spec.ts` con el `.work/review-feedback.json` consolidado. Si no, **omite el
+    invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no, **omite el
     Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`.
 16. (Solo si el Judge corrió) Lee scores. Si >30% < 0.5 → pausa ask-first.
-17. Genera `.work/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`),
+17. Genera `<workDir>/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`),
     verdicts, axe results, **criterios bloqueados** (Scenarios sin `Then`, si los hubo) y **drift**
     (RF declarados sin cobertura en staging).
 
 ## Outputs (consolidados)
 
 - `criteria.json` + `refinement-questions.md` (ingestión del `.feature`)
-- `.work/drift-report.json` (RF declarados no mapeados en staging)
-- `.work/discovery-report.json` (con `criteria_mapping`)
-- `tests/pages/*.page.ts`, `tests/e2e/*.spec.ts` (con `@criterion RF-NNN`)
-- `.work/review-feedback.json`, `.work/judge-report.json`, `.work/audit-log.json`
-- `.work/qa-automator-run-summary.json`
+- `<workDir>/drift-report.json` (RF declarados no mapeados en staging; `<workDir>`=`.work/<site-id>`)
+- `<workDir>/discovery-report.json` (con `criteria_mapping`)
+- `tests/pages/<site-id>/*.page.ts`, `tests/components/<site-id>/*.component.ts`, `tests/e2e/<site-id>/*.spec.ts` (con `@criterion RF-NNN`)
+- `<workDir>/review-feedback.json`, `<workDir>/judge-report.json`, `<workDir>/audit-log.json`
+- `<workDir>/qa-automator-run-summary.json`
 
 ## Verification step
 
-Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_BASE_URL` con `--url`
+Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-id>/` seteando `QA_WORK_DIR=.work/<site-id>` y `QA_BASE_URL` con `--url`
 (y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`; `QA_SCREENSHOT`/`QA_TRACE` según
 `evidence.level` del contract — `full` fuerza ambos `on` — evidencia visual para `/qa-automator:report`).
 
 ```sh
 # Con auth (PowerShell):
-#   $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test --reporter=list
+#   $env:QA_WORK_DIR='.work/<site-id>'; $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test tests/e2e/<site-id>/ --reporter=list
 ```
 
 - Verdes → run exitoso. El SDET ve qué RF cubre cada test verde, qué RF quedaron en drift, y (si los
@@ -173,6 +174,8 @@ Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test` seteando `QA_
 - S2 exige `--gherkin` + `--url`. Sin target, aborta.
 - S2 **no refina**: Scenario sin `Then` → se reporta y se enruta a S3, no se fabrica el resultado.
 - Gate de open_questions y compliance pre-flight: **sin override**.
+- **Namespace por sitio (paso 7.b)**: artefactos efímeros bajo `<workDir>=.work/<site-id>`; specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR` exportado; `npx playwright test tests/e2e/<site-id>/`; limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos no se contaminan.
+- **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el SDET decide (no-mapeado / rescate MCP / abortar).
 - No se fabrica drift. Un flujo no mapeado se reporta como gap.
 - La ingestión del `.feature` es determinística (`src/gherkin-to-criteria.ts` + `@cucumber/gherkin`),
   no LLM.

@@ -53,7 +53,9 @@ Thumbs.db
 /playwright/.auth/
 
 # Empty seed scaffold resembrado por el MCP playwright-test en cada setup_page
+# (la 2ª cubre el seed bajo los dirs de test por-sitio: tests/e2e/<site-id>/seed.spec.ts)
 /tests/e2e/seed.spec.ts
+/tests/e2e/**/seed.spec.ts
 
 # Archived pre-MVP / referential content (relocated, not deleted)
 /tmp/

@@ -70,7 +70,9 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 }
 ```
 
-4. Append to `.work/review-feedback.json` (JSON lines).
+4. Append to `review-feedback.json` (JSON lines) **under the run's work dir**: `$QA_WORK_DIR/review-feedback.json`
+   si la env-var está seteada o el command/Writer te pasó el work dir namespaciado (`<workDir>`=`.work/<site-id>`);
+   default `.work/review-feedback.json`. Deriva el dir del `--discovery-report` que recibes (vive en el mismo work dir).
 5. Append `audit-log` entry: `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.
 
 ## Decision rules

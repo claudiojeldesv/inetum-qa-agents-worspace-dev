@@ -717,8 +717,10 @@ function isMain(): boolean {
 
 if (isMain()) {
   const args = parseArgs(process.argv.slice(2));
-  const resultsDir = resolve(process.cwd(), args['results-dir'] ?? '.work/allure-results');
-  const summaryPath = resolve(process.cwd(), args['summary'] ?? '.work/qa-automator-run-summary.json');
+  // Work dir por-sitio (v0.2): QA_WORK_DIR='.work/<site-id>'. Sin la var → '.work'.
+  const workDir = process.env.QA_WORK_DIR || '.work';
+  const resultsDir = resolve(process.cwd(), args['results-dir'] ?? `${workDir}/allure-results`);
+  const summaryPath = resolve(process.cwd(), args['summary'] ?? `${workDir}/qa-automator-run-summary.json`);
 
   try {
     const { plan, warnings } = enrich({

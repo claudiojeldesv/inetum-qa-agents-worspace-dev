@@ -31,11 +31,14 @@ import { resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 
 const repo = process.cwd();
-const RESULTS = resolve(repo, '.work/allure-results');
-const HARD_DIR = '.work/allure-report';
-const SERVED_DIR = '.work/allure-report-served';
+// Work dir por-sitio (v0.2): QA_WORK_DIR='.work/<site-id>' aísla los reportes por sitio.
+// Sin la var → '.work' (comportamiento previo).
+const WORK = process.env.QA_WORK_DIR || '.work';
+const RESULTS = resolve(repo, `${WORK}/allure-results`);
+const HARD_DIR = `${WORK}/allure-report`;
+const SERVED_DIR = `${WORK}/allure-report-served`;
 const isWin = process.platform === 'win32';
-const PIDFILE = resolve(repo, '.work/.allure-server.pid');
+const PIDFILE = resolve(repo, `${WORK}/.allure-server.pid`);
 
 function run(cmd, args) {
   return spawnSync(cmd, args, { stdio: 'inherit', shell: isWin }).status ?? 1;
@@ -146,7 +149,7 @@ if (run('npx', ['tsx', 'src/allure-enricher.ts']) !== 0) {
 }
 
 // 2. Report DURO (single-file). Requiere Java en el PATH. --clean borra el report previo.
-const genHard = run('npx', ['allure', 'generate', '.work/allure-results', '--single-file', '-o', HARD_DIR, '--clean']);
+const genHard = run('npx', ['allure', 'generate', `${WORK}/allure-results`, '--single-file', '-o', HARD_DIR, '--clean']);
 if (genHard !== 0) {
   console.error('[build-report] `allure generate --single-file` falló (¿Java en el PATH?). El enricher sí corrió.');
   process.exit(genHard);
@@ -155,7 +158,7 @@ injectBrandCss(resolve(repo, HARD_DIR, 'index.html'));
 console.log(`[build-report] report DURO listo en ${HARD_DIR}/index.html (doble-clic, sin servidor; sin trace navegable).`);
 
 // 3. Report SERVIDO (multi-fichero). Fallo aquí NO aborta: el duro ya está entregado.
-const genServed = run('npx', ['allure', 'generate', '.work/allure-results', '-o', SERVED_DIR, '--clean']);
+const genServed = run('npx', ['allure', 'generate', `${WORK}/allure-results`, '-o', SERVED_DIR, '--clean']);
 if (genServed !== 0) {
   console.warn('[build-report] `allure generate` (servido) falló; solo queda el report duro.');
   process.exit(0);
