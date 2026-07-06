@@ -1,6 +1,6 @@
 # Labs — `ia4d-qa-automator`
 
-Cuatro labs reproducibles, ordenados por dificultad. Cada carpeta es **un proyecto distinto** y
+Cinco labs reproducibles, ordenados por dificultad. Cada carpeta es **un proyecto distinto** y
 trae solo **inputs**: los tests los genera el agente cuando ejecutas el command, así practicas el
 flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 
@@ -19,6 +19,7 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 | 02 | [ParaBank](02-parabank/) | S2, S3, S4 | Auth persistente, drift bidireccional y refinamiento de ambigüedad. | Sí (JSP) | Sí |
 | 03 | [OrangeHRM](03-orangehrm/) | S4 (S2/S3 opc.) | Autónomo acotado por módulos sobre una SPA con sesión persistente. | Sí (SPA) | — |
 | 04 | [TodoMVC](04-todomvc/) | Tú eliges | **Reto**: sin pasos ni solución. Acotas, eliges puerta, entregas verde. | — | — |
+| 05 | [Configuración](05-config/) | — | Env-vars, Style Contract y el command `config`. Todas las capas, sin navegador (pasos 1–4). | — | — |
 
 ## Orden recomendado
 
@@ -28,6 +29,8 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
    el agente no fabrica lo que no existe.
 3. **03-OrangeHRM** — segundo patrón auth (SPA), con foco en **acotar por módulos** en el autónomo.
 4. **04-TodoMVC** — el reto. Aplicas todo lo anterior tú solo.
+5. **05-Configuración** — transversal, cuando quieras: qué puedes ajustar (env-vars, contract,
+   defaults) y cómo verificarlo con `/qa-automator:config`. Útil antes de apuntar el agente a tu web.
 
 ## Apuntar el agente a TU web
 

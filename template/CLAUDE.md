@@ -30,6 +30,7 @@ orden la primera vez:
 2. [`02-parabank`](examples/02-parabank/) — auth persistente, drift y ambigüedad.
 3. [`03-orangehrm`](examples/03-orangehrm/) — autónomo acotado por módulos sobre una SPA con sesión.
 4. [`04-todomvc`](examples/04-todomvc/) — reto: lo resuelves tú, sin solución.
+5. [`05-config`](examples/05-config/) — transversal: env-vars, Style Contract y el command `config`. Todas las capas.
 
 Cada lab trae solo **inputs**; los tests los genera el agente al ejecutar el command.
 
@@ -80,6 +81,7 @@ que la app realmente expone, y lo reportan sin fabricar tests para lo que no exi
 /qa-automator:spec-refiner --fd=<path> --url=<URL>           # S3
 /qa-automator:req-driven   --gherkin=<path> --url=<URL>      # S2
 /qa-automator:report                                         # reporte Allure enriquecido (post-run)
+/qa-automator:config       [--style=<contract.yaml>]         # valida el contract + muestra estado efectivo
 ```
 
 Flags del autónomo: `--flows=login,checkout` acota por módulos (recomendado); `--entry=<path>` fija
@@ -100,8 +102,15 @@ el punto de entrada profundo; `--ignore=<glob>` excluye zonas. Flag común opcio
 
 El Style Contract declara cómo quieres los tests: estrategia de locators, naming, estructura POM,
 fixtures, datos sintéticos, auth y excepciones. El agente lo lee y lo **enforce** sobre el output.
-Schema completo en [`docs/references/style-contract-schema.md`](docs/references/style-contract-schema.md);
-ejemplos en [`config/style-contracts/`](config/style-contracts/) (saucedemo, parabank, orangehrm).
+Para arrancar uno nuevo, copia la **plantilla anotada**
+[`examples/05-config/_TEMPLATE.annotated.yaml`](examples/05-config/_TEMPLATE.annotated.yaml) (cada
+campo con qué hace / cuándo tocarlo / default, en dos niveles). Schema completo para el detalle fino
+en [`docs/references/style-contract-schema.md`](docs/references/style-contract-schema.md); ejemplos
+reales en [`config/style-contracts/`](config/style-contracts/) (saucedemo, parabank, orangehrm).
+
+**Valida antes de correr**: `/qa-automator:config --style=<tu-sitio>.yaml` comprueba el contract
+(typos, enums, incoherencias) y te muestra el **estado efectivo** — qué gates están on/off ahora,
+de dónde sale cada valor (env-var / contract / default). El [Lab 05](examples/05-config/) lo practica.
 
 Campos que probablemente quieras tocar:
 
