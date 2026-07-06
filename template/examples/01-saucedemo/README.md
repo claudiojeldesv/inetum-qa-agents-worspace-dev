@@ -38,6 +38,23 @@ npm run qa:healthcheck
 > Ejecuta esto desde la raíz del workspace (la carpeta `template/` que descargaste **es** la raíz).
 > Solo hace falta una vez por workspace; los siguientes labs ya lo dan por hecho.
 
+### Si el planner falla con "two different versions" / "did not expect test()"
+
+No es tu test ni el sitio: es el proceso `run-test-mcp-server` (motor Playwright que Claude Code
+arranca al abrir la sesión) que nació o quedó en mal estado y **no se recupera solo dentro de la
+sesión** (ni con `/mcp reconnect`). Ritual de reinicio limpio, **con Claude Code cerrado**:
+
+```
+# 1. Cierra Claude Code / VSCode por completo.
+# 2. Desde la raíz del template, en una terminal:
+powershell -ExecutionPolicy Bypass -File examples/01-saucedemo/mcp-reset.ps1
+# 3. Vuelve a abrir Claude Code en el template y relanza el command.
+```
+
+`mcp-reset.ps1` mata solo el worker MCP huérfano y los navegadores de Playwright (no toca el resto
+de Node ni tu Chrome). Al reabrir Claude Code, el worker nace limpio. Correrlo **preventivamente**
+antes del primer run también sirve.
+
 ## Escenario
 
 [SauceDemo](https://www.saucedemo.com/) es un e-commerce de demostración de Sauce Labs. No tiene
