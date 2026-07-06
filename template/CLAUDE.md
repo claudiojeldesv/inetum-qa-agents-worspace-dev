@@ -5,7 +5,7 @@ Playwright estructurados (POM, accesibilidad baked-in, trazabilidad auditable) a
 que tengas: solo una URL, un Gherkin, o un documento funcional. Un Reviewer independiente audita
 los tests antes de exponerlos.
 
-> Esto es una **guía de uso para el SDET** (y para Claude Code cuando trabaja en este workspace).
+> Esto es una **guía de uso para el Ingeniero QA** (y para Claude Code cuando trabaja en este workspace).
 > No describe cómo se construyó el agente. Si quieres extenderlo, ese es otro repo.
 
 ## Empieza por los labs

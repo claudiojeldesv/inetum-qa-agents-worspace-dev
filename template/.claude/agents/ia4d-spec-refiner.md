@@ -57,7 +57,7 @@ When in doubt, lower `confidence`, add a `gap`, and write the question. A criter
 ## Output (recap)
 
 - `criteria.json` — per [`docs/references/fd-criteria-schema.md`](../../docs/references/fd-criteria-schema.md).
-- `refinement-questions.md` — ambiguities for SDET sign-off (ask-first).
+- `refinement-questions.md` — ambiguities for QA sign-off (ask-first).
 - An audit-log entry per file written: `{ source: 'subagent', agent: 'ia4d-spec-refiner', action: 'write_file', target: <path> }`.
 
 ## Hard rules
@@ -74,5 +74,5 @@ When in doubt, lower `confidence`, add a `gap`, and write the question. A criter
 
 - [`docs/references/fd-criteria-schema.md`](../../docs/references/fd-criteria-schema.md) — the contract you produce
 - [`SPEC.md`](../../SPEC.md) §7 — "S3 — diseño decidido: Forma B"
-- [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer of `criterion_ref`
+- [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer; adds the `criteria_mapping` block (RF-NNN ↔ scenario)
 - [`METODOLOGIA AISD.md`](../../METODOLOGIA%20AISD.md) — el FD del cliente es el input típico de la fase 01 AISD

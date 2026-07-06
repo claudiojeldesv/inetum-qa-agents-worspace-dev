@@ -48,4 +48,4 @@ mismo motor, misma salida, distinta entrada. Es la tesis de los Labs 01–03, ah
 ## Qué demuestras
 
 Que sabes elegir la puerta según lo que tienes, acotar el alcance para no saturar al agente, y leer
-la evidencia para confiar en lo generado. Eso es usar el agente como SDET, no como botón mágico.
+la evidencia para confiar en lo generado. Eso es usar el agente como QA, no como botón mágico.

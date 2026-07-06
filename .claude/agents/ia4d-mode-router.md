@@ -1,6 +1,6 @@
 ---
 name: ia4d-mode-router
-description: Use this agent to classify the input as S1 (code-driven), S2 (req-driven), S3 (spec-refiner) or S4 (autonomous) based on what the SDET provided. In MVP v0.1 only S4 routes to a functional pipeline; S1/S2/S3 route to stubs.
+description: Use this agent to classify the input as S1 (code-driven), S2 (req-driven), S3 (spec-refiner) or S4 (autonomous) based on what the QA engineer provided. S2 (Gherkin), S3 (Spec-refiner) and S4 (Autonomous) are functional (v0.2); S1 (code-driven) and the OpenAPI path of S2 route to informative stubs.
 tools: Read, Glob
 model: haiku
 color: cyan
@@ -37,19 +37,19 @@ engine) — if only `--openapi` is present, return `stub` with that message.
 
 Note on S3 (Forma B): S3 is `--fd` **plus** `--url`. The FD provides the criteria; the URL
 provides the DOM to map them against. If `--fd` is present but `--url` is absent, return a
-`needs_input` status telling the SDET that Forma B requires a staging URL (Forma A — FD without
+`needs_input` status telling the QA engineer that Forma B requires a staging URL (Forma A — FD without
 target — is not implemented; it would break the green-run/real-locators value proposition).
 
 ## Output
 
-Write to `.work/mode-routing.json`:
+Return this JSON as your text response — the orchestrating command reads it directly. You do **not** write a file (you have no `Write` tool):
 
 ```json
 {
   "module": "S1 | S2 | S3 | S4",
   "status": "functional | stub | needs_input",
   "next_action": "<what the orchestrator should do>",
-  "user_message": "<what to tell the SDET if this is a stub or needs_input>"
+  "user_message": "<what to tell the QA engineer if this is a stub or needs_input>"
 }
 ```
 

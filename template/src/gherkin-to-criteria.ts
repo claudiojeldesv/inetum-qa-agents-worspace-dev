@@ -13,7 +13,7 @@
  *
  * Boundary with S3: this adapter does NOT refine. A clean .feature in, a
  * criteria.json out. A Scenario with no Then is not "fixed" here — it is flagged
- * as an open question and the SDET is told to route it through S3 (spec-refiner).
+ * as an open question and the QA engineer is told to route it through S3 (spec-refiner).
  *
  * Mapping:
  *   Feature                     → grouping; tags inform brief.entry / brief.ignore

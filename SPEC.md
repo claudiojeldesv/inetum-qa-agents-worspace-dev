@@ -1,10 +1,10 @@
 # SPEC — `ia4d-qa-automator` v0.1 (MVP)
 
-> Documento spec del primer agente QA del catálogo `ia4d-*`. Alcance: solo `qa-automator`. Los demás agentes de la cartera (`test-explorer`, `test-healer-pro`, etc.) tienen specs propios cuando lleguen. Reset desde `ia4d-test-pilot` (descartado por pivot consensuado con visión Gemini, ver [`conversacion-gemini.txt`](conversacion-gemini.txt) y plan aprobado).
+> Documento spec del primer agente QA del catálogo `ia4d-*`. Alcance: solo `qa-automator`. Los demás agentes de la cartera (`test-explorer`, `test-healer-pro`, etc.) tienen specs propios cuando lleguen. Reset desde `ia4d-test-pilot` (descartado por pivot consensuado con visión Gemini y plan aprobado).
 
 ## 1. Objective
 
-`ia4d-qa-automator` es un agente Claude Code que genera tests E2E en Playwright TypeScript con marco QA propio, aplicando convenciones declaradas por el SDET, gates de compliance, verificación de accesibilidad y un Quality layer Writer+Reviewer+Judge que materializa "QA es juez independiente".
+`ia4d-qa-automator` es un agente Claude Code que genera tests E2E en Playwright TypeScript con marco QA propio, aplicando convenciones declaradas por el QA, gates de compliance, verificación de accesibilidad y un Quality layer Writer+Reviewer+Judge que materializa "QA es juez independiente".
 
 ### Argumento estructural
 
@@ -27,7 +27,7 @@
 | **Mapear** | Discovery + criticidad + riesgo |
 | **Estructurar** | POM determinístico, Style Contract, fixtures, datos sintéticos |
 | **Materializar** | Writer genera tests; capa transversal enforce |
-| **Juzgar** | Reviewer audita, Judge puntúa, SDET sign-off |
+| **Juzgar** | Reviewer audita, Judge puntúa, QA sign-off |
 
 ### Capa transversal (siempre activa, todos los modos)
 
@@ -54,7 +54,7 @@ El Writer y el Reviewer se invocan **directamente** vía Task tool (excepción n
 
 | Rol | Tipo | Cómo lo usa |
 |---|---|---|
-| SDET (consumidor primario) | Usuario directo | Invoca commands del agente, revisa output del Reviewer/Judge, refina seed si hace falta |
+| QA (consumidor primario) | Usuario directo | Invoca commands del agente, revisa output del Reviewer/Judge, refina seed si hace falta |
 | QA Manager (decisor cliente) | Usuario indirecto | Ve el video del demo, valida fit con su práctica QA, decide piloto |
 | I+D Inetum (decisor catálogo) | Usuario indirecto | Evalúa cumplimiento del patrón canónico para admisión a la pestaña Documentación y Calidad |
 
@@ -142,7 +142,7 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 │   ├── findings/                                  (evidencia por fase: spike, faseA-F, ...)
 │   ├── spike/                                     (protocolo + artefactos del Slice 0.5)
 │   └── Inetum/Catalogo/                           (ficha canónica del catálogo + otras)
-├── template/                                      (workspace de arranque autocontenido para el SDET)
+├── template/                                      (workspace de arranque autocontenido para el QA)
 └── .work/                                         (efímero, gitignored: reports Playwright/Allure + JSON del agente; borrable sin impacto)
 ```
 
@@ -160,7 +160,7 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 - **Comentarios**: solo cuando el *por qué* no es obvio.
 - **Imports**: node builtins, deps externas, internas relativas, separados por línea en blanco.
 
-### Para los tests generados por el agente (output al SDET)
+### Para los tests generados por el agente (output al QA)
 
 Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-contracts/saucedemo.yaml` con estos defaults:
 
@@ -203,7 +203,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-
 - Citar el criterio fuente del plan (o `discovery-report.json` en S4) en el JSDoc de cada test.
 - En S4, aplicar el cap `--max-scenarios` en el Acto 2.5: si el `scenarios_catalog` lo supera, pausar y pedir selección (no truncar en silencio). Etiquetar cada test con los tags nativos del catálogo (`@smoke/@regression/@critical/@happy-path/@negative`) y su `@tc-id`.
 - Cuando el Style Contract declara `test_design.require_business_postcondition: true`, exigir que cada test afirme la post-condición de negocio del flujo (Reviewer MF-9), no solo navegación.
-- Generar `review-feedback.json` antes de exponer el código al SDET. (`judge-report.json` solo cuando el Judge está activo — `QA_ENABLE_JUDGE`; off por defecto.)
+- Generar `review-feedback.json` antes de exponer el código al QA. (`judge-report.json` solo cuando el Judge está activo — `QA_ENABLE_JUDGE`; off por defecto.)
 - Verificar que cada test generado corre verde localmente antes de marcarlo "materializado".
 - Operar en greybox por defecto: nunca leer archivos fuera del repo destino ni del directorio del agente.
 
@@ -226,7 +226,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-
 - Desactivar inyección de `AxeBuilder` en builds del demo.
 - Procesar artefactos de entornos `prod` o `pre-prod`.
 - **Invocación cruzada entre subagents** salvo la excepción nombrada Writer↔Reviewer (documentada en `docs/references/composition-rules.md`).
-- Generar tests sin entrada explícita del SDET (URL o FD/plan).
+- Generar tests sin entrada explícita del QA (URL o FD/plan).
 - **Permitir que `playwright-test-healer` marque tests con `test.fixme()` sin aprobación humana explícita**. Hook `pii-post.ts` intercepta Edits del Healer y bloquea.
 - Saltarse Writer+Reviewer (el núcleo del Quality layer): obligatorios. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`) desde v0.2 `design/gates-off-by-default`; su omisión se audita, no se silencia.
 
@@ -250,7 +250,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-
 **v0.2 Fase A — Cierre operativo del MVP v0.1** ✅ COMPLETADA:
 1. Validación end-to-end LLM-LLM en sesión nueva: los 13 subagents responden como invocables, los 5 actos orquestan end-to-end. Bloqueador Slice 6.5 cerrado.
 2. Verificación runtime inicial: 0/3 specs generados verdes. Causa: `ia4d-discovery-analyzer` fabrica `test_id` desde prosa del plan (`user-name` vs `data-test` real `username`) — viola su propia hard rule "do not invent". Defecto registrado.
-3. Sanación (post-proceso, principio del SDET): `playwright-test-healer` reconcilió 20 test_ids contra DOM vivo, sin `test.fixme`. Verificado: 4/4 verde.
+3. Sanación (post-proceso, principio del QA): `playwright-test-healer` reconcilió 20 test_ids contra DOM vivo, sin `test.fixme`. Verificado: 4/4 verde.
 4. Evidencia archivada en `docs/findings/faseA-closure/` (commit `ef5611e`), no en `tests/` vivo. Residuales v0.1 relocados a `tmp/v01-residuals/` (archivo, no borrado).
 5. Decisión de fondo derivada: `discovery` DOM-aware vs lean-on-Healer → ver estrategia de reconocimiento en Fase C.
 
@@ -268,7 +268,7 @@ Orden de menor a mayor riesgo de demora (estrenar el plumbing sin que el primer 
 
 Iframes: si aparecen, se anotan como casuística aparte (`ia4d-frame-handler`), no se fuerzan en el happy-path.
 
-Output: `docs/findings/wild-sites-report.md` — fallos de **producción** categorizados por (1) frecuencia, (2) impacto en tiempo SDET, (3) dificultad de solución. Doble uso: prioriza componentes de Fase C (umbral ≥30%) y aporta las preguntas reales del futuro intake. El portal corporativo Inetum entra cuando aplique, no es bloqueante.
+Output: `docs/findings/wild-sites-report.md` — fallos de **producción** categorizados por (1) frecuencia, (2) impacto en tiempo QA, (3) dificultad de solución. Doble uso: prioriza componentes de Fase C (umbral ≥30%) y aporta las preguntas reales del futuro intake. El portal corporativo Inetum entra cuando aplique, no es bloqueante.
 
 **v0.2 Fase C — Hardening por categoría de fallo observada** (no por componente teórico):
 
@@ -277,7 +277,7 @@ Output: `docs/findings/wild-sites-report.md` — fallos de **producción** categ
 Hoy el planner nativo explora con mandato de exhaustividad ("explore all"), sin tope: contra sitios grandes diverge en tiempo y no es reproducible. Cambio: la primera etapa de S4 es un **reconocimiento acotado al happy path**, no exhaustivo. Fija los límites de inmediato; las etapas posteriores (edge cases, negativos, más flujos) cuelgan de esa columna vertebral ya mapeada.
 
 - **Orden: brief → exploración.** El brief declara cuál(es) happy path(s); la exploración los mapea y verifica. La exploración NO define el happy path por sí sola (eso reintroduce divergencia).
-- **Captura del brief — dos puertas, sin que el SDET deba "saber" nada.** Flags presentes (`--flows/--entry/--ignore`) → modo dirigido. Solo URL → el agente NO explora a ciegas: entra en intake y pregunta los datos mínimos. El default ante ausencia de brief es entrevistar, no explorar.
+- **Captura del brief — dos puertas, sin que el QA deba "saber" nada.** Flags presentes (`--flows/--entry/--ignore`) → modo dirigido. Solo URL → el agente NO explora a ciegas: entra en intake y pregunta los datos mínimos. El default ante ausencia de brief es entrevistar, no explorar.
 - **Ancla generalista del happy path: login + home + navegación primaria.** La navegación primaria (header/sidebar) da los *candidatos*; el brief elige cuáles. Distinguir de footer legal, menú de usuario y megamenús de marketing (NO son happy path). La nav es el punto de entrada, no el flujo completo: el happy path continúa en acciones (carrito, formulario, confirmación).
 - Acota **scope** (la demora), NO elude el **caos de runtime** (banner/auth viven dentro del happy path; los maneja `pre-flight-cleaner`/`auth-handler`).
 - **Plumbing instrumental** (flags → prompt del planner, sin IA): se monta antes de la recolección para acotar runs a mano. La capa conversacional (intake adaptativo) se construye encima, con preguntas/targets/topes derivados de la recolección — no se cablean a priori.
@@ -290,10 +290,10 @@ Componentes nuevos previstos. **Cada uno entra solo si la recolección muestra q
 | `ia4d-pre-flight-cleaner` | Cookies banner GDPR, modales emergentes, ads. Cierra dialogs antes de exploración. | Alta (apuesta: top 2) |
 | `ia4d-auth-handler` | SAML / OAuth / MFA. `globalSetup` captura `storageState` reutilizable; soporta TOTP via `authenticator` lib. | Media-Alta |
 | `ia4d-test-data-architect` | Lifecycle setup/teardown. Fixtures contra OpenAPI/DB schema, factories con faker.js seed-reproducible. | Media |
-| **A11y baseline aprobada** | Threshold actual `serious\|critical` aborta el 80% de tests contra portales reales. Mecanismo de baseline aprobada por SDET, no todo-o-nada. Es extensión del `ia4d-a11y-injector` existente. | Media-Alta |
+| **A11y baseline aprobada** | Threshold actual `serious\|critical` aborta el 80% de tests contra portales reales. Mecanismo de baseline aprobada por QA, no todo-o-nada. Es extensión del `ia4d-a11y-injector` existente. | Media-Alta |
 | `ia4d-frame-handler` (casuística especial) | Iframes y flujos cross-frame / pantalla-a-pantalla. Tratado **aparte** del reconocimiento general; Playwright maneja frames con API propia. Entra solo si aparece con frecuencia. | Baja-Media (caso aparte) |
 
-#### Estado Fase C — construido (3 sitios de evidencia, decisión SDET)
+#### Estado Fase C — construido (3 sitios de evidencia, decisión QA)
 
 Tras catalogar 3 sitios (wild-sites-report.md), se construyeron los 3 top **sin crear subagents nuevos**: se realizan como campos del style-contract + lógica en los agentes existentes. Decisión deliberada (evidencia n=1/n=2 + regla "editar sobre crear"). Diverge de la columna "Componente nuevo previsto" de arriba:
 
@@ -315,7 +315,7 @@ Tras catalogar 3 sitios (wild-sites-report.md), se construyeron los 3 top **sin 
 
 #### S3 — diseño decidido: Forma B (FD + URL, inyección de criterios sobre S4)
 
-Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4 ya validado** (Fases A-C), NO como generación doc-only.
+Decisión QA: S3 se construye como **inyección de criterios sobre el motor S4 ya validado** (Fases A-C), NO como generación doc-only.
 
 - **Forma B (elegida)** — entrada = FD (markdown) **+ URL de staging**. El FD da el *qué* (criterios RF-NNN, flujos); la URL da el *cómo* (DOM, locators, run verde). El ingester del FD (`ia4d-spec-refiner`) emite (a) los criterios estructurados y (b) el brief (`--flows/--entry`) que hoy se escribe a mano. El planner pasa de **descubrir** flujos a **mapearlos contra el DOM**. Todo el back-end (discovery, POM scaffolder, Writer↔Reviewer↔Judge, los 3 componentes de Fase C) se reutiliza sin cambios.
 - **Forma A (descartada)** — FD sin target. Sin DOM no hay locators reales, ni POM rellenable, ni run verde, ni axe sobre DOM real: rompe la propuesta de valor validada. Si se necesita, queda como modo degradado documentado (doc → esqueletos/Gherkin), no como objetivo.
@@ -323,7 +323,7 @@ Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4
 - **Decisiones abiertas antes de construir**: formato del FD de entrada (markdown libre vs estructura mínima RF-NNN) y cuánto "refina" el refiner un FD flojo (instinto: extrae + marca huecos, no inventa criterios — peligroso en banca).
 - **S2 (Gherkin/OpenAPI) y Jira/tickets diferidos al final.** No bloquean S3.
 
-**S3 CERRADO — validado end-to-end (S3.2)**. Detalle en [`docs/findings/faseD-s3/s3.2-validation-report.md`](../docs/findings/faseD-s3/s3.2-validation-report.md). Contra ParaBank: **3/3 specs verde** (RF-001/RF-003/RF-006) con `@criterion` citando `RF-NNN (source_ref)`, 3 workers sin `--workers=1`; `discovery-report.json` con `criteria_mapping`; gate de open_questions bloquea RF-002/RF-004/RF-005 (no se generan, quedan pendientes de respuesta SDET). Drift: el FD declaraba bill-pay como flujo no expuesto, pero ParaBank **sí lo expone** → el agente lo reportó como no-drift (mapeado-pero-bloqueado), no fabricó el gap. Hallazgo de drift conductual real en auth-guard (el FD asume redirect, la app da error server-side). No-regresión S4 verificada en vivo (discovery sin `criteria_mapping`, writer con `@criterion` de prosa de plan). Refinamiento del FD = extrae + marca huecos, no inventa: confirmado. Markdown libre como formato de entrada: confirmado.
+**S3 CERRADO — validado end-to-end (S3.2)**. Contra ParaBank: **3/3 specs verde** (RF-001/RF-003/RF-006) con `@criterion` citando `RF-NNN (source_ref)`, 3 workers sin `--workers=1`; `discovery-report.json` con `criteria_mapping`; gate de open_questions bloquea RF-002/RF-004/RF-005 (no se generan, quedan pendientes de respuesta QA). Drift: el FD declaraba bill-pay como flujo no expuesto, pero ParaBank **sí lo expone** → el agente lo reportó como no-drift (mapeado-pero-bloqueado), no fabricó el gap. Hallazgo de drift conductual real en auth-guard (el FD asume redirect, la app da error server-side). No-regresión S4 verificada en vivo (discovery sin `criteria_mapping`, writer con `@criterion` de prosa de plan). Refinamiento del FD = extrae + marca huecos, no inventa: confirmado. Markdown libre como formato de entrada: confirmado.
 
 **v0.2 Fase E — Telemetría y budget cap**:
 
@@ -347,7 +347,7 @@ Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4
 
 **Punto de mejora anotado 2026-06-15. No comprometido en versión; pendiente de priorización vs S1.**
 
-**Problema.** Los cuatro modos actuales (S1/S2/S3/S4) son **bootstrap-only**: parten de un input externo y generan la suite desde cero. El SDET pasa el ~80% de su vida en **régimen permanente** — mantener y extender suites existentes — no en el momento cero. Caso canónico: "tengo 10 casos de regresión, añade 5 de una feature nueva, coherentes con lo que ya hay, sin duplicar ni romper". Hoy el agente re-descubriría el sitio y probablemente duplicaría POMs y solaparía cobertura.
+**Problema.** Los cuatro modos actuales (S1/S2/S3/S4) son **bootstrap-only**: parten de un input externo y generan la suite desde cero. El QA pasa el ~80% de su vida en **régimen permanente** — mantener y extender suites existentes — no en el momento cero. Caso canónico: "tengo 10 casos de regresión, añade 5 de una feature nueva, coherentes con lo que ya hay, sin duplicar ni romper". Hoy el agente re-descubriría el sitio y probablemente duplicaría POMs y solaparía cobertura.
 
 **Tesis de diseño.** No es un motor nuevo: es S2/S3 **precedidos de un Acto 0 de comprensión de lo existente**. Sigue siendo "de un requisito a tests con juicio"; cambia el punto de partida.
 
@@ -362,18 +362,18 @@ Decisión SDET: S3 se construye como **inyección de criterios sobre el motor S4
 
 **Capability nueva (lo caro):**
 1. **Ingest de suite ajena** — leer tests que el agente no escribió (legacy del cliente, otro estilo) y producir un inventario: POMs, cobertura, contract implícito.
-2. **Inferencia de contract implícito** — lo normal es que el cliente no tenga style-contract YAML; deducir convenciones de los tests existentes y proponer un contract derivado que el SDET valida.
+2. **Inferencia de contract implícito** — lo normal es que el cliente no tenga style-contract YAML; deducir convenciones de los tests existentes y proponer un contract derivado que el QA valida.
 3. **Reconciliación / dedup** — cruzar requisito nuevo con cobertura existente (solapa / contradice / comparte pantalla).
 
-**Decisiones de diseño ABIERTAS (las define el SDET antes de construir):**
+**Decisiones de diseño ABIERTAS (las define el QA antes de construir):**
 - **(a) Alcance v1 — ¿extender POMs existentes, o añadir-only?** Extender es DRY pero arriesga romper los tests vigentes que dependen del POM compartido; añadir-only es seguro pero duplica. **Esta decisión define el tamaño del v1.**
 - **(b) ¿Quién manda el estilo cuando lo existente es malo?** Respetar estructura, no propagar anti-patrones nuevos, **no refactorizar lo viejo** (scope discipline). Marcar deuda, no arreglarla sin pedirlo.
 - **(c) No-regresión como entregable** — correr los N existentes tras generar el delta y garantizar que siguen verdes (conecta con el hallazgo de Fase E: storageState compartido envenenado). Buena parte del valor vendible.
 - **(d) Drift gana un segundo eje** — además de FD↔app, aparece requisito-nuevo↔suite-existente. Reusa la detección de drift apuntando a otro objetivo.
 
-**Nomenclatura.** Inclinación: **modo propio (S5) que internamente despacha a S2 o S3** según el formato del requisito nuevo. El SDET piensa distinto cuando extiende que cuando crea; merece command propio.
+**Nomenclatura.** Inclinación: **modo propio (S5) que internamente despacha a S2 o S3** según el formato del requisito nuevo. El QA piensa distinto cuando extiende que cuando crea; merece command propio.
 
-**Riesgo que puede matar la idea.** El ingest de suites arbitrarias (Cypress/WebdriverIO/Playwright-sin-POM) es un pozo sin fondo. **Acotar v1 duro**: solo suites Playwright + POM con estructura reconocible (idealmente las que el propio agente generaría). Validar contra un caso real (la suite 10+5 del SDET), no inventado.
+**Riesgo que puede matar la idea.** El ingest de suites arbitrarias (Cypress/WebdriverIO/Playwright-sin-POM) es un pozo sin fondo. **Acotar v1 duro**: solo suites Playwright + POM con estructura reconocible (idealmente las que el propio agente generaría). Validar contra un caso real (la suite 10+5 del QA), no inventado.
 
 ---
 

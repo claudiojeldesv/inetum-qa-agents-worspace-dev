@@ -1,5 +1,5 @@
 ---
-description: Genera un reporte HTML Allure single-file (HTML duro, sin servidor) enriquecido con la evidencia del agente (trazabilidad RF-NNN, judge, Writer/Reviewer, drift, compliance) a partir de los artefactos de un run ya ejecutado. Post-proceso desacoplado, re-ejecutable.
+description: Genera el reporte EJECUTIVO single-file (showcase, para decisor) + el reporte Allure enriquecido (drill-down técnico) a partir de los artefactos de un run ya ejecutado. El showcase es determinístico, sin Java, y se genera primero. Post-proceso desacoplado, re-ejecutable.
 argument-hint: "[--results-dir=.work/allure-results] [--summary=.work/qa-automator-run-summary.json] [--output=.work/allure-report]"
 ---
 
@@ -13,8 +13,20 @@ de Allure que se abre con doble-clic (`file://`) **sin servidor**.
 No genera ni ejecuta tests: opera sobre artefactos de un run previo. Es re-ejecutable sin
 regenerar nada (coherente con el principio "sanación/post-proceso al final" y la hard-rule #7).
 
+## Dos reportes, dos audiencias
+
+`npm run report` produce **dos** salidas:
+
+1. **Reporte ejecutivo (showcase)** → `<workDir>/showcase-report.html` — para el decisor (QA Manager,
+   I+D). HTML single-file con KPIs, los 5 actos ejecutados, detalle de casos (Writer/Reviewer/Judge),
+   capa transversal a11y, callout de drift y trazabilidad RF-NNN. Lo genera `src/scripts/build-showcase.ts`
+   de forma **determinística, sin Java, leyendo solo los JSON del run** (no `allure-results`). Se genera
+   **primero**, así que existe aunque Allure falle. Render adaptativo: drift/judge/RF aparecen solo si su
+   artefacto existe. Standalone: `npm run report:showcase`.
+2. **Reporte Allure** (duro single-file + servido) → drill-down técnico para el QA (abajo). Requiere Java.
+
 **Formato de salida: single-file.** La salida es UN solo `index.html` con todo inlineado (datos +
-JS + CSS + screenshots). Trade-offs asumidos (decisión SDET — el HTML duro es el único output que
+JS + CSS + screenshots). Trade-offs asumidos (decisión QA — el HTML duro es el único output que
 interesa): **no hay Trends acumulados entre runs** (single-file no emite carpeta `history/`, así que
 no hay ciclo history IN/OUT) y el **trace navegable de Playwright no funciona embebido** (los
 screenshots por paso sí quedan inline).
@@ -38,7 +50,7 @@ el agente tenga Java disponible.
 ### 1. Preflight (sin override)
 
 1. Verifica que existe `--summary` (`.work/qa-automator-run-summary.json`). Si no →
-   instruye al SDET a correr primero una generación (`/qa-automator:autonomous`,
+   instruye al QA a correr primero una generación (`/qa-automator:autonomous`,
    `:req-driven` o `:spec-refiner`) que lo produce. Termina.
 2. Verifica que existe `--results-dir` y contiene `*-result.json`. Si no → los tests no se
    corrieron con el reporter Allure: instruye a ejecutar `npx playwright test` (el
@@ -89,6 +101,7 @@ global, **nunca se truncan en silencio**).
 ## Expected output
 
 ```
+[build-showcase] reporte ejecutivo listo en .work/showcase-report.html (single-file, doble-clic, sin servidor).
 [allure-enricher] sidecars: 3, specs matcheados: 3, attachments: 6, mutaciones: 3
 [build-report] reporte single-file listo en .work/allure-report/index.html (ábrelo con doble-clic; no necesita servidor).
   Environment: target_url, compliance_verdict, judge_mean_score, drift_count

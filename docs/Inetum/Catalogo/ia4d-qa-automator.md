@@ -231,7 +231,7 @@ Ejemplo:
 
 | Dimensión | ia4d-testing-core | ia4d-qa-automator |
 |---|---|---|
-| Perspectiva | Dev sobre su propio código (whitebox total) | SDET externo o juez QA (greybox o black-box, multi-modo) |
+| Perspectiva | Dev sobre su propio código (whitebox total) | Ingeniero QA externo o juez QA (greybox o black-box, multi-modo) |
 | Fase AISD | 07 (Testing) estricta | Transversal por disciplina QA propia (toca 01, 04, 07, 08) |
 | Misión | "Test su propio código" | "Juez independiente sobre la app" |
 | Quality layer | LLM-as-judge unilateral | Writer + Reviewer + Judge (los tres activos, Writer↔Reviewer iteración explícita) |
@@ -239,7 +239,7 @@ Ejemplo:
 | A11y | Opcional | Baked-in obligatorio (no opcional en MVP) |
 | Output | Tests subproducto del código generado | Tests + POM + audit log + review feedback + judge scores |
 | Audit trail | No nativo | audit-log.json JSON-lines append-only por defecto |
-| Modelo decisor | Dev / Tech Lead | QA Manager + SDET |
+| Modelo decisor | Dev / Tech Lead | QA Manager + Ingeniero QA |
 
 No sustitución. Coexisten con misiones incompatibles. Dev no puede ser juez y parte.
 

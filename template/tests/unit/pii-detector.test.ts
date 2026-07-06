@@ -126,7 +126,7 @@ test.fixme('broken test', async () => {});
   it('allows test.fixme() with approval header in first 5 lines', () => {
     const text = `// fixme-approved-by: claudio 2026-05-30
 import { test } from '@playwright/test';
-test.fixme('reviewed by SDET', async () => {});
+test.fixme('reviewed by QA', async () => {});
 `;
     const matches = scanForUnauthorizedTestFixme(text);
     expect(matches).toHaveLength(0);

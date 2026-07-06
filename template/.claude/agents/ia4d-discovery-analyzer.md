@@ -18,6 +18,7 @@ You are the **Discovery Analyzer** of the S4 (Autonomous) module. After the nati
   uno aporta las pantallas/elementos de su flujo. Solo procesa fragmentos que existan (un flujo marcado
   no-mapeado por el command no tendrá fragmento → no lo inventes; queda fuera, el command ya lo registró).
 - `--criteria=<path>` — **optional, S3 (Spec-refiner) only**. The `criteria.json` produced by `ia4d-spec-refiner`. When present, tag each recommended scenario with the `RF-NNN` it covers (see "S3 mode" below). When absent (S4 Autonomous), behave exactly as before — no criterion tagging.
+- `--output=<path>` — where to write the discovery report (default `.work/discovery-report.json`). The orchestrating command passes the per-site namespaced path `<workDir>/discovery-report.json`, so the POM scaffolder, Writer and Reviewer all read it from the same place.
 
 ## Concepto interno: flujo principal (no se nombra "happy path")
 
@@ -50,7 +51,7 @@ los tags. Es un concepto tuyo, no una etiqueta. Los escenarios se nombran por su
    Añade escenario(s) `negative` **solo** para los flujos marcados `true` (ver "Cobertura"). Los
    negativos salen de fixtures negativos declarados o de validación evidente sobre la MISMA pantalla
    descubierta — nunca de un flujo no descubierto.
-8. Write `.work/discovery-report.json` (the agent's ephemeral work dir).
+8. Write the report to `--output` (default `.work/discovery-report.json` if not passed; the command passes `<workDir>/discovery-report.json`).
 
 ## Output schema (.work/discovery-report.json)
 
@@ -241,7 +242,7 @@ Combinaciones resultantes:
 - principal de flujo no crítico → `["@regression"]`
 - negativo (crítico o no) → `["@regression", "@negative"]` (los negativos no son smoke por defecto)
 
-El SDET ajusta tags y selección en el checkpoint del command — tú solo propones.
+El QA ajusta tags y selección en el checkpoint del command — tú solo propones.
 
 ## S3 mode (when `--criteria` is present)
 

@@ -10,7 +10,7 @@
 # que ParaBank). El balance/estado del demo es compartido y se resetea
 # periódicamente → no assertar datos exactos, solo señales de UI.
 #
-# A11y (decisión SDET): inject del check axe siempre (hard rule SPEC). Demo público
+# A11y (decisión QA): inject del check axe siempre (hard rule SPEC). Demo público
 # con probables violaciones; fail_on_violations=false → WARNING auditable, no
 # bloqueante en esta fase.
 
@@ -56,7 +56,7 @@ fixtures:
 
 a11y:
   inject_axe_check: true
-  fail_on_violations: false        # WARNING importante, no bloqueante (decisión SDET)
+  fail_on_violations: false        # WARNING importante, no bloqueante (decisión QA)
   severity_threshold:
     - serious
     - critical

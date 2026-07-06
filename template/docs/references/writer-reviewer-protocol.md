@@ -103,7 +103,7 @@ Un test se rechaza (`rejected`) si tiene **cualquiera** de:
 Solo si la iteración 2 ya intentó corregir y persiste. En ese caso:
 - `verdict: 'rejected'`
 - `result: 'iteration_2_exhausted'` en audit-log
-- El command escala al SDET con flag `reviewer_unresolved: true` + el feedback completo.
+- El command escala al QA con flag `reviewer_unresolved: true` + el feedback completo.
 - El test pasa al Judge igualmente, pero con score reducido por el campo `reviewer_unresolved`.
 
 ## Output

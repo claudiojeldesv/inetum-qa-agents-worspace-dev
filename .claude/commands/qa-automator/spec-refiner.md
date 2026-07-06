@@ -15,16 +15,23 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 - `--url=<URL>` (obligatorio): URL de staging, debe estar en `config/allowed-targets.yaml`. **Forma B exige URL** — sin target no hay DOM, locators ni run verde (Forma A descartada).
 - `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `config/style-contracts/parabank.yaml`): YAML del Style Contract.
 - `--output-dir=<path>` (opcional, default: `tests/e2e/<site-id>`): dónde se escriben los `.spec.ts` (namespaced por sitio).
-- `--criteria-dir=<path>` (opcional, default: `docs/findings/faseD-s3`): dónde el refiner escribe `criteria.json` + `refinement-questions.md`.
+- `--criteria-dir=<path>` (opcional, default: `.work/<site-id>` = `<workDir>`): dónde el refiner escribe `criteria.json` + `refinement-questions.md`.
 
 ## Procedure (los 5 actos)
 
 ### Acto 1 — Comprender
 
 1. Invoca `ia4d-mode-router` via Task tool con los flags recibidos.
-2. Confirma `module: S3`. Si `status: needs_input` (`--fd` sin `--url`) → aborta y dile al SDET que Forma B exige URL de staging. Forma A (FD sin target) no está implementada.
+2. Confirma `module: S3`. Si `status: needs_input` (`--fd` sin `--url`) → aborta y dile al QA que Forma B exige URL de staging. Forma A (FD sin target) no está implementada.
 3. Invoca `ia4d-compliance-checker` via Task tool con la URL y `config/allowed-targets.yaml`.
    - `block` → aborta (exit 2). `warn` → muestra y pregunta (ask-first).
+
+**1.a — Namespace por sitio + limpieza (PRIMERO, antes de la ingesta, NO negociable):** deriva `<site-id>`
+del basename del `--style`; define `<workDir>=.work/<site-id>` (todos los artefactos efímeros ahí,
+**incluido `criteria.json`**) y los dirs `tests/{e2e,pages,components}/<site-id>/`; **limpia `<workDir>/`
+al arrancar** (no toca `config/tc-registry/<site-id>.json`); **exporta `QA_WORK_DIR=<workDir>`** en el run.
+Pasa rutas namespaciadas a los subagentes. La limpieza corre **antes** de que el refiner escriba, para no
+borrar el `criteria.json` recién generado. Runs de sitios distintos no se contaminan.
 
 **1.b — Ingestión del FD** (sustituye al brief manual de S4):
 4. Invoca `ia4d-spec-refiner` via Task tool:
@@ -33,15 +40,9 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
    --output=<criteria-dir>/criteria.json
    --questions-output=<criteria-dir>/refinement-questions.md
    ```
-5. Lee `criteria.json`. De él salen: los criterios RF-NNN y el **brief** (`brief.flows`, `brief.entry`, `brief.ignore`) que en S4 teclea el SDET.
-6. **Gate de open_questions (ask-first, no override).** Si hay criterios con `then` `[AMBIGUO ...]` o `open_questions` no vacío, muéstralos al SDET (resumen de `refinement-questions.md`) y avisa: esos criterios **NO se generan** en este run (opción (a), decisión SDET). El SDET puede responder y re-ejecutar, o continuar solo con los criterios claros. No se fabrica el comportamiento ambiguo.
+5. Lee `criteria.json`. De él salen: los criterios RF-NNN y el **brief** (`brief.flows`, `brief.entry`, `brief.ignore`) que en S4 teclea el QA.
+6. **Gate de open_questions (ask-first, no override).** Si hay criterios con `then` `[AMBIGUO ...]` o `open_questions` no vacío, muéstralos al QA (resumen de `refinement-questions.md`) y avisa: esos criterios **NO se generan** en este run (opción (a), decisión QA). El QA puede responder y re-ejecutar, o continuar solo con los criterios claros. No se fabrica el comportamiento ambiguo.
 7. Registra al audit-log: `{ source: 'command', action: 'fd_ingested', metadata: { criteria_count, blocked_count, flows } }`.
-
-**7.b — Namespace por sitio + limpieza (igual que S4, NO negociable):** deriva `<site-id>` del basename
-del `--style`; define `<workDir>=.work/<site-id>` (todos los artefactos efímeros ahí) y los dirs
-`tests/{e2e,pages,components}/<site-id>/`; **limpia `<workDir>/` al arrancar** (no toca
-`config/tc-registry/<site-id>.json`); **exporta `QA_WORK_DIR=<workDir>`** en el run. Pasa rutas
-namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
 
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
 
@@ -66,8 +67,8 @@ namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
    `docs/test-plans/<site-id>/<flow>.plan.md`: (a) existe (se llamó `planner_save_plan`); (b) el planner
    reporta uso de tools de navegador (`browser_navigate`/`browser_snapshot`), no solo `Read/Grep/Glob`;
    (c) trae locators/URLs concretos, no genéricos.
-   - Si falla (o el planner se cuelga y el SDET lo corta) → **reintenta UNA vez** ese flujo solo.
-   - Si tras el reintento sigue fallando → **PAUSA y pregunta al SDET**: (1) marcar el flujo como
+   - Si falla (o el planner se cuelga y el QA lo corta) → **reintenta UNA vez** ese flujo solo.
+   - Si tras el reintento sigue fallando → **PAUSA y pregunta al QA**: (1) marcar el flujo como
      no-mapeado (va a `unmapped_flows`, el run sigue con el resto); (2) rescate con MCP directo por el
      orquestador (aviso: consume contexto); (3) abortar (exit 2). Registra al audit-log
      `{ source: 'command', action: 'warn'|'block', rule: 'planner-flow-recovery', metadata: { flow, choice } }`.
@@ -105,11 +106,16 @@ namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
 13. (Opcional) `ia4d-style-enforcer` por cada `.spec.ts`.
 14. (Obligatorio) `ia4d-a11y-injector` por cada `.spec.ts` pasándole `--style-contract` (scan siempre; gate por `a11y.fail_on_violations`, **default `false`** → modo warning; reactivable por-sitio con `true`). Igual que S4.
 
+**14.b — Consolidar feedback (determinístico, no LLM):** el Reviewer escribió un fichero por spec en
+`<workDir>/review-feedback/<spec>.json` (sin contención entre writers paralelos). Únelos en el
+`<workDir>/review-feedback.json` plano: `QA_WORK_DIR=<workDir> npx tsx src/scripts/consolidate-reviews.ts`.
+El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrente que corrompía el fichero.)
+
 ### Acto 5 — Juzgar
 
 15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (`echo $env:QA_ENABLE_JUDGE`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`.
 16. (Solo si el Judge corrió) Lee scores. Si >30% < 0.5 → pausa ask-first.
-17. Genera `<workDir>/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`), verdicts, axe results, **criterios bloqueados (pendientes de respuesta SDET)** y **drift** (RF declarados sin cobertura).
+17. Genera `<workDir>/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`), verdicts, axe results, **criterios bloqueados (pendientes de respuesta QA)** y **drift** (RF declarados sin cobertura).
 
 ## Outputs (consolidados)
 
@@ -117,7 +123,7 @@ namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
 - `<workDir>/drift-report.json` (RF declarados no mapeados en staging; `<workDir>`=`.work/<site-id>`)
 - `<workDir>/discovery-report.json` (con `criteria_mapping`)
 - `tests/pages/<site-id>/*.page.ts`, `tests/components/<site-id>/*.component.ts`, `tests/e2e/<site-id>/*.spec.ts` (con `@criterion RF-NNN`)
-- `<workDir>/review-feedback.json`, `<workDir>/judge-report.json`, `<workDir>/audit-log.json`
+- `<workDir>/review-feedback/<spec>.json` (per-spec, escrito por el Reviewer) → consolidado en `<workDir>/review-feedback.json`; `<workDir>/judge-report.json`, `<workDir>/audit-log.json`
 - `<workDir>/qa-automator-run-summary.json`
 
 ## Verification step
@@ -129,14 +135,14 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-i
 #   $env:QA_WORK_DIR='.work/<site-id>'; $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test tests/e2e/<site-id>/ --reporter=list
 ```
 
-- Verdes → run exitoso. El SDET ve qué RF cubre cada test verde, qué RF quedaron en drift, y qué RF están pendientes de respuesta a una refinement-question.
+- Verdes → run exitoso. El QA ve qué RF cubre cada test verde, qué RF quedaron en drift, y qué RF están pendientes de respuesta a una refinement-question.
 
 ## Hard rules
 
 - Forma B exige `--url`. Sin target, aborta (no hay Forma A).
 - Gate de open_questions y compliance pre-flight: **sin override**.
-- **Namespace por sitio (paso 7.b)**: artefactos efímeros bajo `<workDir>=.work/<site-id>`; specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR` exportado; `npx playwright test tests/e2e/<site-id>/`; limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos no se contaminan.
-- **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el SDET decide (no-mapeado / rescate MCP / abortar).
+- **Namespace por sitio (paso 1.a, antes de la ingesta)**: artefactos efímeros bajo `<workDir>=.work/<site-id>` (incluido `criteria.json`); specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR` exportado; `npx playwright test tests/e2e/<site-id>/`; limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos no se contaminan.
+- **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el QA decide (no-mapeado / rescate MCP / abortar).
 - No se fabrica drift ni el `then` ambiguo. Un flujo no mapeado se reporta; un criterio ambiguo no se genera.
 - Writer+Reviewer activos (igual que S4); el **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`).
 - Cada invocación de subagent y cada decisión (ingest, drift, bloqueo, judge omitido) registra al audit-log.
@@ -147,4 +153,3 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-i
 - [`SPEC.md`](../../../SPEC.md) §7 — "S3 — diseño decidido: Forma B"
 - [`docs/references/fd-criteria-schema.md`](../../../docs/references/fd-criteria-schema.md) — contrato de `criteria.json`
 - [`.claude/commands/qa-automator/autonomous.md`](autonomous.md) — el motor S4 que S3 reusa (Actos 3-5 idénticos)
-- [`docs/findings/wild-sites-report.md`](../../../docs/findings/wild-sites-report.md) — validación parabank (back-end reusado)

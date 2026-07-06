@@ -68,7 +68,7 @@ tc_registry:
   id_prefix: string                 # default 'TC'. Prefijo del ID que ASIGNA el agente cuando no hay key
                                     #   de gestor (TC-001, TC-002…). Secuencial estable, NO por rank.
   # source por entrada del registro:
-  #   'xray'  → el id es el key del gestor de pruebas (lo rellena el SDET; el agente NUNCA lo inventa).
+  #   'xray'  → el id es el key del gestor de pruebas (lo rellena el QA; el agente NUNCA lo inventa).
   #   'agent' → el id es el TC-NNN que asignó y persistió el agente (fallback cuando no hay key).
   # Resolución por escenario en cada run: si el slug ya está en el registro → reusa su id;
   # si es nuevo → el agente asigna el siguiente TC-NNN libre, source:'agent', y lo añade al registro.

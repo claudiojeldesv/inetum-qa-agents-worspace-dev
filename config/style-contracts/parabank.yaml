@@ -10,7 +10,7 @@
 # (hallazgo Fase C catalogado en wild-sites-report.md): la persistencia de
 # sesión la estructura el planner/writer desde el brief, no este contract.
 #
-# A11y (decisión SDET): ParaBank es JSP viejo, alta probabilidad de violaciones
+# A11y (decisión QA): ParaBank es JSP viejo, alta probabilidad de violaciones
 # serias en login. Se inyecta el check axe (hard rule del SPEC se respeta) pero
 # fail_on_violations=false: a11y es WARNING importante en esta fase, no
 # bloqueante. Captura el dato sin abortar el flujo bajo prueba.
@@ -63,7 +63,7 @@ fixtures:
 
 a11y:
   inject_axe_check: true
-  fail_on_violations: false        # WARNING importante, no bloqueante (decisión SDET Fase B)
+  fail_on_violations: false        # WARNING importante, no bloqueante (decisión QA Fase B)
   severity_threshold:
     - serious
     - critical

@@ -7,7 +7,7 @@ argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--negatives
 
 Módulo **S4 Autonomous** del agente `ia4d-qa-automator`. Recibe una URL y, opcionalmente, un Style Contract. Orquesta los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar) contra el target.
 
-Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que acota el reconocimiento por **módulos / flujos**. Acotar es el camino recomendado y, salvo confirmación explícita del SDET, **obligatorio**: este command **no explora una web entera a ciegas** (ver paso 5.b — warning + confirmación). Es el plumbing instrumental de v0.2 (ver SPEC §7, estrategia de reconocimiento del flujo principal).
+Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que acota el reconocimiento por **módulos / flujos**. Acotar es el camino recomendado y, salvo confirmación explícita del QA, **obligatorio**: este command **no explora una web entera a ciegas** (ver paso 5.b — warning + confirmación). Es el plumbing instrumental de v0.2 (ver SPEC §7, estrategia de reconocimiento del flujo principal).
 
 ## Arguments
 
@@ -32,15 +32,15 @@ Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que aco
 1. Invoca `ia4d-mode-router` via Task tool con los flags recibidos.
 2. Confirma que el módulo resuelto es S4 (Autonomous).
 3. Invoca `ia4d-compliance-checker` via Task tool con la URL y `config/allowed-targets.yaml`.
-4. Si verdict = `block` → aborta, muestra razón al SDET, termina con exit 2.
-5. Si verdict = `warn` → muestra warning y pregunta al SDET si continúa (ask-first).
+4. Si verdict = `block` → aborta, muestra razón al QA, termina con exit 2.
+5. Si verdict = `warn` → muestra warning y pregunta al QA si continúa (ask-first).
 
 **5.b — Captura del brief de exploración (acotar por módulos es OBLIGATORIO salvo confirmación explícita)**:
 
 Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `transfer`) no es una optimización opcional. En webs medianas o grandes, explorar a ciegas satura la ventana de contexto del agente con casuística irrelevante y degrada la calidad del plan: el agente se vuelve un caballo sin riendas. Por eso este command **no explora una web entera a ciegas por defecto**.
 
 - Si llega al menos uno de `--flows/--entry/--ignore` → **modo dirigido**: compón el brief con lo recibido. Camino recomendado.
-- Si no llega ninguno → **NO explores todavía**. Muestra al SDET este WARNING y pídele los módulos:
+- Si no llega ninguno → **NO explores todavía**. Muestra al QA este WARNING y pídele los módulos:
 
   > ⚠️ Vas a lanzar el reconocimiento autónomo SIN acotar por módulos.
   > En webs medianas o grandes esto satura el contexto del agente y baja la
@@ -50,8 +50,8 @@ Acotar el reconocimiento por **módulos / flujos** (ej. `login`, `checkout`, `tr
   > Responde con los flujos a cubrir, o escribe EXACTAMENTE `EXPLORAR SIN ACOTAR`
   > para continuar en modo ciego bajo tu responsabilidad.
 
-  - Si el SDET responde con flujos → **modo dirigido** con esos flujos.
-  - Si el SDET responde **exactamente** `EXPLORAR SIN ACOTAR` → **modo ciego** (exploración exhaustiva, comportamiento v0.1), `blind_acknowledged: true`.
+  - Si el QA responde con flujos → **modo dirigido** con esos flujos.
+  - Si el QA responde **exactamente** `EXPLORAR SIN ACOTAR` → **modo ciego** (exploración exhaustiva, comportamiento v0.1), `blind_acknowledged: true`.
   - Cualquier otra respuesta, respuesta ambigua o silencio → **no explores**: repite el warning o aborta con exit 2. **Nunca** entres en modo ciego sin esa confirmación explícita.
 
 - **Captura los negativos pedidos**: si llegó `--negatives`, parséalo a una lista de slugs de flujo
@@ -113,10 +113,10 @@ discovery real sobre su fragmento `docs/test-plans/<site-id>/<flow>.plan.md`:
   etc.), no solo `Read/Grep/Glob`.
 - El fragmento trae **locators/URLs concretos del sitio real**, no genéricos adivinados.
 
-**Reintento + protocolo de cuelgue (decisión del SDET, no automática):**
-- Si la guarda falla para un flujo (o el planner se interrumpe / cuelga y el SDET lo corta) →
+**Reintento + protocolo de cuelgue (decisión del QA, no automática):**
+- Si la guarda falla para un flujo (o el planner se interrumpe / cuelga y el QA lo corta) →
   **reintenta UNA vez** ese flujo solo.
-- Si tras el reintento sigue fallando → **PAUSA y pregunta al SDET** (ask-first), ofreciendo:
+- Si tras el reintento sigue fallando → **PAUSA y pregunta al QA** (ask-first), ofreciendo:
   1. **Marcar el flujo como no-mapeado** → va a `unmapped_flows` del drift; el run continúa con el resto.
   2. **Rescate con MCP directo**: el orquestador mapea ese flujo él mismo con llamadas MCP
      (`browser_*`) pantalla por pantalla (navegación real, locators reales — cumple el espíritu de la
@@ -173,7 +173,7 @@ existe, trátalo como `{}`) y busca cada `scenario_slug`.
    - **Existe** → usa su `id` (sea key de gestor `source:'xray'` o `TC-NNN` `source:'agent'`).
    - **No existe** → asigna el siguiente `TC-NNN` libre (`id_prefix` del contract, default `TC`;
      correlativo = max de los `TC-NNN` ya presentes + 1, 3 dígitos), `source:'agent'`, y **añádelo** al
-     registro. Nunca inventes un key de gestor: el SDET lo rellena después editando el registro.
+     registro. Nunca inventes un key de gestor: el QA lo rellena después editando el registro.
 2. Escribe el registro actualizado de vuelta a `tc_registry.path` (Write). Es versionado y auditable.
 3. Registra `{ source: 'command', action: 'write_file', target: '<tc_registry.path>', rule: 'tc-registry', reason: 'persist stable ids' }`.
 
@@ -215,6 +215,11 @@ registran (no es un fallo: es la rienda).
     - El gate lo decide `a11y.fail_on_violations` del contract. **Default `false`** (modo warning: annotation auditable, no aborta) — gate apagado por defecto, reactivable por-sitio con `fail_on_violations: true` (entonces `expect(...).toEqual([])` aborta). Severidades filtradas por `a11y.severity_threshold`.
     - Lee el `gate_mode` del output del injector y registra al audit-log: `{ source: 'command', action: 'warn'|'allow', target: <spec>, rule: 'a11y-gate', reason: 'fail_on_violations:<bool> → <mode> mode' }`.
 
+**11.b — Consolidar feedback (determinístico, no LLM):** el Reviewer escribió un fichero por spec en
+`<workDir>/review-feedback/<spec>.json` (sin contención entre writers paralelos). Únelos en el
+`<workDir>/review-feedback.json` plano: `QA_WORK_DIR=<workDir> npx tsx src/scripts/consolidate-reviews.ts`.
+El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrente que corrompía el fichero.)
+
 ### Acto 5 — Juzgar
 
 12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
@@ -240,7 +245,7 @@ setea `QA_ENABLE_PII=1` (PII scanner del hook) y/o `QA_ENABLE_JUDGE=1` (Acto 5).
 reactiva por-sitio con `fail_on_violations: true` en el Style Contract, no por env-var. Sin estas vars,
 el run corre sin PII scan, sin Judge y con a11y en modo warning.
 
-**Antes de ejecutar, borra `tests/e2e/<site-id>/seed.spec.ts` si existe.** Es el scaffold que el MCP `playwright-test` resiembra en cada `setup_page` (Planner/Generator); solo sirve durante la generación. Si queda en `testDir`, corre como un test vacío siempre-verde y contamina el output y el reporte Allure (decisión SDET: eliminarlo, no ignorarlo).
+**Antes de ejecutar, borra `tests/e2e/<site-id>/seed.spec.ts` si existe.** Es el scaffold que el MCP `playwright-test` resiembra en cada `setup_page` (Planner/Generator); solo sirve durante la generación. Si queda en `testDir`, corre como un test vacío siempre-verde y contamina el output y el reporte Allure (decisión QA: eliminarlo, no ignorarlo).
 
 **`allure-results` se limpia solo.** El `globalSetup` de `playwright.config.ts` (`playwright.global-setup.ts`) vacía `<workDir>/allure-results` (= `QA_WORK_DIR/allure-results`) al inicio de cada `npx playwright test`. Así el reporte refleja SOLO esta corrida — no hace falta `rm` manual y no se acumulan runs viejos (duplicados / `skipped` rancios). Los Trends se preservan (`.allure-history/` queda intacto; el report lo re-inyecta).
 
@@ -274,18 +279,18 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 ```
 
 - Si todos verdes → run exitoso.
-- Si algún rojo → reporta cuáles y por qué. El SDET decide si lanza al Healer o ajusta manualmente.
+- Si algún rojo → reporta cuáles y por qué. El QA decide si lanza al Healer o ajusta manualmente.
 
 ## Hard rules
 
 - Cada invocación de subagent registra al audit-log.
 - No saltar Acto 1 (compliance pre-flight). Sin override.
 - **Namespace por sitio (paso 5.c)**: artefactos efímeros bajo `<workDir>=.work/<site-id>`; specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR=<workDir>` exportado en el run; `npx playwright test tests/e2e/<site-id>/`. Limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos NO se contaminan ni se filtran a mano.
-- **Planner por-flujo (paso 6) + guarda anti-fabricación por-flujo (paso 6.5)**: el planner se invoca un flujo por vez, secuencial (nunca en paralelo). Cada fragmento pasa la guarda; si un flujo falla tras un reintento, el command PAUSA y el SDET decide (no-mapeado / rescate MCP directo / abortar). Un flujo fallido no contamina a los demás. Nunca pases al discovery-analyzer un fragmento que no navegó de verdad. Sin discovery real, no hay generación.
-- No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del SDET (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
-- El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del SDET. Truncar sin avisar rompe el principio "no silent caps".
+- **Planner por-flujo (paso 6) + guarda anti-fabricación por-flujo (paso 6.5)**: el planner se invoca un flujo por vez, secuencial (nunca en paralelo). Cada fragmento pasa la guarda; si un flujo falla tras un reintento, el command PAUSA y el QA decide (no-mapeado / rescate MCP directo / abortar). Un flujo fallido no contamina a los demás. Nunca pases al discovery-analyzer un fragmento que no navegó de verdad. Sin discovery real, no hay generación.
+- No entrar en **modo ciego** (reconocimiento sin acotar por módulos) sin la confirmación explícita del QA (`EXPLORAR SIN ACOTAR`, paso 5.b). Acotar por módulos es el camino recomendado; el warning no se silencia.
+- El **cap `--max-scenarios`** (Acto 2.5) no se salta en silencio: si el catálogo lo supera, pausa y pide selección. Ignorar el cap requiere `TODOS` explícito del QA. Truncar sin avisar rompe el principio "no silent caps".
 - Writer+Reviewer (ping-pong N≤2 del Acto 4) **obligatorios**. El **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`); su omisión se registra al audit-log, no se silencia.
-- **Registro de IDs (`tc_registry`)**: el ID del archivo es **estable**, nunca el rank efímero. Reusa el ID si el `scenario_slug` ya está en el registro; asigna `TC-NNN` y persístelo si es nuevo. **Nunca inventes un key de gestor de pruebas** (`source:'xray'`) — eso lo rellena el SDET. La naturaleza no se nombra: solo el negativo se marca, y únicamente en el tag `@negative` (jamás en el nombre del archivo ni en el título; el flujo principal no lleva tag de naturaleza).
+- **Registro de IDs (`tc_registry`)**: el ID del archivo es **estable**, nunca el rank efímero. Reusa el ID si el `scenario_slug` ya está en el registro; asigna `TC-NNN` y persístelo si es nuevo. **Nunca inventes un key de gestor de pruebas** (`source:'xray'`) — eso lo rellena el QA. La naturaleza no se nombra: solo el negativo se marca, y únicamente en el tag `@negative` (jamás en el nombre del archivo ni en el título; el flujo principal no lleva tag de naturaleza).
 - **Negativos opt-in (S4)**: el flujo principal de cada flujo se genera siempre; los negativos solo en flujos que `test_design.coverage.negatives_by_flow` (o `--negatives`) pida. La criticidad la **infiere** el discovery-analyzer por el propósito del sitio, no por keywords.
 - Paralelismo del Acto 4 es prioritario: invocar los Writers de los N escenarios concurrentemente cuando sea posible.
 
@@ -293,4 +298,3 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 - [`SPEC.md`](../../../SPEC.md) §1 (DoD MVP), §2 (Commands), §6 (Boundaries)
 - [`docs/references/composition-rules.md`](../../../docs/references/composition-rules.md)
-- [`docs/findings/spike-playwright-mcp.md`](../../../docs/findings/spike-playwright-mcp.md)

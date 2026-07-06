@@ -63,7 +63,7 @@ for (const f of COPY_FILES) {
   cpSync(resolve(repo, f), resolve(tpl, f));
 }
 
-// 3. El builder no viaja al template (el SDET no reconstruye el template).
+// 3. El builder no viaja al template (el QA no reconstruye el template).
 rmSync(resolve(tpl, 'src/scripts/build-template.mjs'), { force: true });
 
 // 4. package.json: deps/scripts/engines del repo, identity del template.

@@ -18,9 +18,9 @@ patterns:
   - 'https://practicesoftwaretesting.com/*'
   - 'https://parabank.parasoft.com/*'    # sitio 3: banca demo (auth + estado)
   - 'https://opensource-demo.orangehrmlive.com/*'    # HR portal demo (auth + SPA)
-  - 'https://precio.mapfre.es/*'    # tarificador seguro hogar (prod real, autorizado SDET; run único happy-path)
-  - 'https://www.mapfre.es/ahorro-inversion/*'    # sección ahorro e inversión (prod real, autorizado SDET 2026-06-18; happy-path)
-  - 'https://www.santalucia.es/es/segurosmultirramo*'    # Santalucía seguros multirramo (prod real, autorizado SDET 2026-06-18; happy-path home)
+  - 'https://precio.mapfre.es/*'    # tarificador seguro hogar (prod real, autorizado QA; run único happy-path)
+  - 'https://www.mapfre.es/ahorro-inversion/*'    # sección ahorro e inversión (prod real, autorizado QA 2026-06-18; happy-path)
+  - 'https://www.santalucia.es/es/segurosmultirramo*'    # Santalucía seguros multirramo (prod real, autorizado QA 2026-06-18; happy-path home)
 
   # Entornos no productivos (cualquier subdominio)
   - 'https://*.qa.*'

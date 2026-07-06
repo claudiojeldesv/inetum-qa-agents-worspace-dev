@@ -46,7 +46,7 @@ Same `.work/discovery-report.json` schema as S4. Indistinguishable downstream �
 ## Common Rationalizations to reject (when implemented)
 
 - "The repo has 200 components, I'll skip the small ones" → No. Code-driven means coverage proportional to the code.
-- "I can't tell what data-test attrs exist without running the app" → If the SDET asked for S1 not S4, you must extract from source. Static analysis only.
+- "I can't tell what data-test attrs exist without running the app" → If the QA engineer asked for S1 not S4, you must extract from source. Static analysis only.
 
 ## Reference
 

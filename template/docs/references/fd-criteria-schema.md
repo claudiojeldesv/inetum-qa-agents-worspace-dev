@@ -1,6 +1,6 @@
 # FD Criteria — schema JSON (`criteria.json`)
 
-Contrato del handoff del módulo **S3 (Spec-refiner)**. El subagent `ia4d-spec-refiner` ingiere un FD en markdown libre y emite este `criteria.json` estructurado. Lo consumen aguas abajo: el `ia4d-discovery-analyzer` (taggea cada scenario con su `criterion_ref`) y el `ia4d-writer` (cita el RF-NNN en el `@criterion` del JSDoc). El `brief` embebido sustituye al `--flows/--entry/--ignore` que en S4 teclea el SDET a mano.
+Contrato del handoff del módulo **S3 (Spec-refiner)**. El subagent `ia4d-spec-refiner` ingiere un FD en markdown libre y emite este `criteria.json` estructurado. Lo consumen aguas abajo: el `ia4d-discovery-analyzer` (taggea cada scenario con su `criterion_ref`) y el `ia4d-writer` (cita el RF-NNN en el `@criterion` del JSDoc). El `brief` embebido sustituye al `--flows/--entry/--ignore` que en S4 teclea el QA a mano.
 
 Es el **estándar propio** de `ia4d-qa-automator`. El FD del cliente entra como prosa libre; el refiner lo normaliza a este formato. Adaptadores para otros contratos de cliente (Jira, plantillas corporativas, OpenAPI) son mejora futura: traducirán el formato del cliente → este estándar, no al revés. Por ahora, uno solo.
 
@@ -31,7 +31,7 @@ El refiner **extrae lo que el FD enuncia y marca lo que falta**. No inventa crit
       "drift_risk": "low|medium|high",       // sospecha temprana de que el flujo no exista en staging. NO es el veredicto
                                       //   (ese lo da el diff command vs discovery). Es una señal previa para priorizar
       "assumptions": [                // interpretaciones que el refiner tuvo que hacer; [] si ninguna
-        "[ASSUMPTION] string"         //   marcadas con prefijo [ASSUMPTION] para que el SDET las vea
+        "[ASSUMPTION] string"         //   marcadas con prefijo [ASSUMPTION] para que el QA las vea
       ],
       "open_questions": [             // IDs Q-NNN que bloquean/matizan este criterio; [] si ninguno
         "Q-002"                       //   cada uno tiene su entrada en refinement-questions.md
@@ -39,7 +39,7 @@ El refiner **extrae lo que el FD enuncia y marca lo que falta**. No inventa crit
     }
   ],
 
-  "brief": {                          // sustituye a --flows/--entry/--ignore del SDET. Lo consume el command (Acto Mapear)
+  "brief": {                          // sustituye a --flows/--entry/--ignore del QA. Lo consume el command (Acto Mapear)
     "flows": ["login", "transfer-funds", "bill-pay"],  // TODOS los flujos que el FD menciona (sin filtrar por disponibilidad en staging)
     "entry": "/parabank/index.htm",   // punto de entrada derivado del FD o de target_url
     "ignore": [],                     // zonas que el FD declara fuera de alcance explícito, si las hay
@@ -65,11 +65,11 @@ El refiner **extrae lo que el FD enuncia y marca lo que falta**. No inventa crit
 - **`given/when/then`** — el criterio en forma accionable, derivado literal del FD. Es lo que el Writer convierte en pasos contra el DOM. Si el FD no especifica el `then` (caso típico del hueco), se marca `[AMBIGUO — el FD no especifica]` con lo que sí se sabe, y se abre una `open_question`. NUNCA se rellena el `then` a ojo.
 - **`drift_risk`** — sospecha temprana, no veredicto. El refiner no conoce el DOM; marca `high` cuando el propio FD o el sentido común sugieren que el flujo puede no estar en staging. El **veredicto de drift** lo da el command después, con el diff determinístico `criteria.json` vs `discovery-report.json` (no LLM). Sirve para priorizar y para poblar `brief.drift_flags`.
 - **`brief.flows`** incluye **todos** los flujos del FD, incluidos los de `drift_risk: high`. El planner intentará mapearlos; el que no se mapee se reporta como gap, no se fabrica.
-- **`confidence: low`**, **`then` ambiguo**, o **`assumptions` no vacío** → obligan a una entrada `Q-NNN` en `refinement-questions.md`. El refiner no "resuelve" la ambigüedad rellenando; la escala al SDET.
+- **`confidence: low`**, **`then` ambiguo**, o **`assumptions` no vacío** → obligan a una entrada `Q-NNN` en `refinement-questions.md`. El refiner no "resuelve" la ambigüedad rellenando; la escala al QA.
 
 ## `refinement-questions.md` (output acompañante)
 
-Markdown legible para el SDET. Una entrada por ambigüedad/hueco. Formato:
+Markdown legible para el QA. Una entrada por ambigüedad/hueco. Formato:
 
 Cada pregunta lleva un ID `Q-NNN` referenciado desde `criteria[].open_questions`. Cierra con
 una tabla resumen que diga cuáles **bloquean** la generación de tests y cuáles no.
@@ -78,7 +78,7 @@ una tabla resumen que diga cuáles **bloquean** la generación de tests y cuále
 # Refinement questions — <source_fd>
 
 Preguntas que el refiner NO resolvió por su cuenta (ask-first). Responde y re-ejecuta, o
-responde inline y el SDET decide. El refiner no fabrica la respuesta.
+responde inline y el QA decide. El refiner no fabrica la respuesta.
 
 ## Q-002 — Transferencia: comportamiento ante saldo insuficiente (RF-004)
 - **Origen**: fd-parabank.md:32-34
@@ -116,7 +116,7 @@ FD (markdown libre) ──► ia4d-spec-refiner ──► criteria.json + brief 
 
 ## Reference
 
-- [`SPEC.md`](../SPEC.md) §7 — "S3 — diseño decidido: Forma B"
-- [`.claude/agents/ia4d-spec-refiner.md`](../.claude/agents/ia4d-spec-refiner.md) — productor de este artefacto
-- [`.claude/agents/ia4d-discovery-analyzer.md`](../.claude/agents/ia4d-discovery-analyzer.md) — consumidor (taggea `criterion_ref`)
+- `SPEC.md` §7 — "S3 — diseño decidido: Forma B"
+- `.claude/agents/ia4d-spec-refiner.md` — productor de este artefacto
+- `.claude/agents/ia4d-discovery-analyzer.md` — consumidor (taggea `criterion_ref`)
 - [`docs/references/style-contract-schema.md`](style-contract-schema.md) — `synthetic_fixtures` (única fuente de datos de prueba; el FD no los aporta)

@@ -27,7 +27,7 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
   target no hay DOM, locators ni run verde.
 - `--style=<path>` (opcional, default: el contract del sitio si existe, p.ej. `config/style-contracts/parabank.yaml`).
 - `--output-dir=<path>` (opcional, default: `tests/e2e/<site-id>`, namespaced por sitio).
-- `--criteria-dir=<path>` (opcional, default: `docs/findings/faseE-s2`): dónde el parser escribe
+- `--criteria-dir=<path>` (opcional, default: `.work/<site-id>` = `<workDir>`): dónde el parser escribe
   `criteria.json` + `refinement-questions.md`.
 - `--openapi=<path>`: **diferido a v0.4**. Si se pasa, el command informa y aborta (los tests de API
   necesitan un `ia4d-api-test-writer` que no existe aún; no comparten el motor DOM-céntrico).
@@ -42,6 +42,13 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
 3. Invoca `ia4d-compliance-checker` via Task tool con la URL y `config/allowed-targets.yaml`.
    - `block` → aborta (exit 2). `warn` → muestra y pregunta (ask-first).
 
+**1.a — Namespace por sitio + limpieza (PRIMERO, antes de la ingesta, NO negociable):** deriva `<site-id>`
+del basename del `--style`; define `<workDir>=.work/<site-id>` (todos los artefactos efímeros ahí,
+**incluido `criteria.json`**) y los dirs `tests/{e2e,pages,components}/<site-id>/`; **limpia `<workDir>/`
+al arrancar** (no toca `config/tc-registry/<site-id>.json`); **exporta `QA_WORK_DIR=<workDir>`** en el run.
+Pasa rutas namespaciadas a los subagentes. La limpieza corre **antes** de que el parser escriba, para no
+borrar el `criteria.json` recién generado. Runs de sitios distintos no se contaminan.
+
 **1.b — Ingestión del `.feature`** (sustituye al brief manual de S4):
 4. Invoca `ia4d-spec-parser` via Task tool:
    ```
@@ -50,19 +57,13 @@ un test data-driven (un caso por fila), citando el mismo RF-NNN.
    --questions-output=<criteria-dir>/refinement-questions.md
    ```
 5. Lee `criteria.json`. De él salen: los criterios RF-NNN y el **brief** (`brief.flows`,
-   `brief.entry`, `brief.ignore`) que en S4 teclea el SDET.
+   `brief.entry`, `brief.ignore`) que en S4 teclea el QA.
 6. **Gate de open_questions (ask-first, no override).** Un `.feature` maduro no debería disparar
    ninguno. Si algún Scenario llegó **sin `Then`**, el parser lo marcó (`then: [AMBIGUO ...]`,
-   `open_questions` no vacío). Muéstralos al SDET (resumen de `refinement-questions.md`) y avisa:
+   `open_questions` no vacío). Muéstralos al QA (resumen de `refinement-questions.md`) y avisa:
    esos criterios **NO se generan**. Sugiere refinar el `.feature` (añadir el `Then`) o enrutar el
    caso por `/qa-automator:spec-refiner` (S3). No se fabrica el resultado esperado.
 7. Registra al audit-log: `{ source: 'command', action: 'feature_ingested', metadata: { criteria_count, blocked_count, flows } }`.
-
-**7.b — Namespace por sitio + limpieza (igual que S4/S3, NO negociable):** deriva `<site-id>` del
-basename del `--style`; define `<workDir>=.work/<site-id>` (todos los artefactos efímeros ahí) y los
-dirs `tests/{e2e,pages,components}/<site-id>/`; **limpia `<workDir>/` al arrancar** (no toca
-`config/tc-registry/<site-id>.json`); **exporta `QA_WORK_DIR=<workDir>`** en el run. Pasa rutas
-namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
 
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
 
@@ -87,8 +88,8 @@ namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
    `docs/test-plans/<site-id>/<flow>.plan.md`: (a) existe (se llamó `planner_save_plan`); (b) el planner
    reporta uso de tools de navegador (`browser_navigate`/`browser_snapshot`), no solo `Read/Grep/Glob`;
    (c) trae locators/URLs concretos, no genéricos.
-   - Si falla (o el planner se cuelga y el SDET lo corta) → **reintenta UNA vez** ese flujo solo.
-   - Si tras el reintento sigue fallando → **PAUSA y pregunta al SDET**: (1) marcar el flujo como
+   - Si falla (o el planner se cuelga y el QA lo corta) → **reintenta UNA vez** ese flujo solo.
+   - Si tras el reintento sigue fallando → **PAUSA y pregunta al QA**: (1) marcar el flujo como
      no-mapeado (va a `unmapped_flows`, el run sigue con el resto); (2) rescate con MCP directo por el
      orquestador (aviso: consume contexto); (3) abortar (exit 2). Registra al audit-log
      `{ source: 'command', action: 'warn'|'block', rule: 'planner-flow-recovery', metadata: { flow, choice } }`.
@@ -136,6 +137,11 @@ namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
     siempre; gate por `a11y.fail_on_violations`, **default `false`** → modo warning; reactivable
     por-sitio con `true`). Igual que S4.
 
+**14.b — Consolidar feedback (determinístico, no LLM):** el Reviewer escribió un fichero por spec en
+`<workDir>/review-feedback/<spec>.json` (sin contención entre writers paralelos). Únelos en el
+`<workDir>/review-feedback.json` plano: `QA_WORK_DIR=<workDir> npx tsx src/scripts/consolidate-reviews.ts`.
+El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrente que corrompía el fichero.)
+
 ### Acto 5 — Juzgar
 
 15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (`echo $env:QA_ENABLE_JUDGE`)
@@ -152,7 +158,7 @@ namespaciadas a los subagentes. Runs de sitios distintos no se contaminan.
 - `<workDir>/drift-report.json` (RF declarados no mapeados en staging; `<workDir>`=`.work/<site-id>`)
 - `<workDir>/discovery-report.json` (con `criteria_mapping`)
 - `tests/pages/<site-id>/*.page.ts`, `tests/components/<site-id>/*.component.ts`, `tests/e2e/<site-id>/*.spec.ts` (con `@criterion RF-NNN`)
-- `<workDir>/review-feedback.json`, `<workDir>/judge-report.json`, `<workDir>/audit-log.json`
+- `<workDir>/review-feedback/<spec>.json` (per-spec, escrito por el Reviewer) → consolidado en `<workDir>/review-feedback.json`; `<workDir>/judge-report.json`, `<workDir>/audit-log.json`
 - `<workDir>/qa-automator-run-summary.json`
 
 ## Verification step
@@ -166,7 +172,7 @@ Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<sit
 #   $env:QA_WORK_DIR='.work/<site-id>'; $env:QA_BASE_URL='<--url>'; $env:QA_STORAGE_STATE='playwright/.auth/<project>.json'; npx playwright test tests/e2e/<site-id>/ --reporter=list
 ```
 
-- Verdes → run exitoso. El SDET ve qué RF cubre cada test verde, qué RF quedaron en drift, y (si los
+- Verdes → run exitoso. El QA ve qué RF cubre cada test verde, qué RF quedaron en drift, y (si los
   hubo) qué Scenarios se bloquearon por venir sin `Then`.
 
 ## Hard rules
@@ -174,8 +180,8 @@ Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<sit
 - S2 exige `--gherkin` + `--url`. Sin target, aborta.
 - S2 **no refina**: Scenario sin `Then` → se reporta y se enruta a S3, no se fabrica el resultado.
 - Gate de open_questions y compliance pre-flight: **sin override**.
-- **Namespace por sitio (paso 7.b)**: artefactos efímeros bajo `<workDir>=.work/<site-id>`; specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR` exportado; `npx playwright test tests/e2e/<site-id>/`; limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos no se contaminan.
-- **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el SDET decide (no-mapeado / rescate MCP / abortar).
+- **Namespace por sitio (paso 1.a, antes de la ingesta)**: artefactos efímeros bajo `<workDir>=.work/<site-id>` (incluido `criteria.json`); specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR` exportado; `npx playwright test tests/e2e/<site-id>/`; limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos no se contaminan.
+- **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el QA decide (no-mapeado / rescate MCP / abortar).
 - No se fabrica drift. Un flujo no mapeado se reporta como gap.
 - La ingestión del `.feature` es determinística (`src/gherkin-to-criteria.ts` + `@cucumber/gherkin`),
   no LLM.
@@ -189,4 +195,3 @@ Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<sit
 - [`docs/references/fd-criteria-schema.md`](../../../docs/references/fd-criteria-schema.md) — contrato de `criteria.json` (compartido con S3)
 - [`.claude/commands/qa-automator/spec-refiner.md`](spec-refiner.md) — el command S3 que S2 replica (Actos 2-5 idénticos)
 - [`.claude/commands/qa-automator/autonomous.md`](autonomous.md) — el motor S4 que ambos reusan
-- [`docs/findings/wild-sites-report.md`](../../../docs/findings/wild-sites-report.md) — validación parabank (back-end reusado)

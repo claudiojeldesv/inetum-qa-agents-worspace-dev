@@ -51,7 +51,7 @@ S2 assumes **clean, mature Gherkin**. The parser does not refine:
 
 - A Scenario **with** an explicit `Then` → `confidence: high`, ready to generate.
 - A Scenario **without** a `Then` → the parser flags it (`then: [AMBIGUO ...]`, `open_questions:
-  [Q-NNN]`, `confidence: low`) and writes a question telling the SDET to **add the `Then` or route
+  [Q-NNN]`, `confidence: low`) and writes a question telling the QA engineer to **add the `Then` or route
   the case through `/qa-automator:spec-refiner` (S3)**. You never invent the missing outcome.
 
 This is the no-fabricate hard rule at the S2 entry door. Refining a sloppy spec is S3's job, not
@@ -73,5 +73,5 @@ yours.
 - [`src/gherkin-to-criteria.ts`](../../src/gherkin-to-criteria.ts) — the deterministic parser you invoke
 - [`docs/references/fd-criteria-schema.md`](../../docs/references/fd-criteria-schema.md) — the `criteria.json` contract (shared with S3)
 - [`.claude/agents/ia4d-spec-refiner.md`](ia4d-spec-refiner.md) — the S3 analog (FD prose → same contract)
-- [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer of `criterion_ref`
+- [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer; adds the `criteria_mapping` block (RF-NNN ↔ scenario)
 - [`SPEC.md`](../../SPEC.md) §1, §7

@@ -21,7 +21,7 @@ El `ia4d-writer` tiene la tool `Task` habilitada en su frontmatter y puede invoc
 2. Invoca al Reviewer vía Task tool con el contenido del test + criterios del plan.
 3. Si el Reviewer aprueba → fin.
 4. Si el Reviewer rechaza con feedback → el Writer ajusta y vuelve al paso 2.
-5. Máximo N=2 iteraciones. Si tras N el Reviewer no aprueba, el Writer sale con el último estado + flag `reviewer_unresolved: true` y el command lo escala al SDET (ask-first).
+5. Máximo N=2 iteraciones. Si tras N el Reviewer no aprueba, el Writer sale con el último estado + flag `reviewer_unresolved: true` y el command lo escala al QA (ask-first).
 
 ### Por qué es seguro
 
