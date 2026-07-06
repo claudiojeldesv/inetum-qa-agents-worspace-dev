@@ -294,4 +294,4 @@ NOT find (the raw material for drift detection — which the *command* decides, 
 ## Reference
 
 - [`src/pom-scaffolder.ts`](../../src/pom-scaffolder.ts) — consumer of this output
-- [`SPEC.md`](../../SPEC.md) §1 — marco QA 5 actos, este agente cubre el acto "Mapear"
+- Marco QA propio de 5 actos — este agente cubre el acto "Mapear"

@@ -116,6 +116,12 @@ El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrent
 15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (`echo $env:QA_ENABLE_JUDGE`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`.
 16. (Solo si el Judge corrió) Lee scores. Si >30% < 0.5 → pausa ask-first.
 17. Genera `<workDir>/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`), verdicts, axe results, **criterios bloqueados (pendientes de respuesta QA)** y **drift** (RF declarados sin cobertura).
+18. **Baseline de criterios (habilita el modo incremental).** Si el run cerró bien (Reviewer aprobó
+    y la verification quedó verde), copia `<criteria-dir>/criteria.json` →
+    `config/criteria-baseline/<site-id>.json` (durable, versionado, fuera de `.work/`). Es el
+    snapshot contra el que `/qa-automator:incremental` detecta el delta cuando el FD evolucione.
+    Un run fallido NO avanza el baseline. Registra
+    `{ source: 'command', action: 'write_file', rule: 'criteria-baseline' }`.
 
 ## Outputs (consolidados)
 
@@ -150,6 +156,5 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-i
 
 ## Reference
 
-- [`SPEC.md`](../../../SPEC.md) §7 — "S3 — diseño decidido: Forma B"
 - [`docs/references/fd-criteria-schema.md`](../../../docs/references/fd-criteria-schema.md) — contrato de `criteria.json`
 - [`.claude/commands/qa-automator/autonomous.md`](autonomous.md) — el motor S4 que S3 reusa (Actos 3-5 idénticos)

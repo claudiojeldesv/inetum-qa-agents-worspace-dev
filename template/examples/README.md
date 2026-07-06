@@ -1,11 +1,11 @@
 # Labs — `ia4d-qa-automator`
 
-Cinco labs reproducibles, ordenados por dificultad. Cada carpeta es **un proyecto distinto** y
+Siete labs reproducibles, ordenados por dificultad. Cada carpeta es **un proyecto distinto** y
 trae solo **inputs**: los tests los genera el agente cuando ejecutas el command, así practicas el
 flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 
-> **Antes de nada — prepara el workspace una vez.** Desde la raíz (la carpeta `template/` que
-> descargaste): `npm install` → `npx playwright install chromium` → `npm run qa:healthcheck` (debe
+> **Antes de nada — prepara el workspace una vez.** Desde la raíz del workspace (donde está
+> `package.json`): `npm install` → `npx playwright install chromium` → `npm run qa:healthcheck` (debe
 > dar `Healthcheck OK`). Sin esto, el agente no funciona. El detalle paso a paso está en el
 > **Paso 0** del [Lab 01](01-saucedemo/).
 
@@ -17,9 +17,14 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 |---|---|---|---|---|---|
 | 01 | [SauceDemo](01-saucedemo/) | S2, S3, S4 | Las tres puertas sobre e-commerce limpio. Todo verde, sin complejidad. | — | — |
 | 02 | [ParaBank](02-parabank/) | S2, S3, S4 | Auth persistente, drift bidireccional y refinamiento de ambigüedad. | Sí (JSP) | Sí |
-| 03 | [OrangeHRM](03-orangehrm/) | S4 (S2/S3 opc.) | Autónomo acotado por módulos sobre una SPA con sesión persistente. | Sí (SPA) | — |
+| 03 | [OrangeHRM](03-orangehrm/) | S4 | Autónomo acotado por módulos sobre una SPA con sesión persistente. | Sí (SPA) | — |
 | 04 | [TodoMVC](04-todomvc/) | Tú eliges | **Reto**: sin pasos ni solución. Acotas, eliges puerta, entregas verde. | — | — |
 | 05 | [Configuración](05-config/) | — | Env-vars, Style Contract y el command `config`. Todas las capas, sin navegador (pasos 1–4). | — | — |
+| 06 | [Migración Selenium](06-migracion-selenium/) | migrate | Suite legacy Java+Selenium → Playwright con paridad auditable y mejoras. | — | Sí |
+| 07 | [Incremental](07-incremental/) | incremental | El FD del Lab 01 evoluciona: el agente aplica solo el delta, sin regenerar. | — | — |
+
+(Los labs 01 y 02 documentan las tres puertas S2/S3/S4; el 03 se centra en S4 — nada te impide
+probarle S2/S3 con tus propios inputs, pero el lab no trae pasos para ello.)
 
 ## Orden recomendado
 
@@ -31,6 +36,10 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 4. **04-TodoMVC** — el reto. Aplicas todo lo anterior tú solo.
 5. **05-Configuración** — transversal, cuando quieras: qué puedes ajustar (env-vars, contract,
    defaults) y cómo verificarlo con `/qa-automator:config`. Útil antes de apuntar el agente a tu web.
+6. **06-Migración Selenium** — si vienes de Selenium o UFT: extrae la intención del legacy, genera
+   la suite nueva y audita la paridad. El legacy no se toca.
+7. **07-Incremental** — el ciclo de vida real: la spec cambia después de generar. Requiere haber
+   hecho el Lab 01 (puerta S3) primero — su run deja el baseline que el diff necesita.
 
 ## Apuntar el agente a TU web
 

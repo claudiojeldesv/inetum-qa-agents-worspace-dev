@@ -101,6 +101,8 @@ fileCheck('Command autonomous (S4)', '.claude/commands/qa-automator/autonomous.m
 fileCheck('Command req-driven (S2)', '.claude/commands/qa-automator/req-driven.md');
 fileCheck('Command spec-refiner (S3)', '.claude/commands/qa-automator/spec-refiner.md');
 fileCheck('Command healthcheck', '.claude/commands/qa-automator/healthcheck.md');
+fileCheck('Command incremental (delta)', '.claude/commands/qa-automator/incremental.md');
+fileCheck('Command migrate (Selenium/UFT)', '.claude/commands/qa-automator/migrate.md');
 // Hooks cableados
 fileCheck('Hook compliance pre-flight', 'hooks/pre-flight.ts');
 fileCheck('Hook PII/anti-fixme post-write', 'hooks/pii-post.ts');
@@ -111,6 +113,7 @@ fileCheck('POM scaffolder', 'src/pom-scaffolder.ts');
 fileCheck('Compliance pre-flight (lógica)', 'src/compliance-preflight.ts');
 fileCheck('PII detector', 'src/pii-detector.ts');
 fileCheck('Gherkin→criteria (S2)', 'src/gherkin-to-criteria.ts');
+fileCheck('Criteria diff (incremental)', 'src/criteria-diff.ts');
 fileCheck('Judge scoring', 'src/judge-scoring.ts');
 fileCheck('Reporte ejecutivo (showcase)', 'src/scripts/build-showcase.ts');
 fileCheck('Consolidador de feedback (anti-race)', 'src/scripts/consolidate-reviews.ts');

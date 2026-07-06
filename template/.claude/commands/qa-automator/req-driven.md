@@ -151,6 +151,12 @@ El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrent
 17. Genera `<workDir>/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`),
     verdicts, axe results, **criterios bloqueados** (Scenarios sin `Then`, si los hubo) y **drift**
     (RF declarados sin cobertura en staging).
+18. **Baseline de criterios (habilita el modo incremental).** Si el run cerró bien (Reviewer aprobó
+    y la verification quedó verde), copia `<criteria-dir>/criteria.json` →
+    `config/criteria-baseline/<site-id>.json` (durable, versionado, fuera de `.work/`). Es el
+    snapshot contra el que `/qa-automator:incremental` detecta el delta cuando el `.feature`
+    evolucione. Un run fallido NO avanza el baseline. Registra
+    `{ source: 'command', action: 'write_file', rule: 'criteria-baseline' }`.
 
 ## Outputs (consolidados)
 
@@ -191,7 +197,6 @@ Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<sit
 
 ## Reference
 
-- [`SPEC.md`](../../../SPEC.md) §1, §7 — "Cuatro módulos" / "Roadmap"
 - [`docs/references/fd-criteria-schema.md`](../../../docs/references/fd-criteria-schema.md) — contrato de `criteria.json` (compartido con S3)
 - [`.claude/commands/qa-automator/spec-refiner.md`](spec-refiner.md) — el command S3 que S2 replica (Actos 2-5 idénticos)
 - [`.claude/commands/qa-automator/autonomous.md`](autonomous.md) — el motor S4 que ambos reusan

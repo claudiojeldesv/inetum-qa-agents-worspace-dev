@@ -42,4 +42,4 @@ Si alguien pregunta "¿por qué un subagent invoca a otro si la regla canónica 
 
 > Es composición de un patrón nombrado (Writer+Reviewer), no acoplamiento ad-hoc. La invocación es determinística, acotada (N=2), y auditable por audit-log.json. El patrón es la materialización del principio QA "el juez audita al ejecutor antes de exponer el resultado". Aplicar la regla canónica sin excepciones requeriría serializar el ping-pong vía archivos en el command, lo cual triplica el wall-clock sin ganar nada en auditabilidad.
 
-Documentado en `SPEC.md` §6 ("Boundaries") y `CLAUDE.md` (sección "Arquitectura del proyecto").
+Documentado en `CLAUDE.md` (sección "Arquitectura del proyecto").

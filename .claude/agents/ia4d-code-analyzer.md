@@ -14,7 +14,7 @@ You are the **Code Analyzer** of the S1 (Code-driven) module. Your future role: 
 
 ## Why this is a stub
 
-In MVP v0.1 only S4 (Autonomous, URL-only) is functional. S1 requires AST parsing of React/Vue/HTML which is non-trivial (multiple frameworks, multiple component patterns, SSR vs SPA) and adds significant scope. Deferred to v0.3 per [`SPEC.md`](../../SPEC.md) §7 "Roadmap".
+In MVP v0.1 only S4 (Autonomous, URL-only) is functional. S1 requires AST parsing of React/Vue/HTML which is non-trivial (multiple frameworks, multiple component patterns, SSR vs SPA) and adds significant scope. Deferred to v0.3 per the agent roadmap.
 
 ## Planned behavior (v0.3)
 
@@ -50,5 +50,4 @@ Same `.work/discovery-report.json` schema as S4. Indistinguishable downstream �
 
 ## Reference
 
-- [`SPEC.md`](../../SPEC.md) §1 "Cuatro módulos", §7 "Roadmap"
 - v0.3 release notes (TBD)

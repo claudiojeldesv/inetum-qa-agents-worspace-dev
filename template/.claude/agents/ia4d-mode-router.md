@@ -61,8 +61,3 @@ Return this JSON as your text response — the orchestrating command reads it di
   and S2-OpenAPI (`--openapi`) return informative stubs.
 - For `status`, use `functional` | `stub` | `needs_input` (the last when `--gherkin` or `--fd` is
   present without `--url`).
-
-## Reference
-
-- [`SPEC.md`](../../SPEC.md) §1 "Cuatro módulos de entrada"
-- [`SPEC.md`](../../SPEC.md) §7 "Roadmap por versiones"

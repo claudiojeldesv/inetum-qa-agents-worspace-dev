@@ -32,10 +32,10 @@ npx playwright install chromium
 npm run qa:healthcheck
 ```
 
-**Resultado esperado:** `npm run qa:healthcheck` termina con `Healthcheck OK: runtime ... completo
-(18 comprobaciones)`. Si falla, te dice qué pieza del runtime falta — resuélvelo antes de seguir.
+**Resultado esperado:** `npm run qa:healthcheck` termina con `Healthcheck OK: runtime ... completo`.
+Si falla, te dice qué pieza del runtime falta — resuélvelo antes de seguir.
 
-> Ejecuta esto desde la raíz del workspace (la carpeta `template/` que descargaste **es** la raíz).
+> Ejecuta esto desde la raíz del workspace (donde está `package.json`).
 > Solo hace falta una vez por workspace; los siguientes labs ya lo dan por hecho.
 
 ### Si el planner falla con "two different versions" / "did not expect test()"
@@ -46,10 +46,14 @@ sesión** (ni con `/mcp reconnect`). Ritual de reinicio limpio, **con Claude Cod
 
 ```
 # 1. Cierra Claude Code / VSCode por completo.
-# 2. Desde la raíz del template, en una terminal:
+# 2. Desde la raíz del workspace, en una terminal:
 powershell -ExecutionPolicy Bypass -File examples/01-saucedemo/mcp-reset.ps1
-# 3. Vuelve a abrir Claude Code en el template y relanza el command.
+# 3. Vuelve a abrir Claude Code en el workspace y relanza el command.
 ```
+
+> `mcp-reset.ps1` es PowerShell (Windows). En macOS/Linux el equivalente manual es matar los
+> procesos `run-test-mcp-server` y los navegadores headless de Playwright huérfanos
+> (`pkill -f run-test-mcp-server`) con Claude Code cerrado.
 
 `mcp-reset.ps1` mata solo el worker MCP huérfano y los navegadores de Playwright (no toca el resto
 de Node ni tu Chrome). Al reabrir Claude Code, el worker nace limpio. Correrlo **preventivamente**

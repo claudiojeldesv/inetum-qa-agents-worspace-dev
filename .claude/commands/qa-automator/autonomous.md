@@ -7,7 +7,7 @@ argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--negatives
 
 Módulo **S4 Autonomous** del agente `ia4d-qa-automator`. Recibe una URL y, opcionalmente, un Style Contract. Orquesta los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar) contra el target.
 
-Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que acota el reconocimiento por **módulos / flujos**. Acotar es el camino recomendado y, salvo confirmación explícita del QA, **obligatorio**: este command **no explora una web entera a ciegas** (ver paso 5.b — warning + confirmación). Es el plumbing instrumental de v0.2 (ver SPEC §7, estrategia de reconocimiento del flujo principal).
+Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que acota el reconocimiento por **módulos / flujos**. Acotar es el camino recomendado y, salvo confirmación explícita del QA, **obligatorio**: este command **no explora una web entera a ciegas** (ver paso 5.b — warning + confirmación). Es el plumbing instrumental de v0.2 para la estrategia de reconocimiento del flujo principal.
 
 ## Arguments
 
@@ -211,7 +211,7 @@ registran (no es un fallo: es la rienda).
    - Cada `.spec.ts` pasa por el hook PostToolUse `pii-post.ts` automáticamente.
 10. (Opcional) Invoca `ia4d-style-enforcer` por cada `.spec.ts` para enforce final del Style Contract.
 11. (Obligatorio) Invoca `ia4d-a11y-injector` por cada `.spec.ts` **pasándole `--style-contract`** para asegurar el `AxeBuilder` scan y aplicar el gate del contract:
-    - El scan se inyecta siempre (no opcional, SPEC §6).
+    - El scan se inyecta siempre (no opcional; regla dura del agente).
     - El gate lo decide `a11y.fail_on_violations` del contract. **Default `false`** (modo warning: annotation auditable, no aborta) — gate apagado por defecto, reactivable por-sitio con `fail_on_violations: true` (entonces `expect(...).toEqual([])` aborta). Severidades filtradas por `a11y.severity_threshold`.
     - Lee el `gate_mode` del output del injector y registra al audit-log: `{ source: 'command', action: 'warn'|'allow', target: <spec>, rule: 'a11y-gate', reason: 'fail_on_violations:<bool> → <mode> mode' }`.
 
@@ -296,5 +296,4 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 ## Reference
 
-- [`SPEC.md`](../../../SPEC.md) §1 (DoD MVP), §2 (Commands), §6 (Boundaries)
 - [`docs/references/composition-rules.md`](../../../docs/references/composition-rules.md)

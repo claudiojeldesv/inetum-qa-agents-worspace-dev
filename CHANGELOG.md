@@ -3,6 +3,34 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
+## [Unreleased]
+
+Modos de ciclo de vida sobre el motor validado, y rama de entrega a cliente.
+
+### Added
+- **`/qa-automator:incremental`** — modo delta sobre una suite ya generada: diff determinístico
+  de criterios (`src/criteria-diff.ts`, library+CLI, 11 unit tests; matching por pases id+hash
+  que absorbe renumeraciones RF sin falsos modified), Writer **update-mode** (cirugía sobre el
+  spec existente, mismo `@tc-id`), baseline durable `config/criteria-baseline/<site-id>.json`
+  (lo escriben S2/S3/incremental/migrate al cerrar en verde). Nunca borra specs: `removed` y
+  `orphan_specs` son decisión del QA.
+- **`/qa-automator:migrate`** + **`ia4d-legacy-analyzer`** — migración de suites legacy
+  Selenium (Java/Python/JS) o UFT/QTP a Playwright: extrae la *intención* (no transpila),
+  emite el mismo `criteria.json` + `migration-map.json` (contrato de paridad: cada caso legacy
+  termina covered/drift/blocked/pending, la suma cuadra) + catálogo de anti-patterns
+  (sleeps, XPath frágil, no-POM, asserts débiles, datos hardcoded) como mejoras aplicadas.
+- Labs **06-migracion-selenium** (suite Java legacy sembrada de anti-patterns) y
+  **07-incremental** (FD v2 de SauceDemo) en el template.
+- Rama **`entrega/workspace-cliente`**: orphan branch con el template promocionado a raíz —
+  workspace autocontenido para entregar a cliente, sin histórico ni material interno.
+
+### Changed
+- Los archivos propagados al template (`.claude/agents`, `.claude/commands`, `docs/references`)
+  ya no referencian `SPEC.md`/`METODOLOGIA AISD.md` (docs internas que no se distribuyen).
+- `build-template.mjs` limpia la entrada `template/` del `.eslintignore` generado.
+- Template: README/CLAUDE/labs corregidos para el onboarding de cliente (conteo de labs,
+  nota multiplataforma del MCP, `.env.example` completo, wording "carpeta template/").
+
 ## [0.2.0] - 2026-06-02
 
 Cierre de v0.2: el agente sale del sandbox, suma tres puertas de entrada (S2/S3/S4) y

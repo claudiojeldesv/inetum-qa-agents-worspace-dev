@@ -66,6 +66,14 @@ for (const f of COPY_FILES) {
 // 3. El builder no viaja al template (el QA no reconstruye el template).
 rmSync(resolve(tpl, 'src/scripts/build-template.mjs'), { force: true });
 
+// 3.b. .eslintignore: la entrada `template/` es del repo (evita el conflicto de plugins al
+// lintar el template anidado); en el workspace del QA no existe `template/` y la línea es ruido.
+const eslintIgnore = readFileSync(resolve(tpl, '.eslintignore'), 'utf8')
+  .split(/\r?\n/)
+  .filter((l) => l.trim() !== 'template/')
+  .join('\n');
+writeFileSync(resolve(tpl, '.eslintignore'), eslintIgnore);
+
 // 4. package.json: deps/scripts/engines del repo, identity del template.
 const repoPkg = JSON.parse(readFileSync(resolve(repo, 'package.json'), 'utf8'));
 const tplPkg = JSON.parse(readFileSync(resolve(tpl, 'package.json'), 'utf8'));

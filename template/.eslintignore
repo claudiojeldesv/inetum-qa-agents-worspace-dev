@@ -1,7 +1,6 @@
 node_modules/
 # template/ trae su propio node_modules + .eslintrc → doble instalación del plugin
 # @typescript-eslint que rompe el lint raíz. Es un workspace autocontenido aparte.
-template/
 # Artefactos efímeros y evidencia histórica (no es código del agente a lintear)
 .work/
 docs/

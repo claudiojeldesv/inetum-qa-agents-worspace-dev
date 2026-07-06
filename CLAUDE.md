@@ -39,6 +39,13 @@ Cinco actos:
 
 S2/S3 son puertas de entrada al mismo motor S4 (emiten el mismo `criteria.json`). Roadmap en [SPEC.md](SPEC.md).
 
+Sobre el mismo motor, dos **modos de ciclo de vida** (v0.2.x, rama `entrega/workspace-cliente`):
+
+| Modo | Entrada | Pieza propia |
+|---|---|---|
+| **Incremental** | Spec evolucionado (FD/`.feature` v2) sobre suite ya generada | `src/criteria-diff.ts` (diff determinístico) + Writer update-mode + baseline durable `config/criteria-baseline/<site-id>.json` |
+| **Migración** | Suite legacy Selenium (Java/Py/JS) o UFT/QTP + URL | `ia4d-legacy-analyzer` (intención→`criteria.json` + `migration-map.json`) + parity check determinístico |
+
 ## Contexto Inetum
 
 - Portal corporativo GenAI con dos secciones: Plugins (~70, dev-céntrico) y Agentes (curado por I+D). Nuestro destino: **pestaña Documentación y Calidad** del catálogo de Agentes.
@@ -56,12 +63,15 @@ Peer subagents en `.claude/agents/`, orquestados por commands en `.claude/comman
 │        a11y-injector}.md                              (capa transversal)
 ├── ia4d-{writer,reviewer,judge}.md                     (Quality layer)
 ├── ia4d-{discovery-analyzer,mode-router}.md            (S4 Autonomous + dispatcher)
-└── ia4d-{code-analyzer,spec-parser,spec-refiner}.md    (stubs S1/S2/S3, v0.2+)
+├── ia4d-{spec-parser,spec-refiner}.md                  (S2/S3, funcionales)
+├── ia4d-legacy-analyzer.md                             (migración Selenium/UFT, funcional)
+└── ia4d-code-analyzer.md                               (stub S1, v0.3)
 
 .claude/commands/qa-automator/
-├── healthcheck.md
-├── autonomous.md                                       (S4 funcional)
-├── code-driven.md  req-driven.md  spec-refiner.md      (stubs)
+├── healthcheck.md  config.md  report.md
+├── autonomous.md  req-driven.md  spec-refiner.md       (S4/S2/S3 funcionales)
+├── incremental.md  migrate.md                          (ciclo de vida: delta + migración)
+└── code-driven.md                                      (stub S1)
 ```
 
 **Regla arquitectónica suavizada**: por defecto, los subagents `ia4d-*` no se invocan entre sí — la orquestación vive en los commands con handoff por archivos. **Excepción documentada y nombrada**: el par Writer↔Reviewer se invoca directamente vía Task tool dentro del Writer (composición explícita del patrón Writer+Reviewer, no acoplamiento ad-hoc). Auditabilidad se preserva por `audit-log.json`, no por estructura. Ver [`docs/references/composition-rules.md`](docs/references/composition-rules.md).
@@ -100,6 +110,8 @@ Snapshot vigente. El histórico de fases cerradas (A-F, releases, reorganizació
 
 - **Versión**: release `v0.2.0` (tag sobre branch `design/gates-off-by-default`).
 - **Módulos funcionales**: S4 (URL sola), S3 (FD markdown + URL, Forma B) y S2 (Gherkin + URL) — los tres validados end-to-end contra ParaBank (S3 3/3, S2 5/5 con data-driven, judge media 0.94) y S3 contra producción real regulada (Mapfre Hogar): drift detectado en 3 formas sin fabricar tests. S1 stub (v0.3); OpenAPI diferido a v0.4.
+- **Modos de ciclo de vida (v0.2.x, construidos con la rama de entrega)**: `/qa-automator:incremental` (diff determinístico `src/criteria-diff.ts` baseline↔spec-nuevo↔anotaciones `@criterion`; Writer update-mode; nunca borra specs; 11 unit tests) y `/qa-automator:migrate` (`ia4d-legacy-analyzer` extrae intención de Selenium/UFT → `criteria.json` + `migration-map.json`; parity check determinístico: covered+drift+blocked+pending == inventario). S2/S3 escriben `config/criteria-baseline/<site-id>.json` al cerrar en verde (paso 18). Labs 06 (migración, legacy Java sembrado de anti-patterns) y 07 (incremental, FD v2 SauceDemo) en el template. **Validación en vivo pendiente** (solo red estructural: healthcheck/unit/build/lint).
+- **Rama de entrega `entrega/workspace-cliente`**: orphan branch (sin histórico interno) con el template promocionado a raíz — el workspace autocontenido que se entrega a cliente. Se regenera desde `template/` (build:template + commit-tree del subárbol); no se edita a mano. Los archivos propagados ya no referencian SPEC.md/METODOLOGIA (limpieza de refs internas).
 - **Motor común**: discovery → POM determinístico → Writer+Reviewer → Healer post-proceso, trazabilidad `@criterion RF-NNN`, `drift-report.json` determinístico. Concurrencia sana: 3-4 workers sin `--workers=1` (auth-handler Fase C).
 - **Gates off por defecto** (regla #10): PII (`QA_ENABLE_PII`), Judge (`QA_ENABLE_JUDGE`), gate a11y (`fail_on_violations` por contract). Compliance pre-flight y anti-fixme siempre activos. Hooks cableados vía `.claude/settings.json` (raíz y template).
 - **Estructura**: raíz con 7 carpetas de contenido + `.work/` (efímero, gitignored). `template/` para ingenieros QA se regenera con `npm run build:template` — **el núcleo se edita en el repo y se propaga; el template no se edita a mano.**

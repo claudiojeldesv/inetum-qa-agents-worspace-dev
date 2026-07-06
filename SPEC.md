@@ -90,7 +90,7 @@ No incluye admisión formal al catálogo Inetum ni piloto con cliente real. Eso 
 
 ## 2. Commands
 
-El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
+El proyecto expone nueve slash commands bajo el namespace `/qa-automator:*`.
 
 | Comando | Estado MVP | Responsabilidad | Output |
 |---|---|---|---|
@@ -99,6 +99,10 @@ El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
 | `/qa-automator:code-driven` | Stub v0.1 | Módulo S1 (v0.3) | Mensaje "stub v0.1, planificado v0.3" |
 | `/qa-automator:req-driven` | **Funcional (Gherkin, v0.2 Fase E)** | Módulo S2. Toma `--gherkin=` + `--url=` + `--style=`. Ingiere el `.feature` (determinístico) y reusa el motor S3/S4 | criteria.json + drift-report.json + discovery-report.json + N `.spec.ts` (con `@criterion RF-NNN`) + judge-report.json + audit-log.json |
 | `/qa-automator:spec-refiner` | **Funcional (v0.2 Fase D)** | Módulo S3 Forma B. Toma `--fd=` + `--url=` | criteria.json + drift-report.json + N `.spec.ts` + judge-report.json + audit-log.json |
+| `/qa-automator:incremental` | **Funcional (v0.2.x; validación en vivo pendiente)** | Modo delta sobre suite ya generada. Toma `(--gherkin\|--fd)=` + `--url=`. Diff determinístico (`src/criteria-diff.ts`) baseline↔spec-nuevo↔`@criterion`; Writer update-mode; nunca borra specs | impact-report.json + specs nuevos/editados + baseline actualizado |
+| `/qa-automator:migrate` | **Funcional (v0.2.x; validación en vivo pendiente)** | Migración Selenium/UFT→Playwright. Toma `--legacy=` + `--url=`. `ia4d-legacy-analyzer` extrae intención; parity check determinístico | criteria.json + migration-map.json + migration-report.json + suite nueva |
+| `/qa-automator:config` | Funcional | Valida el Style Contract (determinístico, `src/contract-validator.ts`) + muestra el estado efectivo de gates/env | Reporte de validación + estado efectivo |
+| `/qa-automator:report` | Funcional | Post-proceso: reporte ejecutivo (showcase) + Allure enriquecido desde los artefactos del run | showcase.html + Allure report |
 
 **Convención de orquestación**: cada command es orquestador. Encadena subagents nativos de Playwright (Planner, Generator, Healer) con subagents nuestros (`ia4d-*`) vía invocaciones explícitas con la Task tool y handoffs por archivos. La regla "ningún subagent invoca a otro" está activa por defecto; la **excepción nombrada y documentada** es el par Writer↔Reviewer (composición explícita del Quality layer).
 
@@ -345,7 +349,15 @@ Decisión QA: S3 se construye como **inyección de criterios sobre el motor S4 y
 
 ### Mejora candidata — Modo Incremental (S5): extender suites, no solo crearlas
 
-**Punto de mejora anotado 2026-06-15. No comprometido en versión; pendiente de priorización vs S1.**
+**Punto de mejora anotado 2026-06-15.** **Estado 2026-07-07: v1 CONSTRUIDO** con el alcance duro que
+recomendaba el propio riesgo final: `/qa-automator:incremental` opera **solo sobre suites que el
+propio agente generó** (anotaciones `@criterion` + baseline durable `config/criteria-baseline/`),
+con diff determinístico (`src/criteria-diff.ts`, 11 unit tests) en lugar de ingest de suites
+arbitrarias. La ingesta de suites ajenas se materializó por separado y acotada a legacy
+Selenium/UFT como `/qa-automator:migrate` (+ `ia4d-legacy-analyzer`). Quedan fuera del v1 (siguen
+siendo mejora futura): inferencia de contract implícito, reconciliación/dedup contra cobertura
+existente y extensión de POMs compartidos. Validación en vivo pendiente. El diseño original se
+conserva a continuación como registro:
 
 **Problema.** Los cuatro modos actuales (S1/S2/S3/S4) son **bootstrap-only**: parten de un input externo y generan la suite desde cero. El QA pasa el ~80% de su vida en **régimen permanente** — mantener y extender suites existentes — no en el momento cero. Caso canónico: "tengo 10 casos de regresión, añade 5 de una feature nueva, coherentes con lo que ya hay, sin duplicar ni romper". Hoy el agente re-descubriría el sitio y probablemente duplicaría POMs y solaparía cobertura.
 

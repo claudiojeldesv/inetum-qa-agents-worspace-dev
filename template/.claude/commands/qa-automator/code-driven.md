@@ -5,7 +5,7 @@ argument-hint: "--repo=<path> [--framework=react|vue|html]"
 
 # /qa-automator:code-driven (STUB v0.1)
 
-Módulo **S1 Code-driven**. Esperado funcional en **v0.3** según roadmap del SPEC §7.
+Módulo **S1 Code-driven**. Esperado funcional en **v0.3** según el roadmap del agente.
 
 ## Behavior in v0.1
 
@@ -25,8 +25,6 @@ Planned for v0.3. The S1 (Code-driven) module will:
 For MVP v0.1, use `/qa-automator:autonomous --url=<URL>` instead (S4 module, functional).
 
 Reference:
-  - SPEC.md §1 "Cuatro módulos"
-  - SPEC.md §7 "Roadmap por versiones"
   - .claude/agents/ia4d-code-analyzer.md (stub agent definition)
 ```
 

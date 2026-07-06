@@ -74,4 +74,3 @@ yours.
 - [`docs/references/fd-criteria-schema.md`](../../docs/references/fd-criteria-schema.md) — the `criteria.json` contract (shared with S3)
 - [`.claude/agents/ia4d-spec-refiner.md`](ia4d-spec-refiner.md) — the S3 analog (FD prose → same contract)
 - [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer; adds the `criteria_mapping` block (RF-NNN ↔ scenario)
-- [`SPEC.md`](../../SPEC.md) §1, §7

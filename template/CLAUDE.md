@@ -10,8 +10,8 @@ los tests antes de exponerlos.
 
 ## Empieza por los labs
 
-**Prepara el workspace primero (una vez).** Desde la raíz (la carpeta `template/` que descargaste
-**es** la raíz):
+**Prepara el workspace primero (una vez).** Desde la raíz del workspace (donde están
+`package.json` y este `CLAUDE.md`):
 
 ```
 npm install
@@ -23,7 +23,7 @@ Sin esto el agente no funciona: sus hooks (compliance pre-flight, guarda anti-`f
 las dependencias instaladas. Si lanzas un command sin haber instalado, el pre-flight te bloquea con
 un mensaje pidiéndote `npm install` en vez de fallar de forma críptica.
 
-En [`examples/`](examples/) hay cuatro labs reproducibles, ordenados por dificultad. Hazlos en
+En [`examples/`](examples/) hay siete labs reproducibles, ordenados por dificultad. Hazlos en
 orden la primera vez:
 
 1. [`01-saucedemo`](examples/01-saucedemo/) — las tres puertas (S2/S3/S4) sobre e-commerce limpio.
@@ -31,6 +31,8 @@ orden la primera vez:
 3. [`03-orangehrm`](examples/03-orangehrm/) — autónomo acotado por módulos sobre una SPA con sesión.
 4. [`04-todomvc`](examples/04-todomvc/) — reto: lo resuelves tú, sin solución.
 5. [`05-config`](examples/05-config/) — transversal: env-vars, Style Contract y el command `config`. Todas las capas.
+6. [`06-migracion-selenium`](examples/06-migracion-selenium/) — migra una suite Selenium legacy a Playwright con paridad auditable.
+7. [`07-incremental`](examples/07-incremental/) — el FD evoluciona tras generar; el agente detecta y aplica solo el delta.
 
 Cada lab trae solo **inputs**; los tests los genera el agente al ejecutar el command.
 
@@ -73,6 +75,28 @@ no inventa lo que falta. S2 parsea el Gherkin de forma determinística (sin LLM)
 `Scenario Outline` + `Examples` como tests data-driven. Ambos detectan **drift** entre la spec y lo
 que la app realmente expone, y lo reportan sin fabricar tests para lo que no existe.
 
+## Evolucionar y migrar suites
+
+Dos modos más, para cuando ya hay suite (tuya o heredada):
+
+| Modo | Tienes | Command |
+|---|---|---|
+| **Incremental** | Una suite YA generada por el agente + el spec (FD/`.feature`) que cambió | `/qa-automator:incremental` |
+| **Migración** | Una suite legacy **Selenium** (Java/Python/JS) o **UFT/QTP** + URL de staging | `/qa-automator:migrate` |
+
+**Incremental**: un diff determinístico (`src/criteria-diff.ts`) compara el spec nuevo contra el
+baseline del último run (`config/criteria-baseline/<site-id>.json`, lo escribe cada run verde de
+S2/S3) y contra las anotaciones `@criterion` de tu suite. Genera specs solo para los requisitos
+**nuevos**, actualiza quirúrgicamente los **impactados** (mismo archivo, mismo `@tc-id`), corrige
+renumeraciones RF, y reporta los retirados **sin borrar nada** (esa decisión es tuya).
+
+**Migración**: el `ia4d-legacy-analyzer` extrae la **intención** de cada caso legacy (no transpila:
+los XPath frágiles, `Thread.sleep` y datos hardcoded no viajan) y el motor genera la suite
+Playwright nueva contra el DOM actual. La regla de oro es la **paridad**: cada caso legacy termina
+cubierto, en drift reportado (funcionalidad retirada), o como decisión explícita tuya — la suma
+tiene que cuadrar en `migration-report.json`. Los anti-patterns del legacy quedan documentados como
+mejoras aplicadas. Tu suite vieja no se toca: se recomienda congelarla hasta validar la nueva en CI.
+
 ## Comandos
 
 ```
@@ -80,7 +104,9 @@ que la app realmente expone, y lo reportan sin fabricar tests para lo que no exi
 /qa-automator:autonomous   --url=<URL> --flows=<módulos>     # S4 (acota por módulos)
 /qa-automator:spec-refiner --fd=<path> --url=<URL>           # S3
 /qa-automator:req-driven   --gherkin=<path> --url=<URL>      # S2
-/qa-automator:report                                         # reporte Allure enriquecido (post-run)
+/qa-automator:incremental  (--gherkin|--fd)=<path> --url=<URL>  # delta sobre suite ya generada
+/qa-automator:migrate      --legacy=<dir> --url=<URL>        # migra Selenium/UFT → Playwright
+/qa-automator:report                                         # reporte Allure enriquecido (post-run, no genera tests)
 /qa-automator:config       [--style=<contract.yaml>]         # valida el contract + muestra estado efectivo
 ```
 
