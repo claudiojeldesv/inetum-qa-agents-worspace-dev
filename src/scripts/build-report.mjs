@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * build-report — genera DOS reportes Allure enriquecidos a partir de un run ya ejecutado:
+ * build-report — genera el reporte EJECUTIVO (showcase) + DOS reportes Allure a partir de un run:
+ *
+ *   0. EJECUTIVO (showcase, single-file) → .work/showcase-report.html
+ *      HTML autocontenido para decisor (KPIs, 5 actos, casos, judge, a11y, drift, trazabilidad).
+ *      Determinístico, SIN Java, solo necesita el run-summary. Se genera primero (siempre disponible).
  *
  *   1. DURO (single-file)  → .work/allure-report/index.html
  *      HTML autocontenido, se abre con doble-clic (file://) sin servidor. Para compartir/archivar.
@@ -138,9 +142,24 @@ function openServed(dir) {
   return child.pid;
 }
 
+// 0a. Consolidar el feedback per-spec (review-feedback/<spec>.json) → review-feedback.json.
+//     Determinístico; evita la race de append concurrente de los writers. No-op si no hay dir.
+if (run('npx', ['tsx', 'src/scripts/consolidate-reviews.ts']) !== 0) {
+  console.warn('[build-report] consolidate-reviews devolvió error; se continúa.');
+}
+
+// 0b. Reporte EJECUTIVO (showcase) — robusto, sin Java, solo necesita el run-summary.
+//     Se genera PRIMERO para que exista aunque Allure (pasos 2-4) falte por Java o por results.
+if (run('npx', ['tsx', 'src/scripts/build-showcase.ts']) !== 0) {
+  console.warn('[build-report] el reporte ejecutivo (showcase) devolvió error; se continúa con Allure.');
+}
+
 if (!existsSync(RESULTS)) {
-  console.error(`[build-report] no existe ${RESULTS} — corre los tests con el reporter allure-playwright primero.`);
-  process.exit(1);
+  console.warn(
+    `[build-report] no existe ${RESULTS} — Allure omitido (corre los tests con el reporter allure-playwright). ` +
+      'El reporte ejecutivo (showcase) ya se generó si existía el run-summary.',
+  );
+  process.exit(0);
 }
 
 // 1. Enricher (una vez; defaults a .work/; ver src/allure-enricher.ts).

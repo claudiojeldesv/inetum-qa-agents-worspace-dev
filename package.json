@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "report": "node src/scripts/build-report.mjs",
+    "report:showcase": "tsx src/scripts/build-showcase.ts",
     "qa:healthcheck": "tsx src/scripts/healthcheck.ts",
     "qa:fix": "tsx src/scripts/healthcheck.ts --fix",
     "build:template": "node src/scripts/build-template.mjs"

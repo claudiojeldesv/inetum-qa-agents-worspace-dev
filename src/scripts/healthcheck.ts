@@ -112,6 +112,8 @@ fileCheck('Compliance pre-flight (lógica)', 'src/compliance-preflight.ts');
 fileCheck('PII detector', 'src/pii-detector.ts');
 fileCheck('Gherkin→criteria (S2)', 'src/gherkin-to-criteria.ts');
 fileCheck('Judge scoring', 'src/judge-scoring.ts');
+fileCheck('Reporte ejecutivo (showcase)', 'src/scripts/build-showcase.ts');
+fileCheck('Consolidador de feedback (anti-race)', 'src/scripts/consolidate-reviews.ts');
 // Config declarativa
 fileCheck('allowed-targets (compliance)', 'config/allowed-targets.yaml');
 fileCheck('MCP playwright-test configurado (.mcp.json)', '.mcp.json');
