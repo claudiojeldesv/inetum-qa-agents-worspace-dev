@@ -9,6 +9,10 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 > dar `Healthcheck OK`). Sin esto, el agente no funciona. El detalle paso a paso está en el
 > **Paso 0** del [Lab 01](01-saucedemo/).
 
+> **Cómo ejecutar lo que generes.** Los commands generan los tests; para correrlos (toda la suite,
+> un solo caso, por feature, en modo debug…) tienes la guía de comandos Playwright en
+> [`docs/ejecutar-tests.md`](../docs/ejecutar-tests.md).
+
 | # | Lab | Modos | Qué aprendes | Auth | Drift |
 |---|---|---|---|---|---|
 | 01 | [SauceDemo](01-saucedemo/) | S2, S3, S4 | Las tres puertas sobre e-commerce limpio. Todo verde, sin complejidad. | — | — |

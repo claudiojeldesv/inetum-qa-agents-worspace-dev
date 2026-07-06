@@ -56,6 +56,15 @@ Inputs incluidos en esta carpeta:
 > Los inputs solo describen **intención**. Los tests los genera el agente cuando ejecutas el
 > command — así practicas el flujo real, no copias un resultado.
 
+**Extra (opcional) — cobertura ampliada a ~25 casos.** Cuando quieras practicar S2/S3 a mayor
+escala (ordenación del catálogo, gestión del carrito, pago completo, cierre de sesión), usa las
+versiones extendidas de los mismos inputs:
+- [`saucedemo-25casos.feature`](saucedemo-25casos.feature) — 25 Scenarios Gherkin. Input de **S2**.
+- [`saucedemo-fd-25casos.md`](saucedemo-fd-25casos.md) — FD ampliado (~25 criterios RF). Input de **S3**.
+
+Mismos comandos de los Pasos 2 y 3, cambiando el `--gherkin`/`--fd` por el fichero de 25 casos. Es
+la misma mecánica; solo cubre más superficie del demo.
+
 ## Paso 1 — S4 autónomo acotado por módulos
 
 El modo autónomo solo necesita la URL. **Acota siempre por módulos** con `--flows`: es el camino
