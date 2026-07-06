@@ -1,0 +1,65 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env local (machine-specific, posibles secretos)
+.env
+
+# Outputs & runtime — destino nuevo: todo lo efímero del agente bajo .work/
+/.work/
+# .playwright-mcp lo crea el MCP server (ubicación no configurable desde el repo)
+/.playwright-mcp/
+# History/Trends de Allure: persiste ENTRE runs (no efímero como .work/), pero no se versiona
+/.allure-history/
+# Artefactos runtime legacy en root (runs previos al refactor de .work/);
+# se ignoran por robustez. Son regenerables: pueden borrarse sin impacto.
+/output/
+/playwright-report/
+/allure-results/
+/allure-report/
+/test-results/
+
+# Local settings (machine-specific)
+.claude/settings.local.json
+
+# Upstream reference clone (cloned separately as read-only)
+/agent-skills/
+
+# Python venv (validator stub)
+/validator/.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Artefactos JSON del agente — destino nuevo .work/; entradas legacy en root por robustez
+/audit-log.json
+/judge-report.json
+/review-feedback.json
+/discovery-report.json
+/compliance-verdict.json
+/drift-report.json
+/qa-automator-run-summary.json
+/mode-routing.json
+# Saved plans del planner nativo (recreados por run; evidencia va a docs/findings/)
+/*-plan.md
+
+# StorageState / auth artifacts (session cookies, recreated by login spec at runtime)
+/playwright/.auth/
+
+# Suite de tests de ejemplo / runtime del agente: NO es fuente del proyecto.
+# El agente genera specs y POMs aquí en cada run (output, no código del producto).
+# tests/unit/ (tests del proyecto) SÍ se versiona. template/tests/ no se ve afectado (root-anchored).
+/tests/e2e/
+/tests/pages/
+/tests/components/
+# Planes guardados por el planner nativo (output de run; recreados en cada ejecución)
+/docs/test-plans/
+
+# Archived pre-MVP / referential content (relocated, not deleted)
+/tmp/

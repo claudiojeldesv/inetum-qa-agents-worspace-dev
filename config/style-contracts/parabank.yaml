@@ -1,0 +1,115 @@
+# Style Contract — parabank.parasoft.com — v0.2 Fase B, sitio 3
+# Schema docs: references/style-contract-schema.md
+# Nota Fase B: ParaBank es banca demo JSP clásica (sin data-test). Inputs por
+# name (username/password), comboboxes para account #, botones por texto.
+# La prioridad de locators invierte el orden de los sitios anteriores:
+# getByLabel/getByRole primero (no hay getByTestId que valga).
+#
+# Objetivo del sitio: cazar la categoría auth-handler (login persistente,
+# storageState). El schema del style-contract NO contempla auth todavía
+# (hallazgo Fase C catalogado en wild-sites-report.md): la persistencia de
+# sesión la estructura el planner/writer desde el brief, no este contract.
+#
+# A11y (decisión QA): ParaBank es JSP viejo, alta probabilidad de violaciones
+# serias en login. Se inyecta el check axe (hard rule del SPEC se respeta) pero
+# fail_on_violations=false: a11y es WARNING importante en esta fase, no
+# bloqueante. Captura el dato sin abortar el flujo bajo prueba.
+
+version: 1
+project: parabank
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByLabel
+    - getByRole
+    - getByText
+    - getByTestId
+  forbid_css_selectors: true
+  forbid_xpath: true
+  # ParaBank es JSP legacy sin label/aria/data-test (hallazgo Fase B #9): login usa
+  # `name` (sin id), transfer usa `id`. Cuando ningún locator semántico resuelve, el
+  # enforcer cae a un selector de atributo acotado a esta whitelist, taggeado y audit-logged.
+  # Sustituye la ruptura forzada del Healer por una excepción declarativa y determinística.
+  css_fallback_attributes:
+    - name
+    - id
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/parabank.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false        # WARNING importante, no bloqueante (decisión QA Fase B)
+  severity_threshold:
+    - serious
+    - critical
+
+# auth-handler (Fase C, hallazgo #10): sesión persistente robusta. El command genera
+# auth.setup.ts (login una vez → storageState) y el config la activa vía QA_STORAGE_STATE.
+# Sustituye la garantía frágil del run manual (--workers=1 + orden alfabético login→transfer).
+auth:
+  enabled: true
+  login_path: /parabank/index.htm
+  storage_state: playwright/.auth/john.json
+  credentials_ref: 0
+  success_signal:
+    type: locator
+    value: "getByRole('link', { name: 'Log Out' })"
+
+# Evidencia visual para el reporte Allure: captura el estado final de cada test
+# (pase o falle). El command lo mapea a QA_SCREENSHOT en el Verification step.
+evidence:
+  screenshots: on
+
+# Credenciales demo públicas de Parasoft (cuenta compartida, no PII real).
+# Estado compartido: el balance de john cambia con cada ejecución de cualquiera
+# → el test NO debe assertar balance exacto, solo "Transfer Complete!" + monto.
+synthetic_fixtures:
+  credentials:
+    - username: john
+      password: demo
+  test_cards: []
+  test_iban: []
+
+# Política de diseño de test ("validar con cabeza") — enforced por ia4d-reviewer (MF-9).
+# ParaBank: el estado compartido prohíbe assertar balance exacto; la post-condición de
+# negocio es la señal de UI ("Transfer Complete!" + monto), no el dato persistente.
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  coverage:
+    negatives_by_flow: {}   # ParaBank lab: foco en auth persistente + drift, no en negativos
+  no_assume_undiscovered_flows: true
+
+# Sin taxonomy: en S4 el discovery-analyzer infiere el dominio (banca) y marca crítica la
+# transferencia/operación; la criticidad ya no se declara por keywords.
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

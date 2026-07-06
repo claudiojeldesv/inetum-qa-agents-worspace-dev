@@ -1,0 +1,416 @@
+import { describe, it, expect } from 'vitest';
+import {
+  parseJsonObjects,
+  buildEnvironmentProperties,
+  buildCategories,
+  buildExecutor,
+  indexJudgeByFile,
+  indexReviewByFile,
+  matchResultToSpec,
+  planEnrichment,
+  severityFor,
+  storyFor,
+  buildTestDescription,
+  buildTestDescriptionHtml,
+  collapseTagDuplicates,
+  dedupeAttachmentsBySource,
+  type RunSummary,
+  type AllureResult,
+} from '../../src/allure-enricher.ts';
+
+const SUMMARY: RunSummary = {
+  module: 'S2',
+  input_format: 'gherkin',
+  target_url: 'https://parabank.parasoft.com/parabank/index.htm',
+  compliance_verdict: 'warn (W1)',
+  run_phase: 'v0.2 Fase E',
+  tests_generated: [
+    {
+      spec: 'tests/e2e/login.spec.ts',
+      rf: 'RF-001',
+      source_ref: 'parabank.feature:8 (REQ-LOGIN)',
+      writer_iterations: 1,
+      reviewer_verdict: 'pass',
+      judge_score: 0.93,
+      run_result: 'passed',
+    },
+  ],
+  drift: [{ rf: 'RF-004', flow: 'close-account', source_ref: 'parabank.feature:33', reason: 'no expuesto' }],
+  judge_summary: { mean_score: 0.94, min_score: 0.93, gate_ask_first_triggered: false },
+  playwright_run: { workers: 3, result: '5 passed' },
+  a11y: { axe_injected_all_specs: true, fail_on_violations: false, mode: 'warning' },
+};
+
+const JUDGE_REPORT = `{
+  "test_file": "tests/e2e/login.spec.ts",
+  "score": 0.93,
+  "axes": { "assertions": 0.95, "selectors": 0.95 },
+  "reasoning": "strong",
+  "reviewer_verdict": "pass",
+  "reviewer_iterations": 1
+}
+{
+  "source": "subagent",
+  "action": "judge_decision",
+  "target": "tests/e2e/login.spec.ts",
+  "metadata": { "score": 0.93 },
+  "result": "pass"
+}`;
+
+function loginResult(): AllureResult {
+  return {
+    uuid: 'abc-123',
+    name: 'login success',
+    fullName: 'tests/e2e/login.spec.ts:Feature login',
+    status: 'passed',
+    labels: [{ name: 'suite', value: 'login.spec.ts' }],
+  };
+}
+
+describe('parseJsonObjects — formas tolerantes', () => {
+  it('parsea un array JSON', () => {
+    expect(parseJsonObjects('[{"a":1},{"a":2}]')).toHaveLength(2);
+  });
+
+  it('parsea un único objeto', () => {
+    expect(parseJsonObjects('{"a":1}')).toEqual([{ a: 1 }]);
+  });
+
+  it('parsea objetos pretty-printed concatenados (forma del judge-report)', () => {
+    const objs = parseJsonObjects(JUDGE_REPORT) as Array<Record<string, unknown>>;
+    expect(objs).toHaveLength(2);
+    expect(objs[0].test_file).toBe('tests/e2e/login.spec.ts');
+    expect(objs[1].action).toBe('judge_decision');
+  });
+
+  it('devuelve [] para texto vacío', () => {
+    expect(parseJsonObjects('   ')).toEqual([]);
+  });
+
+  it('no confunde llaves dentro de strings', () => {
+    const objs = parseJsonObjects('{"k":"a{b}c"}') as Array<Record<string, unknown>>;
+    expect(objs[0].k).toBe('a{b}c');
+  });
+});
+
+describe('buildEnvironmentProperties', () => {
+  it('incluye target, compliance, judge mean y drift derivado del summary', () => {
+    const props = buildEnvironmentProperties(SUMMARY);
+    expect(props).toContain('agent=ia4d-qa-automator');
+    expect(props).toContain('target_url=https://parabank.parasoft.com/parabank/index.htm');
+    expect(props).toContain('compliance_verdict=warn (W1)');
+    expect(props).toContain('judge_mean_score=0.94');
+    expect(props).toContain('drift_count=1');
+    expect(props).toContain('close-account(RF-004)');
+  });
+
+  it('omite claves vacías/ausentes', () => {
+    const props = buildEnvironmentProperties({ target_url: 'https://x' });
+    expect(props).not.toContain('module=');
+    expect(props).toContain('target_url=https://x');
+  });
+});
+
+describe('buildCategories / buildExecutor', () => {
+  it('categories es JSON Allure válido con triaje de fallos y a11y', () => {
+    const cats = buildCategories();
+    const names = cats.map((c) => c.name);
+    expect(names).toContain('Producto: fallo funcional');
+    expect(names).toContain('Accesibilidad (axe-core)');
+    expect(cats.every((c) => Array.isArray(c.matchedStatuses))).toBe(true);
+  });
+
+  it('executor lleva el nombre del agente', () => {
+    expect(buildExecutor(SUMMARY).name).toBe('ia4d-qa-automator');
+  });
+});
+
+describe('indexado de evidencia', () => {
+  it('indexJudgeByFile solo toma entradas con axes (ignora judge_decision de auditoría)', () => {
+    const map = indexJudgeByFile(parseJsonObjects(JUDGE_REPORT));
+    expect(map.size).toBe(1);
+    expect(map.get('login.spec.ts')?.score).toBe(0.93);
+  });
+
+  it('indexReviewByFile agrupa por basename', () => {
+    const map = indexReviewByFile([
+      { test_file: 'tests/e2e/login.spec.ts', iteration: 0, verdict: 'approved', feedback: [] },
+    ]);
+    expect(map.get('login.spec.ts')).toHaveLength(1);
+  });
+});
+
+describe('matchResultToSpec', () => {
+  it('matchea por fullName', () => {
+    expect(matchResultToSpec(loginResult(), 'tests/e2e/login.spec.ts')).toBe(true);
+  });
+
+  it('matchea por label punteado', () => {
+    const r: AllureResult = { labels: [{ name: 'package', value: 'tests.e2e.login.spec.ts' }] };
+    expect(matchResultToSpec(r, 'tests/e2e/login.spec.ts')).toBe(true);
+  });
+
+  it('no matchea spec distinto', () => {
+    expect(matchResultToSpec(loginResult(), 'tests/e2e/logout.spec.ts')).toBe(false);
+  });
+});
+
+describe('planEnrichment — enriquecido', () => {
+  it('inyecta labels RF, link tms, attachments judge+review en el resultado matcheado', () => {
+    const judgeByFile = indexJudgeByFile(parseJsonObjects(JUDGE_REPORT));
+    const reviewByFile = indexReviewByFile([
+      { test_file: 'tests/e2e/login.spec.ts', iteration: 0, verdict: 'approved', feedback_summary: '0 must-fix' },
+    ]);
+    const results = [{ file: '/r/abc-123-result.json', json: loginResult() }];
+
+    const plan = planEnrichment({ summary: SUMMARY, results, judgeByFile, reviewByFile });
+
+    expect(plan.matchedSpecs).toEqual(['tests/e2e/login.spec.ts']);
+    expect(plan.unmatchedSpecs).toEqual([]);
+
+    const mutated = plan.resultMutations[0].json;
+    expect(mutated.labels).toContainEqual({ name: 'feature', value: 'RF-001' });
+    expect(mutated.labels).toContainEqual({ name: 'tag', value: 'RF-001' });
+    expect(mutated.labels).toContainEqual({ name: 'story', value: 'login.spec.ts' });
+    expect(mutated.labels).toContainEqual({ name: 'severity', value: 'normal' });
+    expect(mutated.description).toContain('RF-001');
+    expect(mutated.descriptionHtml).toContain('<table>');
+    expect(mutated.descriptionHtml).toContain('<code>RF-001</code>');
+    expect(mutated.links).toContainEqual({ name: 'RF-001', url: 'parabank.feature:8 (REQ-LOGIN)', type: 'tms' });
+    expect(mutated.attachments?.some((a) => a.type === 'application/json')).toBe(true);
+    expect(mutated.attachments?.some((a) => a.type === 'text/markdown')).toBe(true);
+
+    expect(plan.attachmentFiles.some((a) => a.source === 'abc-123-judge-attachment.json')).toBe(true);
+    expect(plan.attachmentFiles.some((a) => a.source === 'abc-123-review-attachment.md')).toBe(true);
+    expect(plan.sidecars.map((s) => s.file)).toEqual(['environment.properties', 'categories.json', 'executor.json']);
+  });
+
+  it('story usa scenario si está presente; severity declarada se respeta', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [
+        { spec: 'tests/e2e/checkout.spec.ts', rf: 'RF-002', scenario: 'Compra completa', severity: 'critical' },
+      ],
+    };
+    const results = [{ file: '/r/x-result.json', json: { uuid: 'x', fullName: 'tests/e2e/checkout.spec.ts:y' } as AllureResult }];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    const mutated = plan.resultMutations[0].json;
+    expect(mutated.labels).toContainEqual({ name: 'story', value: 'Compra completa' });
+    expect(mutated.labels).toContainEqual({ name: 'severity', value: 'critical' });
+  });
+
+  it('S4: tc_id y tags → label tc_id + un label tag por cada tag + TC en la descripción', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [
+        {
+          spec: 'tests/e2e/login.spec.ts',
+          scenario: 'login válido',
+          tc_id: 'TC-01',
+          tags: ['@smoke', '@happy-path', '@critical'],
+        },
+      ],
+    };
+    const results = [{ file: '/r/t-result.json', json: { uuid: 't', fullName: 'tests/e2e/login.spec.ts:z' } as AllureResult }];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    const mutated = plan.resultMutations[0].json;
+
+    expect(mutated.labels).toContainEqual({ name: 'tc_id', value: 'TC-01' });
+    expect(mutated.labels).toContainEqual({ name: 'tag', value: '@smoke' });
+    expect(mutated.labels).toContainEqual({ name: 'tag', value: '@happy-path' });
+    expect(mutated.labels).toContainEqual({ name: 'tag', value: '@critical' });
+    // tres tags distintos coexisten como labels 'tag' (upsert dedupe por name+value).
+    expect(mutated.labels?.filter((l) => l.name === 'tag')).toHaveLength(3);
+    expect(mutated.description).toContain('TC-01');
+  });
+
+  it('S4: colapsa el tag duplicado (allure-playwright "smoke" + enricher "@smoke" → solo @smoke)', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [{ spec: 'tests/e2e/login.spec.ts', rf: 'RF-001', tags: ['@smoke', '@happy-path'] }],
+    };
+    // El resultado ya trae los tags SIN @, como los emite allure-playwright.
+    const results = [
+      {
+        file: '/r/t-result.json',
+        json: {
+          uuid: 't',
+          fullName: 'tests/e2e/login.spec.ts:z',
+          labels: [
+            { name: 'tag', value: 'smoke' },
+            { name: 'tag', value: 'happy-path' },
+          ],
+        } as AllureResult,
+      },
+    ];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    const tags = plan.resultMutations[0].json.labels?.filter((l) => l.name === 'tag').map((l) => l.value);
+    // sin duplicados sin @, con la forma @, y RF-001 intacto (no tiene equivalente @)
+    expect(tags).toContain('@smoke');
+    expect(tags).toContain('@happy-path');
+    expect(tags).toContain('RF-001');
+    expect(tags).not.toContain('smoke');
+    expect(tags).not.toContain('happy-path');
+  });
+
+  it('dedupeAttachmentsBySource: colapsa adjuntos repetidos por source, conserva screenshots únicos', () => {
+    const result: AllureResult = {
+      attachments: [
+        { name: 'Writer/Reviewer protocol', source: 'abc-review-attachment.md', type: 'text/markdown' },
+        { name: 'Writer/Reviewer protocol', source: 'abc-review-attachment.md', type: 'text/markdown' },
+        { name: 'Writer/Reviewer protocol', source: 'abc-review-attachment.md', type: 'text/markdown' },
+        { name: 'post-navigate', source: 'screenshot-1.png', type: 'image/png' },
+        { name: 'post-submit', source: 'screenshot-2.png', type: 'image/png' },
+      ],
+    };
+    dedupeAttachmentsBySource(result);
+    expect(result.attachments).toHaveLength(3);
+    expect(result.attachments?.filter((a) => a.source === 'abc-review-attachment.md')).toHaveLength(1);
+    expect(result.attachments?.some((a) => a.source === 'screenshot-1.png')).toBe(true);
+    expect(result.attachments?.some((a) => a.source === 'screenshot-2.png')).toBe(true);
+  });
+
+  it('planEnrichment: re-correr no apila el adjunto Writer/Reviewer (idempotente)', () => {
+    const reviewByFile = indexReviewByFile([
+      { test_file: 'tests/e2e/login.spec.ts', iteration: 0, verdict: 'approved', feedback_summary: '0 must-fix' },
+    ]);
+    const json = loginResult();
+    const run = () =>
+      planEnrichment({ summary: SUMMARY, results: [{ file: '/r/abc-123-result.json', json }], judgeByFile: new Map(), reviewByFile });
+    run();
+    run();
+    run();
+    const reviewAtts = json.attachments?.filter((a) => a.name === 'Writer/Reviewer protocol');
+    expect(reviewAtts).toHaveLength(1);
+  });
+
+  it('collapseTagDuplicates: deja intactos los tags sin equivalente @ (RF-NNN) y los @ ya únicos', () => {
+    const result: AllureResult = {
+      labels: [
+        { name: 'tag', value: 'RF-001' },
+        { name: 'tag', value: '@regression' },
+        { name: 'tag', value: 'regression' },
+        { name: 'epic', value: 'Module S4' },
+      ],
+    };
+    collapseTagDuplicates(result);
+    const tags = result.labels?.filter((l) => l.name === 'tag').map((l) => l.value);
+    expect(tags).toEqual(['RF-001', '@regression']);
+    // no toca labels de otro tipo
+    expect(result.labels).toContainEqual({ name: 'epic', value: 'Module S4' });
+  });
+
+  it('S4: tag sin @ se normaliza a @tag', () => {
+    const summary: RunSummary = {
+      module: 'S4',
+      tests_generated: [{ spec: 'tests/e2e/x.spec.ts', tags: ['smoke'] }],
+    };
+    const results = [{ file: '/r/u-result.json', json: { uuid: 'u', fullName: 'tests/e2e/x.spec.ts:1' } as AllureResult }];
+    const plan = planEnrichment({ summary, results, judgeByFile: new Map(), reviewByFile: new Map() });
+    expect(plan.resultMutations[0].json.labels).toContainEqual({ name: 'tag', value: '@smoke' });
+  });
+
+  it('camino judge-off: sin judge-report no añade attachment de judge ni rompe', () => {
+    const reviewByFile = indexReviewByFile([
+      { test_file: 'tests/e2e/login.spec.ts', iteration: 0, verdict: 'approved' },
+    ]);
+    const results = [{ file: '/r/abc-123-result.json', json: loginResult() }];
+
+    const plan = planEnrichment({ summary: SUMMARY, results, judgeByFile: new Map(), reviewByFile });
+
+    const mutated = plan.resultMutations[0].json;
+    // Sigue habiendo labels y attachment de review, pero ninguno de judge.
+    expect(mutated.labels).toContainEqual({ name: 'feature', value: 'RF-001' });
+    expect(plan.attachmentFiles.some((a) => a.source.endsWith('-judge-attachment.json'))).toBe(false);
+    expect(plan.attachmentFiles.some((a) => a.source.endsWith('-review-attachment.md'))).toBe(true);
+  });
+
+  it('spec sin resultado Allure matcheado → unmatched, sin excepción, sidecars igual', () => {
+    const plan = planEnrichment({
+      summary: SUMMARY,
+      results: [{ file: '/r/other-result.json', json: { fullName: 'tests/e2e/other.spec.ts:x' } }],
+      judgeByFile: new Map(),
+      reviewByFile: new Map(),
+    });
+    expect(plan.unmatchedSpecs).toEqual(['tests/e2e/login.spec.ts']);
+    expect(plan.matchedSpecs).toEqual([]);
+    expect(plan.resultMutations).toEqual([]);
+    expect(plan.sidecars).toHaveLength(3);
+  });
+});
+
+describe('builders de enriquecimiento PRO', () => {
+  it('severityFor: respeta severidad Allure válida, default normal si ausente o inválida', () => {
+    expect(severityFor({ spec: 's', severity: 'critical' })).toBe('critical');
+    expect(severityFor({ spec: 's', severity: 'inventada' })).toBe('normal');
+    expect(severityFor({ spec: 's' })).toBe('normal');
+  });
+
+  it('storyFor: usa scenario si existe, si no el basename del spec', () => {
+    expect(storyFor({ spec: 'tests/e2e/login.spec.ts', scenario: 'Login OK' })).toBe('Login OK');
+    expect(storyFor({ spec: 'tests/e2e/login.spec.ts' })).toBe('login.spec.ts');
+  });
+
+  it('buildTestDescription: incluye criterio, módulo, verdict, judge y drift del mismo RF', () => {
+    const desc = buildTestDescription(
+      { spec: 'tests/e2e/x.spec.ts', rf: 'RF-004', source_ref: 'f.feature:33', reviewer_verdict: 'pass', writer_iterations: 1, judge_score: 0.9 },
+      SUMMARY,
+    );
+    expect(desc).toContain('RF-004');
+    expect(desc).toContain('f.feature:33');
+    expect(desc).toContain('S2');
+    expect(desc).toContain('pass');
+    expect(desc).toContain('0.9');
+    // SUMMARY.drift tiene RF-004 → debe aparecer en "Drift relacionado"
+    expect(desc).toContain('Drift relacionado');
+    expect(desc).toContain('close-account');
+  });
+
+  it('buildTestDescription: sin campos opcionales degrada a string vacío o mínimo', () => {
+    expect(buildTestDescription({ spec: 's' }, {}).trim()).toBe('');
+  });
+
+  it('buildTestDescriptionHtml: tabla con IDs en <code>, callouts en blockquote, sanitizer-safe', () => {
+    const html = buildTestDescriptionHtml(
+      {
+        spec: 'tests/e2e/x.spec.ts',
+        tc_id: 'TC-07',
+        tags: ['@regression', '@negative'],
+        rf: 'RF-004',
+        source_ref: 'f.feature:33',
+        reviewer_verdict: 'approved',
+        writer_iterations: 1,
+        judge_score: 0.94,
+        notes: 'Heal: negativa re-expresada como submit toBeDisabled.',
+      },
+      SUMMARY,
+    );
+    expect(html).toContain('<table><tbody>');
+    expect(html).toContain('<code>TC-07</code>');
+    expect(html).toContain('<code>@regression</code>');
+    expect(html).toContain('<code>RF-004</code>');
+    expect(html).toContain('<code>f.feature:33</code>');
+    expect(html).toContain('approved · 1 iteración(es) Writer');
+    // SUMMARY.drift tiene RF-004 → blockquote de drift relacionado
+    expect(html).toContain('<blockquote><b>Drift relacionado:</b>');
+    expect(html).toContain('close-account');
+    // notes → su propio blockquote (el "Heal:" vive en el texto de notes, no se sintetiza)
+    expect(html).toContain('<blockquote>Heal: negativa re-expresada como submit toBeDisabled.</blockquote>');
+    // sin style/class/data: el sanitizer de Allure los elimina, el color va por CSS inyectado
+    expect(html).not.toContain('style=');
+    expect(html).not.toContain('class=');
+  });
+
+  it('buildTestDescriptionHtml: escapa HTML en valores y degrada a vacío sin campos', () => {
+    expect(buildTestDescriptionHtml({ spec: 's' }, {})).toBe('');
+    const html = buildTestDescriptionHtml({ spec: 's', notes: '<img src=x onerror=alert(1)>' }, {});
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).not.toContain('<img');
+  });
+
+  it('buildCategories incluye triaje ampliado (timeout, selector) además de a11y', () => {
+    const names = buildCategories().map((c) => c.name);
+    expect(names).toContain('Timeout / espera');
+    expect(names).toContain('Selector no encontrado');
+  });
+});

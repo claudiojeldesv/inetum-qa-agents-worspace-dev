@@ -1,0 +1,8 @@
+node_modules/
+# template/ trae su propio node_modules + .eslintrc → doble instalación del plugin
+# @typescript-eslint que rompe el lint raíz. Es un workspace autocontenido aparte.
+# Artefactos efímeros y evidencia histórica (no es código del agente a lintear)
+.work/
+docs/
+# Seed regenerado por el MCP playwright-test en cada setup_page (gitignored)
+tests/e2e/seed.spec.ts

@@ -1,0 +1,153 @@
+# =============================================================================
+#  Style Contract — PLANTILLA ANOTADA
+# =============================================================================
+#  Copia este archivo a config/style-contracts/<tu-sitio>.yaml, borra lo que no
+#  necesites (todo tiene default sensato) y ajusta el resto. Cada campo lleva:
+#  qué hace · cuándo tocarlo · su default.
+#
+#  Valídalo cuando termines:   /qa-automator:config --style=<tu-sitio>.yaml
+#  (o:  npx tsx src/contract-validator.ts <tu-sitio>.yaml)
+#
+#  Referencia completa (para la máquina y el detalle fino):
+#  docs/references/style-contract-schema.md
+# =============================================================================
+
+version: 1           # versión del schema. Siempre 1 por ahora.
+project: mi-sitio    # nombre identificativo. Solo etiqueta; ponle el del cliente/app.
+
+
+# =============================================================================
+#  LO QUE TOCAS SIEMPRE
+#  Estos cinco bloques deciden cómo se ven y se comportan tus tests. Empieza aquí.
+# =============================================================================
+
+# --- Locators: cómo el agente encuentra los elementos --------------------------
+locators:
+  # Orden de preferencia. El agente prueba de arriba abajo y usa el primero que
+  # resuelva. getByTestId primero si tu app expone data-test/data-testid; si no,
+  # getByRole (semántico, accesible) suele ser el mejor default.
+  # CUÁNDO: pon getByTestId primero solo si el front realmente tiene test-ids.
+  priority:
+    - getByRole
+    - getByLabel
+    - getByText
+  forbid_css_selectors: true   # default true. Prohíbe selectores CSS frágiles (.clase, div>span).
+  forbid_xpath: true           # default true. Prohíbe XPath.
+  # Excepción acotada para HTML legacy sin semántica (JSP viejo sin label/aria/
+  # data-test). Permite caer SOLO a atributos de esta whitelist: [name="x"] o #id.
+  # Nunca CSS arbitrario. Cada uso se taggea y se audita.
+  # CUÁNDO: déjalo vacío salvo que el sitio no tenga NINGÚN locator semántico.
+  css_fallback_attributes: []   # default []. Whitelist posible: [name, id]
+
+# --- Auth: sesión persistente para no re-loguear en cada test ------------------
+auth:
+  enabled: false        # default false. true → el agente genera un setup project que
+                        #   loguea UNA vez, guarda el estado y el resto de tests lo
+                        #   reutilizan. Mata la race de sesión SIN --workers=1.
+  # Los siguientes solo aplican si enabled: true.
+  login_path: /login    # ruta del formulario de login.
+  storage_state: playwright/.auth/user.json   # dónde se guarda la sesión.
+  credentials_ref: 0    # índice en synthetic_fixtures.credentials. NUNCA credenciales inline aquí.
+  success_signal:       # cómo el setup confirma que el login funcionó antes de guardar.
+    type: url           #   'url' (patrón post-login) | 'locator' (elemento solo visible logueado)
+    value: '**/dashboard'
+  # CUÁNDO enabled:true — app con login donde los tests operan YA autenticados
+  #   (dashboard, transferencias…). Déjalo false si pruebas el login mismo o no hay auth.
+  # OJO: form-based usuario/contraseña. SAML/OAuth/MFA/TOTP no soportados aún.
+
+# --- Accesibilidad: el scan axe-core (SIEMPRE) y su gate (opcional) ------------
+a11y:
+  inject_axe_check: true       # default true. El scan axe-core se inyecta en CADA test. NO opcional.
+  # ¿Un fallo de accesibilidad TUMBA el test, o solo queda anotado como evidencia?
+  # false (default) → modo WARNING: el scan corre, las violaciones se registran en
+  #   annotations (evidencia auditable) pero el test NO cae.
+  # true → GATE: las violaciones (filtradas por severidad) ABORTAN el test.
+  # CUÁNDO true — el cliente exige WCAG 2.1 AA como criterio de aceptación
+  #   (banca/seguros/sector público, EAA 2025). Déjalo false mientras exploras.
+  fail_on_violations: false
+  severity_threshold:          # default [serious, critical]. Qué severidades cuentan
+    - serious                  #   (tanto para fallar como para anotar).
+    - critical
+
+# --- Evidencia visual para el reporte Allure (no es un gate, no aborta) --------
+evidence:
+  # minimal → comentarios de paso + screenshot final. Rápido, ligero.
+  # steps   → cada acción en test.step() → timeline navegable en Allure.
+  # full    → steps + screenshot por paso + trace navegable. El "PRO" para el decisor.
+  #           full fuerza QA_SCREENSHOT=on + QA_TRACE=on automáticamente.
+  # CUÁNDO full — cuando el reporte lo verá un QA Manager o cliente y quieres el
+  #   drill-down completo. minimal para runs de desarrollo rápidos.
+  level: minimal
+  screenshots: only-on-failure  # 'on' | 'only-on-failure' | 'off'. Solo aplica a level minimal.
+
+# --- Gates que NO viven aquí: se encienden por variable de entorno -------------
+#  Estos dos no son campos del contract. Se activan con env-var (copia .env.example
+#  a .env). Están OFF por defecto; las piezas están completas, el toggle las enciende.
+#    QA_ENABLE_PII=1    → scanner PII ES (DNI/IBAN/Luhn/teléfono/email) sobre los tests generados.
+#    QA_ENABLE_JUDGE=1  → Judge: score numérico de calidad tras Writer+Reviewer.
+#  Compruébalos con:  /qa-automator:config --style=<tu-sitio>.yaml  (tabla "estado efectivo").
+
+
+# =============================================================================
+#  AVANZADO
+#  Los defaults suelen bastar. Tócalos solo si tienes una convención concreta.
+# =============================================================================
+
+# --- Estructura Page Object Model ----------------------------------------------
+pom:
+  enabled: true          # default true. false → tests sin POM (no recomendado).
+  location: tests/pages  # default. Dónde se generan las page classes.
+  class_suffix: Page      # default. LoginPage, CheckoutPage…
+  base_page: true         # default true. Genera base.page.ts y las pages la extienden.
+  components: true        # default true. Elementos repetidos en ≥2 pantallas → component objects.
+
+# --- Naming de archivos y títulos (estándar español) ---------------------------
+naming:
+  language: es            # default es. Idioma de los identificadores legibles. 'es' | 'en'.
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'   # {id}=ID estable, {feature}=flujo, {condicion}=qué prueba.
+  test_title_pattern: '{condicion} → {resultado}'        # título legible en Allure. La naturaleza va en el tag, no aquí.
+
+# --- Registro de IDs estables de caso -----------------------------------------
+tc_registry:
+  enabled: true          # default true. false → sin prefijo de ID en el archivo.
+  path: config/tc-registry/mi-sitio.json   # mapa <feature>.<condicion> → {id, source}. Versionado.
+  id_prefix: TC           # default TC. Prefijo cuando el agente asigna el ID (sin key de gestor): TC-001…
+
+# --- Asserts -------------------------------------------------------------------
+asserts:
+  semantic_only: true        # default true. Asserts semánticos (toBeVisible…), no comparaciones de texto crudo.
+  forbid_text_equality: true # default true. Prohíbe assert.equal(text).
+
+# --- Waits ---------------------------------------------------------------------
+waits:
+  forbid_wait_for_timeout: true  # default true. Prohíbe page.waitForTimeout (esperas fijas frágiles).
+  prefer_locators_assert: true   # default true. Prefiere auto-waiting de expect(locator).
+
+# --- Fixtures ------------------------------------------------------------------
+fixtures:
+  location: tests/fixtures    # default. Dónde viven las fixtures.
+  synthetic_data_only: true   # default true. Solo datos sintéticos declarados. Nunca dumps reales.
+
+# --- Política de diseño de test ("validar con cabeza") — la enforce el Reviewer -
+test_design:
+  require_business_postcondition: true   # default false. true → cada test afirma el RESULTADO de negocio, no solo navegación.
+  min_functional_asserts: 1              # default 1. Mínimo de asserts funcionales (no-navegación) por test.
+  forbid_navigation_only_test: true      # default true (si el bloque existe). Rechaza tests cuyo único assert es toHaveURL.
+  coverage:
+    negatives_by_flow: {}                # mapa <flujo>: bool. Qué flujos generan ADEMÁS casos negativos. default {}.
+    # inicio-sesion: true                #   ej: login genera además usuario-bloqueado, credenciales-inválidas.
+  no_assume_undiscovered_flows: true     # default true. No materializar flujos/elementos que no estén en discovery.
+
+# --- Datos sintéticos (allowlist PII: son datos de test públicos, no PII real) --
+synthetic_fixtures:
+  credentials:
+    - { username: standard_user, password: secret_sauce }
+  test_cards: []    # tarjetas de test (Visa/Mastercard sandbox), si tu flujo de pago las usa.
+  test_iban: []     # IBAN de test, si aplica.
+  # Puedes añadir bloques propios (buyer_info, invalid_credentials…): el validador no los marca.
+
+# --- APIs prohibidas (refuerzo del lint) ---------------------------------------
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

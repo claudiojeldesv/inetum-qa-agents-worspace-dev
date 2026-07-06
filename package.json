@@ -1,0 +1,39 @@
+{
+  "name": "ia4d-qa-automator-starter",
+  "version": "0.2.0",
+  "description": "Workspace de arranque para usar el agente QA ia4d-qa-automator: genera tests E2E Playwright con POM, A11y baked-in, compliance regulado y Quality layer Writer+Reviewer. Trae el runtime del agente + ejemplos listos para practicar.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"**/*.{ts,json,md,yaml,yml}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "report": "node src/scripts/build-report.mjs",
+    "report:showcase": "tsx src/scripts/build-showcase.ts",
+    "qa:healthcheck": "tsx src/scripts/healthcheck.ts",
+    "qa:fix": "tsx src/scripts/healthcheck.ts --fix"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "allure-commandline": "^2.34.0",
+    "allure-playwright": "^3.4.1",
+    "@cucumber/gherkin": "^39.1.0",
+    "@cucumber/messages": "^32.3.1",
+    "@playwright/test": "1.60.0",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0",
+    "yaml": "^2.4.0"
+  }
+}
