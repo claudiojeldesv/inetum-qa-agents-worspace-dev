@@ -3,6 +3,31 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
+## [0.3.0] - 2026-07-12
+
+Empaquetado como plugin instalable del marketplace de Claude Code (catálogo Inetum). El agente
+deja de ser solo un repo/workspace y pasa a distribuirse e instalarse desde un marketplace.
+
+### Added
+- **Empaquetado de plugin (Modelo A: repartidor + `init`)** — `plugin-src/` con las fuentes
+  hand-authored del plugin: command `/qa-automator:init` (despliega el workspace y lo deja listo),
+  `/qa-automator:help`, `scaffold.mjs` (copia determinística, sin LLM) y `plugin.json` base.
+- **`src/scripts/build-plugin.mjs`** (`npm run build:plugin`) — genera `plugin/` con layout de
+  marketplace (`.claude-plugin/marketplace.json` + `plugin.json`); el payload es `template/` sin
+  `node_modules`/`.work`/`.git`; la `version` se inyecta desde `package.json`. Espejo idempotente
+  de `build:template`. `plugin/` es artefacto generado (gitignored).
+- Guía de empaquetado/simulación en `plugin-src/README.md` (montar market local, instalar, `init`).
+
+### Changed
+- `build:template` excluye ahora ambos builders (`build-template.mjs`, `build-plugin.mjs`) del
+  workspace del QA.
+- `package.json` 0.2.0 → 0.3.0.
+
+### Notas
+- Runtime = tsx (sin build a JS). MCP `.mcp.json` sigue Windows-only (`cmd /c`); cross-platform es
+  follow-up. El plugin no expone commands globalmente: viven en el workspace desplegado (Modelo A).
+- Verificado end-to-end: scaffold limpio → `npm install` → healthcheck 23/23 → unit 122/122.
+
 ## [0.2.0] - 2026-06-02
 
 Cierre de v0.2: el agente sale del sandbox, suma tres puertas de entrada (S2/S3/S4) y

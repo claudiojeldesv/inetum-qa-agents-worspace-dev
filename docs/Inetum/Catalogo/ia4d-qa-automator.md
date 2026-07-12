@@ -2,26 +2,29 @@
 
 NOMBRE	ia4d-qa-automator
 ROL	Orquestador
-VERSION	v0.1.0
+VERSION	v0.3.0
 Objetivo
 
-Usa este agente cuando necesites generar tests E2E en Playwright TypeScript con marco QA propio, compliance regulado, accesibilidad (axe-core / WCAG 2.1 AA / EAA 2025) baked-in y Quality layer Writer+Reviewer+Judge. Multi-modo según el insumo: solo URL (S4 — funcional en v0.1), repo frontend (S1 — v0.3), Gherkin/OpenAPI (S2 — v0.3), o FD flojo (S3 — v0.2). Diferenciador estructural frente a ia4d-testing-core: dev no puede ser juez y parte; las herramientas QA tienen otra forma de operar.
+Usa este agente cuando necesites generar tests E2E en Playwright TypeScript con marco QA propio, compliance regulado, accesibilidad (axe-core / WCAG 2.1 AA / EAA 2025) baked-in y Quality layer Writer+Reviewer+Judge. Multi-modo según el insumo: solo URL (S4 — funcional), FD/spec floja + URL (S3 — funcional), Gherkin maduro + URL (S2 — funcional; OpenAPI diferido a v0.4), o repo frontend (S1 — stub, v0.3). Diferenciador estructural frente a ia4d-testing-core: dev no puede ser juez y parte; las herramientas QA tienen otra forma de operar.
 
 ② Uso del Agente
 
+Instalación (marketplace de Claude Code): instala el plugin desde el catálogo y ejecuta /qa-automator:init <carpeta> para desplegar el workspace del agente (runtime + labs) y dejarlo listo (scaffold + npm install + healthcheck). A partir de ahí trabajas dentro de esa carpeta con los commands /qa-automator:*.
+
 Orquestador: auto-detecta el contexto y delega a los sub-agentes según el módulo de entrada (S1/S2/S3/S4) y los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar).
 
-@ia4d-qa-automator Use this agent when you need to generate E2E tests with regulated compliance, A11y baked-in, deterministic POM, and a Writer+Reviewer+Judge Quality layer that materializes "QA is an independent judge". Four input modes; S4 (URL-only) functional in v0.1.
+@ia4d-qa-automator Use this agent when you need to generate E2E tests with regulated compliance, A11y baked-in, deterministic POM, and a Writer+Reviewer+Judge Quality layer that materializes "QA is an independent judge". Four input modes; S2/S3/S4 functional, S1 stub.
 ③ Casos de Uso
 
 Análisis y desarrollo con ia4d-qa-automator
 Automatización de tareas de Documentación y Calidad
-Generación de artefactos especializados (POM, .spec.ts, judge-report.json)
+Generación de artefactos especializados (POM, .spec.ts, criteria.json, drift-report.json, judge-report.json)
+Detección de drift entre la especificación (FD/Gherkin) y lo que la app realmente expone
 Integración con el ecosistema testing, accessibility, compliance
-④ Sub-Agentes Especializados (10)
+④ Sub-Agentes Especializados (12 propios + 3 nativos)
 
 ia4d-mode-router
-Use this agent to classify the input as S1/S2/S3/S4. In v0.1 only S4 routes to a functional pipeline.
+Use this agent to classify the input as S1/S2/S3/S4. S2/S3/S4 route to functional pipelines; S1 (and the OpenAPI path of S2) route to informative stubs.
 
 Activación:
 @ia4d-qa-automator → [ia4d-mode-router]
@@ -33,7 +36,7 @@ Activación:
 @ia4d-qa-automator → [ia4d-compliance-checker]
 
 ia4d-pii-scanner
-Use this agent to scan generated .spec.ts files for PII patterns banca-ES (DNI, IBAN, Luhn, real-domain emails, ES phones). Hard gate — no override.
+Use this agent to scan generated .spec.ts files for PII patterns banca-ES (DNI, IBAN, Luhn, real-domain emails, ES phones). Off por defecto, reactivable con QA_ENABLE_PII (funcionalidad opcional, no gate obligatorio). La guarda anti-test.fixme() del hook sigue siempre activa, independiente de este scanner.
 
 Activación:
 @ia4d-qa-automator → [ia4d-pii-scanner]
@@ -44,20 +47,32 @@ Use this agent to post-process the native Planner output into a structured disco
 Activación:
 @ia4d-qa-automator → [ia4d-discovery-analyzer]
 
+ia4d-spec-refiner (S3)
+Use this agent to ingest a Functional Design (free markdown) + URL and emit a structured criteria.json (RF-NNN), an exploration brief and refinement-questions.md. Extrae y marca huecos; nunca fabrica criterios.
+
+Activación:
+@ia4d-qa-automator → [ia4d-spec-refiner]
+
+ia4d-spec-parser (S2)
+Use this agent to parse a mature Gherkin .feature into the same criteria.json contract. Determinístico (src/gherkin-to-criteria.ts, @cucumber/gherkin), no interpreta prosa con el LLM. OpenAPI diferido a v0.4.
+
+Activación:
+@ia4d-qa-automator → [ia4d-spec-parser]
+
 ia4d-style-enforcer
-Use this agent to enforce the project's Style Contract YAML on a generated .spec.ts (locator priority, no waitForTimeout, POM placement).
+Use this agent to enforce the project's Style Contract YAML on a generated .spec.ts (locator priority, no waitForTimeout, POM placement, excepción CSS legacy declarada).
 
 Activación:
 @ia4d-qa-automator → [ia4d-style-enforcer]
 
 ia4d-a11y-injector
-Use this agent to inject AxeBuilder({ page }).analyze() at the start of every test() block. WCAG 2.1 AA / EAA 2025 baked-in. Not optional in MVP.
+Use this agent to inject AxeBuilder({ page }).analyze() at the start of every test() block. WCAG 2.1 AA / EAA 2025. El scan se inyecta siempre; el gate que aborta (fail_on_violations) está off por defecto (modo warning) y es configurable por sitio.
 
 Activación:
 @ia4d-qa-automator → [ia4d-a11y-injector]
 
 ia4d-writer
-Use this agent to write a Playwright .spec.ts from a plan entry + Style Contract + POM scaffolded. Can invoke ia4d-reviewer directly via Task tool (named composition exception, documented).
+Use this agent to write a Playwright .spec.ts from a plan/criteria entry + Style Contract + POM scaffolded. Can invoke ia4d-reviewer directly via Task tool (named composition exception, documented).
 
 Activación:
 @ia4d-qa-automator → [ia4d-writer] → [ia4d-reviewer]
@@ -69,15 +84,13 @@ Activación:
 @ia4d-qa-automator → [ia4d-writer] → [ia4d-reviewer]
 
 ia4d-judge
-Use this agent to score the final test on a 0-1 scale across seven axes (assertions, selectors, waits, isolation, criterion coverage, a11y, structure). Reporting metric, not gate.
+Use this agent to score the final test on a 0-1 scale across seven axes (assertions, selectors, waits, isolation, criterion coverage, a11y, structure). Métrica de reporte, no gate; off por defecto, reactivable con QA_ENABLE_JUDGE.
 
 Activación:
 @ia4d-qa-automator → [ia4d-judge]
 
-Stubs documentados (no funcionales en v0.1)
+Stub documentado (no funcional)
 - ia4d-code-analyzer (S1, v0.3)
-- ia4d-spec-parser (S2, v0.3)
-- ia4d-spec-refiner (S3, v0.2)
 
 ⑤ Flujo de Interacción
 
@@ -101,11 +114,12 @@ acto 5: juzgar
 
 🎯 ia4d-qa-automator\nORQUESTADOR
 
-✅ Tests E2E · Audit · Report
+✅ Tests E2E · Audit · Drift · Report
 
 Acto 1 — Comprender
   🤖 ia4d-mode-router
   🤖 ia4d-compliance-checker
+  🤖 ia4d-spec-refiner (S3) / ia4d-spec-parser (S2)
 
 Acto 2 — Mapear
   🤖 playwright-test-planner (nativo)
@@ -118,59 +132,67 @@ Acto 3 — Estructurar
 Acto 4 — Materializar
   🤖 ia4d-writer ⟷ 🤖 ia4d-reviewer (excepción nombrada, N≤2)
   🤖 ia4d-a11y-injector
-  🤖 ia4d-pii-scanner (vía hook PostToolUse)
+  🤖 ia4d-pii-scanner (vía hook PostToolUse; off por defecto)
 
 Acto 5 — Juzgar
-  🤖 ia4d-judge
+  🤖 ia4d-judge (off por defecto)
 
 ⚡ Execute Commands
 
+/qa-automator:init          (despliega el workspace — command del plugin)
 /qa-automator:healthcheck
-/qa-automator:autonomous
-/qa-automator:code-driven    (stub v0.1)
-/qa-automator:req-driven     (stub v0.1)
-/qa-automator:spec-refiner   (stub v0.1)
+/qa-automator:autonomous     (S4)
+/qa-automator:spec-refiner   (S3)
+/qa-automator:req-driven     (S2)
+/qa-automator:config
+/qa-automator:report
+/qa-automator:code-driven    (stub → v0.3)
 
 ⑤b Arquitectura del Plugin
 
 Orquestador → Sub-agentes → Comandos → Hooks → MCPs
 
+Distribución: plugin de marketplace (Modelo A, repartidor). El plugin aporta /qa-automator:init, que despliega el workspace autocontenido; los agentes, hooks y MCP operan a nivel de ese proyecto.
+
 result
 
 🔌 MCPs / Herramientas
 
-playwright-test (nativo Microsoft, vía npx playwright init-agents --loop=claude)
+playwright-test (nativo Microsoft, run-test-mcp-server)
 filesystem
 yaml parser
 
-🪝 Hooks
+🪝 Hooks (cableados en .claude/settings.json)
 
-PreToolUse: compliance pre-flight (mcp__playwright-test__.*)
-PostToolUse: PII scanner (Write|Edit sobre .spec.ts)
+PreToolUse: compliance pre-flight (mcp__playwright-test__.*) — siempre activo, sin override
+PostToolUse: PII scan (off por defecto, QA_ENABLE_PII) + guarda anti-test.fixme() (siempre activa) sobre Write|Edit
 Stop: audit-write (cierre de sesión)
 
-⚡ Comandos (5)
+⚡ Comandos (7 en el workspace + init del plugin)
 
+/qa-automator:init (plugin)
 /qa-automator:healthcheck
-/qa-automator:autonomous
+/qa-automator:autonomous (S4)
+/qa-automator:spec-refiner (S3)
+/qa-automator:req-driven (S2)
+/qa-automator:config
+/qa-automator:report
 /qa-automator:code-driven (stub)
-/qa-automator:req-driven (stub)
-/qa-automator:spec-refiner (stub)
 
-🤖 Sub-Agentes (10 propios + 3 nativos)
+🤖 Sub-Agentes (12 propios + 3 nativos)
 
 ia4d-mode-router
 ia4d-compliance-checker
 ia4d-pii-scanner
 ia4d-discovery-analyzer
+ia4d-spec-refiner (S3)
+ia4d-spec-parser (S2)
 ia4d-style-enforcer
 ia4d-a11y-injector
 ia4d-writer
 ia4d-reviewer
 ia4d-judge
 ia4d-code-analyzer (stub)
-ia4d-spec-parser (stub)
-ia4d-spec-refiner (stub)
 + playwright-test-{planner,generator,healer} (nativos Microsoft)
 
 🎯 ia4d-qa-automator
@@ -180,52 +202,71 @@ ia4d-spec-refiner (stub)
 Entradas
 
 - Solo URL (S4, funcional): https://www.saucedemo.com/ + opcionalmente config/style-contracts/<project>.yaml
-- Repo frontend (S1, v0.3): path al repo + framework
-- Gherkin u OpenAPI (S2, v0.3): paths a los specs
-- FD flojo / PDF / Jira (S3, v0.2): path al documento + URL opcional
+- FD flojo / PDF / markdown (S3, funcional): path al documento + URL de staging
+- Gherkin maduro (S2, funcional): path al .feature + URL de staging
+- Repo frontend (S1, stub v0.3): path al repo + framework
 
 Salidas
 
-- N x .spec.ts (≥3 para flujo MVP SauceDemo: login + cart + checkout)
+- N x .spec.ts (con @criterion RF-NNN cuando hay S2/S3; tags nativos + @tc-id)
 - tests/pages/*.page.ts (POMs determinísticos)
 - discovery-report.json
+- criteria.json (S2/S3) + drift-report.json (drift spec↔implementación)
 - audit-log.json (JSON-lines append-only)
 - review-feedback.json (Writer↔Reviewer iteraciones)
-- judge-report.json (scores 0-1 por test)
+- judge-report.json (scores 0-1 por test; solo con Judge activo)
 - qa-automator-run-summary.json
-- playwright-report/ (HTML)
+- Reporte ejecutivo single-file + Allure enriquecido (vía /qa-automator:report)
 
-⑦ Comandos Disponibles (5)
+⑦ Comandos Disponibles
+
+/qa-automator:init
+Despliega el workspace del agente en una carpeta y lo deja listo (scaffold + npm install + healthcheck). Command del plugin; primer paso tras instalar.
+
+Ejemplo:
+/qa-automator:init mi-workspace-qa
 
 /qa-automator:healthcheck
-Smoke test: versión, subagents detectados, MCP server, configs.
+Smoke test: versión, subagents detectados, MCP server, configs, cableado de hooks.
 
 Ejemplo:
 /qa-automator:healthcheck
 
 /qa-automator:autonomous
-Módulo S4. Funcional en v0.1. Orquesta los 5 actos contra una URL.
+Módulo S4. Orquesta los 5 actos desde una URL. Acota por módulos con --flows.
 
 Ejemplo:
-/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
+/qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
 
-/qa-automator:code-driven (stub v0.1, funcional v0.3)
-Módulo S1. Analiza un repo frontend.
+/qa-automator:spec-refiner
+Módulo S3. FD/spec floja + URL. Extrae criterios RF-NNN, marca huecos, detecta drift FD↔implementación.
+
+Ejemplo:
+/qa-automator:spec-refiner --fd=docs/fd/login-flow.md --url=https://parabank.parasoft.com/
+
+/qa-automator:req-driven
+Módulo S2. Gherkin maduro + URL. Trazabilidad RF-NNN, parameterización (Scenario Outline), drift.
+
+Ejemplo:
+/qa-automator:req-driven --gherkin=features/login.feature --url=https://parabank.parasoft.com/
+
+/qa-automator:config
+Valida un Style Contract (campos, enums, typos, coherencia) y muestra la configuración efectiva de la sesión (gates on/off, evidencia, auth, locators). Determinístico.
+
+Ejemplo:
+/qa-automator:config --style=config/style-contracts/saucedemo.yaml
+
+/qa-automator:report
+Genera el reporte ejecutivo single-file + el reporte Allure enriquecido a partir de un run ya ejecutado.
+
+Ejemplo:
+/qa-automator:report
+
+/qa-automator:code-driven (stub → v0.3)
+Módulo S1. Analiza un repo frontend. Devuelve mensaje informativo.
 
 Ejemplo:
 /qa-automator:code-driven --repo=./my-frontend --framework=react
-
-/qa-automator:req-driven (stub v0.1, funcional v0.3)
-Módulo S2. Consume Gherkin u OpenAPI.
-
-Ejemplo:
-/qa-automator:req-driven --gherkin=features/login.feature
-
-/qa-automator:spec-refiner (stub v0.1, funcional v0.2)
-Módulo S3. Refina un FD flojo o Jira mal redactado.
-
-Ejemplo:
-/qa-automator:spec-refiner --fd=docs/fd/login-flow.md --target-url=https://app.qa.example.com/
 
 ## Diferenciación con ia4d-testing-core
 
@@ -234,27 +275,28 @@ Ejemplo:
 | Perspectiva | Dev sobre su propio código (whitebox total) | Ingeniero QA externo o juez QA (greybox o black-box, multi-modo) |
 | Fase AISD | 07 (Testing) estricta | Transversal por disciplina QA propia (toca 01, 04, 07, 08) |
 | Misión | "Test su propio código" | "Juez independiente sobre la app" |
-| Quality layer | LLM-as-judge unilateral | Writer + Reviewer + Judge (los tres activos, Writer↔Reviewer iteración explícita) |
-| Compliance | No central | Pre-flight + PII detector banca-ES como hard gate sin override |
-| A11y | Opcional | Baked-in obligatorio (no opcional en MVP) |
-| Output | Tests subproducto del código generado | Tests + POM + audit log + review feedback + judge scores |
-| Audit trail | No nativo | audit-log.json JSON-lines append-only por defecto |
+| Quality layer | LLM-as-judge unilateral | Writer + Reviewer obligatorios (iteración explícita N≤2) + Judge opcional |
+| Compliance | No central | Pre-flight sin override + PII detector banca-ES opcional (reactivable) |
+| A11y | Opcional | Scan baked-in siempre; gate configurable por sitio |
+| Trazabilidad | No nativa | @criterion RF-NNN (S2/S3) + drift-report + audit-log JSON-lines |
+| Output | Tests subproducto del código generado | Tests + POM + criteria + drift + audit + review + judge |
 | Modelo decisor | Dev / Tech Lead | QA Manager + Ingeniero QA |
 
 No sustitución. Coexisten con misiones incompatibles. Dev no puede ser juez y parte.
 
-## Métricas verificadas (MVP v0.1 contra SauceDemo)
+## Métricas verificadas
 
-- 42 unit tests verdes en 1.4 segundos (vitest).
-- 3 E2E tests verdes en 7.2 segundos paralelos (Playwright contra SauceDemo).
-- Wall-clock proyectado del flujo autonomous completo con LLM: ~7-8 min con paralelismo (basado en mediciones del spike: Planner 3.4 min + 3 × Generator 3.4 min en paralelo).
-- Tokens proyectados del flujo MVP completo: ~125k (sin capa transversal LLM-bound).
+- Unit tests del runtime verdes (vitest); healthcheck estructural 23/23.
+- S4 validado contra SauceDemo (golden path verde) y sitios reales (expandtesting, Toolshop, ParaBank, OrangeHRM).
+- S3 (Spec-refiner) validado contra ParaBank 3/3 verde y contra producción real regulada (Mapfre Hogar): detección de drift sin fabricar tests.
+- S2 (Req-driven, Gherkin) validado contra ParaBank 5/5 verde, con parameterización data-driven y drift reportado sin fabricar.
+- Empaquetado de plugin validado end-to-end: scaffold limpio → npm install → healthcheck 23/23 → unit verdes.
 
 ## Roadmap
 
 | Versión | Foco |
 |---|---|
-| v0.1 (MVP, actual) | S4 + capa transversal + Quality layer + flujo SauceDemo verde |
-| v0.2 | S3 (Spec-refiner) + TMS connectors (Jira/Xray) + knowledge graph SQLite |
-| v0.3 | S1 (Code-driven) + S2 (Req-driven) + AST parsers React/Vue |
-| v0.4 | Context Injector* (asterisco: rompe genericidad, requiere adaptadores por cliente) + PR automation |
+| v0.2 | S2 (Gherkin) + S3 (Spec-refiner) + hardening contra el caos web real (a11y gate configurable, auth-handler, excepción CSS legacy) + gates off por defecto |
+| v0.3 (actual) | Empaquetado como plugin de marketplace (repartidor + init) + tooling de coste de tokens |
+| v0.3.x | S1 (Code-driven) + AST parsers React/Vue |
+| v0.4 | S2 OpenAPI (API tests) + Context Injector* (asterisco: rompe genericidad) + PR automation |
