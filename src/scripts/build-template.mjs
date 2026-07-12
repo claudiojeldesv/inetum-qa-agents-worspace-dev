@@ -63,14 +63,16 @@ for (const f of COPY_FILES) {
   cpSync(resolve(repo, f), resolve(tpl, f));
 }
 
-// 3. El builder no viaja al template (el QA no reconstruye el template).
+// 3. Los builders no viajan al template (el QA no reconstruye template ni plugin).
 rmSync(resolve(tpl, 'src/scripts/build-template.mjs'), { force: true });
+rmSync(resolve(tpl, 'src/scripts/build-plugin.mjs'), { force: true });
 
 // 4. package.json: deps/scripts/engines del repo, identity del template.
 const repoPkg = JSON.parse(readFileSync(resolve(repo, 'package.json'), 'utf8'));
 const tplPkg = JSON.parse(readFileSync(resolve(tpl, 'package.json'), 'utf8'));
 const scripts = { ...repoPkg.scripts };
 delete scripts['build:template']; // específico del repo
+delete scripts['build:plugin']; // específico del repo
 const merged = {
   name: tplPkg.name,
   version: repoPkg.version,

@@ -19,7 +19,8 @@
     "qa:tokens": "node src/scripts/token-usage.mjs",
     "qa:healthcheck": "tsx src/scripts/healthcheck.ts",
     "qa:fix": "tsx src/scripts/healthcheck.ts --fix",
-    "build:template": "node src/scripts/build-template.mjs"
+    "build:template": "node src/scripts/build-template.mjs",
+    "build:plugin": "node src/scripts/build-plugin.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",
