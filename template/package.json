@@ -16,6 +16,7 @@
     "e2e": "playwright test",
     "report": "node src/scripts/build-report.mjs",
     "report:showcase": "tsx src/scripts/build-showcase.ts",
+    "qa:tokens": "node src/scripts/token-usage.mjs",
     "qa:healthcheck": "tsx src/scripts/healthcheck.ts",
     "qa:fix": "tsx src/scripts/healthcheck.ts --fix"
   },
