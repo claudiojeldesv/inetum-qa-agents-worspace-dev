@@ -63,3 +63,7 @@ Thumbs.db
 
 # Archived pre-MVP / referential content (relocated, not deleted)
 /tmp/
+
+# Ruido efímero de sesión (logs de ejecución, estado de sesión Claude)
+/log_ejecucion.log
+/.claude-session/

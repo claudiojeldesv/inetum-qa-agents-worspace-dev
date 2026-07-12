@@ -1,1 +1,5 @@
-{}
+{
+  "inicio-sesion.usuario-valido": "TC-001",
+  "inicio-sesion.usuario-bloqueado": "TC-002",
+  "pago.compra-completa": "TC-003"
+}
