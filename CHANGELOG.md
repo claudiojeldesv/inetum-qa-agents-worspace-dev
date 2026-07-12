@@ -10,8 +10,10 @@ deja de ser solo un repo/workspace y pasa a distribuirse e instalarse desde un m
 
 ### Added
 - **Empaquetado de plugin (Modelo A: repartidor + `init`)** — `plugin-src/` con las fuentes
-  hand-authored del plugin: command `/qa-automator:init` (despliega el workspace y lo deja listo),
-  `/qa-automator:help`, `scaffold.mjs` (copia determinística, sin LLM) y `plugin.json` base.
+  hand-authored del plugin: command `/ia4d-qa-automator:init` (despliega el workspace y lo deja
+  listo), `/ia4d-qa-automator:help`, `scaffold.mjs` (copia determinística, sin LLM) y `plugin.json`
+  base. Los commands del plugin se namespacean por el nombre del plugin; los del workspace
+  desplegado siguen siendo `/qa-automator:*` (project-scoped).
 - **`src/scripts/build-plugin.mjs`** (`npm run build:plugin`) — genera `plugin/` con layout de
   marketplace (`.claude-plugin/marketplace.json` + `plugin.json`); el payload es `template/` sin
   `node_modules`/`.work`/`.git`; la `version` se inyecta desde `package.json`. Espejo idempotente

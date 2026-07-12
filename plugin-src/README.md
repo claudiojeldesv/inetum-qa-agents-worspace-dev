@@ -35,7 +35,14 @@ plugin/.claude-plugin/plugins/ia4d-qa-automator/
 ```
 /plugin marketplace add <ruta-abs>/plugin
 /plugin install ia4d-qa-automator
-/qa-automator:init  mi-workspace-qa
+/ia4d-qa-automator:init  mi-workspace-qa
 ```
+
+> Nota de namespacing: el command del plugin es `/ia4d-qa-automator:init` (prefijo = nombre del
+> plugin). Los commands del workspace desplegado son `/qa-automator:*` (project-scoped).
+
+Vía CLI (sin UI interactiva): `claude plugin marketplace add <ruta-abs>/plugin --scope local`
+y `claude plugin install ia4d-qa-automator@ia4d-qa-automator-marketplace --scope local`. Validar el
+manifiesto: `claude plugin validate plugin`.
 
 Luego `cd mi-workspace-qa && npm run qa:healthcheck` (debe dar `Healthcheck OK`).

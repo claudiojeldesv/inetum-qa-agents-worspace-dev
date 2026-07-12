@@ -9,7 +9,7 @@ Usa este agente cuando necesites generar tests E2E en Playwright TypeScript con 
 
 ② Uso del Agente
 
-Instalación (marketplace de Claude Code): instala el plugin desde el catálogo y ejecuta /qa-automator:init <carpeta> para desplegar el workspace del agente (runtime + labs) y dejarlo listo (scaffold + npm install + healthcheck). A partir de ahí trabajas dentro de esa carpeta con los commands /qa-automator:*.
+Instalación (marketplace de Claude Code): instala el plugin desde el catálogo y ejecuta /ia4d-qa-automator:init <carpeta> para desplegar el workspace del agente (runtime + labs) y dejarlo listo (scaffold + npm install + healthcheck). A partir de ahí trabajas dentro de esa carpeta con los commands /qa-automator:* (project-scoped). Nota de namespacing: los commands del plugin llevan el prefijo del plugin (ia4d-qa-automator:); los del workspace desplegado, qa-automator:.
 
 Orquestador: auto-detecta el contexto y delega a los sub-agentes según el módulo de entrada (S1/S2/S3/S4) y los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar).
 
@@ -139,7 +139,7 @@ Acto 5 — Juzgar
 
 ⚡ Execute Commands
 
-/qa-automator:init          (despliega el workspace — command del plugin)
+/ia4d-qa-automator:init      (despliega el workspace — command del plugin)
 /qa-automator:healthcheck
 /qa-automator:autonomous     (S4)
 /qa-automator:spec-refiner   (S3)
@@ -170,7 +170,7 @@ Stop: audit-write (cierre de sesión)
 
 ⚡ Comandos (7 en el workspace + init del plugin)
 
-/qa-automator:init (plugin)
+/ia4d-qa-automator:init (plugin)
 /qa-automator:healthcheck
 /qa-automator:autonomous (S4)
 /qa-automator:spec-refiner (S3)
@@ -220,11 +220,11 @@ Salidas
 
 ⑦ Comandos Disponibles
 
-/qa-automator:init
+/ia4d-qa-automator:init
 Despliega el workspace del agente en una carpeta y lo deja listo (scaffold + npm install + healthcheck). Command del plugin; primer paso tras instalar.
 
 Ejemplo:
-/qa-automator:init mi-workspace-qa
+/ia4d-qa-automator:init mi-workspace-qa
 
 /qa-automator:healthcheck
 Smoke test: versión, subagents detectados, MCP server, configs, cableado de hooks.

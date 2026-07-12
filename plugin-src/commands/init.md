@@ -3,10 +3,11 @@ description: Despliega el workspace de ia4d-qa-automator en una carpeta y lo dej
 argument-hint: "[carpeta-destino]  (default: qa-automator-workspace)"
 ---
 
-# /qa-automator:init
+# /ia4d-qa-automator:init
 
 Arranca un workspace QA completo a partir del plugin instalado. Es lo primero que ejecuta un
-Ingeniero QA tras descargar el plugin del marketplace.
+Ingeniero QA tras descargar el plugin del marketplace. (Los commands del plugin se invocan con el
+prefijo del plugin `ia4d-qa-automator:`; los del workspace desplegado son `qa-automator:*`.)
 
 ## Qué hace
 

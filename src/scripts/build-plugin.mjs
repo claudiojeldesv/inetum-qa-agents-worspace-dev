@@ -77,6 +77,7 @@ cpSync(tpl, payloadDir, {
 // 6. marketplace.json (raíz del market local, forma estándar con `source`).
 const marketplaceJson = {
   name: `${PLUGIN_NAME}-marketplace`,
+  description: 'Marketplace local del agente QA ia4d-qa-automator (catálogo Inetum, categoría Documentación y Calidad).',
   owner: { name: 'IA4D / Inetum' },
   plugins: [
     {

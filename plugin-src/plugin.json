@@ -2,6 +2,9 @@
   "name": "ia4d-qa-automator",
   "version": "0.0.0",
   "description": "Agente QA que genera tests E2E Playwright estructurados (POM, accesibilidad baked-in, trazabilidad auditable) desde una URL, un Gherkin o un documento funcional, con un Reviewer independiente que audita antes de exponer el código. Instala el workspace con /qa-automator:init.",
+  "author": {
+    "name": "IA4D / Inetum"
+  },
   "commands": [
     "./commands/init.md",
     "./commands/help.md"

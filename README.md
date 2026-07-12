@@ -47,8 +47,11 @@ npm run build:plugin
 # en Claude Code:
 #   /plugin marketplace add <ruta-abs>/plugin
 #   /plugin install ia4d-qa-automator
-#   /qa-automator:init  mi-workspace-qa
+#   /ia4d-qa-automator:init  mi-workspace-qa   (command del plugin; el prefijo es el nombre del plugin)
 ```
+
+Los commands del workspace desplegado son `/qa-automator:*` (project-scoped); solo el bootstrap
+`init` lleva el prefijo del plugin.
 
 Detalle en [`plugin-src/README.md`](plugin-src/README.md).
 
