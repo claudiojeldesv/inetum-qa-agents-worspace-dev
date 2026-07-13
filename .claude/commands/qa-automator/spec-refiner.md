@@ -3,7 +3,9 @@ description: Módulo S3 — Spec-refiner (Forma B). Genera tests E2E desde un FD
 argument-hint: "--fd=<path> --url=<URL> [--style=<contract.yaml>]"
 ---
 
-# /qa-automator:spec-refiner
+# /ia4d-qa-automator:spec-refiner
+
+> **Pre-check (workspace).** Este comando corre DENTRO de un workspace desplegado del agente. Antes de continuar, verifica que en el directorio actual existen `config/allowed-targets.yaml` y `playwright.config.ts`. Si falta alguno, NO sigas: indica al usuario que ejecute `/ia4d-qa-automator:init <carpeta>` (o abra su workspace ya desplegado) y detente.
 
 Módulo **S3 Spec-refiner (Forma B)** del agente `ia4d-qa-automator`. Entrada = **FD en markdown libre + URL de staging**. El FD da el *qué* (criterios RF-NNN, flujos); la URL da el *cómo* (DOM real, locators, run verde). Reusa el motor S4 validado (discovery, POM scaffolder, Writer↔Reviewer↔Judge, los 3 componentes de Fase C); las únicas piezas propias de S3 son la ingestión del FD (`ia4d-spec-refiner`), el planner en modo **mapear-contra-DOM** y el **diff de drift**.
 
@@ -128,7 +130,7 @@ El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrent
 
 ## Verification step
 
-Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-id>/` seteando `QA_WORK_DIR=.work/<site-id>` (aísla artefactos del sitio) y `QA_BASE_URL` con `--url` (y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`; `QA_SCREENSHOT`/`QA_TRACE` según `evidence.level` del contract — `full` fuerza ambos `on` — evidencia visual para `/qa-automator:report`).
+Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-id>/` seteando `QA_WORK_DIR=.work/<site-id>` (aísla artefactos del sitio) y `QA_BASE_URL` con `--url` (y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`; `QA_SCREENSHOT`/`QA_TRACE` según `evidence.level` del contract — `full` fuerza ambos `on` — evidencia visual para `/ia4d-qa-automator:report`).
 
 ```sh
 # Con auth (PowerShell):

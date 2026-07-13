@@ -1,6 +1,6 @@
 {
   "name": "ia4d-qa-automator",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Agente QA Inetum multi-modo para generación de tests E2E con compliance regulado, marco QA propio y Quality layer Writer+Reviewer+Judge.",
   "private": true,
   "type": "module",

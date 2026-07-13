@@ -17,7 +17,7 @@
  *    style-contracts didácticos), examples/, tests/{e2e,pages,integration},
  *    specs/, criteria/, README.md, CLAUDE.md, .env.example, package-lock.json.
  */
-import { cpSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, rmSync, existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const repo = process.cwd();
@@ -35,8 +35,6 @@ for (const d of ['references', 'scripts', 'style-contracts']) {
 
 // 2. Copia el núcleo del repo → template (sobrescribe la copia anterior).
 const COPY_DIRS = [
-  '.claude/agents',
-  '.claude/commands',
   'src',
   'hooks',
   'docs/references',
@@ -63,6 +61,18 @@ for (const f of COPY_FILES) {
   cpSync(resolve(repo, f), resolve(tpl, f));
 }
 
+// 2b. Híbrido: al workspace SOLO van los agentes nativos de Playwright (pineados a la versión).
+//     Los 12 agentes ia4d y los comandos los provee el PLUGIN, no el workspace.
+const tplAgents = resolve(tpl, '.claude/agents');
+rmSync(tplAgents, { recursive: true, force: true });
+rmSync(resolve(tpl, '.claude/commands'), { recursive: true, force: true });
+mkdirSync(tplAgents, { recursive: true });
+for (const f of readdirSync(resolve(repo, '.claude/agents'))) {
+  if (f.startsWith('playwright-test-')) {
+    cpSync(resolve(repo, '.claude/agents', f), resolve(tplAgents, f));
+  }
+}
+
 // 3. Los builders no viajan al template (el QA no reconstruye template ni plugin).
 rmSync(resolve(tpl, 'src/scripts/build-template.mjs'), { force: true });
 rmSync(resolve(tpl, 'src/scripts/build-plugin.mjs'), { force: true });
@@ -85,5 +95,5 @@ const merged = {
 };
 writeFileSync(resolve(tpl, 'package.json'), JSON.stringify(merged, null, 2) + '\n');
 
-console.log('[build-template] template/ regenerado desde el repo (estructura nueva).');
+console.log('[build-template] template/ regenerado desde el repo (híbrido: solo agentes nativos, sin comandos).');
 console.log('[build-template] preservados: config/, examples/, tests/{e2e,pages,integration}, specs/, criteria/, README.md, CLAUDE.md, .env.example.');

@@ -6,7 +6,7 @@ materializa "QA es juez independiente".
 
 > **Este es el repo de construcción del agente**, no el workspace que usa el QA. El QA recibe un
 > workspace autocontenido (`template/`) o instala el plugin desde el marketplace y corre
-> `/qa-automator:init`. La guía de uso final vive en [`template/CLAUDE.md`](template/CLAUDE.md).
+> `/ia4d-qa-automator:init`. La guía de uso final vive en [`template/CLAUDE.md`](template/CLAUDE.md).
 
 ## Estado
 
@@ -50,8 +50,9 @@ npm run build:plugin
 #   /ia4d-qa-automator:init  mi-workspace-qa   (command del plugin; el prefijo es el nombre del plugin)
 ```
 
-Los commands del workspace desplegado son `/qa-automator:*` (project-scoped); solo el bootstrap
-`init` lleva el prefijo del plugin.
+Todos los commands (incluido `init`) los aporta el plugin con el prefijo `/ia4d-qa-automator:*` y
+están disponibles globalmente; el workspace desplegado solo aporta el runtime, config y los agentes
+nativos de Playwright.
 
 Detalle en [`plugin-src/README.md`](plugin-src/README.md).
 
@@ -63,8 +64,8 @@ Detalle en [`plugin-src/README.md`](plugin-src/README.md).
 - **Quality layer**: Writer ⟷ Reviewer (N≤2) → Judge (opcional). Writer↔Reviewer es la única
   excepción documentada a "los subagents no se invocan entre sí"
   ([`docs/references/composition-rules.md`](docs/references/composition-rules.md)).
-- **15 subagents** (3 nativos Playwright + 12 `ia4d-*`), **7 commands** `/qa-automator:*`, **3 hooks**
-  cableados en `.claude/settings.json`.
+- **15 subagents** (12 `ia4d-*` en el plugin + 3 nativos Playwright en el workspace), **9 commands**
+  `/ia4d-qa-automator:*` (en el plugin), **3 hooks** cableados en el `.claude/settings.json` del workspace.
 
 `ia4d-testing-core` es la herramienta del dev sobre su propio código. `ia4d-qa-automator` es la del
 juez QA independiente: misión incompatible, no perspectiva distinta.

@@ -3,7 +3,9 @@ description: Módulo S2 — Req-driven. Genera tests E2E desde un .feature Gherk
 argument-hint: "--gherkin=<path> --url=<URL> [--style=<contract.yaml>]"
 ---
 
-# /qa-automator:req-driven
+# /ia4d-qa-automator:req-driven
+
+> **Pre-check (workspace).** Este comando corre DENTRO de un workspace desplegado del agente. Antes de continuar, verifica que en el directorio actual existen `config/allowed-targets.yaml` y `playwright.config.ts`. Si falta alguno, NO sigas: indica al usuario que ejecute `/ia4d-qa-automator:init <carpeta>` (o abra su workspace ya desplegado) y detente.
 
 Módulo **S2 Req-driven** del agente `ia4d-qa-automator`. Entrada = **Gherkin `.feature` maduro + URL
 de staging**. El `.feature` da el *qué* (criterios RF-NNN ya estructurados por el autor, con
@@ -14,7 +16,7 @@ el planner en modo **mapear-contra-DOM** y el **diff de drift** — los mismos q
 
 Diferencia con S3 (Spec-refiner): S2 **no refina**. Asume Gherkin limpio. El `Then` es explícito,
 así que no hay ambigüedad que escalar — un Scenario **sin** `Then` no se rellena, se reporta y se
-enruta a `/qa-automator:spec-refiner` (S3). Diferencia con S4: trazabilidad real (`@criterion` cita
+enruta a `/ia4d-qa-automator:spec-refiner` (S3). Diferencia con S4: trazabilidad real (`@criterion` cita
 RF-NNN + `source_ref` del `.feature`) y detección de drift.
 
 Valor extra sobre S3: **parameterización**. Un `Scenario Outline` + `Examples` se materializa como
@@ -62,7 +64,7 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
    ninguno. Si algún Scenario llegó **sin `Then`**, el parser lo marcó (`then: [AMBIGUO ...]`,
    `open_questions` no vacío). Muéstralos al QA (resumen de `refinement-questions.md`) y avisa:
    esos criterios **NO se generan**. Sugiere refinar el `.feature` (añadir el `Then`) o enrutar el
-   caso por `/qa-automator:spec-refiner` (S3). No se fabrica el resultado esperado.
+   caso por `/ia4d-qa-automator:spec-refiner` (S3). No se fabrica el resultado esperado.
 7. Registra al audit-log: `{ source: 'command', action: 'feature_ingested', metadata: { criteria_count, blocked_count, flows } }`.
 
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
@@ -165,7 +167,7 @@ El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrent
 
 Idéntico a S4/S3 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-id>/` seteando `QA_WORK_DIR=.work/<site-id>` y `QA_BASE_URL` con `--url`
 (y `QA_STORAGE_STATE` si el contract tiene `auth.enabled: true`; `QA_SCREENSHOT`/`QA_TRACE` según
-`evidence.level` del contract — `full` fuerza ambos `on` — evidencia visual para `/qa-automator:report`).
+`evidence.level` del contract — `full` fuerza ambos `on` — evidencia visual para `/ia4d-qa-automator:report`).
 
 ```sh
 # Con auth (PowerShell):

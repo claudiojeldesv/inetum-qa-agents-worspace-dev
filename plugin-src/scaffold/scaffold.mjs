@@ -54,4 +54,4 @@ console.log('  cp .env.example .env      # opcional, ajusta toggles');
 console.log('  npm run qa:healthcheck    # debe terminar en "Healthcheck OK"');
 console.log('');
 console.log('Luego abre la carpeta en tu IDE y prueba el lab 01:');
-console.log('  /qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout');
+console.log('  /ia4d-qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout');

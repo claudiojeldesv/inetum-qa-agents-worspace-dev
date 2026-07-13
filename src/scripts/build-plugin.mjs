@@ -16,7 +16,7 @@
  *  - Salida idempotente y re-ejecutable; sin timestamps (git-friendly).
  */
 import { execSync } from 'node:child_process';
-import { cpSync, rmSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, rmSync, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { resolve, sep, join } from 'node:path';
 
 const repo = process.cwd();
@@ -44,19 +44,57 @@ const payloadDir = resolve(pluginDir, 'scaffold', 'payload');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(pluginDir, { recursive: true });
 
-// 3. Manifiesto del plugin: base de plugin-src + version del repo.
+// 3. Componentes al plugin (híbrido): agentes ia4d + comandos (workspace + init/help) + scaffold.
+const agentsDst = resolve(pluginDir, 'agents');
+const cmdsDst = resolve(pluginDir, 'commands');
+mkdirSync(agentsDst, { recursive: true });
+mkdirSync(cmdsDst, { recursive: true });
+
+// 3a. 12 agentes ia4d desde el repo. Los nativos playwright-test-* NO: viven en el workspace
+//     (pineados a la versión de Playwright).
+const repoAgents = resolve(repo, '.claude/agents');
+for (const f of readdirSync(repoAgents)) {
+  if (f.startsWith('ia4d-') && f.endsWith('.md')) {
+    cpSync(resolve(repoAgents, f), resolve(agentsDst, f));
+  }
+}
+
+// 3b. 7 comandos del workspace desde el repo.
+const repoCmds = resolve(repo, '.claude/commands/qa-automator');
+for (const f of readdirSync(repoCmds)) {
+  if (f.endsWith('.md')) cpSync(resolve(repoCmds, f), resolve(cmdsDst, f));
+}
+
+// 3c. Comandos propios del plugin (init, help) + scaffold determinístico.
+for (const f of readdirSync(resolve(src, 'commands'))) {
+  if (f.endsWith('.md')) cpSync(resolve(src, 'commands', f), resolve(cmdsDst, f));
+}
+cpSync(resolve(src, 'scaffold', 'scaffold.mjs'), resolve(pluginDir, 'scaffold', 'scaffold.mjs'));
+
+// 4. Manifiesto: base (name/description/author) + version del repo + inventario DESCUBIERTO.
 const repoPkg = JSON.parse(readFileSync(resolve(repo, 'package.json'), 'utf8'));
 const basePluginJson = JSON.parse(readFileSync(resolve(src, 'plugin.json'), 'utf8'));
-const pluginJson = { ...basePluginJson, version: repoPkg.version };
+const agentList = readdirSync(agentsDst)
+  .filter((f) => f.endsWith('.md'))
+  .sort()
+  .map((f) => `./agents/${f}`);
+const cmdList = readdirSync(cmdsDst)
+  .filter((f) => f.endsWith('.md'))
+  .sort()
+  .map((f) => `./commands/${f}`);
+const pluginJson = {
+  name: basePluginJson.name,
+  version: repoPkg.version,
+  description: basePluginJson.description,
+  author: basePluginJson.author,
+  agents: agentList,
+  commands: cmdList,
+};
 mkdirSync(resolve(pluginDir, '.claude-plugin'), { recursive: true });
 writeFileSync(
   resolve(pluginDir, '.claude-plugin', 'plugin.json'),
   JSON.stringify(pluginJson, null, 2) + '\n',
 );
-
-// 4. Commands + scaffold script (hand-authored).
-cpSync(resolve(src, 'commands'), resolve(pluginDir, 'commands'), { recursive: true });
-cpSync(resolve(src, 'scaffold', 'scaffold.mjs'), resolve(pluginDir, 'scaffold', 'scaffold.mjs'));
 
 // 5. Payload = template/ sin artefactos de máquina.
 const EXCLUDE_DIRS = new Set(['node_modules', '.work', '.git']);
@@ -92,6 +130,6 @@ writeFileSync(
   JSON.stringify(marketplaceJson, null, 2) + '\n',
 );
 
-console.log(`[build-plugin] plugin/ generado (v${repoPkg.version}).`);
+console.log(`[build-plugin] plugin/ generado (v${repoPkg.version}): ${agentList.length} agentes + ${cmdList.length} comandos.`);
 console.log('[build-plugin] payload sin node_modules/.work/.git/playwright/.auth.');
 console.log('[build-plugin] simular: /plugin marketplace add <ruta-abs>/plugin');
