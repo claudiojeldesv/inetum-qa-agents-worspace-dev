@@ -45,8 +45,14 @@ Carpeta destino = primer argumento (`$ARGUMENTS`), o `qa-automator-workspace` si
    Debe terminar en `Healthcheck OK`. Si falla, reporta qué pieza falta (el propio script lo dice) y
    no continúes.
 
-5. **Cierra con instrucciones al QA:** dile que abra `<carpeta-destino>` en el IDE (VS Code /
-   JetBrains) y que pruebe el primer lab:
+5. **IMPORTANTE — reconecta el MCP antes de generar.** El servidor MCP `playwright-test` se arrancó
+   al abrir la sesión, antes de que este `init` instalara Playwright, así que quedó obsoleto. Antes de
+   lanzar cualquier comando que use el navegador (`autonomous`/`spec-refiner`/`req-driven`) hay que
+   refrescarlo: **recarga la ventana del IDE** (o ejecuta `/mcp` → reconectar `playwright-test`). Sin
+   esto, el planner falla de forma determinística con `_currentSuite === null`.
+
+6. **Cierra con instrucciones al QA:** dile que abra `<carpeta-destino>` en el IDE (VS Code /
+   JetBrains), **recargue** (paso 5) y pruebe el primer lab:
    ```
    /ia4d-qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
    ```

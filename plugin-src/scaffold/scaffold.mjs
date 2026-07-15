@@ -22,8 +22,14 @@ function fail(msg) {
 if (!existsSync(PAYLOAD)) {
   fail(`payload no encontrado en ${PAYLOAD}. Paquete corrupto; regenera con "npm run build:plugin".`);
 }
-if (existsSync(target) && readdirSync(target).length > 0 && !force) {
-  fail(`el destino "${target}" no está vacío. Usa otra carpeta o pasa --force para sobrescribir.`);
+// Chequeo de "vacío" ignorando `.claude/`: Claude Code crea `.claude/settings.local.json` al abrir
+// la carpeta, así que `init .` en una carpeta recién abierta no debe exigir --force por ese solo motivo.
+const existing = existsSync(target) ? readdirSync(target).filter((e) => e !== '.claude') : [];
+if (existing.length > 0 && !force) {
+  fail(
+    `el destino "${target}" no está vacío (${existing.join(', ')}). ` +
+      `Usa otra carpeta o pasa --force para sobrescribir.`,
+  );
 }
 
 // Cinturón y tirantes: el builder ya excluye estos, pero los filtramos también aquí.

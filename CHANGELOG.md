@@ -3,6 +3,24 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
+## [0.3.2] - 2026-07-15
+
+Arreglos surgidos de la prueba end-to-end S3 contra SauceDemo (5/5 verde). Dos bugs latentes
+pre-existentes (no de la migración) + dos fricciones del flujo `init`.
+
+### Fixed
+- **Pérdida silenciosa de feedback del Reviewer.** `consolidate-reviews` descartaba en silencio un
+  fichero de feedback con JSON inválido (un `catch` vacío). Ahora registra un placeholder auditable
+  (`{ spec, verdict: "unknown", error }`) y avisa ruidoso por stderr — nunca se pierde callado.
+- **`ia4d-reviewer` emitía JSON inválido.** Al incluir un regex literal (`/x\.y/`) en el texto del
+  feedback, el backslash sin escapar rompía `JSON.parse`. Hard rule nueva: escapar `\`→`\\` y `"`→`\"`.
+- **`init` no avisaba de reconectar el MCP.** El MCP `playwright-test` arranca antes de que `init`
+  instale Playwright y queda obsoleto (`_currentSuite === null` en el planner). `init` ahora incluye
+  un paso explícito: recargar la ventana o `/mcp` reconectar antes de generar.
+- **`scaffold` exigía `--force` de más.** Contaba el `.claude/settings.local.json` que crea el propio
+  Claude Code al abrir la carpeta. Ahora ignora un `.claude/` solitario en el chequeo de "vacío", así
+  `init .` funciona en una carpeta recién abierta sin `--force`.
+
 ## [0.3.1] - 2026-07-13
 
 Migración a distribución **híbrida refinada**: el plugin deja de ser un repartidor "vacío" y publica
