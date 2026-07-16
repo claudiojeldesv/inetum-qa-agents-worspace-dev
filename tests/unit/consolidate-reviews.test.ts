@@ -30,14 +30,19 @@ describe('consolidate-reviews — fix de append concurrente', () => {
     expect(JSON.parse(out[1]).test_file).toBe('b');
   });
 
-  it('omite ficheros corruptos sin perder los válidos', () => {
+  it('registra ficheros corruptos sin perderlos en silencio (placeholder + corrupt[])', () => {
     const work = tmp('qa-cons-corrupt-');
     const dir = resolve(work, 'review-feedback');
     mkdirSync(dir, { recursive: true });
     writeFileSync(resolve(dir, 'ok.json'), JSON.stringify({ test_file: 'a' }));
     writeFileSync(resolve(dir, 'bad.json'), '{ esto no es json');
-    const { count } = consolidateReviews(work);
-    expect(count).toBe(1);
+    const { count, corrupt } = consolidateReviews(work);
+    expect(count).toBe(2); // el válido + un placeholder por el corrupto
+    expect(corrupt).toEqual(['bad.json']);
+    const out = readFileSync(resolve(work, 'review-feedback.json'), 'utf8').trim().split('\n');
+    const placeholder = out.map((l) => JSON.parse(l)).find((o) => o.spec === 'bad.json');
+    expect(placeholder?.verdict).toBe('unknown');
+    expect(placeholder?.error).toContain('invalid JSON');
   });
 
   it('no-op si no existe el directorio per-spec', () => {

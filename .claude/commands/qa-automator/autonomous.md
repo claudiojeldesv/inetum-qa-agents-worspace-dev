@@ -3,7 +3,9 @@ description: Módulo S4 — generación autónoma de tests E2E desde una URL. Or
 argument-hint: "--url=<URL> [--style=<contract.yaml>] [--flows=a,b] [--negatives=flujo1,flujo2] [--entry=/path] [--ignore=x,y] [--max-scenarios=N]"
 ---
 
-# /qa-automator:autonomous
+# /ia4d-qa-automator:autonomous
+
+> **Pre-check (workspace).** Este comando corre DENTRO de un workspace desplegado del agente. Antes de continuar, verifica que en el directorio actual existen `config/allowed-targets.yaml` y `playwright.config.ts`. Si falta alguno, NO sigas: indica al usuario que ejecute `/ia4d-qa-automator:init <carpeta>` (o abra su workspace ya desplegado) y detente.
 
 Módulo **S4 Autonomous** del agente `ia4d-qa-automator`. Recibe una URL y, opcionalmente, un Style Contract. Orquesta los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar) contra el target.
 
@@ -224,7 +226,7 @@ El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrent
 
 12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
 13. (Solo si el Judge corrió) Lee todos los scores. Si >30% < 0.5 → pausa con ask-first.
-14. Genera summary `<workDir>/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results. **Cada entrada de `tests_generated[]` incluye `tc_id` y `tags[]`** (del catálogo/checkpoint); el top-level añade `scenarios_total` y `scenarios_selected`. El enricher de `/qa-automator:report` los lleva a Allure como labels.
+14. Genera summary `<workDir>/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results. **Cada entrada de `tests_generated[]` incluye `tc_id` y `tags[]`** (del catálogo/checkpoint); el top-level añade `scenarios_total` y `scenarios_selected`. El enricher de `/ia4d-qa-automator:report` los lleva a Allure como labels.
 
 ## Outputs (consolidados)
 
@@ -273,7 +275,7 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 # Con evidencia visual para el reporte Allure (contract: evidence.level: full).
 # OJO: SIN --reporter=list — el flag CLI sobrescribe los reporters del config y suprime
-# allure-results/, dejando a /qa-automator:report sin nada que enriquecer.
+# allure-results/, dejando a /ia4d-qa-automator:report sin nada que enriquecer.
 #   (PowerShell)  $env:QA_WORK_DIR='.work/<site-id>'; $env:QA_BASE_URL='<--url>'; $env:QA_SCREENSHOT='on'; $env:QA_TRACE='on'; npx playwright test tests/e2e/<site-id>/
 #   (bash)        QA_WORK_DIR='.work/<site-id>' QA_BASE_URL='<--url>' QA_SCREENSHOT='on' QA_TRACE='on' npx playwright test tests/e2e/<site-id>/
 ```

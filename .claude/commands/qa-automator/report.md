@@ -3,7 +3,9 @@ description: Genera el reporte EJECUTIVO single-file (showcase, para decisor) + 
 argument-hint: "[--results-dir=.work/allure-results] [--summary=.work/qa-automator-run-summary.json] [--output=.work/allure-report]"
 ---
 
-# /qa-automator:report
+# /ia4d-qa-automator:report
+
+> **Pre-check (workspace).** Este comando corre DENTRO de un workspace desplegado del agente. Antes de continuar, verifica que en el directorio actual existen `config/allowed-targets.yaml` y `playwright.config.ts`. Si falta alguno, NO sigas: indica al usuario que ejecute `/ia4d-qa-automator:init <carpeta>` (o abra su workspace ya desplegado) y detente.
 
 Post-proceso de reporting de `ia4d-qa-automator`. Toma los `.work/allure-results/` que el reporter
 `allure-playwright` dejó al correr los tests y los **enriquece de forma determinística** (no LLM)
@@ -50,7 +52,7 @@ el agente tenga Java disponible.
 ### 1. Preflight (sin override)
 
 1. Verifica que existe `--summary` (`.work/qa-automator-run-summary.json`). Si no →
-   instruye al QA a correr primero una generación (`/qa-automator:autonomous`,
+   instruye al QA a correr primero una generación (`/ia4d-qa-automator:autonomous`,
    `:req-driven` o `:spec-refiner`) que lo produce. Termina.
 2. Verifica que existe `--results-dir` y contiene `*-result.json`. Si no → los tests no se
    corrieron con el reporter Allure: instruye a ejecutar `npx playwright test` (el

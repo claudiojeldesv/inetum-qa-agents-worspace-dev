@@ -94,13 +94,9 @@ function dirCountCheck(label: string, rel: string, min: number): void {
   checks.push({ label, ok, detail: `${rel} (${n} entradas, min ${min})` });
 }
 
-// Subagents
-dirCountCheck('Subagents en .claude/agents', '.claude/agents', 10);
-// Commands
-fileCheck('Command autonomous (S4)', '.claude/commands/qa-automator/autonomous.md');
-fileCheck('Command req-driven (S2)', '.claude/commands/qa-automator/req-driven.md');
-fileCheck('Command spec-refiner (S3)', '.claude/commands/qa-automator/spec-refiner.md');
-fileCheck('Command healthcheck', '.claude/commands/qa-automator/healthcheck.md');
+// Agentes: en el workspace solo viven los 3 nativos de Playwright.
+// Los 12 agentes ia4d y los 9 comandos los provee el PLUGIN (híbrido), no el workspace.
+dirCountCheck('Agentes nativos Playwright en .claude/agents', '.claude/agents', 3);
 // Hooks cableados
 fileCheck('Hook compliance pre-flight', 'hooks/pre-flight.ts');
 fileCheck('Hook PII/anti-fixme post-write', 'hooks/pii-post.ts');

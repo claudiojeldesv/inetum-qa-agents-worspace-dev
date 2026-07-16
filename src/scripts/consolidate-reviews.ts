@@ -40,30 +40,55 @@ function readJsonObjects(path: string): Record<string, unknown>[] {
   return out;
 }
 
-export function consolidateReviews(workDir: string): { count: number; files: number; output: string } {
+export function consolidateReviews(workDir: string): {
+  count: number;
+  files: number;
+  corrupt: string[];
+  output: string;
+} {
   const dir = resolve(workDir, 'review-feedback');
   const output = resolve(workDir, 'review-feedback.json');
-  if (!existsSync(dir)) return { count: 0, files: 0, output };
+  if (!existsSync(dir)) return { count: 0, files: 0, corrupt: [], output };
 
   const files = readdirSync(dir)
     .filter((f) => f.endsWith('.json'))
     .sort(); // orden estable → salida determinística
   const lines: string[] = [];
+  const corrupt: string[] = [];
   for (const f of files) {
-    for (const obj of readJsonObjects(resolve(dir, f))) lines.push(JSON.stringify(obj));
+    const path = resolve(dir, f);
+    const objs = readJsonObjects(path);
+    const nonEmpty = readFileSync(path, 'utf8').trim().length > 0;
+    if (nonEmpty && objs.length === 0) {
+      // Fichero no vacío pero no parseable: NO se pierde en silencio (bug histórico).
+      // Se registra un placeholder auditable y se reporta al caller.
+      corrupt.push(f);
+      lines.push(
+        JSON.stringify({ spec: f, verdict: 'unknown', error: 'invalid JSON in per-spec feedback file' }),
+      );
+      continue;
+    }
+    for (const obj of objs) lines.push(JSON.stringify(obj));
   }
   writeFileSync(output, lines.length ? lines.join('\n') + '\n' : '', 'utf8');
-  return { count: lines.length, files: files.length, output };
+  return { count: lines.length, files: files.length, corrupt, output };
 }
 
 function main(): void {
   const workDir = resolve(process.cwd(), process.argv[2] || process.env.QA_WORK_DIR || '.work');
-  const { count, files, output } = consolidateReviews(workDir);
-  console.log(
-    files === 0
-      ? `[consolidate-reviews] sin directorio review-feedback/ en ${workDir} (nada que consolidar).`
-      : `[consolidate-reviews] ${count} entradas de ${files} ficheros per-spec → ${output}`,
-  );
+  const { count, files, corrupt, output } = consolidateReviews(workDir);
+  if (files === 0) {
+    console.log(`[consolidate-reviews] sin directorio review-feedback/ en ${workDir} (nada que consolidar).`);
+    return;
+  }
+  console.log(`[consolidate-reviews] ${count} entradas de ${files} ficheros per-spec → ${output}`);
+  if (corrupt.length) {
+    // Ruidoso a propósito: nunca perder feedback en silencio.
+    console.error(
+      `[consolidate-reviews] WARN: ${corrupt.length} fichero(s) de feedback con JSON inválido ` +
+        `(placeholder registrado; revisa la salida del ia4d-reviewer): ${corrupt.join(', ')}`,
+    );
+  }
 }
 
 const invoked = process.argv[1] || '';

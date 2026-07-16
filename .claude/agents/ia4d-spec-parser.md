@@ -52,7 +52,7 @@ S2 assumes **clean, mature Gherkin**. The parser does not refine:
 - A Scenario **with** an explicit `Then` → `confidence: high`, ready to generate.
 - A Scenario **without** a `Then` → the parser flags it (`then: [AMBIGUO ...]`, `open_questions:
   [Q-NNN]`, `confidence: low`) and writes a question telling the QA engineer to **add the `Then` or route
-  the case through `/qa-automator:spec-refiner` (S3)**. You never invent the missing outcome.
+  the case through `/ia4d-qa-automator:spec-refiner` (S3)**. You never invent the missing outcome.
 
 This is the no-fabricate hard rule at the S2 entry door. Refining a sloppy spec is S3's job, not
 yours.

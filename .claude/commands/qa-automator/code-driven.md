@@ -3,7 +3,7 @@ description: Módulo S1 — Code-driven test generation desde un repo frontend. 
 argument-hint: "--repo=<path> [--framework=react|vue|html]"
 ---
 
-# /qa-automator:code-driven (STUB v0.1)
+# /ia4d-qa-automator:code-driven (STUB v0.1)
 
 Módulo **S1 Code-driven**. Esperado funcional en **v0.3** según roadmap del SPEC §7.
 
@@ -22,7 +22,7 @@ Planned for v0.3. The S1 (Code-driven) module will:
   3. Produce a .work/discovery-report.json from the code (no browser needed).
   4. Hand off to the same downstream pipeline (POM scaffolder → Writer → Reviewer → Judge).
 
-For MVP v0.1, use `/qa-automator:autonomous --url=<URL>` instead (S4 module, functional).
+For MVP v0.1, use `/ia4d-qa-automator:autonomous --url=<URL>` instead (S4 module, functional).
 
 Reference:
   - SPEC.md §1 "Cuatro módulos"

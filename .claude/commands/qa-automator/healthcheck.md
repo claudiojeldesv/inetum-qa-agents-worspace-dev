@@ -2,7 +2,7 @@
 description: Smoke test del agente ia4d-qa-automator. Verifica versión, subagents detectados, MCP server status.
 ---
 
-# /qa-automator:healthcheck
+# /ia4d-qa-automator:healthcheck
 
 Smoke test que confirma que el entorno está listo para invocar `ia4d-qa-automator`. No invoca subagents, solo lee el filesystem.
 

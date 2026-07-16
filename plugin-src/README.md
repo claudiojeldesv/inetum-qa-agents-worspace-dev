@@ -5,12 +5,14 @@ mano (misma disciplina que `template/`: núcleo en el repo, artefacto generado p
 
 ## Estructura
 
-- `commands/` — commands propios del plugin (`init`, `help`). El resto de commands `/qa-automator:*`
-  viajan dentro del workspace desplegado, no aquí.
+Esto es solo lo hand-authored. Los 12 agentes `ia4d-*` y los 7 comandos del agente **no** viven aquí:
+el builder los inyecta desde el repo `.claude/` al generar el plugin.
+
+- `commands/` — commands propios del plugin: `init` (despliega el workspace) y `help`.
 - `scaffold/scaffold.mjs` — copia determinística del workspace de arranque al destino (sin
   `node_modules`/`.work`/`.git`).
-- `plugin.json` — manifiesto base (name, description, commands). La `version` la inyecta el builder
-  desde `package.json` del repo.
+- `plugin.json` — manifiesto base (name, description, author). El builder añade `version` (del repo)
+  y el inventario `agents[]`/`commands[]` descubierto.
 
 ## Regenerar el paquete
 
@@ -24,10 +26,11 @@ marketplace:
 ```
 plugin/.claude-plugin/marketplace.json
 plugin/.claude-plugin/plugins/ia4d-qa-automator/
-  .claude-plugin/plugin.json
-  commands/{init,help}.md
+  .claude-plugin/plugin.json   (declara 12 agentes + 9 comandos)
+  agents/                      (12 ia4d-*, del repo)
+  commands/                    (7 del agente + init + help)
   scaffold/scaffold.mjs
-  scaffold/payload/            (= template/ sin node_modules/.work/.git)
+  scaffold/payload/            (= template/ sin node_modules/.work/.git; incluye los 3 agentes nativos)
 ```
 
 ## Simular la descarga desde el marketplace (local)
@@ -38,8 +41,9 @@ plugin/.claude-plugin/plugins/ia4d-qa-automator/
 /ia4d-qa-automator:init  mi-workspace-qa
 ```
 
-> Nota de namespacing: el command del plugin es `/ia4d-qa-automator:init` (prefijo = nombre del
-> plugin). Los commands del workspace desplegado son `/qa-automator:*` (project-scoped).
+> Nota de namespacing: todos los commands del plugin llevan el prefijo del plugin
+> (`/ia4d-qa-automator:*`) y están disponibles globalmente. El workspace desplegado no aporta
+> commands propios; solo el sustrato de ejecución (runtime, config, agentes nativos).
 
 Vía CLI (sin UI interactiva): `claude plugin marketplace add <ruta-abs>/plugin --scope local`
 y `claude plugin install ia4d-qa-automator@ia4d-qa-automator-marketplace --scope local`. Validar el

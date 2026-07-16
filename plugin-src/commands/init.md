@@ -6,14 +6,15 @@ argument-hint: "[carpeta-destino]  (default: qa-automator-workspace)"
 # /ia4d-qa-automator:init
 
 Arranca un workspace QA completo a partir del plugin instalado. Es lo primero que ejecuta un
-Ingeniero QA tras descargar el plugin del marketplace. (Los commands del plugin se invocan con el
-prefijo del plugin `ia4d-qa-automator:`; los del workspace desplegado son `qa-automator:*`.)
+Ingeniero QA tras descargar el plugin del marketplace. Todos los commands `/ia4d-qa-automator:*`
+(incluido este) los aporta el plugin y están disponibles en cualquier carpeta.
 
 ## Qué hace
 
-Copia el workspace de arranque (agentes, commands, hooks, runtime, config, labs) a la carpeta que
-indiques, instala dependencias y verifica el runtime. Tras esto **el agente vive en el `.claude/` de
-ESE proyecto**: ábrelo en el IDE y usa `/qa-automator:*` desde ahí.
+Copia el workspace de arranque (runtime, hooks, MCP, config, agentes nativos de Playwright, labs) a
+la carpeta que indiques, instala dependencias y verifica el runtime. Los agentes `ia4d-*` y los
+commands vienen del plugin; el workspace aporta el sustrato de ejecución (proyecto Playwright + config
+por cliente). Tras el init, **usa `/ia4d-qa-automator:*` operando dentro de esa carpeta**.
 
 ## Pasos (ejecútalos en orden)
 
@@ -44,10 +45,16 @@ Carpeta destino = primer argumento (`$ARGUMENTS`), o `qa-automator-workspace` si
    Debe terminar en `Healthcheck OK`. Si falla, reporta qué pieza falta (el propio script lo dice) y
    no continúes.
 
-5. **Cierra con instrucciones al QA:** dile que abra `<carpeta-destino>` en el IDE (VS Code /
-   JetBrains) y que pruebe el primer lab:
+5. **IMPORTANTE — reconecta el MCP antes de generar.** El servidor MCP `playwright-test` se arrancó
+   al abrir la sesión, antes de que este `init` instalara Playwright, así que quedó obsoleto. Antes de
+   lanzar cualquier comando que use el navegador (`autonomous`/`spec-refiner`/`req-driven`) hay que
+   refrescarlo: **recarga la ventana del IDE** (o ejecuta `/mcp` → reconectar `playwright-test`). Sin
+   esto, el planner falla de forma determinística con `_currentSuite === null`.
+
+6. **Cierra con instrucciones al QA:** dile que abra `<carpeta-destino>` en el IDE (VS Code /
+   JetBrains), **recargue** (paso 5) y pruebe el primer lab:
    ```
-   /qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
+   /ia4d-qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
    ```
    La guía de uso completa está en el `CLAUDE.md` y `README.md` del workspace.
 

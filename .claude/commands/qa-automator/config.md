@@ -2,7 +2,9 @@
 description: Valida un Style Contract (campos, enums, typos, coherencia) y muestra la configuración EFECTIVA de la sesión — qué gates están on/off, evidencia, auth, locators. Validación determinística (hard rule #5), no LLM.
 ---
 
-# /qa-automator:config
+# /ia4d-qa-automator:config
+
+> **Pre-check (workspace).** Este comando corre DENTRO de un workspace desplegado del agente. Antes de continuar, verifica que en el directorio actual existen `config/allowed-targets.yaml` y `playwright.config.ts`. Si falta alguno, NO sigas: indica al usuario que ejecute `/ia4d-qa-automator:init <carpeta>` (o abra su workspace ya desplegado) y detente.
 
 Ayuda de configuración para el Ingeniero QA. Dos trabajos, ambos deterministas (los hace
 `src/contract-validator.ts`, no el LLM — hard rule #5):
@@ -20,8 +22,8 @@ No invoca subagents ni toca el navegador. Solo lee filesystem + entorno.
 ## Uso
 
 ```
-/qa-automator:config                       # valida TODOS los contracts de config/style-contracts/
-/qa-automator:config --style=<archivo>     # valida uno + muestra su estado efectivo
+/ia4d-qa-automator:config                       # valida TODOS los contracts de config/style-contracts/
+/ia4d-qa-automator:config --style=<archivo>     # valida uno + muestra su estado efectivo
 ```
 
 `--style` acepta una ruta o el nombre de archivo dentro de `config/style-contracts/`

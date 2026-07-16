@@ -3,6 +3,45 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
+## [0.3.2] - 2026-07-15
+
+Arreglos surgidos de la prueba end-to-end S3 contra SauceDemo (5/5 verde). Dos bugs latentes
+pre-existentes (no de la migración) + dos fricciones del flujo `init`.
+
+### Fixed
+- **Pérdida silenciosa de feedback del Reviewer.** `consolidate-reviews` descartaba en silencio un
+  fichero de feedback con JSON inválido (un `catch` vacío). Ahora registra un placeholder auditable
+  (`{ spec, verdict: "unknown", error }`) y avisa ruidoso por stderr — nunca se pierde callado.
+- **`ia4d-reviewer` emitía JSON inválido.** Al incluir un regex literal (`/x\.y/`) en el texto del
+  feedback, el backslash sin escapar rompía `JSON.parse`. Hard rule nueva: escapar `\`→`\\` y `"`→`\"`.
+- **`init` no avisaba de reconectar el MCP.** El MCP `playwright-test` arranca antes de que `init`
+  instale Playwright y queda obsoleto (`_currentSuite === null` en el planner). `init` ahora incluye
+  un paso explícito: recargar la ventana o `/mcp` reconectar antes de generar.
+- **`scaffold` exigía `--force` de más.** Contaba el `.claude/settings.local.json` que crea el propio
+  Claude Code al abrir la carpeta. Ahora ignora un `.claude/` solitario en el chequeo de "vacío", así
+  `init .` funciona en una carpeta recién abierta sin `--force`.
+
+## [0.3.1] - 2026-07-13
+
+Migración a distribución **híbrida refinada**: el plugin deja de ser un repartidor "vacío" y publica
+los agentes y comandos (visibles en el catálogo, namespace único `/ia4d-qa-automator:*`), manteniendo
+runtime, hooks, MCP y config en el workspace desplegado.
+
+### Changed
+- **Los 12 agentes `ia4d-*` y los 9 comandos ahora los publica el plugin** (declarados en
+  `plugin.json`, disponibles globalmente). Antes vivían en el `.claude/` del workspace (project-scoped,
+  plugin vacío en el catálogo). Fin de los dos namespaces: todo es `/ia4d-qa-automator:*`.
+- Los 3 agentes nativos de Playwright, el runtime `src/`, los hooks, el MCP y `config/` se quedan en
+  el workspace (pineados / relativos al cwd) — sin `${CLAUDE_PLUGIN_ROOT}` ni split de dependencias.
+- `build-template` deja de copiar agentes ia4d y comandos al workspace; `build-plugin` los inyecta
+  desde el repo `.claude/` y genera el inventario `agents[]`/`commands[]` del `plugin.json`.
+- Guard de workspace en los comandos de runtime: avisan si se lanzan fuera de un workspace desplegado.
+- `qa:healthcheck` adaptado al layout nuevo (workspace = 3 agentes nativos, sin comandos).
+
+### Notas
+- Sigue habiendo `init` + workspace: el proyecto Playwright + config por cliente no pueden vivir en el
+  plugin (es el entregable, reproducible y auditable por cliente).
+
 ## [0.3.0] - 2026-07-12
 
 Empaquetado como plugin instalable del marketplace de Claude Code (catálogo Inetum). El agente

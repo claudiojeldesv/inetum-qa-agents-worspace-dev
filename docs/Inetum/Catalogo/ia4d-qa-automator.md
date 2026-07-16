@@ -2,14 +2,14 @@
 
 NOMBRE	ia4d-qa-automator
 ROL	Orquestador
-VERSION	v0.3.0
+VERSION	v0.3.1
 Objetivo
 
 Usa este agente cuando necesites generar tests E2E en Playwright TypeScript con marco QA propio, compliance regulado, accesibilidad (axe-core / WCAG 2.1 AA / EAA 2025) baked-in y Quality layer Writer+Reviewer+Judge. Multi-modo según el insumo: solo URL (S4 — funcional), FD/spec floja + URL (S3 — funcional), Gherkin maduro + URL (S2 — funcional; OpenAPI diferido a v0.4), o repo frontend (S1 — stub, v0.3). Diferenciador estructural frente a ia4d-testing-core: dev no puede ser juez y parte; las herramientas QA tienen otra forma de operar.
 
 ② Uso del Agente
 
-Instalación (marketplace de Claude Code): instala el plugin desde el catálogo y ejecuta /ia4d-qa-automator:init <carpeta> para desplegar el workspace del agente (runtime + labs) y dejarlo listo (scaffold + npm install + healthcheck). A partir de ahí trabajas dentro de esa carpeta con los commands /qa-automator:* (project-scoped). Nota de namespacing: los commands del plugin llevan el prefijo del plugin (ia4d-qa-automator:); los del workspace desplegado, qa-automator:.
+Instalación (marketplace de Claude Code): instala el plugin desde el catálogo y ejecuta /ia4d-qa-automator:init <carpeta> para desplegar el workspace de ejecución del agente (runtime + config + agentes nativos + labs) y dejarlo listo (scaffold + npm install + healthcheck). Distribución híbrida: el plugin publica los agentes ia4d y todos los commands (namespace único /ia4d-qa-automator:*, visibles en el catálogo y disponibles globalmente); el workspace aporta el sustrato de ejecución (proyecto Playwright pineado + config por cliente + hooks project-scoped). Motivo: el entregable es una suite ejecutable y auditable por cliente, no cabe (ni conviene) globalizar el proyecto Playwright.
 
 Orquestador: auto-detecta el contexto y delega a los sub-agentes según el módulo de entrada (S1/S2/S3/S4) y los cinco actos del marco QA propio (Comprender → Mapear → Estructurar → Materializar → Juzgar).
 
@@ -140,19 +140,19 @@ Acto 5 — Juzgar
 ⚡ Execute Commands
 
 /ia4d-qa-automator:init      (despliega el workspace — command del plugin)
-/qa-automator:healthcheck
-/qa-automator:autonomous     (S4)
-/qa-automator:spec-refiner   (S3)
-/qa-automator:req-driven     (S2)
-/qa-automator:config
-/qa-automator:report
-/qa-automator:code-driven    (stub → v0.3)
+/ia4d-qa-automator:healthcheck
+/ia4d-qa-automator:autonomous     (S4)
+/ia4d-qa-automator:spec-refiner   (S3)
+/ia4d-qa-automator:req-driven     (S2)
+/ia4d-qa-automator:config
+/ia4d-qa-automator:report
+/ia4d-qa-automator:code-driven    (stub → v0.3)
 
 ⑤b Arquitectura del Plugin
 
 Orquestador → Sub-agentes → Comandos → Hooks → MCPs
 
-Distribución: plugin de marketplace (Modelo A, repartidor). El plugin aporta /qa-automator:init, que despliega el workspace autocontenido; los agentes, hooks y MCP operan a nivel de ese proyecto.
+Distribución híbrida: el plugin publica los 12 agentes ia4d + los 9 comandos (visibles en el catálogo, namespace /ia4d-qa-automator:*). El command init despliega el workspace de ejecución, donde viven los hooks (project-scoped), el MCP playwright-test y los 3 agentes nativos pineados a la versión de Playwright. El patrón canónico (Orquestador → Sub-agentes → Comandos → Hooks → MCPs) se cumple repartido a propósito: hooks y MCP a nivel proyecto por compliance y por reproducibilidad regulada.
 
 result
 
@@ -171,13 +171,13 @@ Stop: audit-write (cierre de sesión)
 ⚡ Comandos (7 en el workspace + init del plugin)
 
 /ia4d-qa-automator:init (plugin)
-/qa-automator:healthcheck
-/qa-automator:autonomous (S4)
-/qa-automator:spec-refiner (S3)
-/qa-automator:req-driven (S2)
-/qa-automator:config
-/qa-automator:report
-/qa-automator:code-driven (stub)
+/ia4d-qa-automator:healthcheck
+/ia4d-qa-automator:autonomous (S4)
+/ia4d-qa-automator:spec-refiner (S3)
+/ia4d-qa-automator:req-driven (S2)
+/ia4d-qa-automator:config
+/ia4d-qa-automator:report
+/ia4d-qa-automator:code-driven (stub)
 
 🤖 Sub-Agentes (12 propios + 3 nativos)
 
@@ -216,7 +216,7 @@ Salidas
 - review-feedback.json (Writer↔Reviewer iteraciones)
 - judge-report.json (scores 0-1 por test; solo con Judge activo)
 - qa-automator-run-summary.json
-- Reporte ejecutivo single-file + Allure enriquecido (vía /qa-automator:report)
+- Reporte ejecutivo single-file + Allure enriquecido (vía /ia4d-qa-automator:report)
 
 ⑦ Comandos Disponibles
 
@@ -226,47 +226,47 @@ Despliega el workspace del agente en una carpeta y lo deja listo (scaffold + npm
 Ejemplo:
 /ia4d-qa-automator:init mi-workspace-qa
 
-/qa-automator:healthcheck
+/ia4d-qa-automator:healthcheck
 Smoke test: versión, subagents detectados, MCP server, configs, cableado de hooks.
 
 Ejemplo:
-/qa-automator:healthcheck
+/ia4d-qa-automator:healthcheck
 
-/qa-automator:autonomous
+/ia4d-qa-automator:autonomous
 Módulo S4. Orquesta los 5 actos desde una URL. Acota por módulos con --flows.
 
 Ejemplo:
-/qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
+/ia4d-qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
 
-/qa-automator:spec-refiner
+/ia4d-qa-automator:spec-refiner
 Módulo S3. FD/spec floja + URL. Extrae criterios RF-NNN, marca huecos, detecta drift FD↔implementación.
 
 Ejemplo:
-/qa-automator:spec-refiner --fd=docs/fd/login-flow.md --url=https://parabank.parasoft.com/
+/ia4d-qa-automator:spec-refiner --fd=docs/fd/login-flow.md --url=https://parabank.parasoft.com/
 
-/qa-automator:req-driven
+/ia4d-qa-automator:req-driven
 Módulo S2. Gherkin maduro + URL. Trazabilidad RF-NNN, parameterización (Scenario Outline), drift.
 
 Ejemplo:
-/qa-automator:req-driven --gherkin=features/login.feature --url=https://parabank.parasoft.com/
+/ia4d-qa-automator:req-driven --gherkin=features/login.feature --url=https://parabank.parasoft.com/
 
-/qa-automator:config
+/ia4d-qa-automator:config
 Valida un Style Contract (campos, enums, typos, coherencia) y muestra la configuración efectiva de la sesión (gates on/off, evidencia, auth, locators). Determinístico.
 
 Ejemplo:
-/qa-automator:config --style=config/style-contracts/saucedemo.yaml
+/ia4d-qa-automator:config --style=config/style-contracts/saucedemo.yaml
 
-/qa-automator:report
+/ia4d-qa-automator:report
 Genera el reporte ejecutivo single-file + el reporte Allure enriquecido a partir de un run ya ejecutado.
 
 Ejemplo:
-/qa-automator:report
+/ia4d-qa-automator:report
 
-/qa-automator:code-driven (stub → v0.3)
+/ia4d-qa-automator:code-driven (stub → v0.3)
 Módulo S1. Analiza un repo frontend. Devuelve mensaje informativo.
 
 Ejemplo:
-/qa-automator:code-driven --repo=./my-frontend --framework=react
+/ia4d-qa-automator:code-driven --repo=./my-frontend --framework=react
 
 ## Diferenciación con ia4d-testing-core
 
@@ -286,17 +286,18 @@ No sustitución. Coexisten con misiones incompatibles. Dev no puede ser juez y p
 
 ## Métricas verificadas
 
-- Unit tests del runtime verdes (vitest); healthcheck estructural 23/23.
+- Unit tests del runtime verdes (vitest); healthcheck estructural verde.
 - S4 validado contra SauceDemo (golden path verde) y sitios reales (expandtesting, Toolshop, ParaBank, OrangeHRM).
 - S3 (Spec-refiner) validado contra ParaBank 3/3 verde y contra producción real regulada (Mapfre Hogar): detección de drift sin fabricar tests.
 - S2 (Req-driven, Gherkin) validado contra ParaBank 5/5 verde, con parameterización data-driven y drift reportado sin fabricar.
-- Empaquetado de plugin validado end-to-end: scaffold limpio → npm install → healthcheck 23/23 → unit verdes.
+- Empaquetado de plugin validado end-to-end: scaffold limpio → npm install → healthcheck verde → unit verdes.
 
 ## Roadmap
 
 | Versión | Foco |
 |---|---|
 | v0.2 | S2 (Gherkin) + S3 (Spec-refiner) + hardening contra el caos web real (a11y gate configurable, auth-handler, excepción CSS legacy) + gates off por defecto |
-| v0.3 (actual) | Empaquetado como plugin de marketplace (repartidor + init) + tooling de coste de tokens |
+| v0.3.0 | Empaquetado como plugin de marketplace (repartidor + init) + tooling de coste de tokens |
+| v0.3.1 (actual) | Distribución híbrida: agentes + comandos publicados por el plugin (inventario visible, namespace único); runtime/hooks/MCP/config en el workspace |
 | v0.3.x | S1 (Code-driven) + AST parsers React/Vue |
 | v0.4 | S2 OpenAPI (API tests) + Context Injector* (asterisco: rompe genericidad) + PR automation |
