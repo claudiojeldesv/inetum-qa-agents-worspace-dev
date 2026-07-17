@@ -226,7 +226,7 @@ El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrent
 
 ### Acto 5 — Juzgar
 
-12. **Judge opcional, off por defecto.** Comprueba el entorno (`echo $env:QA_ENABLE_JUDGE` en PowerShell). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
+12. **Judge opcional, off por defecto.** Comprueba la env-var `QA_ENABLE_JUDGE` (PowerShell: `$env:QA_ENABLE_JUDGE`; bash: `$QA_ENABLE_JUDGE`). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.
 13. (Solo si el Judge corrió) Lee todos los scores. Si >30% < 0.5 → pausa con ask-first.
 14. Genera summary `<workDir>/qa-automator-run-summary.json` con: lista de tests, scores (o `judge: skipped`), verdicts del Reviewer, axe results. **Cada entrada de `tests_generated[]` incluye `tc_id` y `tags[]`** (del catálogo/checkpoint); el top-level añade `scenarios_total` y `scenarios_selected`. El enricher de `/ia4d-qa-automator:report` los lleva a Allure como labels.
 
@@ -300,4 +300,4 @@ Es política de run-time: el reporte solo muestra lo que el run capturó.
 
 ## Reference
 
-- [`docs/references/composition-rules.md`](../../../docs/references/composition-rules.md)
+- `docs/references/composition-rules.md`

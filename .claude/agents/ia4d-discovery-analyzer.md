@@ -293,4 +293,4 @@ NOT find (the raw material for drift detection — which the *command* decides, 
 
 ## Reference
 
-- [`src/pom-scaffolder.ts`](../../src/pom-scaffolder.ts) — consumer of this output
+- `src/pom-scaffolder.ts` — consumer of this output

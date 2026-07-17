@@ -1,6 +1,6 @@
 ---
 name: ia4d-pii-scanner
-description: Use this agent to scan a directory (or single file) for PII patterns according to docs/references/pii-patterns.md. Off by default (opt-in via QA_ENABLE_PII) — optional hardening, not a mandatory gate. The always-on anti-test.fixme() guard lives in the compliance hook, independent of this scanner.
+description: Use this agent to scan generated tests for Spanish PII patterns (DNI/IBAN/Luhn/phone/email). Off by default — opt-in via QA_ENABLE_PII; the anti-test.fixme() guard lives in the always-on compliance hook.
 tools: Read, Glob, Bash
 model: haiku
 color: red
@@ -66,5 +66,5 @@ This scan is **optional hardening, off by default** (regla dura #10). It runs on
 
 ## Reference
 
-- [`docs/references/pii-patterns.md`](../../docs/references/pii-patterns.md)
-- [`src/pii-detector.ts`](../../src/pii-detector.ts)
+- `docs/references/pii-patterns.md`
+- `src/pii-detector.ts`

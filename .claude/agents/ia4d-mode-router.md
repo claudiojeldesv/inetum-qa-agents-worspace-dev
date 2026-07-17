@@ -1,6 +1,6 @@
 ---
 name: ia4d-mode-router
-description: Use this agent to classify the input as S1 (code-driven), S2 (req-driven), S3 (spec-refiner) or S4 (autonomous) based on what the QA engineer provided. S2 (Gherkin), S3 (Spec-refiner) and S4 (Autonomous) are functional (v0.2); S1 (code-driven) and the OpenAPI path of S2 route to informative stubs.
+description: Use this agent to classify the input flags as S1-S4 and report each module status (functional | stub | needs_input). S2-Gherkin, S3 and S4 are functional; S1 and S2-OpenAPI route to stubs.
 tools: Read, Glob
 model: haiku
 color: cyan

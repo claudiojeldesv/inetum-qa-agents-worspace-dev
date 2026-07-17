@@ -54,5 +54,5 @@ You are the **Style Enforcer** of `ia4d-qa-automator`. You take a `.spec.ts` wri
 
 ## Reference
 
-- [`docs/references/style-contract-schema.md`](../../docs/references/style-contract-schema.md)
-- [`config/style-contracts/saucedemo.yaml`](../../config/style-contracts/saucedemo.yaml) (MVP example)
+- `docs/references/style-contract-schema.md`
+- `config/style-contracts/saucedemo.yaml` (MVP example)

@@ -52,7 +52,7 @@ No invoca subagents ni toca el navegador. Solo lee filesystem + entorno.
 - Antes de un run, para confirmar que el contract del sitio está bien formado.
 - Cuando un gate "no hace nada" pese a estar declarado (el típico typo silencioso).
 - Para ver de un vistazo qué tienes activo ahora mismo (gates, evidencia, auth).
-- En el lab [`examples/05-config`](../../../examples/05-config/): tras cada cambio de flag, para ver
+- En el lab `examples/05-config`: tras cada cambio de flag, para ver
   el estado efectivo moverse.
 
 ## Expected output (contract limpio)
@@ -84,5 +84,5 @@ No invoca subagents ni toca el navegador. Solo lee filesystem + entorno.
 - La validación es **determinística** (schema declarativo en `src/contract-validator.ts`), no
   LLM-as-validator. El command orquesta y presenta; no juzga la validez.
 - El schema legible por humanos vive en
-  [`docs/references/style-contract-schema.md`](../../../docs/references/style-contract-schema.md);
+  `docs/references/style-contract-schema.md`;
   el validador lo refleja para la máquina.

@@ -1,6 +1,6 @@
 ---
 name: ia4d-spec-parser
-description: Use this agent (S2 Req-driven module) to parse a mature Gherkin .feature file into the same criteria.json contract the S3/S4 engine consumes. Deterministic — delegates parsing to src/gherkin-to-criteria.ts (@cucumber/gherkin), never interprets prose with the LLM. OpenAPI path deferred to v0.4.
+description: Use this agent (S2 module) to parse a mature Gherkin .feature into criteria.json via the deterministic src/gherkin-to-criteria.ts parser — never LLM interpretation. OpenAPI path deferred.
 tools: Read, Bash, Glob
 model: haiku
 color: gray
@@ -70,7 +70,7 @@ yours.
 
 ## Reference
 
-- [`src/gherkin-to-criteria.ts`](../../src/gherkin-to-criteria.ts) — the deterministic parser you invoke
-- [`docs/references/fd-criteria-schema.md`](../../docs/references/fd-criteria-schema.md) — the `criteria.json` contract (shared with S3)
+- `src/gherkin-to-criteria.ts` — the deterministic parser you invoke
+- `docs/references/fd-criteria-schema.md` — the `criteria.json` contract (shared with S3)
 - [`.claude/agents/ia4d-spec-refiner.md`](ia4d-spec-refiner.md) — the S3 analog (FD prose → same contract)
 - [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer; adds the `criteria_mapping` block (RF-NNN ↔ scenario)

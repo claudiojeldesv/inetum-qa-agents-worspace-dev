@@ -52,5 +52,5 @@ You are the **Compliance Checker** of `ia4d-qa-automator`. Your single responsib
 
 ## Reference
 
-- [`docs/references/compliance-rules.md`](../../docs/references/compliance-rules.md)
-- [`config/allowed-targets.yaml`](../../config/allowed-targets.yaml)
+- `docs/references/compliance-rules.md`
+- `config/allowed-targets.yaml`

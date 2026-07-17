@@ -48,7 +48,16 @@ async function main(): Promise<number> {
 
   const url = extractUrl(payload);
   if (!url) {
-    // No hay URL en el payload, nada que validar.
+    // Sin URL no hay nada que validar. La mayoría de tools del MCP (click, snapshot,
+    // fill...) legítimamente no llevan URL — fail-closed aquí rompería todo el motor.
+    // Pero si la tool ES de navegación y no se pudo extraer la URL, se avisa ruidoso:
+    // el gate no validó lo que debería (bypass silencioso, hallazgo de auditoría).
+    const tool = payload.tool_name ?? '';
+    if (/browser_navigate$|planner_setup_page|generator_setup_page/.test(tool)) {
+      process.stderr.write(
+        `[pre-flight] WARN tool=${tool} sin URL extraible (url/target/base_url) — el gate de compliance NO valido esta navegacion.\n`,
+      );
+    }
     return 0;
   }
 

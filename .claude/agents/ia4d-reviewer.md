@@ -21,7 +21,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 ## Process
 
 1. Read all inputs.
-2. Apply review criteria from [`docs/references/writer-reviewer-protocol.md`](../../docs/references/writer-reviewer-protocol.md).
+2. Apply review criteria from `docs/references/writer-reviewer-protocol.md`.
 
 ### Must-fix criteria (rejection)
 
@@ -98,5 +98,5 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 
 ## Reference
 
-- [`docs/references/writer-reviewer-protocol.md`](../../docs/references/writer-reviewer-protocol.md)
-- [`docs/references/composition-rules.md`](../../docs/references/composition-rules.md)
+- `docs/references/writer-reviewer-protocol.md`
+- `docs/references/composition-rules.md`
