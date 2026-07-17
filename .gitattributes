@@ -1,0 +1,14 @@
+# Line endings normalizados a LF en el repo (auditoría 2026-07-16, hallazgo M7).
+# Sin esto, el repo (CRLF de checkout Windows) y las copias generadas por
+# build:template/build:plugin (LF) divergen en cada byte y un `diff -r` limpio
+# deja de significar "sin drift".
+* text=auto eol=lf
+
+# Binarios explícitos (text=auto los detecta, pero mejor sin ambigüedad)
+*.pptx -text
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
+*.ico -text
+*.zip -text
