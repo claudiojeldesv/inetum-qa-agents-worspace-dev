@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "comment": "Settings versionado de ia4d-qa-automator. Cablea los 3 hooks de qa-automator (compliance pre-flight, PII/anti-fixme post-write, audit-write al cierre) que viven en hooks/hooks.json. Sin este wiring los hooks no se cargan (Claude Code lee hooks desde settings, no desde hooks/hooks.json suelto). Los permisos de maquina van en settings.local.json (gitignored).",
+  "comment": "Settings versionado de ia4d-qa-automator. Cablea los 3 hooks de qa-automator (compliance pre-flight, PII/anti-fixme post-write, audit-write al cierre) que viven en hooks/*.ts. Este es el UNICO wiring: Claude Code carga hooks desde settings, no desde ficheros sueltos. Los permisos de maquina van en settings.local.json (gitignored).",
   "hooks": {
     "PreToolUse": [
       {

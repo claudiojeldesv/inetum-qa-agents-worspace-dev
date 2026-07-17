@@ -23,7 +23,7 @@ Sin esto el agente no funciona: sus hooks (compliance pre-flight, guarda anti-`f
 las dependencias instaladas. Si lanzas un command sin haber instalado, el pre-flight te bloquea con
 un mensaje pidiéndote `npm install` en vez de fallar de forma críptica.
 
-En [`examples/`](examples/) hay cuatro labs reproducibles, ordenados por dificultad. Hazlos en
+En [`examples/`](examples/) hay cinco labs reproducibles, ordenados por dificultad. Hazlos en
 orden la primera vez:
 
 1. [`01-saucedemo`](examples/01-saucedemo/) — las tres puertas (S2/S3/S4) sobre e-commerce limpio.

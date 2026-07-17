@@ -71,8 +71,10 @@ otro; specs de varios sitios convivían en `tests/e2e/` y hubo que filtrar a man
 - Deriva el **`<site-id>`** del basename del `--style` sin extensión (ej. `saucedemo`).
 - Define el **work dir del run**: `<workDir> = .work/<site-id>`. **TODOS** los artefactos efímeros del
   agente van bajo `<workDir>/` (discovery-report, drift-report, review-feedback, judge-report,
-  run-summary, audit-log, compliance-verdict, allure-results/report). El registro `config/tc-registry/<site-id>.json`
-  es durable y vive fuera de `.work` (no se toca aquí).
+  run-summary, audit-log, allure-results/report). **Excepción documentada**: `compliance-verdict.json`
+  vive en `.work/` plano — el compliance (Acto 1, paso 3) corre ANTES de que este paso defina el
+  namespace. El registro `config/tc-registry/<site-id>.json` es durable y vive fuera de `.work`
+  (no se toca aquí).
 - **Define los dirs de test por-sitio**: `tests/e2e/<site-id>/`, `tests/pages/<site-id>/`,
   `tests/components/<site-id>/`.
 - **Limpieza de arranque**: borra el contenido de `<workDir>/` (artefactos de un run previo del mismo

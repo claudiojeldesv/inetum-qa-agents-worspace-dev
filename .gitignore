@@ -45,7 +45,6 @@ Thumbs.db
 /compliance-verdict.json
 /drift-report.json
 /qa-automator-run-summary.json
-/mode-routing.json
 # Saved plans del planner nativo (recreados por run; evidencia va a docs/findings/)
 /*-plan.md
 

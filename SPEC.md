@@ -128,7 +128,7 @@ El proyecto expone cinco slash commands bajo el namespace `/ia4d-qa-automator:*`
 │   ├── allure-enricher.ts  native-agents.ts
 │   └── scripts/                                   (CLI auxiliares: healthcheck, scaffold-poms, slice65-judge)
 ├── hooks/
-│   └── pre-flight.ts  pii-post.ts  audit-write.ts  hooks.json
+│   └── pre-flight.ts  pii-post.ts  audit-write.ts               (wiring en .claude/settings.json)
 ├── config/
 │   ├── allowed-targets.yaml                       (compliance pre-flight)
 │   └── style-contracts/                           (contratos de estilo por sitio)

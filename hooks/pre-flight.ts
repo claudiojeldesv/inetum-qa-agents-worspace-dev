@@ -3,7 +3,7 @@
  * PreToolUse hook — compliance pre-flight gate.
  *
  * Invocado por Claude Code antes de cualquier tool call que dispare el matcher
- * declarado en hooks/hooks.json (MCP playwright-test, principalmente).
+ * declarado en .claude/settings.json (MCP playwright-test, principalmente).
  *
  * Lee el payload del hook por stdin (JSON), aplica reglas declaradas en
  * docs/references/compliance-rules.md y bloquea con exit code 2 si procede.
