@@ -1,6 +1,6 @@
-# SPEC — `ia4d-qa-automator` v0.1 (MVP)
+# SPEC — `ia4d-qa-automator`
 
-> Documento spec del primer agente QA del catálogo `ia4d-*`. Alcance: solo `qa-automator`. Los demás agentes de la cartera (`test-explorer`, `test-healer-pro`, etc.) tienen specs propios cuando lleguen. Reset desde `ia4d-test-pilot` (descartado por pivot consensuado con visión Gemini y plan aprobado).
+> Estado real por versión: ver [`CHANGELOG.md`](CHANGELOG.md) (actual: v0.3.x). Documento spec del primer agente QA del catálogo `ia4d-*`. Alcance: solo `qa-automator`. Los demás agentes de la cartera (`test-explorer`, `test-healer-pro`, etc.) tienen specs propios cuando lleguen. Reset desde `ia4d-test-pilot` (descartado por pivot consensuado con visión Gemini y plan aprobado).
 
 ## 1. Objective
 
@@ -14,7 +14,7 @@
 
 | Módulo | Entrada | Estado actual | Subagent driver |
 |---|---|---|---|
-| **S1 Code-driven** | Repo frontend (React/Vue/HTML) | Stub (v0.3) | `ia4d-code-analyzer` |
+| **S1 Code-driven** | Repo frontend (React/Vue/HTML) | Stub (roadmap, sin versión comprometida) | `ia4d-code-analyzer` |
 | **S2 Req-driven** | Gherkin (+ URL) / OpenAPI | **Funcional (Gherkin, v0.2 Fase E)** · OpenAPI diferido v0.4 | `ia4d-spec-parser` |
 | **S3 Spec-refiner** | FD markdown + URL (Forma B) | **Funcional (v0.2 Fase D)** | `ia4d-spec-refiner` |
 | **S4 Autonomous** | Solo URL | **Funcional** | `playwright-test-planner` (nativo) + `ia4d-discovery-analyzer` |
@@ -62,7 +62,7 @@ El Writer y el Reviewer se invocan **directamente** vía Task tool (excepción n
 
 Video reproducible y bundle de ejemplos donde:
 
-1. Se ejecuta `/qa-automator:autonomous --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml`.
+1. Se ejecuta `/ia4d-qa-automator:autonomous --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml`.
 2. El sistema orquesta los 5 actos contra SauceDemo.
 3. Se generan ≥3 archivos `.spec.ts` cubriendo el flujo golden path (login + add to cart + checkout).
 4. Cada test incluye `AxeBuilder` check, POM aplicado, Style Contract enforce, citación del criterio.
@@ -71,7 +71,7 @@ Video reproducible y bundle de ejemplos donde:
 7. Writer↔Reviewer protocol ejecutado (1-2 iteraciones por test), `review-feedback.json` poblado.
 8. Judge produce `judge-report.json` con score por test.
 9. Audit log JSON estructurado.
-10. Wall-clock total **≤8 minutos con paralelismo** (gate informado por Slice 0.5 mediciones).
+10. Wall-clock: **≤8 min con paralelismo fue el gate del MVP sobre SauceDemo**; contra sitios reales los runs medidos van de 30-45 min (ver `docs/findings/`). No es una promesa general.
 11. Ficha catálogo Inetum redactada en formato canónico ①-⑦.
 
 No incluye admisión formal al catálogo Inetum ni piloto con cliente real. Eso es post-MVP.
@@ -90,15 +90,15 @@ No incluye admisión formal al catálogo Inetum ni piloto con cliente real. Eso 
 
 ## 2. Commands
 
-El proyecto expone cinco slash commands bajo el namespace `/qa-automator:*`.
+El proyecto expone cinco slash commands bajo el namespace `/ia4d-qa-automator:*`.
 
 | Comando | Estado MVP | Responsabilidad | Output |
 |---|---|---|---|
-| `/qa-automator:healthcheck` | Funcional | Smoke test: versión, subagents detectados, MCP server status | Mensaje de estado |
-| `/qa-automator:autonomous` | Funcional | Módulo S4. Toma `--url=` + `--style=` + `--flows/--entry/--ignore` + `--max-scenarios=N` (default 8). Orquesta los 5 actos + un **Acto 2.5 (Checkpoint)** que aplica el cap y, si se supera, pausa para seleccionar TC y confirmar tags | discovery-report.json (con `scenarios_catalog`: TC-NN, suite_tags, rank) + plan.md + N `.spec.ts` (con tags nativos `{ tag: [...] }` y `@tc-id`) + judge-report.json + review-feedback.json + audit-log.json |
-| `/qa-automator:code-driven` | Stub v0.1 | Módulo S1 (v0.3) | Mensaje "stub v0.1, planificado v0.3" |
-| `/qa-automator:req-driven` | **Funcional (Gherkin, v0.2 Fase E)** | Módulo S2. Toma `--gherkin=` + `--url=` + `--style=`. Ingiere el `.feature` (determinístico) y reusa el motor S3/S4 | criteria.json + drift-report.json + discovery-report.json + N `.spec.ts` (con `@criterion RF-NNN`) + judge-report.json + audit-log.json |
-| `/qa-automator:spec-refiner` | **Funcional (v0.2 Fase D)** | Módulo S3 Forma B. Toma `--fd=` + `--url=` | criteria.json + drift-report.json + N `.spec.ts` + judge-report.json + audit-log.json |
+| `/ia4d-qa-automator:healthcheck` | Funcional | Smoke test: versión, subagents detectados, MCP server status | Mensaje de estado |
+| `/ia4d-qa-automator:autonomous` | Funcional | Módulo S4. Toma `--url=` + `--style=` + `--flows/--entry/--ignore` + `--max-scenarios=N` (default 8). Orquesta los 5 actos + un **Acto 2.5 (Checkpoint)** que aplica el cap y, si se supera, pausa para seleccionar TC y confirmar tags | discovery-report.json (con `scenarios_catalog`: TC-NN, suite_tags, rank) + plan.md + N `.spec.ts` (con tags nativos `{ tag: [...] }` y `@tc-id`) + judge-report.json + review-feedback.json + audit-log.json |
+| `/ia4d-qa-automator:code-driven` | Stub | Módulo S1 (roadmap, sin versión comprometida) | Mensaje de stub + redirección a las puertas funcionales S2/S3/S4 |
+| `/ia4d-qa-automator:req-driven` | **Funcional (Gherkin, v0.2 Fase E)** | Módulo S2. Toma `--gherkin=` + `--url=` + `--style=`. Ingiere el `.feature` (determinístico) y reusa el motor S3/S4 | criteria.json + drift-report.json + discovery-report.json + N `.spec.ts` (con `@criterion RF-NNN`) + judge-report.json + audit-log.json |
+| `/ia4d-qa-automator:spec-refiner` | **Funcional (v0.2 Fase D)** | Módulo S3 Forma B. Toma `--fd=` + `--url=` | criteria.json + drift-report.json + N `.spec.ts` + judge-report.json + audit-log.json |
 
 **Convención de orquestación**: cada command es orquestador. Encadena subagents nativos de Playwright (Planner, Generator, Healer) con subagents nuestros (`ia4d-*`) vía invocaciones explícitas con la Task tool y handoffs por archivos. La regla "ningún subagent invoca a otro" está activa por defecto; la **excepción nombrada y documentada** es el par Writer↔Reviewer (composición explícita del Quality layer).
 
@@ -188,7 +188,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-
 - `full-loop-saucedemo`: orquestación completa con LLM mockeado. Verifica los artefactos.
 
 **E2E** (gate del DoD):
-- Demo SauceDemo end-to-end. Suite Playwright generada corre verde. Wall-clock ≤8 min con paralelismo.
+- Demo SauceDemo end-to-end. Suite Playwright generada corre verde. Wall-clock ≤8 min con paralelismo (gate histórico del MVP sobre SauceDemo; sitios reales: 30-45 min).
 
 ## 6. Boundaries
 
@@ -201,7 +201,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-
 - Inyectar `AxeBuilder` check en cada test generado. No opcional.
 - Generar POM esqueleto por código determinístico (`src/pom-scaffolder.ts`) antes de invocar Writer: `BasePage` común + una clase por screen (`extends BasePage`) + component objects compartidos cuando el discovery declara `components[]` (toggles `pom.base_page`/`pom.components`, default true).
 - Citar el criterio fuente del plan (o `discovery-report.json` en S4) en el JSDoc de cada test.
-- En S4, aplicar el cap `--max-scenarios` en el Acto 2.5: si el `scenarios_catalog` lo supera, pausar y pedir selección (no truncar en silencio). Etiquetar cada test con los tags nativos del catálogo (`@smoke/@regression/@critical/@happy-path/@negative`) y su `@tc-id`.
+- En S4, aplicar el cap `--max-scenarios` en el Acto 2.5: si el `scenarios_catalog` lo supera, pausar y pedir selección (no truncar en silencio). Etiquetar cada test con los tags nativos del catálogo (`@smoke/@regression/@critical/@negative` — la naturaleza positiva no se etiqueta; "happy path" no es un valor) y su `@tc-id`.
 - Cuando el Style Contract declara `test_design.require_business_postcondition: true`, exigir que cada test afirme la post-condición de negocio del flujo (Reviewer MF-9), no solo navegación.
 - Generar `review-feedback.json` antes de exponer el código al QA. (`judge-report.json` solo cuando el Judge está activo — `QA_ENABLE_JUDGE`; off por defecto.)
 - Verificar que cada test generado corre verde localmente antes de marcarlo "materializado".
@@ -237,7 +237,7 @@ Definido por el `style-contract.yaml` del cliente. El MVP incluye `config/style-
 | **v0.1 (MVP)** | Foundation + S4 + capa transversal + Quality layer | S4 | Demo SauceDemo verde, validación híbrida (Slice 6.5), ficha catálogo |
 | **v0.2** | **Salir del sandbox: enfrentar el caos web real** + S3 (Spec-refiner, Fase D) + S2 Gherkin (Fase E) + hardening por categoría de fallo | S2 (Gherkin) + S3 + S4 | Ver detalle abajo |
 | **v0.2.x (continuación)** | TMS connectors (Jira/Xray) + knowledge graph SQLite + budget cap LLM persistente | Mismos | Solo cuando v0.2 cierre con evidencia de uso real |
-| **v0.3** | S1 (Code-driven) | + S1 | AST analyzers React/Vue |
+| **v0.3 (publicada como v0.3.x)** | Distribución híbrida: plugin de marketplace (agentes + commands) + workspace desplegable (`init`) | S2 (Gherkin) + S3 + S4 | El S1 previsto aquí se reubica: candidato sin versión asignada, pendiente de priorización vs S5 |
 | **v0.4** | S2 OpenAPI (API tests, `ia4d-api-test-writer`) + Context Injector* + PR automation | Todos | OpenAPI no comparte el motor DOM (necesita writer de API propio). Endgame visión Gemini. Asterisco: el Injector **rompe genericidad** y requiere adaptadores por cliente. No es feature del catálogo, es engagement aparte. |
 | **S5 Incremental (candidato, sin versión asignada)** | **Extender una suite existente** en vez de generar desde cero | Reusa S2/S3 | El salto de "demo greenfield" a "herramienta de diario vivir". Detalle abajo. Pendiente de priorización vs S1. |
 
@@ -384,10 +384,10 @@ Decisión QA: S3 se construye como **inyección de criterios sobre el motor S4 y
 | Scope SPEC | Solo `ia4d-qa-automator` |
 | Target app demo | SauceDemo (`saucedemo.com`) |
 | Flujo MVP | login + add to cart + checkout (golden path) |
-| DoD MVP | Video reproducible + bundle de ejemplos + ≤8 min wall-clock con paralelismo |
+| DoD MVP | Video reproducible + bundle de ejemplos + ≤8 min wall-clock (gate histórico, solo SauceDemo MVP) |
 | Integración FD/TD | FD markdown libre o solo URL. No dependencia con `ia4d-functional-design-expert` en MVP |
 | Estrategia anchor S4 | Playwright Planner descubre seed automáticamente |
-| Quality layer | Writer + Reviewer + Judge los tres activos |
+| Quality layer | Writer + Reviewer activos; Judge opcional, off por defecto (`QA_ENABLE_JUDGE`, regla #10) |
 | Regla subagents | Suavizada — excepción nombrada Writer↔Reviewer |
 | Modelo LLM Planner/Generator | `sonnet` (nativo Microsoft, sin cambio) |
 | Modelo LLM Writer/Reviewer/Spec-refiner | `sonnet` |
@@ -407,4 +407,4 @@ Decisión QA: S3 se construye como **inyección de criterios sobre el motor S4 y
 6. **Healer nativo puede silenciar tests con `test.fixme()`**. Hook `pii-post.ts` intercepta y bloquea.
 7. **Generator nativo sin memoria entre runs**. Mitigado por `discovery-report.json` cacheado opcional.
 8. **Quality layer (Writer+Reviewer+Judge) añade coste vs ejecutar solo Generator nativo**. Esperado ~2x tokens por test. Compensa por confianza estructural ("QA es juez").
-9. **El "Reviewer puede invocar Writer" rompe la regla de no invocación cruzada**. Documentado como excepción nombrada en `docs/references/composition-rules.md`. Defendible ante I+D.
+9. **El "Writer invoca al Reviewer" rompe la regla de no invocación cruzada**. Documentado como excepción nombrada (composición Writer→Reviewer, controlada por el Writer, N≤2) en `docs/references/composition-rules.md`. Defendible ante I+D.

@@ -193,4 +193,3 @@ test.describe('Feature: Pago', () => {
 
 - [`docs/references/writer-reviewer-protocol.md`](../../docs/references/writer-reviewer-protocol.md)
 - [`docs/references/composition-rules.md`](../../docs/references/composition-rules.md)
-- [`SPEC.md`](../../SPEC.md) §4 "Code style"

@@ -129,9 +129,10 @@ evidence:
 ```
 
 **Reporte Allure PRO**: con `evidence.level: full` el agente instrumenta cada acción con `test.step()`
-+ screenshot por paso + trace navegable. `/ia4d-qa-automator:report` (→ `npm run report`) los enriquece
-con trazabilidad RF-NNN (epic→feature→story), severity, descripción y **Trends** entre runs
-(history en `.allure-history/`). `config/style-contracts/saucedemo.yaml` es el ejemplo de referencia.
++ screenshot por paso. `/ia4d-qa-automator:report` (→ `npm run report`) los enriquece con trazabilidad
+RF-NNN (epic→feature→story), severity y descripción por test, y genera un único HTML autocontenido que
+se abre con doble-clic. Trade-offs del formato single-file: **no hay Trends entre runs** y el trace de
+Playwright no queda embebido (se abre aparte). `config/style-contracts/saucedemo.yaml` es el ejemplo de referencia.
 
 ## Gates opcionales (off por defecto)
 

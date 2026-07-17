@@ -21,7 +21,7 @@ A command invocation will pass a subset of:
 ## Decision tree
 
 ```
-if --repo present → S1 (Code-driven) [STUB, return 'not implemented v0.3']
+if --repo present → S1 (Code-driven) [STUB, return 'not implemented — roadmap, sin versión comprometida']
 elif --gherkin present → S2 (Req-driven, Gherkin) [FUNCTIONAL v0.2 Fase E — requires --url too]
 elif --openapi present → S2 (Req-driven, OpenAPI) [DEFERRED v0.4 — API tests, not the DOM engine]
 elif --fd present → S3 (Spec-refiner) [FUNCTIONAL v0.2 Forma B — requires --url too]
@@ -64,5 +64,3 @@ Return this JSON as your text response — the orchestrating command reads it di
 
 ## Reference
 
-- [`SPEC.md`](../../SPEC.md) §1 "Cuatro módulos de entrada"
-- [`SPEC.md`](../../SPEC.md) §7 "Roadmap por versiones"

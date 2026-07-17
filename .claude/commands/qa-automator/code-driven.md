@@ -1,33 +1,31 @@
 ---
-description: Módulo S1 — Code-driven test generation desde un repo frontend. STUB v0.1, funcional en v0.3.
+description: Módulo S1 — Code-driven test generation desde un repo frontend. No implementado (stub informativo); en roadmap sin versión comprometida.
 argument-hint: "--repo=<path> [--framework=react|vue|html]"
 ---
 
-# /ia4d-qa-automator:code-driven (STUB v0.1)
+# /ia4d-qa-automator:code-driven (STUB)
 
-Módulo **S1 Code-driven**. Esperado funcional en **v0.3** según roadmap del SPEC §7.
+Módulo **S1 Code-driven**. **No implementado** — está en el roadmap del producto sin versión
+comprometida (pendiente de priorización frente a otras capacidades, p.ej. el modo incremental).
 
-## Behavior in v0.1
+## Behavior
 
 Responde con:
 
 ```
-STUB v0.1 — ia4d-qa-automator:code-driven
+STUB — ia4d-qa-automator:code-driven
 
-This module is documented but not implemented in MVP v0.1.
+El módulo S1 (Code-driven) está documentado pero NO implementado.
+Está en roadmap sin versión comprometida. Cuando llegue, hará:
+  1. Parsear un repo frontend (React/Vue/HTML) vía AST.
+  2. Extraer rutas, componentes, formularios y test IDs.
+  3. Producir un discovery-report.json desde el código (sin navegador).
+  4. Entregar al mismo pipeline downstream (POM scaffolder → Writer → Reviewer).
 
-Planned for v0.3. The S1 (Code-driven) module will:
-  1. Parse a frontend source repo (React/Vue/HTML) via AST.
-  2. Extract routes, components, forms, test IDs.
-  3. Produce a .work/discovery-report.json from the code (no browser needed).
-  4. Hand off to the same downstream pipeline (POM scaffolder → Writer → Reviewer → Judge).
-
-For MVP v0.1, use `/ia4d-qa-automator:autonomous --url=<URL>` instead (S4 module, functional).
-
-Reference:
-  - SPEC.md §1 "Cuatro módulos"
-  - SPEC.md §7 "Roadmap por versiones"
-  - .claude/agents/ia4d-code-analyzer.md (stub agent definition)
+Mientras tanto tienes tres puertas FUNCIONALES según lo que tengas a mano:
+  - Solo una URL              → /ia4d-qa-automator:autonomous  --url=<URL> --flows=<módulos>
+  - Un FD/spec + URL          → /ia4d-qa-automator:spec-refiner --fd=<path> --url=<URL>
+  - Un .feature Gherkin + URL → /ia4d-qa-automator:req-driven --gherkin=<path> --url=<URL>
 ```
 
 No invokes subagents. No writes files. Pure informational stub.

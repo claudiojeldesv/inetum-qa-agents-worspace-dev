@@ -57,7 +57,7 @@ if (a11yViolations.length > 0) {
 }
 ```
 
-Warning mode is **not silence**: the data is captured as evidence. It is the per-site escape valve for legacy / third-party sites where pre-existing violations would otherwise block the flow under test (finding #1, expandtesting — wild-sites-report.md).
+Warning mode is **not silence**: the data is captured as evidence. It is the per-site escape valve for legacy / third-party sites where pre-existing violations would otherwise block the flow under test..
 
 ## Severity threshold
 
@@ -73,7 +73,7 @@ The file rewritten, plus a one-line report of the gate mode applied so the comma
 
 ## Hard rules
 
-- The **scan is not optional in MVP**. If the Style Contract sets `inject_axe_check: false`, log a warning to audit-log but still inject the scan. The contract cannot disable the a11y scan per `SPEC.md` §6 "Always do".
+- The **scan is not optional in MVP**. If the Style Contract sets `inject_axe_check: false`, log a warning to audit-log but still inject the scan. The contract cannot disable the a11y scan — hard rule of the product (only the gate is per-site configurable).
 - The **gate** (`fail_on_violations`) IS configurable per-site. `false` switches to warning mode (annotation, no abort) — this is sanctioned, not a violation of the hard rule. The distinction: the scan always runs and captures data; only whether violations abort the test is per-site.
 - Report the gate mode applied in your output (the command appends the audit-log entry, since this agent has no Bash tool).
 - Do not modify other parts of the test logic.
@@ -83,4 +83,3 @@ The file rewritten, plus a one-line report of the gate mode applied so the comma
 
 - WCAG 2.1 AA: https://www.w3.org/WAI/standards-guidelines/wcag/
 - @axe-core/playwright: https://github.com/dequelabs/axe-core-npm/blob/develop/packages/playwright/README.md
-- [`SPEC.md`](../../SPEC.md) §6 "Always do"
