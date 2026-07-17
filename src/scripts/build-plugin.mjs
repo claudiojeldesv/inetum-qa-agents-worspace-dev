@@ -130,6 +130,40 @@ writeFileSync(
   JSON.stringify(marketplaceJson, null, 2) + '\n',
 );
 
+// 7. Guards de distribución (auditoría 2026-07-16). Fallan el build si se reintroduce:
+//    (a) el namespace viejo /qa-automator: en cualquier .md distribuido — los commands del
+//        plugin viven bajo /ia4d-qa-automator: y el workspace ya no aporta commands;
+//    (b) referencias a SPEC.md / METODOLOGIA AISD en agentes/commands del plugin — son
+//        material de construcción y NO viajan en el plugin ni en el payload.
+function walkMd(dir) {
+  const found = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = resolve(dir, e.name);
+    if (e.isDirectory()) found.push(...walkMd(p));
+    else if (e.name.endsWith('.md')) found.push(p);
+  }
+  return found;
+}
+const guardErrors = [];
+for (const f of walkMd(out)) {
+  const text = readFileSync(f, 'utf8');
+  const rel = f.slice(out.length + 1);
+  if (text.includes('/qa-automator:')) {
+    guardErrors.push(`${rel}: namespace viejo '/qa-automator:' (usa /ia4d-qa-automator:)`);
+  }
+  const isPrompt =
+    !rel.includes(`${sep}payload${sep}`) &&
+    (rel.includes(`${sep}agents${sep}`) || rel.includes(`${sep}commands${sep}`));
+  if (isPrompt && /\bSPEC\.md\b|METODOLOGIA AISD/.test(text)) {
+    guardErrors.push(`${rel}: referencia a SPEC.md/METODOLOGIA (no se distribuyen)`);
+  }
+}
+if (guardErrors.length > 0) {
+  console.error('[build-plugin] GUARD: contenido no distribuible detectado:');
+  for (const e of guardErrors) console.error('  - ' + e);
+  process.exit(1);
+}
+
 console.log(`[build-plugin] plugin/ generado (v${repoPkg.version}): ${agentList.length} agentes + ${cmdList.length} comandos.`);
 console.log('[build-plugin] payload sin node_modules/.work/.git/playwright/.auth.');
 console.log('[build-plugin] simular: /plugin marketplace add <ruta-abs>/plugin');

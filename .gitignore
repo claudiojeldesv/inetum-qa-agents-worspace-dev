@@ -66,6 +66,7 @@ Thumbs.db
 
 # Ruido efímero de sesión (logs de ejecución, estado de sesión Claude)
 /log_ejecucion.log
+/log.log
 /.claude-session/
 
 # Paquete de plugin generado por build:plugin (artefacto; regénéralo, no lo versiones).

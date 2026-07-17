@@ -89,7 +89,7 @@ recomendado y, sin él, el command te lanzará un warning pidiéndote los módul
 [CLAUDE.md](../../CLAUDE.md), regla del autónomo).
 
 ```
-/qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
+/ia4d-qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
 ```
 
 **Resultado esperado:** el agente recorre los cinco actos (Comprender → Mapear → Estructurar →
@@ -106,7 +106,7 @@ El `.feature` ya trae los `Then`. El parser determinístico (sin LLM) lo convier
 RF-NNN, el agente los mapea contra el DOM y genera tests con trazabilidad `@criterion`.
 
 ```
-/qa-automator:req-driven --gherkin=examples/01-saucedemo/saucedemo.feature --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
+/ia4d-qa-automator:req-driven --gherkin=examples/01-saucedemo/saucedemo.feature --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
 ```
 
 **Resultado esperado:** un test por Scenario, cada uno citando su `@criterion RF-NNN`. El scenario
@@ -120,7 +120,7 @@ El FD no tiene identificadores ni `Then` explícitos. El refiner lo estructura e
 contra el DOM y genera tests con `@criterion`.
 
 ```
-/qa-automator:spec-refiner --fd=examples/01-saucedemo/saucedemo-fd.md --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
+/ia4d-qa-automator:spec-refiner --fd=examples/01-saucedemo/saucedemo-fd.md --url=https://www.saucedemo.com/ --style=config/style-contracts/saucedemo.yaml
 ```
 
 **Resultado esperado:** mismo resultado que el Paso 2, distinta puerta. A diferencia del FD de

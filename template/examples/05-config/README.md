@@ -4,7 +4,7 @@ Lab transversal. No genera tests nuevos: te enseña **las capas de configuració
 cómo comprobarlas. Al terminar sabrás qué puedes ajustar, dónde, y cómo verificar que tu ajuste
 hace lo que crees — antes de que un typo silencioso te deje un gate apagado en producción.
 
-Se apoya en `/qa-automator:config`, que hace dos cosas deterministas (sin LLM): **valida** el
+Se apoya en `/ia4d-qa-automator:config`, que hace dos cosas deterministas (sin LLM): **valida** el
 Style Contract y **muestra el estado efectivo** de la sesión (qué gates están on/off ahora).
 
 ## Objetivo
@@ -13,7 +13,7 @@ Al terminar sabrás:
 - Leer y editar un **Style Contract** con la [plantilla anotada](_TEMPLATE.annotated.yaml) (todas las capas).
 - Distinguir las tres formas de configurar: **env-var** (gates PII/Judge), **contract** (a11y, auth,
   evidencia, locators…) y **default** (lo que se aplica si no declaras nada).
-- Usar `/qa-automator:config` para **cazar errores** (typos, enums inválidos, incoherencias) y para
+- Usar `/ia4d-qa-automator:config` para **cazar errores** (typos, enums inválidos, incoherencias) y para
   ver tu **estado efectivo** de un vistazo.
 
 ## Duración y prerrequisitos
@@ -43,7 +43,7 @@ hace, cuándo tocarlo y su default.
 Valídala tal cual:
 
 ```
-/qa-automator:config --style=examples/05-config/_TEMPLATE.annotated.yaml
+/ia4d-qa-automator:config --style=examples/05-config/_TEMPLATE.annotated.yaml
 ```
 
 **Resultado esperado:** `OK` sin problemas, y una tabla de estado efectivo. Fíjate en las
@@ -65,7 +65,7 @@ haber encendido nunca se activa. `config` lo detecta.
    - en `evidence`, cambia `level: minimal` por `level: completo`.
 3. Valida:
    ```
-   /qa-automator:config --style=lab-config.yaml
+   /ia4d-qa-automator:config --style=lab-config.yaml
    ```
 
 **Resultado esperado:**
@@ -86,7 +86,7 @@ por defecto.
 
 Primero, míralos off:
 ```
-/qa-automator:config --style=lab-config.yaml
+/ia4d-qa-automator:config --style=lab-config.yaml
 ```
 Filas `[env]`: `gate: PII scanner: off`, `gate: Judge: off`.
 
@@ -96,7 +96,7 @@ $env:QA_ENABLE_JUDGE='1'; $env:QA_ENABLE_PII='1'   # PowerShell
 export QA_ENABLE_JUDGE=1 QA_ENABLE_PII=1            # bash
 ```
 ```
-/qa-automator:config --style=lab-config.yaml
+/ia4d-qa-automator:config --style=lab-config.yaml
 ```
 
 **Resultado esperado:** las mismas filas ahora dicen `ON`. Para fijarlos de forma permanente en el
@@ -112,7 +112,7 @@ queda anotada.
 
 En `config/style-contracts/lab-config.yaml`, cambia `a11y.fail_on_violations` a `true` y valida:
 ```
-/qa-automator:config --style=lab-config.yaml
+/ia4d-qa-automator:config --style=lab-config.yaml
 ```
 
 **Resultado esperado:** la fila del gate pasa de `[contract] off (warning)` a
@@ -155,7 +155,7 @@ Y si seguiste el Paso 3, asegúrate de haber apagado `QA_ENABLE_JUDGE` / `QA_ENA
 - Hay **tres formas** de configurar: env-var (gates de sesión), contract (convenciones por-sitio) y
   default (lo que se aplica solo). `config` te dice de dónde sale cada valor.
 - Un **typo es silencioso** sin validación: el campo se ignora y el gate no se activa.
-  `/qa-automator:config` lo caza (campo desconocido con sugerencia, enum inválido, incoherencia).
+  `/ia4d-qa-automator:config` lo caza (campo desconocido con sugerencia, enum inválido, incoherencia).
 - El **estado efectivo** no es lo que escribiste, es lo que queda tras aplicar env + contract +
   defaults. Compruébalo antes de un run importante.
 - La **plantilla anotada** es tu punto de partida para cualquier sitio nuevo: cópiala, borra lo que

@@ -94,6 +94,7 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 - Be objective: every rejection must cite a criterion ID (MF-1...MF-9) and a specific line.
 - Be consistent across iterations: if you approved a pattern in iteration 0 of one test, do not reject the same pattern in iteration 0 of another.
 - **El fichero de feedback debe ser JSON VÁLIDO.** Lo escribes a mano vía Bash, así que en `description`/`suggested_fix` escapa cada `\` como `\\` (un regex `/x\.y/` se escribe `/x\\.y/`) y cada `"` como `\"`. Preferible describir el assert en prosa sin regex literal. Un JSON inválido se registra como feedback corrupto y se pierde en la consolidación.
+- **Rutas SIEMPRE con `/` (forward slash), nunca `\`.** Una ruta Windows con backslashes pasada por Bash crea un fichero basura con la ruta como nombre literal.
 
 ## Reference
 

@@ -61,6 +61,8 @@ This scan is **optional hardening, off by default** (regla dura #10). It runs on
 - `test.fixme()` without `// fixme-approved-by: <name> <date>` header = `fail` (rule P6). Note: the anti-`test.fixme()` guard is enforced **always** by the compliance hook, independent of this scanner's on/off state (regla #3); P6 here is redundant coverage when the scan is enabled.
 - Do not modify files. You scan and report.
 - Do not invoke any other subagent.
+- When writing the report via Bash, use **forward slashes** (`/`) in every path, never `\` — a
+  backslashed Windows path passed through Bash creates a garbage file with the path as its literal name.
 
 ## Reference
 

@@ -17,7 +17,7 @@ Al terminar sabrás:
 
 ~25 min. Antes de empezar:
 - Labs 01 y 02 completados (incluida la preparación del workspace, **Paso 0** del Lab 01).
-- `/qa-automator:healthcheck` en verde (si no, repasa el Paso 0 del Lab 01).
+- `/ia4d-qa-automator:healthcheck` en verde (si no, repasa el Paso 0 del Lab 01).
 - OrangeHRM ya está permitido en `config/allowed-targets.yaml`; la cuenta de test
   (`Admin` / `admin123`, publicada en la propia pantalla de login) declarada como test-cred. El
   style-contract `config/style-contracts/orangehrm.yaml` ya trae `auth:` configurado.
@@ -40,7 +40,7 @@ Inputs incluidos en esta carpeta (para las puertas S2/S3, opcionales en este lab
 Es el flujo principal del lab. Acotamos a `login` y `dashboard`:
 
 ```
-/qa-automator:autonomous --url=https://opensource-demo.orangehrmlive.com/web/index.php/auth/login --flows=login,dashboard
+/ia4d-qa-automator:autonomous --url=https://opensource-demo.orangehrmlive.com/web/index.php/auth/login --flows=login,dashboard
 ```
 
 **Resultado esperado:**
@@ -58,7 +58,7 @@ Es el flujo principal del lab. Acotamos a `login` y `dashboard`:
 ## Paso 2 — (Opcional) S2 desde Gherkin
 
 ```
-/qa-automator:req-driven --gherkin=examples/03-orangehrm/orangehrm.feature --url=https://opensource-demo.orangehrmlive.com/web/index.php/auth/login --style=config/style-contracts/orangehrm.yaml
+/ia4d-qa-automator:req-driven --gherkin=examples/03-orangehrm/orangehrm.feature --url=https://opensource-demo.orangehrmlive.com/web/index.php/auth/login --style=config/style-contracts/orangehrm.yaml
 ```
 
 **Resultado esperado:** un test por Scenario citando su `@criterion RF-NNN`, incluidos los dos
@@ -69,7 +69,7 @@ sin assertar el conjunto completo (el demo puede variar).
 ## Paso 3 — (Opcional) S3 desde FD
 
 ```
-/qa-automator:spec-refiner --fd=examples/03-orangehrm/orangehrm-fd.md --url=https://opensource-demo.orangehrmlive.com/web/index.php/auth/login --style=config/style-contracts/orangehrm.yaml
+/ia4d-qa-automator:spec-refiner --fd=examples/03-orangehrm/orangehrm-fd.md --url=https://opensource-demo.orangehrmlive.com/web/index.php/auth/login --style=config/style-contracts/orangehrm.yaml
 ```
 
 **Resultado esperado:** el refiner estructura el FD en RF-NNN (acceso + panel principal) y genera

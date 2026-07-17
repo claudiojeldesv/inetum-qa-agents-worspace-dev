@@ -17,7 +17,7 @@ Al terminar sabrás:
 
 ~25 min. Antes de empezar:
 - Lab 01 completado (entiendes las tres puertas y el **Paso 0** de preparación del workspace).
-- `/qa-automator:healthcheck` en verde (si no, repasa el Paso 0 del Lab 01).
+- `/ia4d-qa-automator:healthcheck` en verde (si no, repasa el Paso 0 del Lab 01).
 - ParaBank ya está permitido en `config/allowed-targets.yaml`; la cuenta de test (`john` / `demo`)
   declarada como test-cred.
 
@@ -42,7 +42,7 @@ Inputs incluidos en esta carpeta:
 ## Paso 1 — S4 autónomo acotado por módulos
 
 ```
-/qa-automator:autonomous --url=https://parabank.parasoft.com/parabank/index.htm --flows=login,accounts,transfer
+/ia4d-qa-automator:autonomous --url=https://parabank.parasoft.com/parabank/index.htm --flows=login,accounts,transfer
 ```
 
 **Resultado esperado:** el agente detecta que el sitio es login-gated, genera `tests/e2e/auth.setup.ts`
@@ -52,7 +52,7 @@ re-loguea en cada test. El POM usa `getByLabel`/`getByRole` (no hay `data-test` 
 ## Paso 2 — S2 desde Gherkin (data-driven + drift)
 
 ```
-/qa-automator:req-driven --gherkin=examples/02-parabank/parabank.feature --url=https://parabank.parasoft.com/parabank/index.htm --style=config/style-contracts/parabank.yaml
+/ia4d-qa-automator:req-driven --gherkin=examples/02-parabank/parabank.feature --url=https://parabank.parasoft.com/parabank/index.htm --style=config/style-contracts/parabank.yaml
 ```
 
 **Resultado esperado:**
@@ -65,7 +65,7 @@ re-loguea en cada test. El POM usa `getByLabel`/`getByRole` (no hay `data-test` 
 ## Paso 3 — S3 desde FD (ambigüedad + drift)
 
 ```
-/qa-automator:spec-refiner --fd=examples/02-parabank/parabank-fd.md --url=https://parabank.parasoft.com/parabank/index.htm --style=config/style-contracts/parabank.yaml
+/ia4d-qa-automator:spec-refiner --fd=examples/02-parabank/parabank-fd.md --url=https://parabank.parasoft.com/parabank/index.htm --style=config/style-contracts/parabank.yaml
 ```
 
 **Resultado esperado:**

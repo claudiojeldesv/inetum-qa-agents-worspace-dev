@@ -30,10 +30,10 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 3. **03-OrangeHRM** — segundo patrón auth (SPA), con foco en **acotar por módulos** en el autónomo.
 4. **04-TodoMVC** — el reto. Aplicas todo lo anterior tú solo.
 5. **05-Configuración** — transversal, cuando quieras: qué puedes ajustar (env-vars, contract,
-   defaults) y cómo verificarlo con `/qa-automator:config`. Útil antes de apuntar el agente a tu web.
+   defaults) y cómo verificarlo con `/ia4d-qa-automator:config`. Útil antes de apuntar el agente a tu web.
 
 ## Apuntar el agente a TU web
 
 Añade el patrón URL de tu entorno **no productivo** a `config/allowed-targets.yaml`, declara las
-credenciales de test si las usa, y lanza `/qa-automator:autonomous --url=<tu-url> --flows=<módulos>`.
+credenciales de test si las usa, y lanza `/ia4d-qa-automator:autonomous --url=<tu-url> --flows=<módulos>`.
 Acota siempre por módulos: ver [CLAUDE.md](../CLAUDE.md), regla del autónomo.

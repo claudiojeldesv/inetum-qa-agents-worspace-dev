@@ -1,45 +1,42 @@
 ---
-description: Smoke test del agente ia4d-qa-automator. Verifica versión, subagents detectados, MCP server status.
+description: Smoke test del agente ia4d-qa-automator. Ejecuta el healthcheck determinístico del runtime y presenta su salida.
 ---
 
 # /ia4d-qa-automator:healthcheck
 
-Smoke test que confirma que el entorno está listo para invocar `ia4d-qa-automator`. No invoca subagents, solo lee el filesystem.
+Smoke test que confirma que el workspace está listo para invocar `ia4d-qa-automator`. No invoca
+subagents ni gasta tokens de navegador: delega en el script determinístico del runtime, que es la
+única fuente de verdad de qué debe existir (misma filosofía que `/ia4d-qa-automator:config` con el
+contract-validator — hard rule #5, validación determinística).
 
 ## Procedure
 
-1. Print version of the agent (read from `package.json`).
-2. List the subagents present under `.claude/agents/`:
-   - native: `playwright-test-{planner,generator,healer}`
-   - transversal: `ia4d-{compliance-checker,pii-scanner,style-enforcer,a11y-injector}`
-   - quality layer: `ia4d-{writer,reviewer,judge}`
-   - autonomous + dispatcher: `ia4d-{discovery-analyzer,mode-router}`
-   - stubs: `ia4d-{code-analyzer,spec-parser,spec-refiner}`
-3. Verify presence of:
-   - `config/allowed-targets.yaml`
-   - `hooks/hooks.json`
-   - `config/style-contracts/saucedemo.yaml` (MVP demo contract)
-   - `.mcp.json` declares `playwright-test`
-4. Verify Node ≥ 20 and Playwright ≥ 1.56 via shell:
+1. Ejecuta el healthcheck del runtime y muestra su salida **verbatim** (no la reinterpretes ni la
+   resumas — cada línea `OK`/`FALTA` es el diagnóstico):
    ```sh
-   node --version
-   npx playwright --version
+   npm run qa:healthcheck
    ```
-5. Print OK message with version + subagent count.
+2. Exit code `0` → termina reportando el estado (el script cierra con `Healthcheck OK` y el número
+   de comprobaciones). Exit code `1` → reporta QUÉ piezas faltan (el script lo dice línea a línea) y
+   el comando de reparación que el propio script sugiere (`npm ci`, `npx playwright install chromium`,
+   o `npm run qa:fix` para lo auto-reparable). No continúes con otros commands hasta que esté verde.
 
-## Expected output
+## Qué comprueba el script (referencia, no lo repliques a mano)
 
-```
-ia4d-qa-automator v0.1.0
-  Subagents detected: 13 (3 native + 4 transversal + 3 quality + 2 autonomous + 3 stubs)
-  Config OK: allowed-targets.yaml, hooks.json, saucedemo.yaml present
-  Runtime OK: Node v24.x, Playwright v1.60.x
-  MCP servers: playwright-test enabled
-Status: OK
-```
+- Agentes nativos de Playwright en `.claude/agents/` (los 12 agentes `ia4d-*` y los commands los
+  provee el **plugin**, no el workspace — modelo híbrido v0.3.1).
+- Hooks (`hooks/*.ts`) y su wiring en `.claude/settings.json`.
+- Lógica determinística (`src/`), config declarativa (`config/allowed-targets.yaml`, `.mcp.json`,
+  `playwright.config.ts`).
+- Playwright: versión en lockstep `playwright` ↔ `@playwright/test`, browser chromium instalado, y
+  que el server MCP `run-test-mcp-server` arranca (config ≠ conexión viva: si la sesión arrancó
+  antes del `npm install`, reconecta el MCP — recarga la ventana o `/mcp`).
+- Gates opcionales: reporta el estado efectivo de `QA_ENABLE_PII` / `QA_ENABLE_JUDGE`.
 
 ## Failure modes
 
-- Missing subagent file → list which.
-- Missing config → list which.
-- Node < 20 or Playwright < 1.56 → block.
+- `npm run qa:healthcheck` no existe o falla al arrancar → el workspace no está desplegado o falta
+  `npm install`; indica ejecutar `/ia4d-qa-automator:init <carpeta>` o `npm install` según el caso.
+- Piezas faltantes → lista del script + comando de reparación sugerido.
+- Todo OK pero el planner falla con `_currentSuite === null` → MCP obsoleto en la sesión: recargar
+  ventana o `/mcp` → reconectar `playwright-test`.

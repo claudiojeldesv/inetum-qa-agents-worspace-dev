@@ -63,10 +63,10 @@ Eliges el modo por lo que tengas a mano. El agente enruta solo si no se lo indic
 
 | Modo | Tienes | Command | Estado |
 |---|---|---|---|
-| **S4 Autónomo** | Solo una URL | `/qa-automator:autonomous` | Funcional |
-| **S3 Spec-refiner** | Un FD/PDF/spec floja + URL | `/qa-automator:spec-refiner` | Funcional |
-| **S2 Req-driven** | Un `.feature` Gherkin maduro + URL | `/qa-automator:req-driven` | Funcional (Gherkin; OpenAPI no) |
-| **S1 Code-driven** | Repo frontend (React/Vue/HTML) | `/qa-automator:code-driven` | No implementado (stub) |
+| **S4 Autónomo** | Solo una URL | `/ia4d-qa-automator:autonomous` | Funcional |
+| **S3 Spec-refiner** | Un FD/PDF/spec floja + URL | `/ia4d-qa-automator:spec-refiner` | Funcional |
+| **S2 Req-driven** | Un `.feature` Gherkin maduro + URL | `/ia4d-qa-automator:req-driven` | Funcional (Gherkin; OpenAPI no) |
+| **S1 Code-driven** | Repo frontend (React/Vue/HTML) | `/ia4d-qa-automator:code-driven` | No implementado (stub) |
 
 S3 refina lo ambiguo: extrae criterios RF-NNN, **marca los huecos** en `refinement-questions.md` y
 no inventa lo que falta. S2 parsea el Gherkin de forma determinística (sin LLM) y materializa
@@ -76,12 +76,12 @@ que la app realmente expone, y lo reportan sin fabricar tests para lo que no exi
 ## Comandos
 
 ```
-/qa-automator:healthcheck                                    # verifica que el runtime está completo
-/qa-automator:autonomous   --url=<URL> --flows=<módulos>     # S4 (acota por módulos)
-/qa-automator:spec-refiner --fd=<path> --url=<URL>           # S3
-/qa-automator:req-driven   --gherkin=<path> --url=<URL>      # S2
-/qa-automator:report                                         # reporte Allure enriquecido (post-run)
-/qa-automator:config       [--style=<contract.yaml>]         # valida el contract + muestra estado efectivo
+/ia4d-qa-automator:healthcheck                                    # verifica que el runtime está completo
+/ia4d-qa-automator:autonomous   --url=<URL> --flows=<módulos>     # S4 (acota por módulos)
+/ia4d-qa-automator:spec-refiner --fd=<path> --url=<URL>           # S3
+/ia4d-qa-automator:req-driven   --gherkin=<path> --url=<URL>      # S2
+/ia4d-qa-automator:report                                         # reporte Allure enriquecido (post-run)
+/ia4d-qa-automator:config       [--style=<contract.yaml>]         # valida el contract + muestra estado efectivo
 ```
 
 Flags del autónomo: `--flows=login,checkout` acota por módulos (recomendado); `--entry=<path>` fija
@@ -96,7 +96,7 @@ el punto de entrada profundo; `--ignore=<glob>` excluye zonas. Flag común opcio
    archivo (no son PII; nunca pongas credenciales reales).
 3. (Opcional) Declara un **Style Contract** en `config/style-contracts/<tu-sitio>.yaml`. Si no hay
    contract, el agente usa defaults y lo registra.
-4. Lanza `/qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`.
+4. Lanza `/ia4d-qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`.
 
 ## Style Contract — tus convenciones
 
@@ -108,7 +108,7 @@ campo con qué hace / cuándo tocarlo / default, en dos niveles). Schema complet
 en [`docs/references/style-contract-schema.md`](docs/references/style-contract-schema.md); ejemplos
 reales en [`config/style-contracts/`](config/style-contracts/) (saucedemo, parabank, orangehrm).
 
-**Valida antes de correr**: `/qa-automator:config --style=<tu-sitio>.yaml` comprueba el contract
+**Valida antes de correr**: `/ia4d-qa-automator:config --style=<tu-sitio>.yaml` comprueba el contract
 (typos, enums, incoherencias) y te muestra el **estado efectivo** — qué gates están on/off ahora,
 de dónde sale cada valor (env-var / contract / default). El [Lab 05](examples/05-config/) lo practica.
 
@@ -129,7 +129,7 @@ evidence:
 ```
 
 **Reporte Allure PRO**: con `evidence.level: full` el agente instrumenta cada acción con `test.step()`
-+ screenshot por paso + trace navegable. `/qa-automator:report` (→ `npm run report`) los enriquece
++ screenshot por paso + trace navegable. `/ia4d-qa-automator:report` (→ `npm run report`) los enriquece
 con trazabilidad RF-NNN (epic→feature→story), severity, descripción y **Trends** entre runs
 (history en `.allure-history/`). `config/style-contracts/saucedemo.yaml` es el ejemplo de referencia.
 

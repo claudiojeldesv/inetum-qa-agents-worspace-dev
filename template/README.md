@@ -26,7 +26,7 @@ npm run qa:healthcheck
 cp .env.example .env
 
 # 4. Abre el workspace en Claude Code y lanza el primer lab
-#    /qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
+#    /ia4d-qa-automator:autonomous --url=https://www.saucedemo.com/ --flows=login,checkout
 ```
 
 `qa:healthcheck` debe terminar en `Healthcheck OK`. Si falla, te dice qué pieza del runtime
@@ -42,7 +42,7 @@ Cuatro labs reproducibles en [`examples/`](examples/), ordenados por dificultad.
 4. [`04-todomvc`](examples/04-todomvc/) — reto: lo resuelves tú.
 
 Luego, **tu propia web**: añade su URL (entorno no productivo) a `config/allowed-targets.yaml` y
-lanza `/qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`. Detalle en [`CLAUDE.md`](CLAUDE.md).
+lanza `/ia4d-qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`. Detalle en [`CLAUDE.md`](CLAUDE.md).
 
 ## Estructura
 
