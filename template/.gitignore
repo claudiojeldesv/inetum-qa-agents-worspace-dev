@@ -45,7 +45,6 @@ Thumbs.db
 /compliance-verdict.json
 /drift-report.json
 /qa-automator-run-summary.json
-/mode-routing.json
 # Saved plans del planner nativo (recreados por run; evidencia va a docs/findings/)
 /*-plan.md
 
@@ -66,6 +65,7 @@ Thumbs.db
 
 # Ruido efímero de sesión (logs de ejecución, estado de sesión Claude)
 /log_ejecucion.log
+/log.log
 /.claude-session/
 
 # Paquete de plugin generado por build:plugin (artefacto; regénéralo, no lo versiones).

@@ -118,7 +118,7 @@ auth:
     value: string                   #   ej. '**/overview.htm'  o  "getByRole('link', { name: 'Log Out' })"
 
 # Política de evidencia visual para el reporte Allure. NO es un gate — no aborta nada.
-# Es evidencia de RUN-TIME: /qa-automator:report solo muestra lo que el run capturó.
+# Es evidencia de RUN-TIME: /ia4d-qa-automator:report solo muestra lo que el run capturó.
 # El command lee `level` en el Verification step y exporta QA_SCREENSHOT / QA_TRACE
 # antes de `npx playwright test`; playwright.config.ts los consume. El nivel `level`
 # además guía al ia4d-writer sobre cómo estructurar el .spec.ts (test.step + attachments).

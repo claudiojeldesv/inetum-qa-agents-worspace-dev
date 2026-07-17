@@ -2,7 +2,7 @@
 
 ## Regla por defecto
 
-**Los subagents `ia4d-*` no se invocan entre sí.** La orquestación vive en los commands `/qa-automator:*` con handoff por archivos (cada subagent escribe un output en una ruta predecible que el siguiente lee).
+**Los subagents `ia4d-*` no se invocan entre sí.** La orquestación vive en los commands `/ia4d-qa-automator:*` con handoff por archivos (cada subagent escribe un output en una ruta predecible que el siguiente lee).
 
 Beneficios:
 - Auditabilidad: el flujo es lineal y visible en el command markdown.
