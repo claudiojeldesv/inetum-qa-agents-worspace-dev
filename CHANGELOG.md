@@ -3,6 +3,36 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
+## [0.3.3] - 2026-07-17
+
+Saneamiento de consistencia previo al hand-off a testers (auditoría interna 2026-07-16:
+22 hallazgos — 3 críticos, 5 altos, 8 medios, 6 bajos; informe en `docs/audit/`).
+
+### Fixed
+- **Namespace de commands en toda la guía del workspace desplegado.** `CLAUDE.md`, `README.md` y
+  los 5 labs enseñaban `/qa-automator:*`; el plugin los publica como `/ia4d-qa-automator:*`.
+  39 ocurrencias corregidas + guard en `build:plugin` que falla si reaparece.
+- **`healthcheck` delegado al script real.** El command describía el mundo v0.1 (13 subagents en
+  `.claude/agents/`, "v0.1.0", check de `hooks/hooks.json`); ahora ejecuta `npm run qa:healthcheck`
+  y presenta su salida verbatim (misma filosofía que `config`).
+- **`.mcp.json` portable.** `cmd /c npx` (solo-Windows) → `node node_modules/playwright/cli.js
+  run-test-mcp-server`: binario real en todas las plataformas, sin shim, pineado al Playwright local.
+- **Prompts distribuidos sin referencias a material de construcción.** 8 agentes + 4 commands citaban
+  `SPEC.md`/`METODOLOGIA AISD.md`/findings internos que no viajan en el plugin; guard en `build:plugin`.
+- **Contradicción sobre Allure Trends resuelta** (single-file no acumula history): `autonomous.md` y
+  la guía del template alineados con `report.md`.
+- **Stubs S1 sin promesa de versión vencida** ("funcional en v0.3" con v0.3.x ya publicada → "roadmap,
+  sin versión comprometida"); el stub redirige a las 3 puertas funcionales S2/S3/S4.
+- **SPEC sin drift**: título remite a CHANGELOG, `@happy-path` fuera del listado de tags, Judge "off por
+  defecto" en el anexo, riesgo #9 con la dirección real Writer→Reviewer, DoD ≤8 min acotado a su
+  contexto histórico (MVP SauceDemo).
+- **`hooks/hooks.json` eliminado** (duplicado muerto; el wiring único vive en `.claude/settings.json`).
+- **`report.md` deriva `<workDir>`** (`--work-dir` > `QA_WORK_DIR` > único candidato > preguntar);
+  defaults namespaceados — antes apuntaban al `.work/` plano y no encontraban los artefactos del run.
+- **Higiene**: fichero fantasma de ruta Windows eliminado del repo, `log.log` fuera del index, regla
+  forward-slash en los agentes que escriben vía Bash, `.gitattributes` (LF), pre-flight avisa por
+  stderr si una tool de navegación llega sin URL extraíble, descripciones de agentes recortadas.
+
 ## [0.3.2] - 2026-07-15
 
 Arreglos surgidos de la prueba end-to-end S3 contra SauceDemo (5/5 verde). Dos bugs latentes
