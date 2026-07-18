@@ -12,7 +12,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, relative } from 'node:path';
 
 export interface InteractiveElement {
   role: string;                       // 'button' | 'textbox' | 'link' | 'checkbox' | etc.
@@ -65,6 +65,18 @@ function fileNameFor(name: string, kind: 'page' | 'component'): string {
 
 function componentClassName(name: string): string {
   return toPascalCase(name) + 'Component';
+}
+
+/**
+ * Import base from the pages dir to the components dir. With site namespacing
+ * (tests/pages/<site-id> vs tests/components/<site-id>) the hardcoded
+ * '../components' was wrong: it must be derived from the actual dirs.
+ */
+function componentsImportBase(options: ScaffoldOptions): string {
+  const pagesDir = resolve(options.outputDir ?? 'tests/pages');
+  const componentsDir = resolve(options.componentsDir ?? 'tests/components');
+  const rel = relative(pagesDir, componentsDir).replace(/\\/g, '/');
+  return rel.startsWith('.') ? rel : `./${rel}`;
 }
 
 function renderLocator(el: InteractiveElement): string {
@@ -193,8 +205,9 @@ export function scaffoldPage(
 
   const imports = [`import { type Locator, type Page } from '@playwright/test';`];
   if (useBase) imports.push(`import { BasePage } from './base.page';`);
+  const importBase = componentsImportBase(options);
   for (const c of usedComponents) {
-    imports.push(`import { ${componentClassName(c)} } from '../components/${fileNameFor(c, 'component').replace(/\.ts$/, '')}';`);
+    imports.push(`import { ${componentClassName(c)} } from '${importBase}/${fileNameFor(c, 'component').replace(/\.ts$/, '')}';`);
   }
   const classDecl = useBase ? `export class ${className} extends BasePage {` : `export class ${className} {`;
   const pageField = useBase ? '' : '  readonly page: Page;\n';
