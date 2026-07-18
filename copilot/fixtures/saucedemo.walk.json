@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "site_id": "saucedemo",
+  "entry": "/",
+  "base_url": "https://www.saucedemo.com",
+  "flows": [
+    {
+      "flow": "inicio-sesion",
+      "criteria": ["RF-001"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "inventario" }
+      ]
+    },
+    {
+      "flow": "compra",
+      "criteria": ["RF-002"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "inventario" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Sauce Labs Backpack" }, "expect_transition": true, "screen": "producto" },
+        { "id": "s5", "action": "click", "hint": { "role": "button", "name": "Add to cart" } },
+        { "id": "s6", "action": "goto", "target": "/cart.html", "screen": "carrito" },
+        { "id": "s7", "action": "click", "hint": { "role": "button", "name": "Checkout" }, "expect_transition": true, "screen": "checkout-datos" },
+        { "id": "s8", "action": "fill", "hint": { "role": "textbox", "name": "First Name" }, "value": "$fixtures.buyer_info[0].firstName" },
+        { "id": "s9", "action": "fill", "hint": { "role": "textbox", "name": "Last Name" }, "value": "$fixtures.buyer_info[0].lastName" },
+        { "id": "s10", "action": "fill", "hint": { "role": "textbox", "name": "Zip/Postal Code" }, "value": "$fixtures.buyer_info[0].postalCode" },
+        { "id": "s11", "action": "click", "hint": { "role": "button", "name": "Continue" }, "expect_transition": true, "screen": "checkout-resumen" },
+        { "id": "s12", "action": "click", "hint": { "role": "button", "name": "Finish" }, "expect_transition": true, "screen": "checkout-completado" },
+        { "id": "s13", "action": "wait_text", "value": "Thank you for your order!" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "site_id": "orangehrm",
+  "entry": "/web/index.php/auth/login",
+  "base_url": "https://opensource-demo.orangehrmlive.com",
+  "flows": [
+    {
+      "flow": "inicio-sesion",
+      "criteria": ["RF-001"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard" },
+        { "id": "s4", "action": "wait_text", "value": "Dashboard" }
+      ]
+    },
+    {
+      "flow": "navegacion-modulos",
+      "criteria": ["RF-002"],
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "role": "link", "name": "Admin" }, "expect_transition": true, "screen": "admin" },
+        { "id": "s2", "action": "click", "hint": { "role": "link", "name": "PIM" }, "expect_transition": true, "screen": "pim" },
+        { "id": "s3", "action": "click", "hint": { "role": "link", "name": "Time" }, "expect_transition": true, "screen": "time" }
+      ]
+    }
+  ]
+}
