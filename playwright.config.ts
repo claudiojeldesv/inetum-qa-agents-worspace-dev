@@ -26,7 +26,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: `${workDir}/playwright-report`, open: 'never' }],
-    // allure-playwright produce allure-results/; /qa-automator:report lo enriquece
+    // allure-playwright produce allure-results/; /ia4d-qa-automator:report lo enriquece
     // con la evidencia del agente y genera el HTML estático (npx allure generate).
     ['allure-playwright', { resultsDir: `${workDir}/allure-results`, detail: true }],
   ],

@@ -1,7 +1,7 @@
 /**
  * Style Contract validator + resolved-config explainer (v0.2, feat/config-help).
  *
- * Backs the /qa-automator:config command. Two deterministic jobs (hard rule #5 —
+ * Backs the /ia4d-qa-automator:config command. Two deterministic jobs (hard rule #5 —
  * no LLM-as-validator):
  *
  *   1. validateContract(text) — parses the YAML and reports unknown fields

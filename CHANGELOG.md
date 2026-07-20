@@ -3,6 +3,19 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
+## [0.3.4] - 2026-07-18
+
+Cierre del hallazgo C1 del saneamiento previo (el namespace viejo se había corregido en los `.md`
+pero seguía filtrado en material distribuido no-`.md`).
+
+### Fixed
+- **Namespace `/qa-automator:*` residual en el payload distribuido.** 6 fugas fuera de los `.md`:
+  comentarios en `src/contract-validator.ts` y en `playwright.config.ts`/`playwright.global-setup.ts`,
+  el YAML `examples/05-config/_TEMPLATE.annotated.yaml`, y un **string de error de runtime** en
+  `src/gherkin-to-criteria.ts` que el usuario final ve por pantalla. Todas → `/ia4d-qa-automator:*`.
+- **Guard de `build:plugin` ampliado.** Escaneaba solo `.md`; ahora `.md/.ts/.yaml/.yml`, para que el
+  namespace viejo no pueda reaparecer en comentarios, ejemplos ni strings de runtime.
+
 ## [0.3.3] - 2026-07-17
 
 Saneamiento de consistencia previo al hand-off a testers (auditoría interna 2026-07-16:

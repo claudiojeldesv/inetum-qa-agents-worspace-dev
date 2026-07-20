@@ -5,7 +5,7 @@
 #  necesites (todo tiene default sensato) y ajusta el resto. Cada campo lleva:
 #  qué hace · cuándo tocarlo · su default.
 #
-#  Valídalo cuando termines:   /qa-automator:config --style=<tu-sitio>.yaml
+#  Valídalo cuando termines:   /ia4d-qa-automator:config --style=<tu-sitio>.yaml
 #  (o:  npx tsx src/contract-validator.ts <tu-sitio>.yaml)
 #
 #  Referencia completa (para la máquina y el detalle fino):
@@ -85,7 +85,7 @@ evidence:
 #  a .env). Están OFF por defecto; las piezas están completas, el toggle las enciende.
 #    QA_ENABLE_PII=1    → scanner PII ES (DNI/IBAN/Luhn/teléfono/email) sobre los tests generados.
 #    QA_ENABLE_JUDGE=1  → Judge: score numérico de calidad tras Writer+Reviewer.
-#  Compruébalos con:  /qa-automator:config --style=<tu-sitio>.yaml  (tabla "estado efectivo").
+#  Compruébalos con:  /ia4d-qa-automator:config --style=<tu-sitio>.yaml  (tabla "estado efectivo").
 
 
 # =============================================================================

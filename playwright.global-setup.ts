@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
  *
  * Por qué: el reporter `allure-playwright` AÑADE un `*-result.json` por test en cada run y
  * nunca limpia el directorio. Sin esto, los resultados se acumulan entre corridas y el reporte
- * de `/qa-automator:report` mezcla runs viejos (duplicados, `skipped` rancios, fallos ya
+ * de `/ia4d-qa-automator:report` mezcla runs viejos (duplicados, `skipped` rancios, fallos ya
  * corregidos). Limpiar aquí —código determinista, no instrucción al LLM— garantiza que el
  * reporte refleje SOLO la corrida actual, para todos los commands y runs manuales.
  *

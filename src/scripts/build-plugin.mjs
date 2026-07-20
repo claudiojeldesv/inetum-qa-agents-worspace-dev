@@ -131,21 +131,24 @@ writeFileSync(
 );
 
 // 7. Guards de distribución (auditoría 2026-07-16). Fallan el build si se reintroduce:
-//    (a) el namespace viejo /qa-automator: en cualquier .md distribuido — los commands del
-//        plugin viven bajo /ia4d-qa-automator: y el workspace ya no aporta commands;
+//    (a) el namespace viejo /qa-automator: en cualquier fichero distribuido — los commands del
+//        plugin viven bajo /ia4d-qa-automator: y el workspace ya no aporta commands. Se escanean
+//        .md, .ts, .yaml y .yml porque el namespace se filtró antes en comentarios .ts, YAML de
+//        ejemplo y un string de error de runtime, no solo en docs .md (hallazgo C1, 2026-07-16);
 //    (b) referencias a SPEC.md / METODOLOGIA AISD en agentes/commands del plugin — son
 //        material de construcción y NO viajan en el plugin ni en el payload.
-function walkMd(dir) {
+const SCAN_EXT = ['.md', '.ts', '.yaml', '.yml'];
+function walkFiles(dir) {
   const found = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = resolve(dir, e.name);
-    if (e.isDirectory()) found.push(...walkMd(p));
-    else if (e.name.endsWith('.md')) found.push(p);
+    if (e.isDirectory()) found.push(...walkFiles(p));
+    else if (SCAN_EXT.some((ext) => e.name.endsWith(ext))) found.push(p);
   }
   return found;
 }
 const guardErrors = [];
-for (const f of walkMd(out)) {
+for (const f of walkFiles(out)) {
   const text = readFileSync(f, 'utf8');
   const rel = f.slice(out.length + 1);
   if (text.includes('/qa-automator:')) {

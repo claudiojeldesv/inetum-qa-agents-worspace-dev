@@ -273,7 +273,7 @@ export function parseFeature(featureText: string, opts: ParseOptions): ParseOutp
           `- **Origen**: ${sourceRef}\n` +
           `- **Hueco**: el Scenario no tiene paso \`Then\`. Un Gherkin maduro debe declarar el resultado esperado.\n` +
           `- **Por qué importa**: sin \`Then\` no hay aserción. Este criterio NO se genera. Refina el ` +
-          `.feature (añade el \`Then\`) o enruta este caso por \`/qa-automator:spec-refiner\` (S3).\n`,
+          `.feature (añade el \`Then\`) o enruta este caso por \`/ia4d-qa-automator:spec-refiner\` (S3).\n`,
       );
     }
 
