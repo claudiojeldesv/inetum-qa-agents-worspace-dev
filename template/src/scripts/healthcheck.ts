@@ -110,6 +110,10 @@ fileCheck('Gherkin→criteria (S2)', 'src/gherkin-to-criteria.ts');
 fileCheck('Judge scoring', 'src/judge-scoring.ts');
 fileCheck('Reporte ejecutivo (showcase)', 'src/scripts/build-showcase.ts');
 fileCheck('Consolidador de feedback (anti-race)', 'src/scripts/consolidate-reviews.ts');
+// Fase 1 token-efficiency: sustitutos determinísticos de mode-router / compliance-checker / a11y-injector
+fileCheck('Resolución de módulo S1-S4 (resolve-mode)', 'src/scripts/resolve-mode.ts');
+fileCheck('Gate de compliance de los commands (check-compliance)', 'src/scripts/check-compliance.ts');
+fileCheck('Verificador a11y determinístico (verify-a11y)', 'src/scripts/verify-a11y.ts');
 // Config declarativa
 fileCheck('allowed-targets (compliance)', 'config/allowed-targets.yaml');
 fileCheck('MCP playwright-test configurado (.mcp.json)', '.mcp.json');

@@ -31,11 +31,11 @@ Acepta además un **brief de exploración** (`--flows/--entry/--ignore`) que aco
 
 ### Acto 1 — Comprender
 
-1. Invoca `ia4d-mode-router` via Task tool con los flags recibidos.
-2. Confirma que el módulo resuelto es S4 (Autonomous).
-3. Invoca `ia4d-compliance-checker` via Task tool con la URL y `config/allowed-targets.yaml`.
-4. Si verdict = `block` → aborta, muestra razón al QA, termina con exit 2.
-5. Si verdict = `warn` → muestra warning y pregunta al QA si continúa (ask-first).
+1. Resuelve el módulo (determinístico, no LLM): ejecuta `npx tsx src/scripts/resolve-mode.ts` con los flags recibidos tal cual.
+2. Confirma en el JSON de salida `module: "S4", status: "functional"`. Si no, muestra el `user_message` y detente.
+3. Gate de compliance (determinístico, no LLM — **sin override**): ejecuta `npx tsx src/scripts/check-compliance.ts <--url>`. Escribe `.work/compliance-verdict.json` y registra al audit-log (misma evidencia que antes; el hook PreToolUse sigue activo como segunda barrera).
+4. Si exit code 2 (verdict `block`) → aborta, muestra la razón al QA, termina con exit 2.
+5. Si el verdict es `warn` → muestra warning y pregunta al QA si continúa (ask-first).
 
 **5.b — Captura del brief de exploración (acotar por módulos es OBLIGATORIO salvo confirmación explícita)**:
 
@@ -214,10 +214,12 @@ registran (no es un fallo: es la rienda).
    - El Writer escribe el `.spec.ts` con los tags nativos e invoca internamente al Reviewer (ping-pong N≤2).
    - Cada `.spec.ts` pasa por el hook PostToolUse `pii-post.ts` automáticamente.
 10. (Opcional) Invoca `ia4d-style-enforcer` por cada `.spec.ts` para enforce final del Style Contract.
-11. (Obligatorio) Invoca `ia4d-a11y-injector` por cada `.spec.ts` **pasándole `--style-contract`** para asegurar el `AxeBuilder` scan y aplicar el gate del contract:
-    - El scan se inyecta siempre (no opcional — regla dura del producto).
-    - El gate lo decide `a11y.fail_on_violations` del contract. **Default `false`** (modo warning: annotation auditable, no aborta) — gate apagado por defecto, reactivable por-sitio con `fail_on_violations: true` (entonces `expect(...).toEqual([])` aborta). Severidades filtradas por `a11y.severity_threshold`.
-    - Lee el `gate_mode` del output del injector y registra al audit-log: `{ source: 'command', action: 'warn'|'allow', target: <spec>, rule: 'a11y-gate', reason: 'fail_on_violations:<bool> → <mode> mode' }`.
+11. (Obligatorio) Verificación a11y **determinística** (el Writer ya inyecta el scan; esto lo garantiza):
+    ```sh
+    npx tsx src/scripts/verify-a11y.ts tests/e2e/<site-id>/ --style-contract=<--style>
+    ```
+    - Comprueba que cada `test()` lleva el scan `AxeBuilder` tras el goto y que el modo (annotation vs assert) corresponde a `a11y.fail_on_violations` del contract (**default `false`** → modo warning; reactivable por-sitio con `true`). El script registra el gate-mode por spec al audit-log.
+    - Exit 0 → continúa. Exit 1 → invoca `ia4d-a11y-injector` (rescate) SOLO por cada spec de `failed_specs`, pasándole `--style-contract`, y re-ejecuta el script para confirmar. El scan sigue siendo no-opcional — cambia el mecanismo de garantía, no la garantía.
 
 **11.b — Consolidar feedback (determinístico, no LLM):** el Reviewer escribió un fichero por spec en
 `<workDir>/review-feedback/<spec>.json` (sin contención entre writers paralelos). Únelos en el

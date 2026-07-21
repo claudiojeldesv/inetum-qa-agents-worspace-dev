@@ -23,10 +23,10 @@ Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita
 
 ### Acto 1 — Comprender
 
-1. Invoca `ia4d-mode-router` via Task tool con los flags recibidos.
-2. Confirma `module: S3`. Si `status: needs_input` (`--fd` sin `--url`) → aborta y dile al QA que Forma B exige URL de staging. Forma A (FD sin target) no está implementada.
-3. Invoca `ia4d-compliance-checker` via Task tool con la URL y `config/allowed-targets.yaml`.
-   - `block` → aborta (exit 2). `warn` → muestra y pregunta (ask-first).
+1. Resuelve el módulo (determinístico, no LLM): ejecuta `npx tsx src/scripts/resolve-mode.ts` con los flags recibidos tal cual.
+2. Confirma en el JSON `module: "S3", status: "functional"`. Si `status: "needs_input"` (`--fd` sin `--url`) → aborta y dile al QA que Forma B exige URL de staging. Forma A (FD sin target) no está implementada.
+3. Gate de compliance (determinístico, no LLM — **sin override**): ejecuta `npx tsx src/scripts/check-compliance.ts <--url>`. Escribe `.work/compliance-verdict.json` y registra al audit-log.
+   - Exit 2 (`block`) → aborta (exit 2). `warn` → muestra y pregunta (ask-first).
 
 **1.a — Namespace por sitio + limpieza (PRIMERO, antes de la ingesta, NO negociable):** deriva `<site-id>`
 del basename del `--style`; define `<workDir>=.work/<site-id>` (todos los artefactos efímeros ahí,
@@ -106,7 +106,7 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
     - **Construye el `--output`** bajo `tests/e2e/<site-id>/<id>_<feature>.<condicion>.spec.ts` (ID estable del registro). Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir=tests/pages/<site-id>`, `--output` (el construido), `--discovery-report=<workDir>/discovery-report.json` **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode: `@criterion` cita RF-NNN + source_ref; usa given/when/then del criterio).
     - El Writer escribe el `.spec.ts` e invoca al Reviewer (ping-pong N≤2). Pasa por el hook `pii-post.ts`.
 13. (Opcional) `ia4d-style-enforcer` por cada `.spec.ts`.
-14. (Obligatorio) `ia4d-a11y-injector` por cada `.spec.ts` pasándole `--style-contract` (scan siempre; gate por `a11y.fail_on_violations`, **default `false`** → modo warning; reactivable por-sitio con `true`). Igual que S4.
+14. (Obligatorio) Verificación a11y **determinística**: `npx tsx src/scripts/verify-a11y.ts tests/e2e/<site-id>/ --style-contract=<--style>` (scan siempre; gate por `a11y.fail_on_violations`, **default `false`** → modo warning; reactivable por-sitio con `true`). Exit 1 → `ia4d-a11y-injector` (rescate) solo para los `failed_specs`, y re-verifica. Igual que S4 (ver `autonomous.md` paso 11).
 
 **14.b — Consolidar feedback (determinístico, no LLM):** el Reviewer escribió un fichero por spec en
 `<workDir>/review-feedback/<spec>.json` (sin contención entre writers paralelos). Únelos en el

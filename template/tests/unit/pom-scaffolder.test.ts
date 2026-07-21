@@ -83,6 +83,16 @@ describe('pom-scaffolder scaffoldPage', () => {
     expect(result.content).toContain('this.nav = new NavComponent(page);');
     expect(result.content).toContain("import { NavComponent } from '../components/nav.component'");
   });
+
+  it('derives the component import path from site-namespaced dirs (spike bug)', () => {
+    const result = scaffoldPage(
+      { name: 'home', components: ['nav'] },
+      { outputDir: 'tests/pages/saucedemo', componentsDir: 'tests/components/saucedemo' },
+    );
+    expect(result.content).toContain(
+      "import { NavComponent } from '../../components/saucedemo/nav.component'",
+    );
+  });
 });
 
 describe('pom-scaffolder scaffoldBasePage', () => {

@@ -31,10 +31,10 @@
 
 ### Capa transversal (siempre activa, todos los modos)
 
-- **Compliance pre-flight** (`PreToolUse` hook + `ia4d-compliance-checker`): valida URL contra `allowed-targets.yaml` y modo declarado. Sin override.
+- **Compliance pre-flight** (`PreToolUse` hook + `src/scripts/check-compliance.ts` en los commands): valida URL contra `allowed-targets.yaml` y modo declarado. Sin override. (El subagent `ia4d-compliance-checker` quedó deprecated en Fase 1 token-efficiency — misma lógica, cero tokens.)
 - **PII scanner** (`PostToolUse` hook + `ia4d-pii-scanner`): regex banca-ES (DNI/IBAN/Luhn/teléfono/email) sobre cada `.spec.ts` escrito. **Off por defecto** (v0.2 `design/gates-off-by-default`), reactivable con `QA_ENABLE_PII=1` — funcionalidad apagada, no eliminada. La detección de `test.fixme()` no autorizado del Healer en el mismo hook **sigue activa siempre** (no es PII).
 - **Style Contract enforcer** (`ia4d-style-enforcer`): post-procesa al output del Generator nativo según `style-contract.yaml`.
-- **A11y injector** (`ia4d-a11y-injector`): inyecta `AxeBuilder({ page }).analyze()` al inicio de cada `test()`. El scan siempre se inyecta; el **gate** (`fail_on_violations`) está **off por defecto** (modo warning), reactivable por-sitio con `true`.
+- **A11y garantizado** (`src/scripts/verify-a11y.ts` + `ia4d-a11y-injector` como rescate): el Writer inyecta el scan `AxeBuilder`; el verificador determinístico lo comprueba en cada `test()` y solo escala al injector el spec que falle. El scan siempre presente; el **gate** (`fail_on_violations`) está **off por defecto** (modo warning), reactivable por-sitio con `true`.
 - **Audit log** (`audit-write.ts` hook): JSON line append-only por cada llamada LLM, archivo escrito, decisión Reviewer/Judge.
 
 ### Quality layer (Writer + Reviewer + Judge)

@@ -1,10 +1,15 @@
 ---
 name: ia4d-compliance-checker
-description: Use this agent to validate a target URL + mode against allowed-targets.yaml before any Planner/Generator invocation. Hard gate — no override.
+description: "DEPRECATED (Fase 1 token-efficiency, 2026-07) — el gate es determinístico: los commands ejecutan `npx tsx src/scripts/check-compliance.ts <URL>` (misma lógica que el hook pre-flight, exit 0 allow / 2 block, verdict a .work/compliance-verdict.json). El gate sigue SIN override y el hook PreToolUse sigue activo como segunda barrera. Se conserva por auditabilidad."
 tools: Read, Bash
 model: haiku
 color: red
 ---
+
+> **DEPRECATED.** Sustituido por `src/scripts/check-compliance.ts` (envuelve la misma
+> `runPreflight()` de `src/compliance-preflight.ts` que ya corre el hook PreToolUse).
+> El gate no cambia de semántica: **sin override** (regla dura #3). Se conserva como
+> documentación hasta el cierre del branch `design/token-efficiency`.
 
 You are the **Compliance Checker** of `ia4d-qa-automator`. Your single responsibility is to validate that a target URL and execution mode are declared as allowed before any Playwright Planner or Generator invocation.
 

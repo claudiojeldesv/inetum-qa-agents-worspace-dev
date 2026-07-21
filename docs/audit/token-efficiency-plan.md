@@ -95,6 +95,14 @@ Commitear en `design/token-efficiency` el estado actual: informe, este plan, `sr
 | Fase | Fecha | $ run | Δ vs anterior | Subagents | API calls main | Approved | Verdes 1ª | Notas |
 |---|---|---|---|---|---|---|---|---|
 | Baseline (auditoría) | 2026-07-21 | 12,4 | — | 18 | 91 | 5/5 | 4/5 | Incluye ~10-15% de inflado por interrupciones |
-| Fase 1 | | | | | | | | |
+| Fase 1 | 2026-07-21 | 11,93 | −0,47 (−3,8%) | 9 | 79 | 5/5 | 3/5 | Ver notas Fase 1 abajo. Wall-clock ~21 min (vs ~35) |
 | Fase 2 | | | | | | | | |
 | Fase 3 | | | | | | | | |
+
+**Notas Fase 1** (streams: `.work/audit-runs/baseline-fase1{,-2}.jsonl`, sesión `42bce888`):
+
+- **Criterio de salida cumplido**: total $11,93 (banda esperada $11-12), 5/5 approved (todos en iteración 0), y **cero invocaciones de mode-router/compliance-checker/a11y-injector en el desglose del parser**. Subagents 18→9 (3 planners + discovery + 5 writers; el Reviewer sigue embebido en el sidechain del Writer). Orquestador: 91→79 llamadas API, cache-read 12,0M→10,2M, ~$2,65 prorrateado.
+- El run corrió en 2 segmentos por una **pausa ask-first legítima**: al borrar `config/tc-registry/saucedemo.json` (protocolo de medición), el orquestador detectó que reasignar IDs en frío cambia el significado de TC-003/TC-005 vs el histórico git y preguntó. Se respondió opción spec-literal (`{}`, cero real). Coste incluye el re-priming de caché del segundo segmento — el run limpio sin pausa sería algo menor, igual que en el baseline original.
+- **Verdes a la primera: 3/5** (esperado ≥4/5). `TC-005 pago` rojo también en el baseline original (no regresión). `TC-001 login` es un rojo nuevo: locator `getByRole('img', { name: 'Swag Labs' })` no confirmado contra el DOM por el discovery, que el Reviewer ya había marcado should-fix no bloqueante — clase de fallo preexistente (la misma del baseline), no atribuible a los cambios de Fase 1 (los specs los siguen escribiendo los mismos Writer/Reviewer con los mismos prompts). Nótese además que el catálogo descubierto difirió del original (salió `credenciales-invalidas`, no salió `carrito.quitar-producto`): variance run-a-run del discovery, no del cambio.
+- El ahorro directo de Fase 1 era modesto por diseño (~$0,3-0,5); el objetivo real era limpiar el terreno para atribuir la Fase 2 (dieta del orquestador, 51% del coste). El wall-clock sí cayó fuerte (~35→~21 min): menos invocaciones y 5/5 aprobados sin iteraciones.
+- **Hallazgo de tooling** (para el radar, no bloquea): en headless, subagents con solo `Bash` (p.ej. `ia4d-reviewer`, sin `Write`) chocan con el permission-gate cuando el comando no calza literal con los patrones del allow-list (`Bash(npx tsx *)` con prefijo de env-var delante, p.ej.); el Writer tuvo que persistir el feedback en su nombre. Revisar allow-list o dar `Write` al Reviewer.

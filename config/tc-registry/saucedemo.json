@@ -1,7 +1,7 @@
 {
   "inicio-sesion.usuario-valido": "TC-001",
   "inicio-sesion.usuario-bloqueado": "TC-002",
-  "pago.compra-completa": "TC-003",
+  "inicio-sesion.credenciales-invalidas": "TC-003",
   "carrito.agregar-y-ver": "TC-004",
-  "carrito.quitar-producto": "TC-005"
+  "pago.compra-completa": "TC-005"
 }
