@@ -108,6 +108,34 @@ Diseño propuesto (validar antes de adoptar):
 
 ---
 
+## CICLO 2 (2026-07-22) — el margen vive en los Writers, no en el orquestador
+
+Base: §8 del [informe](token-efficiency-audit-2026-07.md) (re-auditoría sobre el baseline F4: writers ~52% del coste, orquestador agotado, output ahora visible ~$3). Mismas reglas: protocolo enmendado, A/B congelado para todo lo que toque calidad, efectos <$1 por aritmética.
+
+### Fase 5 — Quick wins C2 (C2-3 + C2-4 + C2-5). Riesgo cero.
+
+1. Arranque escalonado de Writers: el command lanza el Writer del primer escenario, espera su retorno de primera respuesta (o sencillamente lo completa), y lanza los 4 restantes en paralelo. Ahorro ~$0,4-0,5 (aritmético — no se mide con run).
+2. Documentar `evidence.level` como knob de coste en el schema del Style Contract y README del template (full = vitrina; steps/minimal = default cliente).
+3. Gobernanza de modelo: nota en `autonomous.md`/README del template — runs con `--model sonnet`; prohibido `CLAUDE_CODE_SUBAGENT_MODEL` (pisa el tiering).
+
+**Criterio de salida**: red estructural verde; sin medición de run (efectos bajo el suelo de ruido, se firman por aritmética). **Commit**: `perf(qa-automator): fase 5 token-efficiency — stagger writers + gobernanza modelo/evidence`
+
+### Fase 6 — Writer en Haiku, A/B congelado (C2-1). La palanca grande (~$3,5-4). Toca asignación de modelos, no reglas duras.
+
+1. A/B sobre discovery congelado (Actos 4-5, mismo catálogo): brazo A = Writers Sonnet (estado actual), brazo B = Writers Haiku 4.5 (`model: haiku` en frontmatter del writer, **Reviewer se queda en Sonnet** — el juez no se abarata).
+2. Métricas de decisión: approved-rate a iteración ≤1 (hoy: mayoría iter 0), nº y severidad de must-fix del Reviewer, verdes/rojos por clase en verificación real, y coste neto por brazo (si Haiku necesita 2 iteraciones sistemáticamente, el ping-pong se come el ahorro — medirlo, no asumirlo).
+3. Si adopta: actualizar la tabla de modelos en CLAUDE.md/SPEC ("Writer: Haiku 4.5 vigilado por Reviewer Sonnet") y el argumento en la ficha del catálogo. Si no: documentar y cerrar, como R6.
+
+**Criterio de salida**: decisión con dato, ambos desenlaces cierran. **Commit**: `perf(qa-automator): fase 6 token-efficiency — writer Haiku A/B (<resultado>)`
+
+### Fase 7 — Orquestador en Haiku (C2-2). Condicional a F6; ~$1,5-1,8.
+
+Solo si F6 cerró (con cualquier desenlace) y el apetito sigue: baseline completo con `--model haiku`, mismos criterios de calidad + atención específica a la guarda 6.5 (juicio "¿navegó de verdad?"), la decisión del checkpoint y la calidad del diagnóstico post-rojos. Es un flag de lanzamiento: si degrada, se revierte sin tocar código. Efecto ~$1,5-1,8 — medible con run limpio.
+
+**Criterio de salida**: decisión con dato. **Commit**: `perf(qa-automator): fase 7 token-efficiency — main Haiku (<resultado>)`
+
+---
+
 ## Fuera de plan (explícito)
 - **Dom-walker / port copilot-edition**: fuera de scope por decisión de entrevista (carril propio).
 - **Writer a Haiku, tocar compliance sin override, encender Judge**: descartados en el informe (R8).
@@ -125,7 +153,10 @@ Commitear en `design/token-efficiency` el estado actual: informe, este plan, `sr
 | Fase 1 | 2026-07-21 | 11,93 | −0,47 (−3,8%) | 9 | 79 | 5/5 | 3/5 | Ver notas Fase 1 abajo. Wall-clock ~21 min (vs ~35) |
 | Fase 2 | 2026-07-21 | 14,67 | +2,74 (+23%) ⚠️ contaminado | 9 (+2 reviewers visibles) | 115 | 5/5 | 3/5 | **CERRADA (decisión QA 2026-07-21)**: aplicada, calidad intacta, hipótesis de ahorro grande refutada — ahorro real ~$0,2-0,3 (aritmético), bajo el suelo de ruido del protocolo (~±$3). Cambios se conservan. Origina las enmiendas al protocolo y la promoción de R7 a Fase 4 |
 | Fase 3 (A/B congelado) | 2026-07-21 | n/a (A/B in-session) | ~+$0,2-0,5 estimado si se adoptara el lote ⚠️ | A: 4 / B: 5 | n/a | A: 4/4 · B: 4/4 (iter 0) | A: 2/4 · B: 2/4 | **CERRADA**: reviewer de lote **DESCARTADO** por A/B (sin ahorro, feedback más pobre); pre-review determinístico **ADOPTADO** como red post-review (paso 11.c). Ver notas Fase 3 |
-| Fase 4 (R7) | 2026-07-22 | 11,21 | −0,72 vs F1 (−6%) | 9 | 46 | 5/5 | 0/5 ⚠️ pre-existente | **CERRADA**: main 79→46 calls (LA métrica de la fase, criterio <60 cumplido con margen); $9-10 limpio no alcanzado — el objetivo estaba calibrado contra la F2 contaminada. Ver notas Fase 4 |
+| Fase 4 (R7) | 2026-07-22 | 11,21 | −0,72 vs F1 (−6%) | 9 | 46 | 5/5 | 0/5 ⚠️ pre-existente | **CERRADA**: main 79→46 calls (LA métrica de la fase, criterio <60 cumplido con margen); $9-10 limpio no alcanzado — el objetivo estaba calibrado contra la F2 contaminada. Ver notas Fase 4. **Cierra el ciclo 1** (§7.1 del informe) |
+| Fase 5 (C2 quick wins) | | | | | | | | |
+| Fase 6 (Writer Haiku A/B) | | | | | | | | |
+| Fase 7 (Main Haiku, condicional) | | | | | | | | |
 
 **Notas Fase 1** (streams: `.work/audit-runs/baseline-fase1{,-2}.jsonl`, sesión `42bce888`):
 

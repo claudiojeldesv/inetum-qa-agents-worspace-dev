@@ -198,6 +198,46 @@ Contexto competitivo: $2,5/test generado con Reviewer independiente, trazabilida
 
 Dónde medir en adelante: el `total_cost_usd` del stream-json en runs headless (gratis, ya instrumentado — el script `parse-usage.mjs` de esta auditoría queda reutilizable), o OTEL si Inetum quiere telemetría continua.
 
+### 7.1 Resultado final del ciclo 1 (cierre 2026-07-22, tras Fases 1-4 del plan)
+
+Medido, no estimado: **$12,4 / 35 min → $11,2 / 18 min** (run limpio ajustado ≈ $10), orquestador 91→46 llamadas API, 18→9 subagents/run, calidad de review intacta (5/5 approved en todas las fases), reglas duras de producto sin tocar. Detalle por fase en [token-efficiency-plan.md](token-efficiency-plan.md).
+
+**Corrección a este informe con lo aprendido**: la estimación original de −40-50% (~$6-7) sobreestimaba la grasa del plano orquestador (asumía ~$4-5; medido ~$1,5-2 — el prefijo del main lo dominan los tool-results × turnos, no la prosa, y R7 capturó ese techo entero). El ahorro grande del ciclo 1 fue **wall-clock (−50%)**, que refuerza el lead de venta "en minutos" más que los $1,2 ahorrados. R6 (reviewer de lote) resultó tener la premisa de coste falsa (+13%) y se descartó por A/B; su subproducto (pre-review determinístico, $0) se adoptó.
+
+**Puntos de revisión abiertos al cierre del ciclo 1** (carril calidad, fuera del scope tokens — es la próxima inversión de diseño):
+1. **0/5 verdes a la primera en F4** por dos clases pre-existentes verificadas contra el sitio real: gap del discovery en la pantalla cart (`getByRole('generic')` sin accessible name) y observación imprecisa del planner (clase `error` siempre presente traducida a assert de camino feliz). Ningún gate estático actual las caza — son correctitud semántica de lo observado.
+2. Fix del origen del bug del Reviewer (JSON concatenado en el fichero per-spec; el consumidor ya es tolerante desde F4).
+3. `src/pom-scaffolder.ts` inyecta locators hardcodeados no presentes en el discovery (flaggeado en F2).
+4. Carril Healer como post-proceso (principio ya establecido; los rojos de F4 son su caso de uso).
+
+---
+
+## 8. Segundo ciclo de auditoría (2026-07-22, sobre el estado post-F4)
+
+Mismo método, sin run nuevo: el baseline de F4 (streams `baseline-fase4{,-2}.jsonl`, $11,21 CLI) ES el estado actual. Estructura de coste medida hoy (pricing estándar):
+
+| Bloque | $ aprox | % | Composición |
+|---|---|---|---|
+| **Writers ×5 (Sonnet)** | ~5,5-6 | **~52%** | Input-side ~$4 (388k cache-write + 5,5M cache-read) + su parte del output (~$1,5-2) |
+| **Orquestador (Sonnet)** | ~2,5-2,7 | ~23% | 46 calls, 5,0M cache-read + diagnóstico post-rojos |
+| **Output total del run** | (~3 embebido) | — | 200k tokens a $15/MTok: specs, feedback, plan fragments, diagnóstico. El ciclo 1 no lo midió por-agente (caveat del parser); ahora es visible y relevante |
+| Planners ×3 (Sonnet, nativos) | ~1 | ~9% | Ya optimizados por brief; escalan con el sitio |
+| Discovery + mecánica (Haiku/script) | ~0,1 | ~1% | Residual — el ciclo 1 hizo su trabajo aquí |
+
+El plano orquestador está agotado (§7.1). **El margen restante vive en los Writers y en el precio del modelo que los corre.** Palancas del ciclo 2, rankeadas por ahorro esperado × riesgo:
+
+**C2-1. Writer en Haiku 4.5, con el Reviewer en Sonnet como gate (revisa el R8 del ciclo 1).** Ahorro potencial **~$3,5-4/run** (writers ÷3 en input, ÷3 en output) — la palanca más grande que queda, y desde F3 es barata de probar (A/B sobre discovery congelado, Actos 4-5, ~$1,5). El ciclo 1 la descartó a priori por riesgo al argumento de venta; lo que cambió: (a) el A/B congelado existe y mide exactamente el riesgo (¿sube la tasa de rechazo/iteraciones? ¿bajan los verdes?); (b) la red de calidad post-F3/F4 (pre-review determinístico + Reviewer Sonnet independiente + verificación real) contiene al Writer barato; (c) la evidencia externa ya lo respaldaba (Haiku ≈90% de Sonnet en coding agéntico; patrón oficial Anthropic "Sonnet orquesta, Haikus ejecutan"). El argumento de venta hasta MEJORA si aguanta: "Writer económico vigilado por un juez Sonnet independiente". Si el A/B muestra más iteraciones de ping-pong, el ahorro se come solo en parte y el dato decide. Criterio de no-degradación: mismo approved-rate a iteración ≤1, mismas clases de verdes/rojos, feedback del Reviewer sin inflación de must-fix.
+
+**C2-2. Orquestador en Haiku 4.5 (la idea de esta iteración, corregida: ya corre Sonnet; el downgrade es a Haiku).** Ahorro **~$1,5-1,8/run**. Post-F4 el main conserva solo juicio (guarda 6.5, checkpoint, diagnóstico) — que es exactamente lo que NO conviene abaratar a ciegas. Probar DESPUÉS de C2-1 y por separado: si Haiku-main falla la guarda 6.5 o empobrece el diagnóstico, se revierte (es un flag de lanzamiento, no un cambio de código). Nota operativa: NO usar `CLAUDE_CODE_SUBAGENT_MODEL` (pisa el frontmatter de TODOS los subagents y anularía el tiering); el modelo del main se fija con `--model` del run.
+
+**C2-3. Arranque escalonado de Writers (warm-cache).** Los 5 Writers paralelos pagan cada uno el cache-write del prefijo compartido (system prompt + CLAUDE.md + tools, ~15-20k). Lanzar el Writer 1, esperar su primera respuesta, lanzar los otros 4 → ~4×17k writes se vuelven reads. Ahorro **~$0,4-0,5/run**, riesgo cero, coste de implementación trivial (una línea en el command), +30-60s de wall-clock. Corrección al ciclo 1: la estimación inicial de esta palanca (~$1-1,5) era alta — solo el prefijo de sistema es compartible; los tool-results de cada Writer son únicos.
+
+**C2-4. Dieta de output (~$0,3-0,5, aritmético — no medir con run).** El output se paga 5×. Candidatos: `evidence.level: full` del contract demo genera specs más largos (test.step + screenshot por paso — es la vitrina PRO; para contracts de cliente, `steps` o `minimal` como default documentado); verbosidad del feedback del Reviewer (ya acotado por el formato per-spec); fragmentos del planner (nativos, no tocar).
+
+**C2-5. Gobernanza del modelo del run (previene regresión, no ahorra).** Las mediciones asumen main en Sonnet. Un cliente que lance el command en una sesión con Opus 4.8 paga ×1,67 el plano orquestador sin enterarse. Documentar en el command/README del template: los runs S4 se lanzan con `--model sonnet` (o el default de la org fijado a Sonnet).
+
+**Techo del ciclo 2 si C2-1/2/3 aterrizan**: ~$11,2 → **~$6-7/run** — el objetivo original del ciclo 1, alcanzado por la ruta correcta (el precio del modelo donde el trabajo es contenible, no la prosa). Con la promo Sonnet 5 vigente hasta 2026-08-31, ~$4-5. La condición de todo el ciclo: **la calidad la firma el Reviewer Sonnet y la verificación real — cualquier A/B que la mueva, se descarta como R6.**
+
 ---
 
 ## Anexo — evidencia del baseline
