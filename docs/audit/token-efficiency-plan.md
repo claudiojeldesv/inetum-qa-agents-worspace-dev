@@ -24,6 +24,15 @@
 
 Red de seguridad estructural en cada fase, antes del baseline: `healthcheck` + `npm run build` + `npm test` (los del repo; en la reorganización eran 18/18 y 72/72 — el healthcheck cambiará en Fase 1, ver ahí).
 
+### Enmiendas al protocolo (post-F2, 2026-07-21)
+
+La F2 midió el suelo de ruido del protocolo: **~±$3/run** (denials del sandbox + variance del discovery 6→10 escenarios + re-primings por pausas). Ningún efecto menor a eso es medible con el baseline completo. Enmiendas obligatorias desde F3:
+
+1. **Discovery congelado para A/B**: los dos brazos de una comparación parten del MISMO `discovery-report.json` + plan fragments + POM ya generados (Actos 1-3 se corren UNA vez y se archivan en `.work/audit-runs/frozen-<fase>/`); se mide solo Actos 4-5. Mata la variance del catálogo y baja el coste del A/B a la mitad.
+2. **`--allowedTools` ampliado**: añadir los patrones que fallaron en F1/F2 (env-var inline y heredocs; en la práctica: `Bash(QA_WORK_DIR=*)`, `Bash(cat >*)` o equivalentes observados en los streams) y dar `Write` a `ia4d-reviewer` (persiste su propio feedback; hoy el Writer lo hace en su nombre cuando Bash choca con el gate).
+3. **Pre-crear `config/tc-registry/saucedemo.json` con `{}`** antes del run (elimina la pausa ask-first de "registro borrado en frío").
+4. **Efectos esperados < $1 no se miden con run**: se justifican por aritmética (tokens × re-lecturas × precio) y se anotan como estimación. El run se reserva para efectos > $2-3.
+
 ---
 
 ## Fase 1 — Determinístico (R1 + R3). Riesgo bajo.
@@ -70,7 +79,7 @@ Diseño propuesto (validar antes de adoptar):
 1. **Pre-review determinístico**: extraer los checks objetivos del Reviewer (locators prohibidos, waits, banned APIs, min asserts, naming — los MF ya mecánicos) a `src/scripts/pre-review.ts` reutilizando la lógica AST del style-enforcer. Corre tras cada Writer; su output JSON alimenta al Reviewer.
 2. **Reviewer de lote**: una única invocación de `ia4d-reviewer` por run que recibe los 5 specs + los pre-review JSON + contract + discovery, y devuelve verdict + feedback POR SPEC en los mismos ficheros per-spec de hoy (`<workDir>/review-feedback/<spec>.json` — el formato no cambia; el Judge y el reporte no se enteran).
 3. **Ping-pong solo para rechazados**: el Writer se re-invoca únicamente para los specs con verdict `rejected` (N≤2 se mantiene por spec).
-4. **A/B obligatorio antes de adoptar**: mismo baseline dos veces — reviewer per-spec (estado Fase 2) vs de lote — comparando verdicts, nº de must-fix detectados y verdes a la primera. Si el de lote detecta menos must-fix reales o aprueba algo que el per-spec rechazaba, **se descarta y se documenta**: el informe ya establece que es la única recomendación con riesgo sobre el argumento de venta.
+4. **A/B obligatorio antes de adoptar, sobre discovery congelado (enmienda post-F2)**: correr Actos 1-3 UNA vez y archivar sus artefactos; los dos brazos (reviewer per-spec vs de lote) re-ejecutan solo Actos 4-5 desde ese estado congelado. Comparar verdicts, nº de must-fix detectados y verdes a la primera sobre el MISMO catálogo. Si el de lote detecta menos must-fix reales o aprueba algo que el per-spec rechazaba, **se descarta y se documenta**: el informe ya establece que es la única recomendación con riesgo sobre el argumento de venta. Efecto esperado ($1-1,5) cerca del suelo de ruido del baseline completo — el A/B congelado es lo que lo hace medible.
 5. Si se adopta: actualizar regla dura #8 en CLAUDE.md/SPEC (matiz, no eliminación: "Writer + Reviewer obligatorios; el Reviewer audita por lote con pre-review determinístico por spec"), `composition-rules.md` y `writer-reviewer-protocol.md`.
 
 **Criterio de salida**: decisión documentada (adoptado con A/B verde, o descartado con el dato). Ambos desenlaces cierran la fase.
@@ -79,9 +88,25 @@ Diseño propuesto (validar antes de adoptar):
 
 ---
 
-## Fuera de plan (explícito)
+## Fase 4 — Orquestación determinística (R7). Promovida desde "fuera de plan" tras F1-F2.
 
-- **R7** (orquestación en script `run-s4.ts`): se decide DESPUÉS de ver el ahorro real de Fases 1-2. Techo ~$3-4/run; coste en legibilidad ante I+D.
+**Justificación con dato (F2)**: el prefijo del orquestador (~131k medios/call) lo domina el historial de tool-results × nº de turnos, no la prosa (podarla movió <3%). El único efecto del plano orquestador por encima del suelo de ruido (~$3-4/run) vive en reducir turnos. F1-F2 ya hablaron; esto es lo que queda.
+
+**Objetivo**: orquestador de 115 llamadas API → ~40-50. Crear `src/scripts/run-s4-mecanico.ts` (nombre orientativo) que encadene los pasos SIN juicio que hoy el orquestador ejecuta leyendo prosa: limpieza 5.c + namespace, scaffold POM (Acto 3), resolución de IDs + escritura del tc-registry (Acto 2.5 salvo la decisión de selección), `verify-a11y`, consolidate-reviews, Verification step (env-vars + `npx playwright test` + parseo del veredicto) y ensamblado del run-summary. El orquestador LLM conserva: captura del brief y pausas ask-first, invocación de planners/discovery/writers, decisión del checkpoint cuando cap superado, y el reporte final al QA.
+
+**Reglas que NO cambian**: compliance sin override, guarda anti-fabricación 6.5 (el juicio de "¿navegó de verdad?" sigue en el orquestador; el script solo verifica existencia/estructura del fragmento), ask-first en todas las pausas actuales.
+
+**Tradeoff asumido** (decidido al promoverla): el command .md deja de ser prosa auto-contenida — queda como documentación del flujo que delega lo mecánico al script. Para I+D el patrón externo (Orquestador → Sub-agentes → Comandos → Hooks) no cambia.
+
+**Criterio de salida**: baseline completo (con protocolo enmendado) ≈ **$9-10 limpio**, llamadas API del main < 60, calidad intacta (5/5 approved). Es el efecto grande: si no aparece con ese margen, el diseño del script está mal repartido (juicio vs mecánica) y se revisa antes de commitear.
+
+**Commit**: `perf(qa-automator): fase 4 token-efficiency — orquestación mecánica a run-s4-mecanico.ts, main <60 calls`
+
+**Nota de expectativas**: con F4 + F3 adoptada, el objetivo realista pasa a **~$8-9/run** (no los $6-7 originales del informe — esa cifra asumía el ahorro de R2 que F2 refutó).
+
+---
+
+## Fuera de plan (explícito)
 - **Dom-walker / port copilot-edition**: fuera de scope por decisión de entrevista (carril propio).
 - **Writer a Haiku, tocar compliance sin override, encender Judge**: descartados en el informe (R8).
 - **Hueco de specs stale** (`tests/e2e/<site-id>/` no se limpia): tarea aparte ya flaggeada, no bloquea; el protocolo de medición lo neutraliza borrando el namespace antes de cada baseline.
@@ -96,8 +121,9 @@ Commitear en `design/token-efficiency` el estado actual: informe, este plan, `sr
 |---|---|---|---|---|---|---|---|---|
 | Baseline (auditoría) | 2026-07-21 | 12,4 | — | 18 | 91 | 5/5 | 4/5 | Incluye ~10-15% de inflado por interrupciones |
 | Fase 1 | 2026-07-21 | 11,93 | −0,47 (−3,8%) | 9 | 79 | 5/5 | 3/5 | Ver notas Fase 1 abajo. Wall-clock ~21 min (vs ~35) |
-| Fase 2 | 2026-07-21 | 14,67 | +2,74 (+23%) ⚠️ contaminado | 9 (+2 reviewers visibles) | 115 | 5/5 | 3/5 | Ver notas Fase 2 abajo. Criterio de salida NO demostrado; ~$2,5-3,5 de fricción/variance identificados. Wall-clock ~31 min |
-| Fase 3 | | | | | | | | |
+| Fase 2 | 2026-07-21 | 14,67 | +2,74 (+23%) ⚠️ contaminado | 9 (+2 reviewers visibles) | 115 | 5/5 | 3/5 | **CERRADA (decisión QA 2026-07-21)**: aplicada, calidad intacta, hipótesis de ahorro grande refutada — ahorro real ~$0,2-0,3 (aritmético), bajo el suelo de ruido del protocolo (~±$3). Cambios se conservan. Origina las enmiendas al protocolo y la promoción de R7 a Fase 4 |
+| Fase 3 (A/B congelado) | | | | | | | | |
+| Fase 4 (R7) | | | | | | | | |
 
 **Notas Fase 1** (streams: `.work/audit-runs/baseline-fase1{,-2}.jsonl`, sesión `42bce888`):
 
