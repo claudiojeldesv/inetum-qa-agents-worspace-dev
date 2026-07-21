@@ -1,0 +1,994 @@
+<title>Auditoría de consistencia — ia4d-qa-automator (2026-07-16)</title>
+<style>
+  :root {
+    --paper: #f6f7f8;
+    --card: #ffffff;
+    --ink: #22272b;
+    --muted: #5a6570;
+    --line: #dce1e5;
+    --accent: #14666b;
+    --accent-soft: #e3efef;
+    --crit: #b3382f;
+    --crit-soft: #f7e9e7;
+    --high: #b95f1f;
+    --high-soft: #f8eee3;
+    --med: #8a6d1f;
+    --med-soft: #f5f0df;
+    --low: #4a6b8a;
+    --low-soft: #e8eef4;
+    --ok: #2e7d4f;
+    --ok-soft: #e6f2ea;
+    --mono: "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14181b;
+      --card: #1c2126;
+      --ink: #e4e8ea;
+      --muted: #97a2ab;
+      --line: #2e353b;
+      --accent: #4fb3ae;
+      --accent-soft: #16302f;
+      --crit: #e06a5f;
+      --crit-soft: #362220;
+      --high: #df9256;
+      --high-soft: #34281c;
+      --med: #cdb35b;
+      --med-soft: #302b18;
+      --low: #7fa7c9;
+      --low-soft: #1e2a36;
+      --ok: #6fbd8f;
+      --ok-soft: #1c2f24;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14181b; --card: #1c2126; --ink: #e4e8ea; --muted: #97a2ab; --line: #2e353b;
+    --accent: #4fb3ae; --accent-soft: #16302f;
+    --crit: #e06a5f; --crit-soft: #362220; --high: #df9256; --high-soft: #34281c;
+    --med: #cdb35b; --med-soft: #302b18; --low: #7fa7c9; --low-soft: #1e2a36;
+    --ok: #6fbd8f; --ok-soft: #1c2f24;
+  }
+  :root[data-theme="light"] {
+    --paper: #f6f7f8; --card: #ffffff; --ink: #22272b; --muted: #5a6570; --line: #dce1e5;
+    --accent: #14666b; --accent-soft: #e3efef;
+    --crit: #b3382f; --crit-soft: #f7e9e7; --high: #b95f1f; --high-soft: #f8eee3;
+    --med: #8a6d1f; --med-soft: #f5f0df; --low: #4a6b8a; --low-soft: #e8eef4;
+    --ok: #2e7d4f; --ok-soft: #e6f2ea;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 40px 24px 96px; }
+
+  header.doc { border-bottom: 3px solid var(--accent); padding-bottom: 24px; margin-bottom: 28px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 36px); line-height: 1.15; margin: 0 0 12px;
+    font-weight: 650; letter-spacing: -.015em; text-wrap: balance;
+  }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 14px; }
+  .meta strong { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-size: 21px; font-weight: 650; letter-spacing: -.01em; margin: 48px 0 6px;
+    text-wrap: balance;
+  }
+  h2 .count { color: var(--muted); font-weight: 500; }
+  .h2-sub { color: var(--muted); font-size: 14.5px; margin: 0 0 18px; max-width: 72ch; }
+  p { max-width: 76ch; }
+  section > p:first-of-type { margin-top: 0; }
+
+  /* Summary tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 26px 0 10px; }
+  .tile {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px 12px; border-top: 3px solid var(--line);
+  }
+  .tile .n { font-size: 30px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .tile.crit { border-top-color: var(--crit); } .tile.crit .n { color: var(--crit); }
+  .tile.high { border-top-color: var(--high); } .tile.high .n { color: var(--high); }
+  .tile.med  { border-top-color: var(--med); }  .tile.med .n  { color: var(--med); }
+  .tile.low  { border-top-color: var(--low); }  .tile.low .n  { color: var(--low); }
+  .tile.ok   { border-top-color: var(--ok); }   .tile.ok .n   { color: var(--ok); }
+
+  /* Filter */
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 4px; }
+  .filters button {
+    font: 600 13px/1 "Segoe UI", system-ui, sans-serif; letter-spacing: .02em;
+    padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--card); color: var(--muted); cursor: pointer;
+  }
+  .filters button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filters button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Finding cards */
+  .finding {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 18px 22px 16px 26px; margin: 14px 0; position: relative; overflow: hidden;
+  }
+  .finding::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--line); }
+  .finding.sev-crit::before { background: var(--crit); }
+  .finding.sev-high::before { background: var(--high); }
+  .finding.sev-med::before  { background: var(--med); }
+  .finding.sev-low::before  { background: var(--low); }
+  .finding[hidden] { display: none; }
+
+  .f-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 6px; }
+  .fid { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--muted); }
+  .f-title { font-size: 17px; font-weight: 650; letter-spacing: -.005em; }
+  .chip {
+    font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 4px; white-space: nowrap;
+  }
+  .chip.crit { color: var(--crit); background: var(--crit-soft); }
+  .chip.high { color: var(--high); background: var(--high-soft); }
+  .chip.med  { color: var(--med);  background: var(--med-soft); }
+  .chip.low  { color: var(--low);  background: var(--low-soft); }
+  .chip.cat  { color: var(--accent); background: var(--accent-soft); }
+
+  .f-body p { margin: 8px 0; }
+  .evidence { margin: 10px 0; padding: 10px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+  .evidence .ev-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  .evidence ul { margin: 0; padding-left: 18px; }
+  .evidence li { font-family: var(--mono); font-size: 12.8px; line-height: 1.75; white-space: nowrap; }
+  .evidence li .note { font-family: "Segoe UI", system-ui, sans-serif; color: var(--muted); white-space: normal; }
+  .fix { margin: 12px 0 2px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 6px 6px 0; }
+  .fix strong { color: var(--accent); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .fix p { margin: 0; font-size: 14.5px; }
+  code {
+    font-family: var(--mono); font-size: .88em; background: var(--paper);
+    border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px;
+  }
+  .evidence code, .fix code { background: var(--card); }
+
+  /* Tables */
+  .tblwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th {
+    text-align: left; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); font-weight: 700; padding: 10px 14px; border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.mono, .mono { font-family: var(--mono); font-size: 12.8px; }
+  td .okmark { color: var(--ok); font-weight: 700; }
+
+  .toc { columns: 2; gap: 32px; font-size: 14px; margin: 12px 0 0; padding-left: 20px; }
+  .toc li { margin: 3px 0; break-inside: avoid; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+
+  footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .banner {
+    margin: 24px 0 8px; padding: 16px 20px; border: 1px solid var(--ok); border-left-width: 5px;
+    border-radius: 8px; background: var(--ok-soft);
+  }
+  .banner h2 { margin: 0 0 8px; font-size: 17px; color: var(--ok); }
+  .banner p { margin: 6px 0; font-size: 14.5px; }
+  .banner .mono { font-size: 12.5px; }
+  @media (max-width: 640px) { .toc { columns: 1; } .wrap { padding: 24px 16px 64px; } }
+</style>
+
+<div class="wrap">
+<header class="doc">
+  <p class="eyebrow">Auditoría interna · Consistencia y distribución</p>
+  <h1>ia4d-qa-automator — inconsistencias, rutas rotas y drift antes del hand-off a testers</h1>
+  <div class="meta">
+    <span>Fecha: <strong>2026-07-16</strong></span>
+    <span>Versión auditada: <strong>v0.3.2</strong> (branch <span class="mono">develop</span>)</span>
+    <span>Alcance: <strong>12 agentes ia4d · 7+2 commands · hooks · plugin · template/payload · docs distribuidas</strong></span>
+    <span>Hallazgos: <strong>22</strong> (3 críticos · 5 altos · 8 medios · 6 bajos)</span>
+  </div>
+</header>
+
+<section class="banner">
+  <h2>Saneamiento ejecutado — 2026-07-17</h2>
+  <p>
+    Los <strong>22 hallazgos están resueltos</strong> en la rama <span class="mono">fix/saneamiento-auditoria-2026-07</span>
+    (6 commits, uno por fase: F1 críticos → F2 verdad documental → F3 contratos/EOL → F4 pulido → F5 regeneración).
+    Decisiones aplicadas: MCP portable con <span class="mono">node + node_modules/playwright/cli.js</span> (verificado, sin shim
+    <span class="mono">cmd/npx</span>); referencias a SPEC/METODOLOGIA eliminadas de los prompts distribuidos;
+    <span class="mono">.gitattributes</span> con LF; pre-flight con warning en navegación sin URL (fail-closed descartado:
+    rompería las tools sin URL legítimas); <span class="mono">compliance-verdict.json</span> documentado en ruta plana.
+  </p>
+  <p>
+    Validación: build + lint limpios, <strong>122/122</strong> unit en repo y en workspace desplegado, healthcheck
+    <strong>19/19</strong> en ambos, guards de regresión nuevos en <span class="mono">build-plugin.mjs</span> (namespace viejo y
+    referencias no distribuibles fallan el build), y <strong>smoke real</strong>: scaffold del plugin → workspace limpio →
+    <span class="mono">npm install</span> → healthcheck verde → el comando exacto del <span class="mono">.mcp.json</span> arranca.
+  </p>
+  <p>
+    <strong>Pendiente manual (no verificable desde esta máquina):</strong> confirmar en un tester con SOLO el plugin instalado
+    que <span class="mono">Task(subagent_type: 'ia4d-reviewer')</span> resuelve sin prefijo. Nada se ha pusheado — la rama es local.
+  </p>
+</section>
+
+<section>
+  <h2>Resumen ejecutivo</h2>
+  <p>
+    La sincronización de contenido entre las tres copias (repo → plugin → template/payload) <strong>está bien</strong>:
+    los 12 agentes y los commands son byte-idénticos salvo line-endings, la versión 0.3.2 es consistente en
+    <code>package.json</code>, <code>plugin.json</code> y el payload, y todos los scripts, exports y ficheros de
+    config que los prompts citan existen. El problema no es el motor: es la <strong>documentación que acompaña
+    al workspace desplegado</strong>, que quedó anclada a la distribución anterior (pre-plugin, v0.3.1) y a estados
+    de versiones anteriores (v0.1/v0.2).
+  </p>
+  <p>
+    Tres hallazgos bloquean directamente la misión de "pasarle el agente a otras personas": <strong>(C1)</strong> toda la guía
+    del workspace enseña commands <code>/qa-automator:*</code> que ya no existen — el plugin los publica como
+    <code>/ia4d-qa-automator:*</code>; <strong>(C2)</strong> el command <code>healthcheck</code> describe el mundo v0.1 (13 subagents
+    en <code>.claude/agents/</code>, versión v0.1.0) y en un workspace desplegado reportará fallos falsos; <strong>(C3)</strong> el
+    <code>.mcp.json</code> distribuido usa <code>cmd /c</code> — solo arranca en Windows.
+  </p>
+
+  <div class="tiles">
+    <div class="tile crit"><div class="n">3</div><div class="l">Críticos</div></div>
+    <div class="tile high"><div class="n">5</div><div class="l">Altos</div></div>
+    <div class="tile med"><div class="n">8</div><div class="l">Medios</div></div>
+    <div class="tile low"><div class="n">6</div><div class="l">Bajos</div></div>
+    <div class="tile ok"><div class="n">10</div><div class="l">Checks limpios</div></div>
+  </div>
+
+  <ol class="toc">
+    <li><a href="#c1">C1 — Namespace de commands obsoleto en toda la doc desplegada</a></li>
+    <li><a href="#c2">C2 — healthcheck.md describe el mundo v0.1</a></li>
+    <li><a href="#c3">C3 — .mcp.json solo funciona en Windows</a></li>
+    <li><a href="#a1">A1 — Agentes citan SPEC.md / METODOLOGIA que no se distribuyen</a></li>
+    <li><a href="#a2">A2 — Contradicción triple sobre Allure Trends</a></li>
+    <li><a href="#a3">A3 — "Funcional en v0.3" con v0.3.2 ya publicada</a></li>
+    <li><a href="#a4">A4 — Drift del SPEC (detectado el 11-07, sin corregir)</a></li>
+    <li><a href="#a5">A5 — Fichero fantasma con ruta Windows + basura en git</a></li>
+    <li><a href="#m1">M1 — hooks.json duplicado del wiring real</a></li>
+    <li><a href="#m2">M2 — report.md con defaults sin namespacear</a></li>
+    <li><a href="#m3">M3 — compliance-verdict.json: contrato de ruta ambiguo</a></li>
+    <li><a href="#m4">M4 — README del template: estructura que ya no existe</a></li>
+    <li><a href="#m5">M5 — "Cuatro labs" que son cinco</a></li>
+    <li><a href="#m6">M6 — CLAUDE.md del repo desactualizado</a></li>
+    <li><a href="#m7">M7 — CRLF vs LF: drift fantasma en cada diff</a></li>
+    <li><a href="#m8">M8 — .gitignore con artefacto muerto</a></li>
+    <li><a href="#b1">B1 — Links relativos rotos en contexto plugin</a></li>
+    <li><a href="#b2">B2 — config.md enlaza examples/ inexistente en el repo</a></li>
+    <li><a href="#b3">B3 — Descripciones largas + agentes duplicados en sesión</a></li>
+    <li><a href="#b4">B4 — Bypass fail-open del pre-flight sigue vivo</a></li>
+    <li><a href="#b5">B5 — Check del Judge solo documentado en PowerShell</a></li>
+    <li><a href="#b6">B6 — Expected output del healthcheck con datos que envejecen</a></li>
+  </ol>
+</section>
+
+<section>
+  <h2>Hallazgos</h2>
+  <p class="h2-sub">Filtra por severidad. Cada hallazgo lleva su evidencia con ancla <span class="mono">archivo:línea</span> verificable abriendo la fuente.</p>
+  <div class="filters" role="group" aria-label="Filtro por severidad">
+    <button aria-pressed="true" data-sev="all">Todos (22)</button>
+    <button aria-pressed="false" data-sev="crit">Críticos (3)</button>
+    <button aria-pressed="false" data-sev="high">Altos (5)</button>
+    <button aria-pressed="false" data-sev="med">Medios (8)</button>
+    <button aria-pressed="false" data-sev="low">Bajos (6)</button>
+  </div>
+
+  <!-- ============ CRÍTICOS ============ -->
+  <article class="finding sev-crit" id="c1" data-sev="crit">
+    <div class="f-head">
+      <span class="fid">C1</span>
+      <span class="f-title">Toda la documentación del workspace desplegado enseña commands que no existen</span>
+      <span class="chip crit">Crítico</span><span class="chip cat">namespace</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Desde v0.3.1 (distribución híbrida) los commands los publica el <em>plugin</em> con namespace
+        <code>/ia4d-qa-automator:*</code>, y el workspace desplegado ya no lleva <code>.claude/commands/</code>.
+        Pero la guía que el tester lee — <code>CLAUDE.md</code>, <code>README.md</code> y los README de los 5 labs —
+        usa el namespace viejo <code>/qa-automator:*</code> en <strong>todas</strong> sus ~25 menciones. En el template hay
+        <strong>cero</strong> ocurrencias del namespace correcto. Un tester que siga el quickstart tecleará un comando que no existe
+        en su primer contacto con el producto. Los commands del plugin (<code>init</code>, <code>help</code>) sí usan el namespace bueno,
+        lo que agrava la confusión: el punto de entrada dice una cosa y la guía interna otra.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>template/CLAUDE.md:66-84, 99, 111, 132 <span class="note">— tabla de modos + bloque de comandos + 3 menciones sueltas</span></li>
+          <li>template/README.md:26, 44 <span class="note">— quickstart paso 4 y cierre de labs</span></li>
+          <li>template/examples/01-saucedemo/README.md:92, 109, 123</li>
+          <li>template/examples/02-parabank/README.md:20, 45, 55, 68</li>
+          <li>template/examples/03-orangehrm/README.md:20, 43</li>
+          <li>template/docs/references/composition-rules.md:5 · audit-log-schema.md:39 · style-contract-schema.md:121</li>
+          <li>plugin/.../scaffold/payload/** <span class="note">— mismas copias (payload = template)</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Sustitución global <code>/qa-automator:</code> → <code>/ia4d-qa-automator:</code> en las fuentes del template
+        (recuerda la regla: se edita en el repo y se propaga con <code>npm run build:plugin</code>, que ya corre
+        <code>build:template</code>). Ojo: <code>build-template.mjs</code> <em>preserva</em> CLAUDE.md, README y examples del template —
+        esos hay que editarlos directamente en <code>template/</code> y regenerar solo el plugin. Añadir un check al
+        healthcheck o al build que grepée el namespace viejo evitaría la regresión.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-crit" id="c2" data-sev="crit">
+    <div class="f-head">
+      <span class="fid">C2</span>
+      <span class="f-title">healthcheck.md describe el mundo v0.1 y contradice al script real</span>
+      <span class="chip crit">Crítico</span><span class="chip cat">desactualizado</span>
+    </div>
+    <div class="f-body">
+      <p>
+        El command instruye listar los 15 subagents bajo <code>.claude/agents/</code> — pero en un workspace desplegado solo viven
+        los 3 nativos de Playwright (los 12 ia4d vienen del plugin). Espera versión <code>v0.1.0</code> (vamos por 0.3.2), dice
+        "13 subagents" cuando su propio desglose suma 15 (3+4+3+2+3), clasifica <code>spec-parser</code> y <code>spec-refiner</code>
+        como stubs (funcionales desde v0.2), y verifica <code>hooks/hooks.json</code> cuando el wiring real es
+        <code>.claude/settings.json</code> — exactamente lo que el script <code>src/scripts/healthcheck.ts:104</code> ya chequea bien.
+        No menciona <code>npm run qa:healthcheck</code>, que es el healthcheck real (21 checks, incluido el arranque del MCP).
+        Resultado con testers: el command reporta "faltan 12 subagents" en un workspace perfectamente sano.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>.claude/commands/qa-automator/healthcheck.md:12-17 <span class="note">— listado bajo .claude/agents/</span></li>
+          <li>healthcheck.md:33 <span class="note">— "ia4d-qa-automator v0.1.0"</span></li>
+          <li>healthcheck.md:34 <span class="note">— "13" vs desglose que suma 15; spec-parser/refiner como "stubs"</span></li>
+          <li>healthcheck.md:20 <span class="note">— verifica hooks/hooks.json (no cargado por Claude Code)</span></li>
+          <li>src/scripts/healthcheck.ts:97-104 <span class="note">— el script ya asume el modelo híbrido (3 nativos + settings.json)</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Reescribir el command para delegar: "ejecuta <code>npm run qa:healthcheck</code> y presenta su salida verbatim"
+        (mismo patrón que ya usa <code>config.md</code> con el contract-validator — hard rule #5). Eliminar la lista manual,
+        la versión y el conteo hardcodeados. Un solo lugar con la verdad: el script.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-crit" id="c3" data-sev="crit">
+    <div class="f-head">
+      <span class="fid">C3</span>
+      <span class="f-title">.mcp.json distribuido usa <code>cmd /c</code> — el MCP solo arranca en Windows</span>
+      <span class="chip crit">Crítico</span><span class="chip cat">portabilidad</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Las tres copias del <code>.mcp.json</code> (repo, template, payload) declaran el server como
+        <code>"command": "cmd", "args": ["/c", "npx", ...]</code>. En macOS/Linux <code>cmd</code> no existe: el MCP
+        <code>playwright-test</code> no arranca, el planner queda sin tools de navegador y la guarda anti-fabricación
+        aborta el run. Todo el motor S2/S3/S4 muere en el primer paso para cualquier tester fuera de Windows,
+        y el mensaje de error no apunta a la causa. Si el piloto es 100% Windows es tolerable, pero hay que decidirlo,
+        no heredarlo.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>.mcp.json:3-11 <span class="note">— "command": "cmd" (repo)</span></li>
+          <li>template/.mcp.json · plugin/.../payload/.mcp.json <span class="note">— idénticos</span></li>
+          <li>template/README.md:14 <span class="note">— requisitos no mencionan "solo Windows"</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Opción a: <code>"command": "npx"</code> directo (verificar en Windows — el wrapper <code>cmd /c</code> suele ponerse
+        porque npx es un .cmd en win32; probar antes de cambiar). Opción b: mantener <code>cmd /c</code> y declarar
+        "Windows-only por ahora" en los requisitos del README + un check de plataforma en el healthcheck.
+        Lo inaceptable es la situación actual: falla silenciosa y sin documentar.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- ============ ALTOS ============ -->
+  <article class="finding sev-high" id="a1" data-sev="high">
+    <div class="f-head">
+      <span class="fid">A1</span>
+      <span class="f-title">8 agentes y 4 commands citan SPEC.md / METODOLOGIA AISD.md que no se distribuyen</span>
+      <span class="chip high">Alto</span><span class="chip cat">rutas-rotas</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Los prompts distribuidos con el plugin instruyen leer <code>SPEC.md</code> ("§4 Code style", "§6 Boundaries",
+        "§7 Roadmap"...) y <code>METODOLOGIA AISD.md</code>, pero ninguno de los dos viaja en el payload ni en el plugin.
+        En un workspace desplegado, el agente que siga esa referencia hará un Read fallido o improvisará el contenido.
+        Además es fuga de contexto interno: el SPEC es material de construcción, no de uso. Lo mismo pasa con
+        la mención a <code>wild-sites-report.md</code> (findings internos) dentro del a11y-injector.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia (referencias a SPEC.md)</span>
+        <ul>
+          <li>ia4d-writer.md:196 · ia4d-discovery-analyzer.md:297 · ia4d-judge.md:92 · ia4d-mode-router.md:67-68</li>
+          <li>ia4d-a11y-injector.md:76,86 · ia4d-code-analyzer.md:17,53 · ia4d-spec-parser.md:77 · ia4d-spec-refiner.md:76</li>
+          <li>autonomous.md:301 · req-driven.md:196 · spec-refiner.md:155 · code-driven.md:28-29</li>
+          <li>ia4d-spec-refiner.md:78 <span class="note">— METODOLOGIA AISD.md (tampoco distribuida)</span></li>
+          <li>ia4d-a11y-injector.md:60 <span class="note">— "wild-sites-report.md" (docs/findings internos)</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Decidir por referencia: si la sección aporta reglas operativas (p.ej. SPEC §4 Code style para el Writer),
+        extraerla a <code>docs/references/</code> del payload y citar eso; si es contexto de construcción, borrar la
+        referencia de la copia distribuida. Como el build copia los agentes tal cual desde el repo, esto implica
+        o limpiar las referencias en el repo (preferible: los agentes no deberían depender del SPEC en runtime)
+        o añadir una transformación al <code>build-plugin.mjs</code>.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-high" id="a2" data-sev="high">
+    <div class="f-head">
+      <span class="fid">A2</span>
+      <span class="f-title">Tres documentos, dos verdades sobre los Trends de Allure</span>
+      <span class="chip high">Alto</span><span class="chip cat">contradicción</span>
+    </div>
+    <div class="f-body">
+      <p>
+        <code>report.md</code> es explícito: formato single-file → "no hay Trends acumulados entre runs" y
+        "<code>.allure-history/</code> no se usa en este flujo". Pero <code>autonomous.md</code> promete lo contrario
+        ("Los Trends se preservan — <code>.allure-history/</code> queda intacto; el report lo re-inyecta") y la guía del
+        workspace remata ofreciendo "<strong>Trends</strong> entre runs (history en <code>.allure-history/</code>)" como feature
+        del reporte PRO. Un tester que busque los Trends prometidos concluirá que el reporte está roto.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>.claude/commands/qa-automator/report.md:33-34, 81-83 <span class="note">— "no hay Trends... .allure-history/ no se usa"</span></li>
+          <li>.claude/commands/qa-automator/autonomous.md:252 <span class="note">— "Los Trends se preservan... el report lo re-inyecta"</span></li>
+          <li>template/CLAUDE.md:131-134 <span class="note">— promete "Trends entre runs (history en .allure-history/)"</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>La verdad actual es la de <code>report.md</code> (decisión single-file, trade-off asumido). Corregir la frase de
+        <code>autonomous.md:252</code> y quitar la promesa de Trends del <code>template/CLAUDE.md</code>. Si los Trends importan
+        a futuro, es roadmap, no doc de uso.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-high" id="a3" data-sev="high">
+    <div class="f-head">
+      <span class="fid">A3</span>
+      <span class="f-title">"Funcional en v0.3" en los stubs S1 — y v0.3.2 ya está publicada sin S1</span>
+      <span class="chip high">Alto</span><span class="chip cat">desactualizado</span>
+    </div>
+    <div class="f-body">
+      <p>
+        La promesa de versión del stub S1 envejeció mal: <code>code-driven.md</code> ("STUB v0.1, funcional en v0.3"),
+        <code>ia4d-code-analyzer.md</code> ("Functional in v0.3"), el mode-router ("return 'not implemented v0.3'") y el
+        SPEC (roadmap v0.3 = S1) apuntan a una versión que ya existe — v0.3.x se gastó en la distribución por plugin.
+        Para un tester, "funcional en v0.3" leído desde un producto v0.3.2 significa "esto debería funcionar ya".
+        El propio stub además dice "For MVP v0.1, use autonomous instead", ignorando que S2/S3 también son alternativas funcionales.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>.claude/commands/qa-automator/code-driven.md:2, 6-8, 17-19, 25 <span class="note">— v0.1/v0.3 por todas partes</span></li>
+          <li>.claude/agents/ia4d-code-analyzer.md:3, 9-11, 17, 54 <span class="note">— "STUB v0.1... Functional in v0.3... v0.3 release notes (TBD)"</span></li>
+          <li>.claude/agents/ia4d-mode-router.md:24 <span class="note">— "[STUB, return 'not implemented v0.3']"</span></li>
+          <li>SPEC.md:17, 99, 240 <span class="note">— "Stub (v0.3)" / roadmap v0.3 = S1</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Despegar el stub de un número: "no implementado — en roadmap, sin versión comprometida" (coherente con
+        el estilo del S5 en el SPEC: "pendiente de priorización"). Actualizar el mensaje del stub para ofrecer
+        las tres puertas funcionales (S2/S3/S4), no solo S4. Ajustar el roadmap del SPEC a la numeración real
+        (v0.3 ya fue plugin; S1 pasa a v0.4+ o a "candidato").</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-high" id="a4" data-sev="high">
+    <div class="f-head">
+      <span class="fid">A4</span>
+      <span class="f-title">El drift documental del SPEC detectado el 11-07 sigue sin corregir</span>
+      <span class="chip high">Alto</span><span class="chip cat">contradicción</span>
+    </div>
+    <div class="f-body">
+      <p>
+        La auditoría interna previa (<code>docs/audit/qa-automator-audit-2026-07.md</code> §4.3) ya listó estas
+        contradicciones como recomendación #1 ("alto impacto, bajo esfuerzo"). Verificado hoy: siguen todas vivas.
+        El SPEC se contradice consigo mismo y con los agentes: se titula v0.1 con package.json en 0.3.2; lista
+        <code>@happy-path</code> como tag válido cuando writer, reviewer y discovery-analyzer lo tienen expresamente
+        prohibido; el anexo declara al Judge "activo" cuando está off por defecto; el riesgo #9 describe una dirección
+        de invocación (Reviewer→Writer) que nunca existió; y el DoD fija ≤8 min cuando los findings documentan 30-45 min.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>SPEC.md:1 <span class="note">— "SPEC — ia4d-qa-automator v0.1 (MVP)"</span></li>
+          <li>SPEC.md:204 <span class="note">— "@smoke/@regression/@critical/<b>@happy-path</b>/@negative"</span></li>
+          <li>ia4d-writer.md:27 · ia4d-discovery-analyzer.md:232, 291-292 · ia4d-reviewer.md:46-49 <span class="note">— "@happy-path quedó eliminado / no es un valor"</span></li>
+          <li>SPEC.md:390 <span class="note">— "Writer + Reviewer + Judge los tres activos" (Judge off, regla #10)</span></li>
+          <li>SPEC.md:410 <span class="note">— "Reviewer puede invocar Writer" (la real es Writer→Reviewer)</span></li>
+          <li>SPEC.md:74, 387 <span class="note">— DoD "≤8 min wall-clock"</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Aplicar la lista de la auditoría previa tal cual: título → v0.3.x, quitar <code>@happy-path</code> de §204,
+        anexo del Judge → "opcional, off por defecto", riesgo #9 → dirección Writer→Reviewer, DoD → dato real medido.
+        Una sesión de edición, cero código.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-high" id="a5" data-sev="high">
+    <div class="f-head">
+      <span class="fid">A5</span>
+      <span class="f-title">Fichero fantasma con ruta Windows literal en el root + basura trackeada en git</span>
+      <span class="chip high">Alto</span><span class="chip cat">higiene-repo</span>
+    </div>
+    <div class="f-body">
+      <p>
+        En el root vive un fichero llamado literalmente
+        <code>c:Workspaceinetum-qa-agents-worspace-dev.workcompliance-verdict.json</code>: una ruta absoluta de
+        <em>otro</em> clon (<code>c:\Workspace\inetum-qa-agents-worspace-dev\.work\compliance-verdict.json</code> — el remote
+        con el typo "worspace") a la que Bash le comió los backslashes y la creó como nombre de archivo. Contiene un
+        veredicto de compliance de una URL de <strong>producción de Mapfre</strong>. Es el failure-mode predecible de los
+        agentes sin tool <code>Write</code> que escriben JSON "a mano vía Bash" (compliance-checker, reviewer, pii-scanner)
+        recibiendo rutas Windows. Además: <code>log.log</code> (transcripción de sesión) está <strong>commiteado</strong>, y
+        <code>flujo-qa-automator.pptx</code> vive en el root en vez de <code>docs/</code>.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>c:Workspaceinetum-qa-agents-worspace-dev.workcompliance-verdict.json <span class="note">— root; verdict W1 sobre mapfre.es/ahorro-inversion</span></li>
+          <li>.git/sourcetreeconfig.json:28 <span class="note">— remote "inetum-qa-agents-worspace-dev" (origen del typo)</span></li>
+          <li>ia4d-compliance-checker.md:27 <span class="note">— "write to .work/compliance-verdict.json via Bash — this agent has no Write tool"</span></li>
+          <li>git ls-files <span class="note">— log.log y flujo-qa-automator.pptx TRACKED; tmp/ y log_ejecucion.log ya ignorados</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Borrar el fichero fantasma; <code>git rm --cached log.log</code> + añadir <code>/log.log</code> al .gitignore; mover el
+        .pptx a <code>docs/</code> o ignorarlo. Root cause: en los agentes que escriben por Bash, exigir rutas con
+        forward-slashes ("usa siempre <code>/</code>, nunca <code>\</code>") o darles tool <code>Write</code> — el reviewer ya sufrió
+        el problema equivalente con el escapado de JSON (fix v0.3.2), este es el mismo patrón de fragilidad.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- ============ MEDIOS ============ -->
+  <article class="finding sev-med" id="m1" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M1</span>
+      <span class="f-title"><code>hooks/hooks.json</code> es una copia muerta del wiring real</span>
+      <span class="chip med">Medio</span><span class="chip cat">duplicación</span>
+    </div>
+    <div class="f-body">
+      <p>
+        El hallazgo del release v0.2.0 fue que Claude Code no carga <code>hooks/hooks.json</code>; el wiring real se movió a
+        <code>.claude/settings.json</code>. Pero <code>hooks.json</code> sigue en el repo y en el payload con el mismo contenido,
+        <code>healthcheck.md</code> aún lo verifica, y el comment de <code>pre-flight.ts:6</code> aún lo cita como el lugar del matcher.
+        Dos copias del mismo wiring divergen tarde o temprano; el schema URL que declara
+        (<code>docs.claude.com/schemas/hooks.json</code>) además no es un schema real.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>hooks/hooks.json:1-39 <span class="note">— duplica .claude/settings.json:4-38 línea a línea</span></li>
+          <li>.claude/commands/qa-automator/healthcheck.md:20 <span class="note">— "Verify presence of hooks/hooks.json"</span></li>
+          <li>hooks/pre-flight.ts:6 <span class="note">— "matcher declarado en hooks/hooks.json"</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Borrar <code>hooks/hooks.json</code> (repo + template) y actualizar las 2 referencias; o, si se quiere conservar
+        como doc, reducirlo a un README de una línea: "el wiring vive en .claude/settings.json". Una sola fuente.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-med" id="m2" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M2</span>
+      <span class="f-title">report.md: defaults sin namespacear — tras un run real no encuentran nada</span>
+      <span class="chip med">Medio</span><span class="chip cat">inconsistencia</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Los runs escriben todo bajo <code>&lt;workDir&gt; = .work/&lt;site-id&gt;/</code> (regla dura de los 3 commands
+        generadores), pero <code>report.md</code> anuncia defaults planos: <code>--results-dir=.work/allure-results</code>,
+        <code>--summary=.work/qa-automator-run-summary.json</code>, <code>--output=.work/allure-report</code>. Ejecutado con
+        defaults tras un run namespaceado, el preflight del report dirá "no hay artefactos, corre una generación primero" —
+        falso negativo confuso. El cuerpo mezcla ambas convenciones (<code>&lt;workDir&gt;/showcase-report.html</code> junto a
+        <code>.work/judge-report.json</code>). Detalle menor adicional: la numeración de secciones salta de "2" a "4".
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>report.md:3 <span class="note">— argument-hint con defaults planos .work/*</span></li>
+          <li>report.md:45-48, 54, 58, 78-79 <span class="note">— .work/ plano en args, preflight y generate</span></li>
+          <li>report.md:23, 106 <span class="note">— &lt;workDir&gt;/showcase-report.html (convención nueva) conviviendo con lo anterior</span></li>
+          <li>report.md:50, 67, 90 <span class="note">— secciones "1. Preflight", "2. Enriquecer", "4. Cierre" (no hay 3)</span></li>
+          <li>autonomous.md:74, 290 <span class="note">— la regla del namespacing que report.md ignora</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Defaults derivados del run: "si <code>QA_WORK_DIR</code> está definido o hay un único <code>.work/&lt;site-id&gt;/</code>
+        con summary, usa ese"; documentar los defaults como <code>&lt;workDir&gt;/allure-results</code> etc. Renumerar secciones.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-med" id="m3" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M3</span>
+      <span class="f-title">compliance-verdict.json: el agente escribe en un sitio, el command lo declara en otro</span>
+      <span class="chip med">Medio</span><span class="chip cat">inconsistencia</span>
+    </div>
+    <div class="f-body">
+      <p>
+        <code>ia4d-compliance-checker</code> escribe su veredicto en <code>.work/compliance-verdict.json</code> (ruta fija).
+        <code>autonomous.md</code> lista <code>compliance-verdict</code> entre los artefactos que viven bajo
+        <code>&lt;workDir&gt;/ = .work/&lt;site-id&gt;/</code>. Ninguno de los dos puede tener razón a la vez — y de hecho no pueden:
+        el compliance corre en el Acto 1 (pasos 3-4) y el <code>&lt;workDir&gt;</code> se define después (paso 5.c). Contrato de
+        handoff ambiguo; hoy funciona porque nadie relee ese fichero, pero es el mismo tipo de deuda que ya mordió con
+        el discovery contaminado entre sitios.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>ia4d-compliance-checker.md:27 <span class="note">— "write to .work/compliance-verdict.json"</span></li>
+          <li>autonomous.md:73-74 <span class="note">— "TODOS los artefactos... (discovery, ..., audit-log, compliance-verdict...) bajo &lt;workDir&gt;/"</span></li>
+          <li>autonomous.md:36 vs 66 <span class="note">— compliance (paso 3) corre antes de definir &lt;workDir&gt; (5.c)</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Decisión simple: o el 5.c mueve el verdict al workDir al crear el namespace, o se reordena (derivar site-id
+        antes del Acto 1) y el command pasa la ruta namespaceada al checker. Actualizar la lista de outputs para que
+        refleje lo elegido.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-med" id="m4" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M4</span>
+      <span class="f-title">README del template describe una estructura que ya no existe</span>
+      <span class="chip med">Medio</span><span class="chip cat">desactualizado</span>
+    </div>
+    <div class="f-body">
+      <p>
+        La sección "Estructura" dice que <code>.claude/</code> contiene "Subagents, commands y settings" (el desplegado no
+        lleva commands y solo 3 subagents nativos) y lista un directorio <code>scripts/</code> top-level con
+        <code>healthcheck.ts</code> — se movió a <code>src/scripts/</code> en la reorganización. Los requisitos dicen que el MCP
+        "se habilita solo vía <code>.claude/settings.json</code>" cuando se declara en <code>.mcp.json</code> (settings solo cablea hooks).
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>template/README.md:50-59 <span class="note">— árbol con "scripts/ healthcheck.ts" y ".claude/ Subagents, commands..."</span></li>
+          <li>template/README.md:14 <span class="note">— "MCP... se habilita solo vía .claude/settings.json"</span></li>
+          <li>template/src/scripts/healthcheck.ts <span class="note">— ubicación real</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Actualizar el árbol a la estructura real del payload y la frase del MCP a ".mcp.json declara el server;
+        settings.json cablea los hooks". Editar en <code>template/</code> (el build lo preserva) y regenerar el plugin.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-med" id="m5" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M5</span>
+      <span class="f-title">"Cuatro labs" que son cinco — y el README omite el que CLAUDE.md usa</span>
+      <span class="chip med">Medio</span><span class="chip cat">inconsistencia</span>
+    </div>
+    <div class="f-body">
+      <p>
+        <code>template/CLAUDE.md</code> anuncia "cuatro labs reproducibles" e inmediatamente lista cinco (01-saucedemo …
+        05-config). <code>template/README.md</code> dice cuatro y lista cuatro — omitiendo <code>05-config</code>, que el propio
+        CLAUDE.md y el command <code>config</code> referencian como lab de práctica. Números que no cuadran en la primera
+        página que lee el tester.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>template/CLAUDE.md:26-33 <span class="note">— "cuatro labs" + lista de 5</span></li>
+          <li>template/README.md:37-42 <span class="note">— lista de 4, sin 05-config</span></li>
+          <li>config.md:55 · template/CLAUDE.md:113 <span class="note">— referencias al Lab 05</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>"Cinco labs" en ambos y añadir la línea de 05-config al README (o declarar 05 como "transversal, no lab"
+        y ser consistente con eso en los dos ficheros).</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-med" id="m6" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M6</span>
+      <span class="f-title">CLAUDE.md del repo: árbol de arquitectura y estados anclados a v0.1/v0.2</span>
+      <span class="chip med">Medio</span><span class="chip cat">desactualizado</span>
+    </div>
+    <div class="f-body">
+      <p>
+        El árbol de <code>.claude/commands/qa-automator/</code> en el CLAUDE.md del repo no incluye <code>config.md</code> ni
+        <code>report.md</code> y marca <code>req-driven.md</code> / <code>spec-refiner.md</code> como "(stubs)" — ambos funcionales desde
+        v0.2. Los agentes <code>spec-parser</code>/<code>spec-refiner</code> aparecen como "stubs S1/S2/S3". Y el estado aún dice
+        que el fix del mode-router sin <code>Write</code> está "pendiente", cuando el agente ya documenta el diseño
+        por-respuesta-de-texto como intencional ("You do <b>not</b> write a file"). Esto no afecta a testers, pero sí
+        a cada sesión de construcción que carga este contexto — incluido cualquier colaborador nuevo.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>CLAUDE.md:52-66 <span class="note">— árbol sin config.md/report.md, "(stubs)" en commands funcionales</span></li>
+          <li>CLAUDE.md:58 <span class="note">— "ia4d-{code-analyzer,spec-parser,spec-refiner}.md (stubs S1/S2/S3, v0.2+)"</span></li>
+          <li>CLAUDE.md:109-110 <span class="note">— "mode-router sin Write... fix pendiente" (×2)</span></li>
+          <li>ia4d-mode-router.md:45 <span class="note">— el no-Write ya es diseño documentado</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Actualizar el árbol (7 commands, estados reales) y cerrar la nota del mode-router: o se decide darle
+        <code>Write</code> (trivial) o se declara resuelto-por-diseño y se borra el "pendiente". Coherencia con A3/A4:
+        misma pasada de edición.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-med" id="m7" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M7</span>
+      <span class="f-title">CRLF (repo) vs LF (plugin/template): 21 ficheros con drift fantasma</span>
+      <span class="chip med">Medio</span><span class="chip cat">higiene-repo</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Los ficheros del repo están en CRLF y las copias generadas por <code>build:plugin</code>/<code>build:template</code> en LF.
+        <code>diff -q</code> reporta como distintos los 12 agentes + 6 commands + 3 scripts cuando el contenido es idéntico.
+        Esta auditoría perdió 20 minutos descartando falso drift; el próximo que compare (o un revisor de I+D) tropezará igual,
+        y un futuro drift <em>real</em> quedará camuflado entre el ruido.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>file .claude/agents/ia4d-reviewer.md <span class="note">— "with CRLF line terminators"</span></li>
+          <li>file plugin/.../agents/ia4d-reviewer.md <span class="note">— sin CRLF (LF)</span></li>
+          <li>diff --strip-trailing-cr <span class="note">— 0 diferencias reales en los 19 pares</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Añadir <code>.gitattributes</code> (<code>* text=auto eol=lf</code> o al menos <code>*.md</code>/<code>*.ts</code>) y renormalizar,
+        o hacer que los builds preserven el EOL de la fuente. Elegir uno; el objetivo es que <code>diff -r</code> limpio
+        signifique "sin drift".</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-med" id="m8" data-sev="med">
+    <div class="f-head">
+      <span class="fid">M8</span>
+      <span class="f-title">.gitignore distribuido ignora un artefacto que ya no existe</span>
+      <span class="chip med">Medio</span><span class="chip cat">residuo</span>
+    </div>
+    <div class="f-body">
+      <p>
+        <code>template/.gitignore</code> y el del payload aún listan <code>mode-routing.json</code> — el fichero que el mode-router
+        nunca llegó a escribir y cuyo diseño final es responder por texto. Residuo inofensivo, pero es la clase de
+        pista falsa que hace perder tiempo a quien audite el workspace ("¿dónde se genera esto?").
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>template/.gitignore · plugin/.../payload/.gitignore <span class="note">— entrada mode-routing.json</span></li>
+          <li>ia4d-mode-router.md:45 <span class="note">— "You do not write a file"</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Borrar la entrada en la fuente del template y regenerar.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- ============ BAJOS ============ -->
+  <article class="finding sev-low" id="b1" data-sev="low">
+    <div class="f-head">
+      <span class="fid">B1</span>
+      <span class="f-title">Links markdown relativos de los agentes se rompen en contexto plugin</span>
+      <span class="chip low">Bajo</span><span class="chip cat">rutas-rotas</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Los agentes enlazan sus referencias como <code>[docs/references/x.md](../../docs/references/x.md)</code>. En el repo el
+        relativo resuelve; instalado como plugin, el agente vive en el directorio del plugin y <code>../../</code> apunta a la nada.
+        El path <em>visible</em> (plano, relativo al CWD del workspace) es el que funciona en runtime — el link decorativo
+        es lo que se rompe. Confunde a quien navegue el fuente, no al agente.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>ia4d-writer.md:11, 194-196 · ia4d-reviewer.md:24, 100-101 · ia4d-spec-parser.md:73-77 <span class="note">— patrón repetido en los 12 agentes</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>En las copias distribuidas, dejar el path plano en <code>code</code> sin link (<code>docs/references/x.md</code>).
+        Puede hacerse en la fuente (los links relativos aportan poco también en el repo) o como transformación del build.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-low" id="b2" data-sev="low">
+    <div class="f-head">
+      <span class="fid">B2</span>
+      <span class="f-title">config.md enlaza <code>examples/05-config</code>, que no existe en el repo</span>
+      <span class="chip low">Bajo</span><span class="chip cat">rutas-rotas</span>
+    </div>
+    <div class="f-body">
+      <p>
+        El command referencia el lab <code>examples/05-config/</code> con link relativo. En el workspace desplegado existe;
+        en el repo de construcción no hay <code>examples/</code> en el root, así que el link está roto justo donde se edita
+        el fichero. Espejo del problema A1 pero en dirección contraria (referencia válida solo en destino).
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>.claude/commands/qa-automator/config.md:55-56 <span class="note">— [examples/05-config](../../../examples/05-config/)</span></li>
+          <li>ls repo root <span class="note">— no existe examples/</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Path plano sin link, con nota "(lab del workspace desplegado)".</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-low" id="b3" data-sev="low">
+    <div class="f-head">
+      <span class="fid">B3</span>
+      <span class="f-title">Descripciones de agentes largas y duplicación repo+plugin en sesiones de construcción</span>
+      <span class="chip low">Bajo</span><span class="chip cat">presupuesto-contexto</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Los 12 agentes suman ~3.6k caracteres de <code>description</code> (razonable), pero en esta máquina Claude Code ya avisa
+        "Agent descriptions over the 15.0k-token limit (~18.7k)" — el grueso viene del catálogo ia4d completo instalado, y
+        qa-automator contribuye <em>doble</em> en el repo de construcción: cada agente está registrado dos veces
+        (<code>ia4d-writer</code> desde <code>.claude/agents/</code> y <code>ia4d-qa-automator:ia4d-writer</code> desde el plugin), igual que
+        los commands (<code>/qa-automator:*</code> + <code>/ia4d-qa-automator:*</code>). Un tester con varios plugins ia4d verá el mismo warning.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>log_ejecucion.log:1 <span class="note">— warning de 15k/18.7k tokens</span></li>
+          <li>descripciones: spec-refiner 327 ch · pii-scanner 299 · mode-router 298 · spec-parser 296 <span class="note">— las 4 más largas</span></li>
+          <li>listado de agentes de la sesión <span class="note">— ia4d-* y ia4d-qa-automator:ia4d-* duplicados</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Recortar las 4 descripciones largas a una frase de disparo (el detalle ya vive en el body del agente).
+        En la máquina de construcción, no tener el plugin instalado a la vez que el repo (o deshabilitarlo) para
+        eliminar la duplicación.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-low" id="b4" data-sev="low">
+    <div class="f-head">
+      <span class="fid">B4</span>
+      <span class="f-title">El bypass fail-open del pre-flight sigue vivo (recomendación #3 de la auditoría previa)</span>
+      <span class="chip low">Bajo</span><span class="chip cat">gate</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Sin cambios desde el 11-07: si la URL no viaja en <code>tool_input.url/target/base_url</code>, el hook devuelve 0 y
+        el "gate sin override" no valida nada, en silencio. Se reitera aquí porque el hook viaja en el payload: los
+        testers heredan el bypass. Severidad baja en esta auditoría solo porque ya está documentado y priorizado en la previa.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>hooks/pre-flight.ts:49-53 <span class="note">— "No hay URL en el payload, nada que validar" → return 0</span></li>
+          <li>hooks/pre-flight.ts:6 <span class="note">— comment cita hooks/hooks.json (ver M1)</span></li>
+          <li>docs/audit/qa-automator-audit-2026-07.md §4.1, recomendación #3</li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Lo ya recomendado: warning visible por stderr cuando el matcher dispara sin URL extraíble (mínimo), o
+        fail-closed para tools de navegación conocidas. Actualizar el comment del header de paso.</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-low" id="b5" data-sev="low">
+    <div class="f-head">
+      <span class="fid">B5</span>
+      <span class="f-title">El check del Judge solo se documenta en PowerShell</span>
+      <span class="chip low">Bajo</span><span class="chip cat">ambigüedad</span>
+    </div>
+    <div class="f-body">
+      <p>
+        Los tres commands generadores instruyen comprobar el toggle con "<code>echo $env:QA_ENABLE_JUDGE</code> en PowerShell";
+        los bloques de verificación sí traen variante bash, pero este paso no. Menor, y ligado a la decisión de
+        plataforma de C3.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>autonomous.md:227 · req-driven.md:149 · spec-refiner.md:118</li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>"Comprueba la env-var <code>QA_ENABLE_JUDGE</code> (PowerShell: <code>$env:...</code>; bash: <code>$QA_ENABLE_JUDGE</code>)".</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="finding sev-low" id="b6" data-sev="low">
+    <div class="f-head">
+      <span class="fid">B6</span>
+      <span class="f-title">Expected output del healthcheck con datos puntuales que envejecen</span>
+      <span class="chip low">Bajo</span><span class="chip cat">desactualizado</span>
+    </div>
+    <div class="f-body">
+      <p>
+        "Node v24.x, Playwright v1.60.x" como salida esperada literal: cifras de un día concreto que el LLM puede
+        tratar como criterio. Queda absorbido por la reescritura de C2 (delegar en el script); se lista aparte para
+        que no se pierda si C2 se pospone.
+      </p>
+      <div class="evidence"><span class="ev-label">Evidencia</span>
+        <ul>
+          <li>healthcheck.md:36 <span class="note">— "Runtime OK: Node v24.x, Playwright v1.60.x"</span></li>
+        </ul>
+      </div>
+      <div class="fix"><strong>Cómo repararlo</strong>
+        <p>Expresar los mínimos (Node ≥ 20, Playwright ≥ 1.56) y dejar la versión concreta como placeholder.</p>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section>
+  <h2>Plan de reparación sugerido</h2>
+  <p class="h2-sub">Orden por (impacto para el hand-off ÷ esfuerzo). Los cuatro primeros se hacen en una tarde y desbloquean la entrega a testers.</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>#</th><th>Acción</th><th>Cubre</th><th>Esfuerzo</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Sustitución global del namespace en template/ + regenerar plugin</td><td class="mono">C1</td><td>Bajo</td></tr>
+        <tr><td>2</td><td>Reescribir healthcheck.md para delegar en <code>npm run qa:healthcheck</code></td><td class="mono">C2, B6</td><td>Bajo</td></tr>
+        <tr><td>3</td><td>Decidir plataforma del MCP: config portable o "Windows-only" documentado</td><td class="mono">C3, B5</td><td>Bajo/Medio</td></tr>
+        <tr><td>4</td><td>Limpiar root (fichero fantasma, log.log del index, pptx) + regla forward-slash en agentes-Bash</td><td class="mono">A5</td><td>Bajo</td></tr>
+        <tr><td>5</td><td>Pasada única de edición sobre SPEC + CLAUDE.md repo + stubs S1 (versiones y estados reales)</td><td class="mono">A3, A4, M6</td><td>Bajo</td></tr>
+        <tr><td>6</td><td>Resolver la verdad de Allure Trends y alinear los 3 documentos</td><td class="mono">A2</td><td>Bajo</td></tr>
+        <tr><td>7</td><td>Quitar referencias a SPEC/METODOLOGIA de los prompts distribuidos (o extraer a references)</td><td class="mono">A1, B1, B2</td><td>Medio</td></tr>
+        <tr><td>8</td><td>Actualizar README/CLAUDE.md del template (estructura, MCP, conteo de labs)</td><td class="mono">M4, M5</td><td>Bajo</td></tr>
+        <tr><td>9</td><td>Borrar hooks.json duplicado + entrada muerta del .gitignore + defaults del report</td><td class="mono">M1, M8, M2, M3</td><td>Bajo/Medio</td></tr>
+        <tr><td>10</td><td>.gitattributes / normalización EOL + recorte de descripciones</td><td class="mono">M7, B3, B4</td><td>Bajo</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Verificado y limpio <span class="count">(lo que NO encontré)</span></h2>
+  <p class="h2-sub">Tan importante como los hallazgos: qué se comprobó y salió bien. Estos puntos no requieren acción.</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th></th><th>Check</th><th>Resultado</th></tr></thead>
+      <tbody>
+        <tr><td class="okmark">✓</td><td>Sincronización repo ↔ plugin ↔ template de los 12 agentes y commands</td><td>Byte-idénticos (solo EOL, ver M7). El pipeline <code>build:template</code> → <code>build:plugin</code> funciona.</td></tr>
+        <tr><td class="okmark">✓</td><td>Versionado</td><td>0.3.2 consistente en <code>package.json</code>, <code>plugin.json</code>, payload y CHANGELOG. La versión del plugin se inyecta desde el repo (el 0.0.0 de plugin-src es base intencional).</td></tr>
+        <tr><td class="okmark">✓</td><td>Scripts citados por los prompts</td><td>Existen todos: <code>scaffold-poms</code>, <code>consolidate-reviews</code>, <code>build-showcase</code>, <code>build-report</code>, <code>healthcheck</code>, <code>gherkin-to-criteria</code> (con CLI), <code>contract-validator</code> (con CLI).</td></tr>
+        <tr><td class="okmark">✓</td><td>Exports citados</td><td><code>scanText</code> y <code>scanForUnauthorizedTestFixme</code> existen en <code>src/pii-detector.ts</code> con esos nombres.</td></tr>
+        <tr><td class="okmark">✓</td><td>docs/references del payload</td><td>Los 7 documentos que los agentes leen en runtime están todos en el workspace desplegado.</td></tr>
+        <tr><td class="okmark">✓</td><td>allowed-targets.yaml del payload</td><td>Cubre los 5 labs (saucedemo, parabank, orangehrm, todomvc, playwright.dev) + patrones staging + localhost. Los labs pasan compliance out-of-the-box.</td></tr>
+        <tr><td class="okmark">✓</td><td>Style contracts didácticos</td><td>saucedemo/parabank/orangehrm presentes en template y payload, coherentes con los labs.</td></tr>
+        <tr><td class="okmark">✓</td><td>Wiring de hooks</td><td><code>.claude/settings.json</code> presente y correcto en repo y payload (PreToolUse/PostToolUse/Stop, los 3 hooks).</td></tr>
+        <tr><td class="okmark">✓</td><td>Commands del plugin (init/help)</td><td>Namespace correcto, paso de reconexión del MCP (fix v0.3.2) incluido, fallback documentado si <code>CLAUDE_PLUGIN_ROOT</code> no está definido.</td></tr>
+        <tr><td class="okmark">✓</td><td>Inventario del plugin.json</td><td>Los arrays <code>agents</code>/<code>commands</code> coinciden 1:1 con los ficheros reales del paquete.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="color: var(--muted); font-size: 14px;">
+    Pendiente de verificar en máquina de tester (no comprobable desde aquí): que <code>Task(subagent_type: 'ia4d-reviewer')</code>
+    — la invocación Writer→Reviewer — resuelve el nombre <em>sin</em> prefijo cuando los agentes vienen solo del plugin.
+    En esta máquina ambas formas están registradas porque coexisten repo y plugin. Probarlo en el primer workspace desplegado limpio.
+  </p>
+</section>
+
+<footer>
+  <p><strong>Metodología.</strong> Lectura completa de los 12 agentes ia4d, 7 commands del workspace, 2 commands del plugin,
+  hooks, settings, plugin.json/marketplace.json y guías del template. Verificación de existencia de cada ruta/script/export
+  citado, en el repo y en el workspace desplegado (payload). Diff byte-a-byte de las tres copias distribuidas.
+  Contraste con la auditoría interna del 2026-07-11 (docs/audit/qa-automator-audit-2026-07.md) para no duplicar:
+  aquí solo se re-reporta lo que sigue vivo y afecta a la distribución. Auditoría de escritorio, read-only: no se modificó ningún fichero.</p>
+</footer>
+</div>
+
+<script>
+  (function () {
+    var buttons = document.querySelectorAll('.filters button');
+    var findings = document.querySelectorAll('.finding');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+        var sev = btn.getAttribute('data-sev');
+        findings.forEach(function (f) {
+          if (sev === 'all' || f.getAttribute('data-sev') === sev) f.removeAttribute('hidden');
+          else f.setAttribute('hidden', '');
+        });
+      });
+    });
+  })();
+</script>
