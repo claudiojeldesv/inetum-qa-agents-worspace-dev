@@ -114,6 +114,9 @@ fileCheck('Consolidador de feedback (anti-race)', 'src/scripts/consolidate-revie
 fileCheck('Resolución de módulo S1-S4 (resolve-mode)', 'src/scripts/resolve-mode.ts');
 fileCheck('Gate de compliance de los commands (check-compliance)', 'src/scripts/check-compliance.ts');
 fileCheck('Verificador a11y determinístico (verify-a11y)', 'src/scripts/verify-a11y.ts');
+// Fase 3-4 token-efficiency: red pre-review + orquestación mecánica S4
+fileCheck('Pre-review determinístico (paso 11.c)', 'src/scripts/pre-review.ts');
+fileCheck('Orquestación mecánica S4 (run-s4-mecanico)', 'src/scripts/run-s4-mecanico.ts');
 // Config declarativa
 fileCheck('allowed-targets (compliance)', 'config/allowed-targets.yaml');
 fileCheck('MCP playwright-test configurado (.mcp.json)', '.mcp.json');

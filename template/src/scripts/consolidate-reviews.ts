@@ -16,7 +16,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-/** Lee objetos JSON de un fichero: array, objeto único o JSON-lines. */
+/** Lee objetos JSON de un fichero: array, objeto único, JSON-lines u objetos concatenados. */
 function readJsonObjects(path: string): Record<string, unknown>[] {
   if (!existsSync(path)) return [];
   const t = readFileSync(path, 'utf8').trim();
@@ -25,7 +25,7 @@ function readJsonObjects(path: string): Record<string, unknown>[] {
     const v = JSON.parse(t);
     return Array.isArray(v) ? v : [v];
   } catch {
-    /* JSON-lines u objeto parcial: intenta línea a línea */
+    /* JSON-lines u objetos concatenados: intenta línea a línea y por balance de llaves */
   }
   const out: Record<string, unknown>[] = [];
   for (const line of t.split(/\r?\n/)) {
@@ -35,6 +35,38 @@ function readJsonObjects(path: string): Record<string, unknown>[] {
       out.push(JSON.parse(s));
     } catch {
       /* línea corrupta: se omite, no se truncan las demás */
+    }
+  }
+  if (out.length > 0) return out;
+  // Objetos pretty-printed concatenados sin separador (bug F4: el Reviewer escribió la
+  // iteración 0 y la 1 pegadas en el mismo fichero per-spec). Split por profundidad de
+  // llaves fuera de strings — no se pierde el verdict real por un problema de formato.
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try {
+          out.push(JSON.parse(t.slice(start, i + 1)));
+        } catch {
+          /* bloque corrupto: se omite */
+        }
+        start = -1;
+      }
     }
   }
   return out;

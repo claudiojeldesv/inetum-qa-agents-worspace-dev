@@ -25,6 +25,10 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
+    // Reporter JSON opt-in (Fase 4 token-efficiency): run-s4-mecanico.ts setea
+    // PLAYWRIGHT_JSON_OUTPUT_NAME para parsear el veredicto por-test de forma determinística.
+    // El reporter 'json' escribe a esa ruta él solo cuando la var existe. Sin la var → sin cambio.
+    ...(process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? ([['json']] as const) : []),
     ['html', { outputFolder: `${workDir}/playwright-report`, open: 'never' }],
     // allure-playwright produce allure-results/; /qa-automator:report lo enriquece
     // con la evidencia del agente y genera el HTML estático (npx allure generate).

@@ -1,6 +1,7 @@
 {
   "inicio-sesion.usuario-valido": "TC-001",
-  "carrito.agregar-productos": "TC-002",
-  "pago.completar-compra": "TC-003",
-  "inicio-sesion.usuario-bloqueado": "TC-004"
+  "carrito.agregar-un-producto": "TC-002",
+  "carrito.agregar-multiples-productos": "TC-003",
+  "pago.checkout-completo": "TC-004",
+  "inicio-sesion.usuario-bloqueado": "TC-005"
 }

@@ -14,6 +14,8 @@ export type AuditAction =
   | 'warn'
   | 'allow'
   | 'skip'
+  | 'exploration_brief'
+  | 'scenario_selection'
   | 'write_file'
   | 'edit_file'
   | 'read_file'
