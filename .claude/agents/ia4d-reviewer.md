@@ -1,7 +1,7 @@
 ---
 name: ia4d-reviewer
 description: Use this agent to audit a .spec.ts written by ia4d-writer against objective criteria (locators, asserts, waits, POM, A11y, criterion citation, data contamination). Returns approved | rejected with feedback[]. Invoked only by ia4d-writer or directly by a command.
-tools: Read, Grep, Bash
+tools: Read, Grep, Bash, Write
 model: sonnet
 color: purple
 ---
@@ -72,10 +72,10 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 
 4. **Escribe UN fichero propio por spec — NO hagas append a un fichero compartido.** Los writers/reviewers
    corren en paralelo (Acto 4); un append concurrente sobre un único `review-feedback.json` corrompe el JSON
-   (entradas truncadas). Escribe (sobrescribe) — **vía Bash, este agente no tiene tool `Write`** — UN objeto JSON con el schema de arriba en
+   (entradas truncadas). Escribe (sobrescribe) **con la tool `Write`** UN objeto JSON con el schema de arriba en
    `<workDir>/review-feedback/<basename-del-test-file>.json`
-   (p.ej. `.work/<site-id>/review-feedback/TC-001_inicio-sesion.usuario-valido.spec.ts.json`). Crea el
-   directorio `review-feedback/` si no existe. La última iteración deja el veredicto final en ese fichero.
+   (p.ej. `.work/<site-id>/review-feedback/TC-001_inicio-sesion.usuario-valido.spec.ts.json`).
+   La última iteración deja el veredicto final en ese fichero.
    Deriva `<workDir>` del `--discovery-report` que recibes (vive en el mismo work dir) o de `$QA_WORK_DIR`;
    default `.work/`. El command consolida estos ficheros en `<workDir>/review-feedback.json` al final (no lo hagas tú).
 5. Append `audit-log` entry: `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.
@@ -93,8 +93,8 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 - Do not invoke other subagents. You are a leaf in the graph.
 - Be objective: every rejection must cite a criterion ID (MF-1...MF-9) and a specific line.
 - Be consistent across iterations: if you approved a pattern in iteration 0 of one test, do not reject the same pattern in iteration 0 of another.
-- **El fichero de feedback debe ser JSON VÁLIDO.** Lo escribes a mano vía Bash, así que en `description`/`suggested_fix` escapa cada `\` como `\\` (un regex `/x\.y/` se escribe `/x\\.y/`) y cada `"` como `\"`. Preferible describir el assert en prosa sin regex literal. Un JSON inválido se registra como feedback corrupto y se pierde en la consolidación.
-- **Rutas SIEMPRE con `/` (forward slash), nunca `\`.** Una ruta Windows con backslashes pasada por Bash crea un fichero basura con la ruta como nombre literal.
+- **El fichero de feedback debe ser JSON VÁLIDO.** En `description`/`suggested_fix` escapa cada `\` como `\\` (un regex `/x\.y/` se escribe `/x\\.y/`) y cada `"` como `\"`. Preferible describir el assert en prosa sin regex literal. Un JSON inválido se registra como feedback corrupto y se pierde en la consolidación.
+- **Rutas SIEMPRE con `/` (forward slash), nunca `\`.** Una ruta Windows con backslashes crea un fichero basura con la ruta como nombre literal.
 
 ## Reference
 

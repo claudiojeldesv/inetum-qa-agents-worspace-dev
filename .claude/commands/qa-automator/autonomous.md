@@ -81,6 +81,8 @@ Lee `scenarios_catalog`, aplica `--max-scenarios`. Lee `tc_registry.path` (defau
 
 **11.b — Consolidar feedback**: `QA_WORK_DIR=<workDir> npx tsx src/scripts/consolidate-reviews.ts` (une `<workDir>/review-feedback/<spec>.json` → plano; evita la race de append).
 
+**11.c — Pre-review determinístico (obligatorio)**: `npx tsx src/scripts/pre-review.ts tests/e2e/<site-id>/ --style-contract=<--style> --out-dir=<workDir>/pre-review` — red objetiva post-review (MF-1/2/4/5, banned APIs, MF-9 mecánico). Must-fix aquí = algo se le escapó al Reviewer: repórtalo al QA en el summary (no es gate, no abortes).
+
 ## Acto 5 — Juzgar
 
 12. **Judge off por defecto**: solo con `QA_ENABLE_JUDGE` seteado (`1`/`true`/`on`) invoca `ia4d-judge` por spec con el feedback consolidado. Si no: omite y registra `{ action:'skip', rule:'judge', reason:'judge off (QA_ENABLE_JUDGE unset)' }`; summary `judge: skipped`.

@@ -101,6 +101,7 @@ Modelo confirmado para Planner/Generator nativos: `sonnet`. Para subagents `ia4d
 
 Historial completo de fases, releases y hallazgos en [`docs/STATUS.md`](docs/STATUS.md) (carga lazy — ábrelo cuando la tarea pida contexto histórico). Lo más reciente, comprimido:
 
+- **Token-efficiency Fase 3 (branch `design/token-efficiency`)**: reviewer de lote (R6) **descartado por A/B** sobre discovery congelado (sin ahorro real, feedback más pobre; regla #8 intacta); `src/scripts/pre-review.ts` **adoptado** como red determinística post-review (paso 11.c del command). El Reviewer ganó tool `Write` (enmienda F3). Datos en `docs/audit/token-efficiency-plan.md`.
 - **Token-efficiency Fase 1 (branch `design/token-efficiency`)**: mode-router, compliance-checker y la garantía a11y salen del camino LLM → `src/scripts/{resolve-mode,check-compliance,verify-a11y}.ts` determinísticos; router/compliance deprecated, a11y-injector queda como rescate. Gate de compliance sigue sin override (hook + script). Baseline auditado: $12,4/run S4 SauceDemo 5 casos (informe y plan en `docs/audit/`).
 - **`template/` sincronizado vía `npm run build:template`**: el núcleo se edita en el repo y se propaga; el template no se edita a mano.
 - **Reorganización híbrido moderado**: 7 carpetas de contenido en la raíz; lo efímero en `.work/` (gitignored). `hooks/` no se movió.
