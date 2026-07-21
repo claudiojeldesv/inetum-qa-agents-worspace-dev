@@ -106,6 +106,31 @@ Solo si la iteración 2 ya intentó corregir y persiste. En ese caso:
 - El command escala al QA con flag `reviewer_unresolved: true` + el feedback completo.
 - El test pasa al Judge igualmente, pero con score reducido por el campo `reviewer_unresolved`.
 
+## Notas de diseño del Writer (justificación de reglas que el prompt enuncia escuetas)
+
+Desplazadas de `ia4d-writer.md` en la Fase 2 token-efficiency (2026-07); el prompt conserva la regla,
+aquí vive el porqué:
+
+- **Naming sin naturaleza**: el título describe la condición probada y el resultado esperado
+  (`{condicion} → {resultado}`). "Happy path" es el default implícito — nombrarlo no añade información
+  y contamina títulos/slugs; la única naturaleza marcada es el tag `@negative`.
+- **Tags exactamente como llegan**: la taxonomía la decidió el discovery-analyzer y la confirmó el QA
+  en el checkpoint. Si el Writer inventara o quitara tags, rompería la trazabilidad de la selección.
+- **`--tc-id` no construye el filename**: el command ya resolvió el ID contra el `tc_registry` y
+  construyó el `--output`; el Writer solo lo cita en el JSDoc. Separación: el registro es del command.
+- **Scan a11y siempre, gate off por defecto**: la evidencia (annotations) es auditable sin abortar el
+  run; el assert que rompe es opt-in por contract (regla #10). Misma semántica que `ia4d-a11y-injector`
+  (hoy rescate).
+- **Evidencia por niveles**: `minimal` es cero-regresión respecto a specs históricos; `steps`/`full`
+  solo envuelven — nunca cambian locators, asserts ni citas. `full` añade el screenshot al final de
+  cada step para que Allure lo muestre bajo el step; el viewport (no `fullPage`) mantiene el reporte
+  ligero, y el command complementa con `QA_SCREENSHOT=on QA_TRACE=on`.
+- **Parameterización S2**: los valores de ejemplo salen SOLO de `examples.rows` del `criteria.json` —
+  añadir filas sería fabricar cobertura. Una fila con PII real ya viene flaggeada por el parser
+  (`pii_redaction`); se sustituye por `synthetic_fixtures`, nunca se reproduce el literal.
+- **Auth setup sin AxeBuilder**: `auth.setup.ts` es un setup project, no un test del flujo — el scan
+  a11y pertenece a los tests, no al login técnico.
+
 ## Output
 
 `review-feedback.json` (un archivo por sesión, todas las revisiones consolidadas):
