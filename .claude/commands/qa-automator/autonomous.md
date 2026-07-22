@@ -54,7 +54,7 @@ Módulo **S4 Autonomous**: de una URL (+ Style Contract opcional) a specs Playwr
 
 **4.b — Auth setup** (solo si `auth.enabled: true` en el contract): invoca `ia4d-writer` para `tests/e2e/<site-id>/auth.setup.ts` — `setup('authenticate', ...)` (`import { test as setup } from '@playwright/test'`) que navega a `auth.login_path`, usa `synthetic_fixtures.credentials[auth.credentials_ref]`, verifica `auth.success_signal` y persiste `storageState({ path: <auth.storage_state> })`. **Sin** AxeBuilder (es setup). Registra al audit-log (`rule:'auth-handler'`).
 
-5. Por cada entrada de `selection.json` (**paraleliza los Writers**): invoca `ia4d-writer` via Task con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir=tests/pages/<site-id>`, `--output=<spec_path>`, `--discovery-report=<workDir>/discovery-report.json`, `--tc-id=<tc_id>`, `--tags=<suite_tags>`. **El prompt lleva RUTAS, nunca contenido inline.** El Writer invoca internamente al Reviewer (N≤2). El hook PostToolUse `pii-post.ts` corre solo.
+5. Por cada entrada de `selection.json` (**Writers escalonados, warm-cache**: lanza el PRIMERO solo y espera a que complete; los restantes en paralelo. Si 4.b corrió, la caché ya está caliente: todos en paralelo): invoca `ia4d-writer` via Task con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir=tests/pages/<site-id>`, `--output=<spec_path>`, `--discovery-report=<workDir>/discovery-report.json`, `--tc-id=<tc_id>`, `--tags=<suite_tags>`. **El prompt lleva RUTAS, nunca contenido inline.** El Writer invoca internamente al Reviewer (N≤2). El hook PostToolUse `pii-post.ts` corre solo.
 6. (Opcional) `ia4d-style-enforcer` por spec.
 7. `npx tsx src/scripts/run-s4-mecanico.ts post-writers --style=<--style>` — en UNA llamada: a11y determinística (paso 11: scan AxeBuilder tras el goto en cada `test()`, modo según `a11y.fail_on_violations`; el scan es no-opcional), consolidación anti-race del feedback (11.b) y pre-review determinístico (11.c, red objetiva post-review — informa, no bloquea).
    - Exit 1 → invoca `ia4d-a11y-injector` (rescate) SOLO por spec de `failed_specs` y re-invoca post-writers.
@@ -83,7 +83,8 @@ Módulo **S4 Autonomous**: de una URL (+ Style Contract opcional) a specs Playwr
 - IDs estables: reusa por slug, `TC-NNN` si es nuevo, nunca keys de gestor inventados. Naturaleza solo en el tag `@negative`, jamás en nombre/título.
 - Negativos opt-in; criticidad inferida por el discovery-analyzer según propósito.
 - **Task prompts a subagents llevan rutas, nunca payload inline.**
-- Paralelismo de Writers en Acto 4 prioritario.
+- Writers en Acto 4: primero UNO (escribe la caché del prefijo compartido), el resto en paralelo.
+- Gobernanza de modelo: el run se lanza con `--model sonnet`. **Nunca** `CLAUDE_CODE_SUBAGENT_MODEL` — pisa el frontmatter de TODOS los subagents y anula el tiering Sonnet/Haiku.
 - Los stages con `pending` son pausas ask-first REALES: nunca inventes la respuesta del QA ni re-invoques con una selección/confirmación que no te dieron.
 
 ## Reference

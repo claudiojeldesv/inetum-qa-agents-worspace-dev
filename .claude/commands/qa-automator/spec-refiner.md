@@ -102,7 +102,7 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
 
 **11.b — Auth setup** (solo si el contract tiene `auth.enabled: true`): idéntico a S4 (ver `autonomous.md` Acto 4 paso 8.b). Genera `auth.setup.ts`.
 
-12. Para cada `scenario` en `discovery-report.scenarios_recommended` **cuyo RF NO esté bloqueado por open_questions y NO esté en drift** (paralelizable):
+12. Para cada `scenario` en `discovery-report.scenarios_recommended` **cuyo RF NO esté bloqueado por open_questions y NO esté en drift** (escalonado, warm-cache: el primer Writer solo — o el auth setup 11.b si corrió —, el resto en paralelo):
     - **Construye el `--output`** bajo `tests/e2e/<site-id>/<id>_<feature>.<condicion>.spec.ts` (ID estable del registro). Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir=tests/pages/<site-id>`, `--output` (el construido), `--discovery-report=<workDir>/discovery-report.json` **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode: `@criterion` cita RF-NNN + source_ref; usa given/when/then del criterio).
     - El Writer escribe el `.spec.ts` e invoca al Reviewer (ping-pong N≤2). Pasa por el hook `pii-post.ts`.
 13. (Opcional) `ia4d-style-enforcer` por cada `.spec.ts`.
@@ -148,7 +148,7 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-i
 - No se fabrica drift ni el `then` ambiguo. Un flujo no mapeado se reporta; un criterio ambiguo no se genera.
 - Writer+Reviewer activos (igual que S4); el **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`).
 - Cada invocación de subagent y cada decisión (ingest, drift, bloqueo, judge omitido) registra al audit-log.
-- Paralelismo del Acto 4 prioritario para los criterios no bloqueados.
+- Writers del Acto 4 escalonados: el primero solo (escribe la caché del prefijo compartido), el resto en paralelo — solo criterios no bloqueados.
 
 ## Reference
 

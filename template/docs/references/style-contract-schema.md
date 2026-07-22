@@ -127,6 +127,10 @@ evidence:
                                     #   minimal → comentarios `// Step N` + screenshot final (según screenshots)
                                     #   steps   → cada acción lógica en `await test.step('desc')` → timeline en Allure
                                     #   full    → steps + screenshot por paso (test.info().attach) + trace 'on'
+                                    #   Es también un KNOB DE COSTE: 'full' genera specs más largos
+                                    #   (test.step + attach por paso) y el output del Writer se paga
+                                    #   por spec. 'full' = vitrina/demo; para contracts de cliente,
+                                    #   'minimal' o 'steps' como default.
   screenshots: string               # 'on' | 'only-on-failure' | 'off' — default 'only-on-failure'.
                                     #   Solo aplica a level 'minimal' (captura final). En 'full' el command
                                     #   fuerza screenshots=on + trace=on automáticamente.

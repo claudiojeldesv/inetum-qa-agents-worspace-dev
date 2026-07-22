@@ -63,6 +63,16 @@ examples/         Cinco labs reproducibles (solo inputs; tú generas los tests)
 tests/            Donde el agente escribe los tests (unit/ valida el runtime)
 ```
 
+## Coste del run — dos knobs
+
+- **Modelo**: lanza los runs con Sonnet (`claude --model sonnet`, o el default de la org fijado a
+  Sonnet). Las cifras de coste del agente están medidas con Sonnet; con Opus el plano orquestador
+  paga ×1,67 sin ganancia. **Nunca** uses `CLAUDE_CODE_SUBAGENT_MODEL`: pisa el modelo de TODOS los
+  subagents y anula el tiering Sonnet/Haiku interno del agente.
+- **Evidencia**: `evidence.level` en el Style Contract es también un knob de coste. `full`
+  (test.step + screenshot por paso + trace) es la vitrina para demos: genera specs más largos y
+  encarece cada Writer. Para el día a día de cliente, `minimal` (default) o `steps`.
+
 ## Comandos npm
 
 | Comando | Qué hace |

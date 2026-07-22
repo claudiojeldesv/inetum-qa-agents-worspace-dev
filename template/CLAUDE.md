@@ -133,6 +133,8 @@ evidence:
 RF-NNN (epic→feature→story), severity y descripción por test, y genera un único HTML autocontenido que
 se abre con doble-clic. Trade-offs del formato single-file: **no hay Trends entre runs** y el trace de
 Playwright no queda embebido (se abre aparte). `config/style-contracts/saucedemo.yaml` es el ejemplo de referencia.
+`full` es la vitrina y encarece el run (specs más largos → más output por Writer); para el día a
+día de cliente, `minimal` (default) o `steps`.
 
 ## Gates opcionales (off por defecto)
 
