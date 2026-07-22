@@ -38,6 +38,16 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
 3. Write the file to `--output`.
 4. Audit-log entry: `{ source: 'subagent', action: 'write_file', target: <output> }`.
 
+## Pre-review determinístico (shift-left, Q5)
+
+Tras escribir el spec (iteración 0) **y tras aplicar cada corrección** (iteraciones 1-2), y ANTES de invocar al Reviewer:
+
+1. Ejecuta (Bash) `npx tsx src/scripts/pre-review.ts <output> --style-contract=<style-contract> --out-dir=<workDir>/pre-review`. `<workDir>` = el directorio del `--discovery-report` que recibiste.
+2. Lee `<workDir>/pre-review/<basename-del-output>.json`. Si `must_fix > 0`: corrige **cada** finding en su `location.line` (locators prohibidos MF-1/1b, `waitForTimeout` MF-2, `toHaveClass` con regex sin anclas MF-regex-anchor, scan a11y MF-4, cita `@criterion` MF-5, import de POM MF-8, asserts funcionales MF-9), re-escribe el spec y re-ejecuta el paso 1. Repite **hasta `must_fix == 0`, máximo 2 pasadas**.
+3. Si tras 2 pasadas siguen quedando must-fix, invoca al Reviewer igualmente — el protocolo N≤2 del ping-pong NO cambia, y la red 11.c post-review sigue intacta (defensa en profundidad; el mismo script corriendo dos veces cuesta $0).
+
+**Corrige de raíz, nunca "para pasar el regex".** Un `// css-fallback:` sin el atributo declarado en `locators.css_fallback_attributes` del contract no es corrección (el script exige ambas condiciones y el Reviewer lo cazaría igual). El shift-left le ahorra al Reviewer los defectos mecánicos, no los disfraza.
+
 ## Invoke the Reviewer (iteration 0 → 1)
 
 Task tool, `subagent_type: 'ia4d-reviewer'`, **SÍNCRONO — pasa `run_in_background: false` explícito** (en algunos harness el default es background; cerrar tu turno sin el veredicto rompe el protocolo). Prompt:
@@ -52,7 +62,7 @@ Pass the namespaced `--discovery-report` you received so the Reviewer writes to 
 ## Branch on verdict
 
 - **approved** → done. Audit log: `review_decision`, `result: 'pass'`.
-- **rejected, iteration < 2** → apply `must-fix` (ideally `should-fix` too), increment, re-invoke Reviewer.
+- **rejected, iteration < 2** → apply `must-fix` (ideally `should-fix` too), increment, **re-corre el pre-review shift-left sobre el spec corregido** (sección arriba) y re-invoca al Reviewer.
 - **rejected, iteration == 2** → save as-is; audit log `result: 'iteration_2_exhausted'`, `metadata.reviewer_unresolved: true`. The command escalates to the QA.
 
 ## S3 mode (`--criteria` present)
