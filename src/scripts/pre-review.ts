@@ -5,7 +5,8 @@
  * Extrae del ia4d-reviewer los criterios que no requieren juicio: locators prohibidos (MF-1/MF-1b),
  * waits hardcodeados (MF-2), banned APIs del contract, scan a11y (MF-4, delegado en verify-a11y),
  * cita @criterion (MF-5), conteo de asserts funcionales (parte mecánica de MF-3/MF-9), uso de POM
- * (MF-8, proxy por import) y naturaleza en el título (should-fix de naming).
+ * (MF-8, proxy por import), toHaveClass con regex sin anclas (MF-regex-anchor, Q3) y naturaleza
+ * en el título (should-fix de naming).
  *
  * NO es un gate ni sustituye al Reviewer: es la red determinística que corre tras el Writer+Reviewer
  * (Acto 4, junto a verify-a11y) y garantiza que ningún must-fix objetivo llegó al final del run.
@@ -159,6 +160,25 @@ export function preReviewSpec(
   // MF-2 — waitForTimeout
   for (const m of source.matchAll(/\bwaitForTimeout\s*\(/g)) {
     add({ criterion_id: 'MF-2', category: 'wait-strategy', severity: 'must-fix', location: { line: lineOf(source, m.index!) }, description: 'page.waitForTimeout() prohibido — usar asserts semánticos sobre locators' });
+  }
+
+  // MF-regex-anchor — toHaveClass con regex sin anclas (Q3, clase del rojo TC-005 de Q2):
+  // /error/ matchea por SUBSTRING contra clases compuestas siempre presentes ('input_error'
+  // contiene 'error'), así que not.toHaveClass(/error/) falla aunque la clase suelta no esté.
+  // Se exige ancla en el patrón: \b, \B, ^ o $.
+  for (const m of source.matchAll(/\btoHaveClass\s*\(/g)) {
+    const line = lineOf(source, m.index!);
+    const text = lineText(source, m.index!).replace(/\/\/.*$/, ''); // sin el comentario de cola
+    for (const re of text.matchAll(/\/((?:\\.|[^/\\\n])+)\/[a-z]*/g)) {
+      const pattern = re[1];
+      const anchored = /[\^$]/.test(pattern) || /\\[bB]/.test(pattern);
+      if (!anchored) {
+        add({
+          criterion_id: 'MF-regex-anchor', category: 'assert-quality', severity: 'must-fix', location: { line },
+          description: `toHaveClass(/${pattern}/) — regex sin anclas matchea substrings de clases compuestas (p.ej. 'input_error' contiene 'error'); ancla con \\b, ^ o $`,
+        });
+      }
+    }
   }
 
   // banned_apis del contract (los ya cubiertos arriba se deduplican por línea)

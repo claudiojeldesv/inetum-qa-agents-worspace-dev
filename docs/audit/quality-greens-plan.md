@@ -117,7 +117,7 @@ Independiente de Q2/Q3, ejecutable en cualquier orden. Origen: exploración de p
 | Referencia (F4/F6) | 2026-07-22 | 0/5 · 2/4 | sin dato (Healer nunca medido) | 11,2 | — | 5/5 · 4/4 | Clases: gap discovery cart + observación planner |
 | Q1 | 2026-07-22 | 2/5 | **5/5** ✓ KPI | 12,0 (+2,2 Healer) | 0,51-0,92 (μ 0,72) | 5/5 (2 iter 0, 3 iter 1) | Las 2 clases de F4 no reaparecieron; clase nueva: locators por convención. Healer 3/3, 1 causa raíz compartida. Post-heal auditado: Reviewer 3/3 approved, pre-review clean. Ver notas Q1 |
 | Q2 (prevención+estabilización) | 2026-07-22 | **4/5** ✓ | **5/5** (TC-005 sanado a mano, decisión QA) | 11,1 (4,4+6,6) | — | 5/5 (3 a la 1ª review; 2 rechazos legítimos no-race → criterio satisfecho por atribución, decisión QA) | Guarda locators viva (16/24, 1 fantasma cazado pre-Writer), ownership 100% sin race, planner con evidencia de estado (clase F4 muerta); rojo = clase nueva estrecha (regex substring), fix `\b` verificado verde. Ver notas Q2 y Cierre Q2 |
-| Q3 (productización Healer + check regex) | | | | | | | |
+| Q3 (productización Healer + check regex) | 2026-07-22 | n/a (fase de productización, sin generación) | fixture 1/1 sanado y auditado ✓ | n/a | no medido en sesión (referencia Q1: μ 0,72) | Reviewer post-heal 1/1 approved, 0 MF | Knob `healing` off-default + `/qa-automator:heal` + `run-heal-mecanico.ts` + check MF-regex-anchor. Validación end-to-end contra rojo fabricado (protocolo post-heal completo, re-ejecutable). Ver notas Q3 |
 | Q4 (identidad estable) | | | | | | | |
 | Q4 (shift-left pre-review) | | n/a — métricas propias: must-fix al Reviewer, invocaciones Reviewer, escapes 11.c | | | | | Brazos de control ya medidos en F6 |
 
@@ -150,6 +150,31 @@ Total **$2,17 / ~10 min / 3/3 éxito**. Hallazgo de economía: los rojos compart
 **Bugs menores nuevos flaggeados**: (a) el Writer de TC-004 escribió una entrada de audit-log con ruta Windows backslash → fichero basura en la raíz del repo (misma clase que la hard rule ya presente en el Reviewer; candidato: normalizar rutas en `appendAuditEntry` en vez de confiar en prompts); (b) specs stale pre-namespace en la raíz de `tests/e2e/` (ahorro-inversion, santalucia) siguen sin limpiarse — hueco ya flaggeado en el anexo del informe, no bloquea.
 
 **Criterio de salida: CUMPLIDO** — 5/5 verdes post-Healer, guardrails intactos, coste del Healer medido y trasladado al marco €/run del informe (§7). **Decisión de productización (QA, 2026-07-22): híbrido patrón regla #10** — knob `healing` en el Style Contract (off por defecto), command aparte `/qa-automator:heal` re-ejecutable, y el orquestador de `autonomous` NO sana por defecto (reporta rojos y termina; si el contract activa healing, encadena). El QA lo lanza o lo activa cuando decide sobre los rojos. Implementación en Fase Q3.
+
+### Notas Q3 (2026-07-22, artefactos de validación en `.work/heal-fixture/`, gitignored)
+
+**Implementación (los 6 puntos del plan; red estructural verde: tsc, 248/248 unit, healthcheck 26/26, `build:template`):**
+
+- **Q3.1 knob `healing`**: bloque en el schema (`enabled: false` default), espejo declarativo en `src/contract-validator.ts` (typos/tipos vigilados) y fila en el estado efectivo de `/qa-automator:config` (`off (reporta rojos y termina)` [default] / `ON (autonomous encadena…)` [contract]). 3 tests nuevos.
+- **Q3.2 `/qa-automator:heal` + `src/scripts/run-heal-mecanico.ts`**: command desacoplado patrón `report`; el script encadena lo mecánico en 2 stages — `setup` (derivación de `<workDir>` con las reglas de report incl. pending multi-candidato, **compliance re-check sin override** sobre el `target_url` del summary, rojos del run-summary) y `verify` (protocolo post-heal: suite del namespace ENTERO re-ejecutada —blast radius Q1—, pre-review, verify-a11y, consolidación del feedback post-heal, `healed[]` al run-summary con causa raíz/ficheros/`cost_usd`/verdicts, audit-log `healer-post-heal` por spec). Artefactos post-heal en `<workDir>/healing/` — los verdicts del run generador NO se pisan (histórico auditable). Re-ejecutable: `healed[]` se reemplaza por spec; sin rojos, setup es no-op. 11 tests de los helpers puros.
+- **Q3.3 encadenado en `autonomous`**: paso 11 nuevo — rojos + `healing.enabled: true` → encadena el procedimiento de heal; sin knob (default) reporta y termina. Hard rule: el Healer NUNCA corre en silencio.
+- **Q3.5 check `MF-regex-anchor` en pre-review**: `toHaveClass` con regex literal sin ancla (`\b`, `\B`, `^`, `$`) → must-fix; cubre arrays y descarta comentarios de cola. 5 tests con el caso real (`input_error` matcheado por `/error/`; el fix `\berror\b` pasa). Los 5 specs reales de saucedemo (TC-005 incluido, ya anclado) salen 5/5 clean — cero falsos positivos.
+- **Q3.4 propagación**: `build:template` (script+tests+schema viajan solos); a mano los preservados — `template/CLAUDE.md` (command + 4º gate en la tabla), `template/README.md` (línea €/run del Healer: μ $0,72/spec, 1 fix cura N), `_TEMPLATE.annotated.yaml` (bloque healing didáctico). Healthcheck 26 checks (nuevo: run-heal-mecanico). Regla #10 actualizada en CLAUDE.md y SPEC (capa transversal + tabla de commands) mencionando `healing` junto a PII/Judge/a11y-gate.
+
+**Validación end-to-end (Q3.6, rojo fabricado — Q2 quedó 5/5 y no había rojo real):** copia del namespace (`tests/{e2e,pages}/heal-fixture/`, POMs + TC-001 con imports redirigidos), locator del username mutado a `getByTestId('user-name-field')` (inexistente), rojo verificado contra el DOM real, run-summary fabricado con la estructura real. Protocolo completo:
+
+1. `setup` → compliance pass + 1 rojo detectado + `healing/` creado.
+2. `playwright-test-healer` (secuencial, foreground, `test_run` acotado al spec) → **1 fix en el POM** (`user-name-field` → `username`), causa raíz correcta verificada contra DOM vivo, cero `test.fixme()`, spec intacto, re-run 1 passed (7,2s). ~28k tokens de subagent / 1,8 min.
+3. `heal-notes.json` (handoff por archivo, UN array).
+4. `ia4d-reviewer` post-heal → **approved, 0 must-fix** (procedencia objetiva: el fix coincide con `test_id: username`, `verified: true` del discovery), feedback a `healing/review-feedback/` sin pisar el histórico. ~46k tokens / 1,5 min.
+5. `verify` → suite 1/1 verde, pre-review clean, a11y ok, `healed[]` escrito con verdicts post-heal completos, `run_result` refrescado, exit 0.
+6. **Re-ejecutabilidad verificada**: segundo `setup` → `reds: []`, no-op. Audit-log con `healer-setup`, `review_decision` y `healer-post-heal`.
+
+$/spec no medido en sesión (sin análisis de stream); la referencia del marco €/run sigue siendo Q1 (μ $0,72/spec). Fixture limpiado de `tests/` tras la validación (evitando la clase specs-stale de Q4); los artefactos quedan en `.work/heal-fixture/` como evidencia.
+
+**Guardrails**: Quality layer intacta (cero cambios a Writer/Reviewer/prompts de generación — el Reviewer solo ganó un caller nuevo post-heal); pre-review estrictamente aditivo (specs históricos 5/5 clean); subagents nativos sin editar.
+
+**Criterio de salida: CUMPLIDO** — `/qa-automator:heal` sanó el fixture con el protocolo completo ✓, el knob activa/desactiva el encadenado (estado efectivo verificado por validator + tests) ✓, check regex sin anclas en pre-review con test del caso real ✓, red estructural verde ✓, regla #10 actualizada en CLAUDE.md/SPEC ✓.
 
 ### Notas Q2 (2026-07-22, streams `.work/audit-runs/baseline-q2{,-2}.jsonl` sesión `d445b3b5`)
 

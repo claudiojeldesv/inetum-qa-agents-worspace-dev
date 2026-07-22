@@ -181,6 +181,59 @@ describe('preReviewSpec — MF-9 asserts funcionales', () => {
   });
 });
 
+describe('preReviewSpec — MF-regex-anchor toHaveClass sin anclas (caso real TC-005 Q2)', () => {
+  // SauceDemo: los inputs llevan SIEMPRE la clase base 'input_error form_input'; la exclusiva
+  // del estado de error es la clase suelta 'error'. not.toHaveClass(/error/) matchea 'input_error'
+  // por substring y el test falla aunque el error no esté — la clase del rojo TC-005 de Q2.
+  it('rechaza not.toHaveClass(/error/) — substring contra la clase base input_error', () => {
+    const r = preReviewSpec(
+      write('regex-sin-ancla.spec.ts', SPEC_LIMPIO.replace(
+        "await expect(page.getByTestId('inventory-list')).toBeVisible();",
+        "await expect(page.getByTestId('username')).not.toHaveClass(/error/);",
+      )),
+      BASE,
+    );
+    expect(ids(r)).toContain('MF-regex-anchor');
+    expect(r.clean).toBe(false);
+  });
+
+  it('acepta el fix real: regex anclado con \\b (\\berror\\b no matchea input_error)', () => {
+    const r = preReviewSpec(
+      write('regex-anclado-b.spec.ts', SPEC_LIMPIO.replace(
+        "await expect(page.getByTestId('inventory-list')).toBeVisible();",
+        "await expect(page.getByTestId('username')).not.toHaveClass(/\\berror\\b/);",
+      )),
+      BASE,
+    );
+    expect(ids(r)).not.toContain('MF-regex-anchor');
+    expect(r.clean).toBe(true);
+  });
+
+  it('acepta anclas ^/$ y el arg string (match exacto de Playwright, no substring)', () => {
+    const conAnclas = SPEC_LIMPIO.replace(
+      "await expect(page.getByTestId('inventory-list')).toBeVisible();",
+      "await expect(page.getByTestId('username')).toHaveClass(/^error$/);\n  await expect(page.getByTestId('password')).toHaveClass('input_error form_input');",
+    );
+    expect(preReviewSpec(write('regex-anclado-caret.spec.ts', conAnclas), BASE).clean).toBe(true);
+  });
+
+  it('caza el regex sin anclas también dentro de un array de toHaveClass', () => {
+    const enArray = SPEC_LIMPIO.replace(
+      "await expect(page.getByTestId('inventory-list')).toBeVisible();",
+      "await expect(page.getByTestId('form').locator('input')).toHaveClass([/\\berror\\b/, /error/]);",
+    );
+    expect(ids(preReviewSpec(write('regex-array.spec.ts', enArray), BASE))).toContain('MF-regex-anchor');
+  });
+
+  it('un comentario de cola con slashes no produce falso positivo', () => {
+    const conComentario = SPEC_LIMPIO.replace(
+      "await expect(page.getByTestId('inventory-list')).toBeVisible();",
+      "await expect(page.getByTestId('username')).toHaveClass(/\\berror\\b/); // ver plan §1.2 / docs/test-plans/",
+    );
+    expect(preReviewSpec(write('regex-comentario.spec.ts', conComentario), BASE).clean).toBe(true);
+  });
+});
+
 describe('preReviewSpec — should-fix naming', () => {
   it('naturaleza en el título es should-fix y no ensucia el verdict', () => {
     const r = preReviewSpec(

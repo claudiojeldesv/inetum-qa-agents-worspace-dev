@@ -117,6 +117,18 @@ auth:
     type: string                    #   'url' (patrón de URL post-login) | 'locator' (elemento solo visible autenticado)
     value: string                   #   ej. '**/overview.htm'  o  "getByRole('link', { name: 'Log Out' })"
 
+# Sanación (Healer nativo) como post-proceso — patrón regla #10: off por defecto, reactivable
+# (v0.3 quality-greens Q3). El Healer NO es juez: su output se audita con el protocolo post-heal
+# (suite re-ejecutada + pre-review + Reviewer sobre los specs afectados + verify-a11y), validado
+# en Q1 (3/3 sanados, μ $0,72/spec, 1 fix en POM compartido cura N specs).
+healing:
+  enabled: boolean                  # default false → el run de `autonomous` reporta los rojos y
+                                    #   termina (el QA decide: /ia4d-qa-automator:heal o ajuste manual).
+                                    #   true → `autonomous` encadena la sanación tras el Verification
+                                    #   step sobre los rojos, con el mismo protocolo post-heal.
+                                    #   El command /ia4d-qa-automator:heal es independiente del knob:
+                                    #   se puede lanzar siempre, re-ejecutable, sobre el último run.
+
 # Política de evidencia visual para el reporte Allure. NO es un gate — no aborta nada.
 # Es evidencia de RUN-TIME: /ia4d-qa-automator:report solo muestra lo que el run capturó.
 # El command lee `level` en el Verification step y exporta QA_SCREENSHOT / QA_TRACE

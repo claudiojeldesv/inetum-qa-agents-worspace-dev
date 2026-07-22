@@ -81,6 +81,7 @@ que la app realmente expone, y lo reportan sin fabricar tests para lo que no exi
 /ia4d-qa-automator:spec-refiner --fd=<path> --url=<URL>           # S3
 /ia4d-qa-automator:req-driven   --gherkin=<path> --url=<URL>      # S2
 /ia4d-qa-automator:report                                         # reporte Allure enriquecido (post-run)
+/ia4d-qa-automator:heal                                           # sana los rojos del último run + auditoría post-heal
 /ia4d-qa-automator:config       [--style=<contract.yaml>]         # valida el contract + muestra estado efectivo
 ```
 
@@ -138,7 +139,7 @@ día de cliente, `minimal` (default) o `steps`.
 
 ## Gates opcionales (off por defecto)
 
-Tres funcionalidades vienen apagadas y se encienden cuando las necesitas. Las piezas están completas
+Cuatro funcionalidades vienen apagadas y se encienden cuando las necesitas. Las piezas están completas
 en el runtime; el toggle solo las activa.
 
 | Gate | Cómo encenderlo | Qué hace |
@@ -146,6 +147,7 @@ en el runtime; el toggle solo las activa.
 | **PII scanner ES** | `QA_ENABLE_PII=1` | Detecta DNI/IBAN/Luhn/teléfono/email en los tests generados. |
 | **Judge** | `QA_ENABLE_JUDGE=1` | Score numérico de calidad tras Writer+Reviewer. |
 | **Gate a11y** | `fail_on_violations: true` (por sitio) | El scan a11y pasa de warning a abortar el test. |
+| **Sanación (Healer)** | `healing.enabled: true` (por sitio) | El run autónomo encadena la sanación sobre los rojos. Con el knob off, `/ia4d-qa-automator:heal` sigue disponible como post-proceso: sana y AUDITA (suite re-ejecutada + pre-review + Reviewer + a11y — el Healer no es juez). |
 
 El **scan** de accesibilidad se inyecta **siempre**, encendido o no el gate. La guarda
 anti-`test.fixme()` también está siempre activa. Copia `.env.example` a `.env` para fijar los toggles.

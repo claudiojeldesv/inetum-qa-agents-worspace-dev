@@ -69,6 +69,16 @@ a11y:
     - serious                  #   (tanto para fallar como para anotar).
     - critical
 
+# --- Sanación (Healer) como post-proceso — off por defecto ---------------------
+healing:
+  # false (default) → el run autónomo reporta los rojos y termina; TÚ decides:
+  #   /ia4d-qa-automator:heal (sana + audita: el Healer no es juez) o ajuste manual.
+  # true → el run autónomo encadena la sanación sobre los rojos, con el mismo
+  #   protocolo de auditoría post-heal (suite re-ejecutada + pre-review + Reviewer + a11y).
+  # CUÁNDO true — pipelines desatendidos donde quieres la suite verde entregada
+  #   sin una segunda intervención. Déjalo false mientras revisas los rojos tú.
+  enabled: false
+
 # --- Evidencia visual para el reporte Allure (no es un gate, no aborta) --------
 evidence:
   # minimal → comentarios de paso + screenshot final. Rápido, ligero.

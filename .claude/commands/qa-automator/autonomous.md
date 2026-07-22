@@ -65,7 +65,8 @@ Módulo **S4 Autonomous**: de una URL (+ Style Contract opcional) a specs Playwr
 8. **Judge off por defecto**: solo con `QA_ENABLE_JUDGE` seteado (`1`/`true`/`on`) invoca `ia4d-judge` por spec con el feedback consolidado y persiste los scores en `<workDir>/judge-report.json` ANTES del paso 9. Si no está seteado, el stage `verify` registra el skip solo.
 9. `npx tsx src/scripts/run-s4-mecanico.ts verify --style=<--style> --url=<--url>` — borra `seed.spec.ts` si existe, ejecuta `npx playwright test tests/e2e/<site-id>/` con las env-vars correctas (baseURL, evidence del contract, storageState si hay auth — las setea el script, no las prefijes tú), parsea el veredicto por-test y ensambla `<workDir>/qa-automator-run-summary.json`.
 10. (Solo si el Judge corrió) >30% de scores < 0.5 → pausa ask-first.
-11. **Reporta al QA**: verdes/rojos con su causa, must-fix del pre-review si los hay, ruta del summary. Rojos → decide el QA: Healer (post-proceso) o ajuste manual.
+11. **Sanación (off por defecto, regla #10)**: si hay rojos Y el contract declara `healing.enabled: true`, encadena el procedimiento de `/ia4d-qa-automator:heal` (su doc manda: `run-heal-mecanico setup` → Healer por rojo secuencial foreground → Reviewer post-heal → `run-heal-mecanico verify`; el Healer NO es juez). Sin el knob (default) NO sanes: reporta los rojos y termina — el QA decide (/heal o ajuste manual).
+12. **Reporta al QA**: verdes/rojos con su causa, must-fix del pre-review si los hay, `healed[]` si la sanación corrió, ruta del summary.
 
 ## Outputs
 
@@ -86,6 +87,7 @@ Módulo **S4 Autonomous**: de una URL (+ Style Contract opcional) a specs Playwr
 - Writers en Acto 4: primero UNO (escribe la caché del prefijo compartido), el resto en paralelo.
 - **Writers SIEMPRE en foreground: pasa `run_in_background: false` EXPLÍCITO en cada Task/Agent** (en algunos harness el default es background — el default NO es seguro). PROHIBIDO background y PROHIBIDO ScheduleWakeup para esperar subagents: el patrón background mata el turno del orquestador antes de post-writers/verify (F2, Q1, Q2) y cada corte paga re-priming de caché. Paralelo ≠ background: varios Task síncronos en un mismo mensaje sí; Task en background no.
 - Guarda de locators (Q2): el checkpoint anota el discovery contra el DOM real; un locator `verified:false` está prohibido para el Writer sin TODO o evidencia de estado del plan. Serializar Writers como mitigación de la race de POMs está PROHIBIDO (el ownership de `selection.json` es la mitigación).
+- Sanación off por defecto (`healing.enabled` del contract, regla #10): sin el knob el run reporta rojos y termina — el Healer NUNCA corre en silencio. Con el knob, la sanación usa el protocolo post-heal completo de `/ia4d-qa-automator:heal` y queda en `healed[]` + audit-log.
 - Gobernanza de modelo: el run se lanza con `--model sonnet`. **Nunca** `CLAUDE_CODE_SUBAGENT_MODEL` — pisa el frontmatter de TODOS los subagents y anula el tiering Sonnet/Haiku.
 - Los stages con `pending` son pausas ask-first REALES: nunca inventes la respuesta del QA ni re-invoques con una selección/confirmación que no te dieron.
 

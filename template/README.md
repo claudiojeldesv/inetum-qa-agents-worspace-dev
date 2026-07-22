@@ -72,6 +72,10 @@ tests/            Donde el agente escribe los tests (unit/ valida el runtime)
 - **Evidencia**: `evidence.level` en el Style Contract es también un knob de coste. `full`
   (test.step + screenshot por paso + trace) es la vitrina para demos: genera specs más largos y
   encarece cada Writer. Para el día a día de cliente, `minimal` (default) o `steps`.
+- **Sanación (`/ia4d-qa-automator:heal`)**: post-proceso off por defecto (knob `healing.enabled`
+  del contract). Coste medido: **μ $0,72/spec sanado** (~$2,2 un lote de 3, 3/3 éxito). Los rojos
+  suelen compartir causa raíz en POMs compartidos — **1 fix cura N specs**, así que el $/rojo real
+  baja con el tamaño del lote. Incluye la auditoría post-heal (el Healer no es juez).
 
 ## Comandos npm
 
