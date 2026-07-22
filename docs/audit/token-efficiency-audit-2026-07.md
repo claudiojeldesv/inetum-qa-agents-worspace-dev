@@ -238,6 +238,16 @@ El plano orquestador está agotado (§7.1). **El margen restante vive en los Wri
 
 **Techo del ciclo 2 si C2-1/2/3 aterrizan**: ~$11,2 → **~$6-7/run** — el objetivo original del ciclo 1, alcanzado por la ruta correcta (el precio del modelo donde el trabajo es contenible, no la prosa). Con la promo Sonnet 5 vigente hasta 2026-08-31, ~$4-5. La condición de todo el ciclo: **la calidad la firma el Reviewer Sonnet y la verificación real — cualquier A/B que la mueva, se descarta como R6.**
 
+### 8.1 Cierre del ciclo 2 y del carril (2026-07-22)
+
+El techo de arriba no se alcanzó, y el motivo quedó medido: **C2-1 (Writer Haiku) resultó falso** — el descuento del modelo se lo comió la contención (Reviewer Sonnet ×2,5 invocaciones, wall-clock ×2,3, +17% tokens; approved a iteración ≤1 degradado 4/4→2/4, 9 must-fix vs 0). Descartado por A/B congelado, como R6. **C2-2 (main Haiku) se cerró sin ejecutar** por decisión QA: valor esperado $1,5-1,8 contra coste de medición ~$11-22 y la señal de F6 en contra (Haiku falla justo en la disciplina multi-paso que el main conserva). Solo aterrizó C2-3/4/5 (F5, ~$0,4-0,5 aritmético + gobernanza).
+
+**Resultado final del carril completo (ciclos 1+2, F1-F7)**: $12,4/35 min → **~$10,7/18 min** (−14% en $, −50% en tiempo), orquestador 91→46 llamadas, 18→9 subagents, cinco hipótesis de ahorro falsificadas por ~$5 de A/Bs congelados, cero degradación de calidad y reglas duras de producto intactas. Conclusión estructural: **el coste restante es el trabajo real** (Writers Sonnet con juez independiente + planners nativos) — no queda grasa barata; las palancas que quedaban eran todas trade-offs calidad-por-dinero y los datos las mataron.
+
+**Subproducto con valor de catálogo**: F6 fue, de facto, una prueba adversarial de la Quality layer — con un Writer degradado a propósito, el Reviewer Sonnet cazó 9 must-fix, la red determinística (pre-review + verify-a11y) cazó lo que el Reviewer dejó pasar tras el churn, y el rescate del a11y-injector se ejecutó por primera vez en real y funcionó. La afirmación "QA es juez independiente" tiene ahora evidencia empírica adversarial, no solo diseño.
+
+**El carril se cierra aquí.** La siguiente inversión de valor no son tokens: es el carril calidad (verdes a la primera — puntos abiertos de §7.1, más el endurecimiento del prompt del Writer con el patrón de import de axe que F6 identificó como clase sistemática).
+
 ---
 
 ## Anexo — evidencia del baseline
