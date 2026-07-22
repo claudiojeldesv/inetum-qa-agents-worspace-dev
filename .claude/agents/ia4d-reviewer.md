@@ -70,12 +70,16 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 }
 ```
 
-4. **Escribe UN fichero propio por spec — NO hagas append a un fichero compartido.** Los writers/reviewers
-   corren en paralelo (Acto 4); un append concurrente sobre un único `review-feedback.json` corrompe el JSON
-   (entradas truncadas). Escribe (sobrescribe) **con la tool `Write`** UN objeto JSON con el schema de arriba en
-   `<workDir>/review-feedback/<basename-del-test-file>.json`
+4. **Escribe UN fichero propio por spec, y el fichero contiene UN ÚNICO objeto JSON — siempre.**
+   El fichero es `<workDir>/review-feedback/<basename-del-test-file>.json`
    (p.ej. `.work/<site-id>/review-feedback/TC-001_inicio-sesion.usuario-valido.spec.ts.json`).
-   La última iteración deja el veredicto final en ese fichero.
+   - Escríbelo **con la tool `Write`** (contenido completo). NUNCA con `Edit`, NUNCA con `Bash` (`>>`, `cat >`, `tee`),
+     NUNCA añadiendo un objeto detrás del anterior.
+   - **En cada iteración (0, 1 o 2) sobrescribes el fichero entero** con el objeto de ESA iteración: el estado
+     final es el de la última escritura, no un histórico acumulado. Dos objetos JSON concatenados en el fichero
+     = feedback corrupto (bug F4).
+   - No hagas append a ningún fichero compartido: los writers/reviewers corren en paralelo (Acto 4) y un append
+     concurrente sobre un único `review-feedback.json` corrompe el JSON.
    Deriva `<workDir>` del `--discovery-report` que recibes (vive en el mismo work dir) o de `$QA_WORK_DIR`;
    default `.work/`. El command consolida estos ficheros en `<workDir>/review-feedback.json` al final (no lo hagas tú).
 5. Append `audit-log` entry: `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.

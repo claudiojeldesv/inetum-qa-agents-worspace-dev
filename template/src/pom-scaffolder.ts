@@ -11,7 +11,7 @@
  * repeat across screens, and one Page class per discovered screen.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, relative } from 'node:path';
 
 export interface InteractiveElement {
@@ -245,14 +245,16 @@ export function scaffold(
   const useBase = options.basePage !== false;
   const files: ScaffoldResult['files'] = [];
 
+  // Sobrescribe SIEMPRE: el esqueleto solo declara lo que el discovery actual vio. Un fichero
+  // stale de un run anterior conserva locators sin respaldo del discovery vigente (hallazgo F2:
+  // menuButton/title/logo/orderSummary) y el Writer los usa creyéndolos legítimos. Lo que no está
+  // en el discovery lo añade el Writer de este run, con evidencia.
   const emit = (dir: string, file: { className: string; fileName: string; content: string }) => {
     const fullPath = resolve(dir, file.fileName);
     files.push({ path: fullPath, className: file.className, content: file.content });
     if (writeToDisk) {
       mkdirSync(dirname(fullPath), { recursive: true });
-      if (!existsSync(fullPath)) {
-        writeFileSync(fullPath, file.content, 'utf8');
-      }
+      writeFileSync(fullPath, file.content, 'utf8');
     }
   };
 

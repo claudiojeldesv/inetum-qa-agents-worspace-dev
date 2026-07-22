@@ -53,5 +53,35 @@ Objetivo: reducir la carga del Healer atacando las dos clases verificadas contra
 | Fase | Fecha | Verdes 1ª | Verdes post-Healer | $/run | $/spec sanado | Approved | Notas |
 |---|---|---|---|---|---|---|---|
 | Referencia (F4/F6) | 2026-07-22 | 0/5 · 2/4 | sin dato (Healer nunca medido) | 11,2 | — | 5/5 · 4/4 | Clases: gap discovery cart + observación planner |
-| Q1 | | | | | | | |
+| Q1 | 2026-07-22 | 2/5 | **5/5** ✓ KPI | 12,0 (+2,2 Healer) | 0,51-0,92 (μ 0,72) | 5/5 (2 iter 0, 3 iter 1) | Las 2 clases de F4 no reaparecieron; clase nueva: locators por convención. Healer 3/3, 1 causa raíz compartida. Post-heal auditado: Reviewer 3/3 approved, pre-review clean. Ver notas Q1 |
 | Q2 | | | | | | | |
+
+### Notas Q1 (2026-07-22, streams `.work/audit-runs/baseline-q1{,-2,-3}.jsonl` sesión `0c3111a3` + `healer-q1-tc00{2,3,4}.jsonl`)
+
+**Fixes 1-3 (aplicados, red estructural verde: tsc, 206/206 tests, healthcheck 24/24, `build:template`):**
+
+- **Writer — patrón axe**: línea dura en proceso + hard rules con la única API válida (`import AxeBuilder from '@axe-core/playwright'` default + `new AxeBuilder({ page }).analyze()`; `injectAxe`/`checkA11y`/`getViolations`/`axe-playwright` declarados inexistentes). En el baseline los 5 specs salieron con la API correcta (con Writer Sonnet nunca falló — la línea es el seguro para días malos que F6 identificó).
+- **Reviewer — formato del feedback**: semántica explícita de sobrescritura por iteración (Write completo, UN objeto, nunca Edit/Bash-append). **Verificado en vivo**: los 5 ficheros per-spec del baseline contienen exactamente un objeto JSON, incluidos los dos specs multi-iteración que en F4 reproducían la concatenación. El consumidor tolerante queda como red.
+- **Scaffolder — corrección al enunciado del plan**: el código del scaffolder NUNCA tuvo locators hardcodeados; el mecanismo real del hallazgo F2 era que `emit()` no sobrescribía ficheros existentes, así que POMs de runs viejos (scaffoldeados desde discoveries antiguos que sí tenían `Open Menu`/`title`/`logo`/`orderSummary`) sobrevivían a runs nuevos cuyo discovery ya no los respaldaba — y el Writer los usaba creyéndolos legítimos. Fix: `scaffold()` regenera (sobrescribe) siempre desde el discovery actual; la regla "el esqueleto solo declara lo que el discovery vio" queda garantizada y con test unitario (18/18 en el suite del scaffolder, 2 nuevos).
+
+**Baseline (con fixes)**: $1,82 + $8,06 + $2,16 = **$12,0** · wall ~40 min · 3 segmentos (1 pausa checkpoint legítima 6>cap 5 → `TOP`; 2 cortes por el patrón **writers-en-background** de F2, que reapareció — el orquestador lanza los Writers en background y su turno muere antes de post-writers/verify; cada corte paga re-priming, el run limpio ajustado queda en ~$11, dentro del guardrail ~$11±ruido). 5/5 approved (TC-001/005 iter 0; TC-002/003/004 iter 1), pre-review 5/5 clean 0 must-fix, a11y 5/5.
+
+**Verdes a la primera: 2/5.** Las dos clases de F4 (gap discovery cart `getByRole('generic')` y observación del planner clase `error`) **no reaparecieron** — atribución parcial: scaffolder sin stale + variance del discovery. La clase de los 3 rojos (TC-002/003/004) es nueva y una sola: **locators construidos por convención sin respaldo literal del discovery** — títulos de pantalla asumidos `getByRole('heading')` cuando SauceDemo los renderiza como `<span data-test="title">`, y el par simétrico `remove-{slug}`. Los propios Writers los flaggearon como judgment calls durante la escritura; ningún gate estático los caza (correctitud semántica contra el DOM real) — es exactamente la clase que Q2.1 (`verify-locators.ts`) ataca.
+
+**Healer medido (primera vez):**
+
+| Spec | $ sesión | Wall | Resultado |
+|---|---|---|---|
+| TC-002 carrito | 0,51 | 2,1 min | Fix en `cart.page.ts` (title → `getByTestId`), verde |
+| TC-003 carrito-múltiples | 0,74 | 4,4 min | **Sin edición** — curado por el fix compartido de TC-002; healer verificó 6/6 pases |
+| TC-004 pago | 0,92 | 3,5 min | Fix en los 3 POMs de checkout (misma causa raíz), verde; blast radius verificado por grep |
+
+Total **$2,17 / ~10 min / 3/3 éxito**. Hallazgo de economía: los rojos comparten causa raíz en POMs compartidos → **1 fix cura N specs** (el $/spec sanado no es aditivo por rojo). El Healer solo tocó POMs, ningún `.spec.ts`, ningún `test.fixme()` (la guarda anti-fixme no llegó a activarse).
+
+**Auditoría del output sanado (el Healer no es juez)**: suite 5/5 verde (8s), pre-review 5/5 clean 0 must-fix, verify-a11y 5/5, **Reviewer sobre los 3 specs afectados: 3/3 approved, 0 must-fix** — la sanación respeta el Style Contract (`getByTestId` es prioridad #1 del contract; MF-1 no aplica). Should-fix común de los 3 Reviewers: el discovery no enumera `title` fuera de `inventory` — el fix del Healer se apoya en verificación contra DOM vivo, no en artefacto de discovery. Insumo directo para Q2.1/Q2.3.
+
+**Guardrails**: Quality layer intacta (solo los 2 fixes de prompt del plan); coste dentro de banda; **señal a vigilar en Q2**: approved a iteración 0 fue 2/5 (control F6-A: 4/4) — condiciones no comparables (discovery fresco vs congelado, y el trigger real fue una race de dos Writers paralelos editando el mismo POM `cart.page.ts`/`inventory.page.ts`, que produjo además **verdicts inconsistentes entre Reviewers**: el mismo locator `removeButtonBySlug` aprobado en TC-002 y rechazado como fabricado en TC-003 por revisores independientes sin contexto compartido). Ambos —la race de POM compartido entre Writers paralelos y la inconsistencia inter-Reviewer— quedan flaggeados como backlog del carril.
+
+**Bugs menores nuevos flaggeados**: (a) el Writer de TC-004 escribió una entrada de audit-log con ruta Windows backslash → fichero basura en la raíz del repo (misma clase que la hard rule ya presente en el Reviewer; candidato: normalizar rutas en `appendAuditEntry` en vez de confiar en prompts); (b) specs stale pre-namespace en la raíz de `tests/e2e/` (ahorro-inversion, santalucia) siguen sin limpiarse — hueco ya flaggeado en el anexo del informe, no bloquea.
+
+**Criterio de salida: CUMPLIDO** — 5/5 verdes post-Healer, guardrails intactos, coste del Healer medido y trasladado al marco €/run del informe (§7). **Decisión de productización pendiente del QA** (datos sobre la mesa): ¿paso opcional del command (`--heal`) o command aparte `/qa-automator:heal`? A favor del command aparte: post-proceso desacoplado re-ejecutable (mismo patrón que `report`), sesiones separadas = coste atribuible; a favor del paso opcional: un solo gesto para el QA. La economía medida (μ $0,72/spec, causa raíz compartida) cabe en ambos.

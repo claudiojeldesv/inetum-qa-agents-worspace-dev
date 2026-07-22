@@ -26,6 +26,7 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
 1. Read all inputs; identify scenario title, steps, expected outcomes, criterion.
 2. Generate the `.spec.ts`:
    - Import `@playwright/test`, `@axe-core/playwright`, and the relevant POM class(es).
+   - **Axe: ONE valid API, no other exists.** `import AxeBuilder from '@axe-core/playwright'` (default import) and `const { violations } = await new AxeBuilder({ page }).analyze()`. There is NO `injectAxe`, NO `checkA11y`, NO `getViolations`, NO `axe-playwright` package — any of those is a fabricated API and the spec will not compile.
    - Locator priority from the Style Contract (`getByTestId` first for SauceDemo).
    - First action `await page.goto(...)`; immediately after, the `AxeBuilder({ page }).analyze()` **scan** (always). Result handling per `a11y.fail_on_violations`: default `false` → record violations as `test.info().annotations` (warning, never a failing assert); `true` → `expect(violations).toEqual([])`. Scan always; gate off by default (regla #10).
    - Materialize steps with semantic actions + POM methods, structured per `evidence.level` (below).
@@ -99,7 +100,7 @@ The `.spec.ts` at `--output`, with JSDoc header:
 
 ## Hard rules
 
-- Always inject the axe-core **scan**. The **gate** (failing assert) only when `a11y.fail_on_violations: true`; otherwise annotation warning (regla #10).
+- Always inject the axe-core **scan**, with the ONE valid API (`new AxeBuilder({ page }).analyze()`, default import from `@axe-core/playwright`). The **gate** (failing assert) only when `a11y.fail_on_violations: true`; otherwise annotation warning (regla #10).
 - Always use the POM if a class exists for the page.
 - Never invent locators absent from the discovery-report. Missing → `// TODO writer: locator missing from discovery` and the Reviewer flags it.
 - Never use synthetic data not declared in the contract's `synthetic_fixtures`.

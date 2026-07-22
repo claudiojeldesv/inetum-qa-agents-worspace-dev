@@ -191,7 +191,7 @@ Números para el pitch, con sus condiciones:
 | Run 5 tests, sitio simple (con Nivel 1) | ~$9-10 | Estimado |
 | Run 5 tests, sitio simple (Nivel 1+2) | ~$6-7 | Estimado |
 | Sitio real medio (SPA, auth) | ×2-4 sobre lo anterior | Snapshots MCP dominan el mapeo (§5.2: 3,8-12k tokens/snapshot; 4,2× MCP vs artefactos a disco). El brief acotado amortigua (Toolshop: 10 vs 62 tool-uses) |
-| Healer (cuando hay rojos) | +$0,5-1,5/spec sanado | Orden de magnitud del spike (generator ~30k tokens); no medido en este baseline |
+| Healer (cuando hay rojos) | +$0,5-0,9/spec sanado (μ $0,72) | **Medido** (fase Q1 quality-greens, 2026-07-22): 3/3 rojos sanados, ~$2,2 y ~10 min el lote; causa raíz compartida en POM → 1 fix cura N specs (no aditivo por rojo); output auditado post-heal (Reviewer 3/3 approved). Detalle en [quality-greens-plan.md](quality-greens-plan.md) |
 | Pricing promo Sonnet 5 (hasta 2026-08-31) | −33% en toda la tabla | $2/$10 vs $3/$15 |
 
 Contexto competitivo: $2,5/test generado con Reviewer independiente, trazabilidad y A11y está dentro del rango publicado para test-generation LLM ($0,05/test sin capas de calidad hasta $2-8/ciclo completo por PR — §5.3), y las 4,5 h/QA que sustituye un run de 5 tests (dato del spike: 22 min vs 4,5 h manual por suite comparable en blogs) hacen el €/run irrelevante frente al coste de la hora de QA. **El argumento no es "es barato", es "cuesta lo que un café y viene auditado".** El riesgo de coste real está en sitios grandes sin brief — y el command ya lo bloquea por diseño (modo ciego requiere confirmación explícita).
