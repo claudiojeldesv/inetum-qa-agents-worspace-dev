@@ -172,6 +172,21 @@ describe('pom-scaffolder — el esqueleto solo declara lo que el discovery vio (
     expect(result.content).not.toMatch(/menuButton|logo|orderSummary/);
   });
 
+  it('marca con advertencia los locators que verify-locators no resolvió (Q2.1)', () => {
+    const result = scaffoldPage({
+      name: 'login',
+      interactive_elements: [
+        { role: 'button', name: 'Login', test_id: 'login-button', verified: true },
+        { role: 'heading', name: 'Error message', test_id: 'error', verified: false, verify_reason: 'not-found' },
+      ],
+    });
+    const errorLine = result.content.split('\n').find((l) => l.includes("getByTestId('error')"))!;
+    expect(errorLine).toContain('verify-locators: not-found');
+    expect(errorLine).toContain('evidencia del plan');
+    const okLine = result.content.split('\n').find((l) => l.includes("getByTestId('login-button')"))!;
+    expect(okLine).not.toContain('verify-locators');
+  });
+
   it('sobrescribe un POM stale de un discovery anterior (los locators fantasma desaparecen)', () => {
     dir = mkdtempSync(join(tmpdir(), 'pom-scaffolder-'));
     const stalePath = join(dir, 'inventory.page.ts');

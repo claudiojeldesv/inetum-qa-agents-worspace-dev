@@ -39,7 +39,7 @@ import { parse as parseYaml } from 'yaml';
 
 import { appendAuditEntry } from '../audit-log.ts';
 import { runPreflight } from '../compliance-preflight.ts';
-import { scaffold, type DiscoveryScreen, type DiscoveryComponent } from '../pom-scaffolder.ts';
+import { scaffold, fileNameFor, type DiscoveryScreen, type DiscoveryComponent } from '../pom-scaffolder.ts';
 import { consolidateReviews } from './consolidate-reviews.ts';
 import { parseFlags, resolveMode } from './resolve-mode.ts';
 
@@ -327,6 +327,35 @@ export interface CatalogEntry {
   criticality: string;
   rank: number;
   rationale?: string;
+  screens?: string[];              // pantallas que pisa el escenario (Q2.4, insumo del ownership de POMs)
+}
+
+/**
+ * Q2.4 — ownership de POMs compartidos: cada fichero POM pertenece al PRIMER escenario
+ * seleccionado (en orden de selección) que pisa esa pantalla; el resto lo usa read-only
+ * (mitiga la race de dos Writers paralelos editando el mismo POM — hallazgo Q1, trigger del
+ * approved iter-0 2/5 y de los verdicts inconsistentes inter-Reviewer). BasePage y components
+ * no tienen dueño: read-only para todos. Si algún escenario seleccionado no trae `screens`
+ * (discovery-analyzer antiguo) → sin ownership (null): degradación al comportamiento previo.
+ * Serializar Writers como alternativa queda PROHIBIDO (mata el paralelismo del wall-clock).
+ */
+export function computePomOwnership(
+  selected: Array<{ key: string; screens?: string[] }>,
+  pagesDir: string,
+): { ownership: Record<string, string>; ownedBy: Map<string, string[]> } | null {
+  if (selected.some((s) => !Array.isArray(s.screens))) return null;
+  const ownership: Record<string, string> = {};
+  const ownedBy = new Map<string, string[]>(selected.map((s) => [s.key, []]));
+  for (const entry of selected) {
+    for (const screen of entry.screens!) {
+      const pomPath = `${pagesDir}/${fileNameFor(screen, 'page')}`.replace(/\\/g, '/');
+      if (!ownership[pomPath]) {
+        ownership[pomPath] = entry.key;
+        ownedBy.get(entry.key)!.push(pomPath);
+      }
+    }
+  }
+  return { ownership, ownedBy };
 }
 
 export interface SelectionPick {
@@ -449,6 +478,21 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
   const contract = loadContract(ctx.stylePath);
   const cap = Number(flags['max-scenarios'] ?? 8);
 
+  // Q2.1 — guarda determinística de locators: anota el discovery contra el DOM real ANTES del
+  // scaffold (una pasada de navegador sin LLM, una vez por run — la re-invocación tras la pausa
+  // de selección no re-verifica). Sin --url o si falla → sigue sin anotaciones (estado legacy).
+  const locatorVerifyPath = resolve(process.cwd(), ctx.workDir, 'locator-verify.json');
+  if (flags['url'] && !existsSync(locatorVerifyPath)) {
+    const v = runChild(
+      `npx --no-install tsx src/scripts/verify-locators.ts --report=${ctx.workDir}/discovery-report.json --url=${flags['url']} --style-contract=${ctx.stylePath}`,
+      ctx,
+    );
+    if (v.status !== 0) {
+      console.error('[run-s4-mecanico] checkpoint: verify-locators falló — continúo sin anotaciones (estado legacy)');
+    }
+  }
+  const locatorVerify = readJson<{ session_bootstrap: string; totals: Record<string, number> }>(locatorVerifyPath);
+
   const discovery = readJson<{ scenarios_catalog: CatalogEntry[]; screens: DiscoveryScreen[]; components?: DiscoveryComponent[] }>(
     resolve(process.cwd(), ctx.workDir, 'discovery-report.json'),
   );
@@ -515,6 +559,17 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
     rank: row.rank,
     criticality: row.criticality,
     spec_path: specPathFor(row, registryEnabled ? ids[row.scenario_slug] : null, pattern, ctx.specsDir),
+    screens: row.screens,
+  }));
+
+  // Q2.4 — ownership de POMs por escenario (clave: scenario_slug)
+  const pomOwnership = computePomOwnership(
+    selected.map((s) => ({ key: s.scenario_slug, screens: s.screens })),
+    ctx.pagesDir,
+  );
+  const selectedWithPoms = selected.map((s) => ({
+    ...s,
+    owned_poms: pomOwnership ? pomOwnership.ownedBy.get(s.scenario_slug)! : null,
   }));
 
   const selection = {
@@ -522,7 +577,8 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
     cap,
     mode,
     dropped: rows.filter((r) => !picks.some((p) => p.num === r.num)).map((r) => r.scenario_slug),
-    selected,
+    pom_ownership: pomOwnership ? pomOwnership.ownership : null,
+    selected: selectedWithPoms,
   };
   writeFileSync(resolve(process.cwd(), ctx.workDir, 'selection.json'), JSON.stringify(selection, null, 2) + '\n', 'utf8');
 
@@ -559,11 +615,16 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
 
   out({
     stage: 'checkpoint',
+    locator_verification: locatorVerify
+      ? { session_bootstrap: locatorVerify.session_bootstrap, totals: locatorVerify.totals }
+      : 'skipped (sin --url o verify-locators falló)',
     selection,
     scaffold: scaffoldResult.files.map((f) => ({ className: f.className, path: toPosix(f.path) })),
     next:
-      'Acto 4: (auth.enabled → Writer del auth.setup primero) un ia4d-writer por escenario seleccionado, EN PARALELO, ' +
-      'prompts con rutas (spec_path, plan del flujo, discovery-report, contract, POM dir), nunca payload. Después: post-writers.',
+      'Acto 4: (auth.enabled → Writer del auth.setup primero) un ia4d-writer por escenario seleccionado — escalonados ' +
+      '(primero UNO, el resto en paralelo), SIEMPRE FOREGROUND (nunca background). Prompts con rutas (spec_path, plan del ' +
+      'flujo, discovery-report, contract, POM dir) + --owned-poms=<owned_poms del escenario> si pom_ownership no es null. ' +
+      'Nunca payload inline. Después: post-writers.',
   });
   return 0;
 }

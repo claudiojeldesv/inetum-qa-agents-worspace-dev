@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assignIds,
   checkFragmentSource,
+  computePomOwnership,
   contextFromFlags,
   parsePlaywrightResults,
   parseSelection,
@@ -247,5 +248,44 @@ describe('parsePlaywrightResults', () => {
   it('tolera árbol vacío', () => {
     expect(parsePlaywrightResults({})).toEqual([]);
     expect(parsePlaywrightResults(null)).toEqual([]);
+  });
+});
+
+describe('computePomOwnership (Q2.4 — race de POMs compartidos)', () => {
+  const pagesDir = 'tests/pages/saucedemo';
+
+  it('asigna cada POM al PRIMER escenario que pisa la pantalla; el resto read-only', () => {
+    const result = computePomOwnership(
+      [
+        { key: 'carrito.agregar-producto', screens: ['login', 'inventory', 'cart'] },
+        { key: 'carrito.quitar-producto', screens: ['login', 'inventory', 'cart'] },
+        { key: 'pago.compra-completa', screens: ['login', 'inventory', 'cart', 'checkout-step-one'] },
+      ],
+      pagesDir,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.ownership['tests/pages/saucedemo/cart.page.ts']).toBe('carrito.agregar-producto');
+    expect(result!.ownership['tests/pages/saucedemo/inventory.page.ts']).toBe('carrito.agregar-producto');
+    expect(result!.ownership['tests/pages/saucedemo/checkout-step-one.page.ts']).toBe('pago.compra-completa');
+    // El segundo escenario de carrito no posee ningún POM (todos ya asignados)
+    expect(result!.ownedBy.get('carrito.quitar-producto')).toEqual([]);
+    expect(result!.ownedBy.get('pago.compra-completa')).toEqual(['tests/pages/saucedemo/checkout-step-one.page.ts']);
+  });
+
+  it('sin `screens` en algún escenario → null (degradación al comportamiento previo, sin ownership)', () => {
+    expect(
+      computePomOwnership(
+        [
+          { key: 'a', screens: ['login'] },
+          { key: 'b' },
+        ],
+        pagesDir,
+      ),
+    ).toBeNull();
+  });
+
+  it('normaliza el nombre de pantalla al fichero .page.ts del scaffolder', () => {
+    const result = computePomOwnership([{ key: 'x', screens: ['Checkout Step One'] }], pagesDir);
+    expect(Object.keys(result!.ownership)).toEqual(['tests/pages/saucedemo/checkout-step-one.page.ts']);
   });
 });

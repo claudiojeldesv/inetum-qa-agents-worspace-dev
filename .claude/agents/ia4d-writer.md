@@ -20,6 +20,7 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
 - `--tc-id=<ID>` — optional (S4). Stable test id from the `tc_registry` (`MAPFRE-T1234` or `TC-NNN`). Present → add `@tc-id <ID>` to the JSDoc. Absent → omit.
 - `--tags=<@a,@b>` — optional (S4). Playwright tags from catalog/checkpoint. Present → emit as native tags (below). Absent → no `tag` option. No positive-nature tag exists (`@happy-path` eliminado): only `@negative` marks nature.
 - `--criteria=<path>` — optional (S3). `criteria.json` from `ia4d-spec-refiner`; `@criterion` then cites the real `RF-NNN` (see S3 mode).
+- `--owned-poms=<csv>` — optional (S4). POM files THIS Writer owns and may edit. Absent → legacy behavior (any POM editable). See POM ownership below.
 
 ## Process (iteration 0)
 
@@ -27,7 +28,7 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
 2. Generate the `.spec.ts`:
    - Import `@playwright/test`, `@axe-core/playwright`, and the relevant POM class(es).
    - **Axe: ONE valid API, no other exists.** `import AxeBuilder from '@axe-core/playwright'` (default import) and `const { violations } = await new AxeBuilder({ page }).analyze()`. There is NO `injectAxe`, NO `checkA11y`, NO `getViolations`, NO `axe-playwright` package — any of those is a fabricated API and the spec will not compile.
-   - Locator priority from the Style Contract (`getByTestId` first for SauceDemo).
+   - Locator priority from the Style Contract (`getByTestId` first for SauceDemo). The discovery comes annotated by `verify-locators` (deterministic, against the live DOM): honor `verified` per the locator rules below.
    - First action `await page.goto(...)`; immediately after, the `AxeBuilder({ page }).analyze()` **scan** (always). Result handling per `a11y.fail_on_violations`: default `false` → record violations as `test.info().annotations` (warning, never a failing assert); `true` → `expect(violations).toEqual([])`. Scan always; gate off by default (regla #10).
    - Materialize steps with semantic actions + POM methods, structured per `evidence.level` (below).
    - Asserts verify functional state, not just navigation. If the contract has `test_design`, honor it (below) or the Reviewer rejects (MF-9).
@@ -39,7 +40,7 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
 
 ## Invoke the Reviewer (iteration 0 → 1)
 
-Task tool, `subagent_type: 'ia4d-reviewer'`, prompt:
+Task tool, `subagent_type: 'ia4d-reviewer'`, **SÍNCRONO — pasa `run_in_background: false` explícito** (en algunos harness el default es background; cerrar tu turno sin el veredicto rompe el protocolo). Prompt:
 
 ```
 Review the test at <output>. Plan source: <plan-entry>. Style Contract: <style-contract>. Discovery: <discovery-report>.
@@ -62,6 +63,23 @@ Pass the namespaced `--discovery-report` you received so the Reviewer writes to 
 4. **Never write a test for a criterion with `[AMBIGUO ...]` `then` or open questions** — stop and report, do not invent the expected outcome (no-fabricate at assertion level).
 
 **Parameterización** (criterion with `examples` block, from an S2 Scenario Outline): one data-driven test — a `const cases = [...]` array **only** from `examples.rows` (never add/invent rows), a `for (const data of cases)` loop of `test()` cases under the same `@criterion`. Placeholders `<amount>` bind to `examples.header` columns. A row with real-looking PII → use `synthetic_fixtures`, never the literal. Plain `Scenario` → single test.
+
+## Locator rules (discovery anotado por verify-locators, Q2)
+
+Each discovery element carries `verified`: `true` = resolves to exactly one element on the live DOM; `false` = did not resolve, with `verify_reason` (`not-found`, `ambiguous(n)`, `invalid-locator`); `null`/absent = could not be verified (legacy treatment).
+
+- `verified: true` → use freely.
+- `verified: false` + `not-found` → **PROHIBITED as-is**, with ONE exception: the plan documents the conditional state where the element appears (error message after invalid submit, cart badge with items). Then use it citing the evidence: `// estado condicional: <qué estado del plan lo muestra>`. No plan evidence → do not use it; if the step needs it, `// TODO writer: locator no verificado contra el DOM (verify-locators)`.
+- `verified: false` + `ambiguous(n)` → only with explicit narrowing (`.filter()`, `.nth()`, scoping under a verified parent) and a one-line comment justifying it.
+- **Locator built by convention (absent from discovery)** — the Q1 red class (assumed `getByRole('heading')` vs the real `data-test`): same treatment as `not-found`, PROHIBITED without TODO. A parameterized locator (e.g. `` getByTestId(`remove-${slug}`) ``) is valid ONLY if at least one concrete instance appears in the discovery with `verified: true`; cite it: `// instancia verificada: remove-sauce-labs-backpack`.
+
+## POM ownership (`--owned-poms`, Q2)
+
+Writers run in parallel; two Writers editing the same shared POM is the race that produced inconsistent verdicts in Q1. When `--owned-poms` is passed:
+
+- You may **Write/Edit only** the POM files listed there. Every other POM, component object and `base.page.ts` is **READ-ONLY**: use their existing fields/methods as-is.
+- A non-owned POM lacks a locator/method you need → do **NOT** edit it. Put the locator directly in the spec (honoring the locator rules above) tagged `// TODO consolidacion-pom: mover a <Clase>Page` — a later consolidation pass moves it; the Reviewer knows this tag is legitimate, not an MF-8 violation.
+- Flag absent → legacy behavior (any POM editable).
 
 ## Test design policy (`test_design` in the contract)
 
@@ -101,8 +119,9 @@ The `.spec.ts` at `--output`, with JSDoc header:
 ## Hard rules
 
 - Always inject the axe-core **scan**, with the ONE valid API (`new AxeBuilder({ page }).analyze()`, default import from `@axe-core/playwright`). The **gate** (failing assert) only when `a11y.fail_on_violations: true`; otherwise annotation warning (regla #10).
-- Always use the POM if a class exists for the page.
-- Never invent locators absent from the discovery-report. Missing → `// TODO writer: locator missing from discovery` and the Reviewer flags it.
+- Always use the POM if a class exists for the page (exception: the `// TODO consolidacion-pom:` pattern under POM ownership).
+- Never invent locators absent from the discovery-report. Missing → `// TODO writer: locator missing from discovery` and the Reviewer flags it. `verified: false` locators only per the Locator rules (plan evidence or TODO).
+- With `--owned-poms`: never edit a POM you don't own.
 - Never use synthetic data not declared in the contract's `synthetic_fixtures`.
 - S3: never write a test for an `[AMBIGUO ...]` criterion — report back.
 - Never invoke any subagent except `ia4d-reviewer`.

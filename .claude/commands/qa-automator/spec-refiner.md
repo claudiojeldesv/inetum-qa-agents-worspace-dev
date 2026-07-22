@@ -92,7 +92,9 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
 
 ### Acto 3 — Estructurar
 
-11. Ejecuta el POM scaffolder sobre `<workDir>/discovery-report.json` (igual que S4), namespaciado por sitio:
+**10.b — Guarda determinística de locators (Q2):** `npx tsx src/scripts/verify-locators.ts --report=<workDir>/discovery-report.json --url=<--url> --style-contract=<--style>` — resuelve cada locator del discovery contra el DOM real y anota `verified`/`unverified` in-place (summary en `<workDir>/locator-verify.json`). Un locator `verified:false` queda prohibido para el Writer sin TODO o evidencia de estado del plan.
+
+11. Ejecuta el POM scaffolder sobre `<workDir>/discovery-report.json` **ya anotado** (igual que S4), namespaciado por sitio:
     ```sh
     npx tsx src/scripts/scaffold-poms.ts <workDir>/discovery-report.json tests/pages/<site-id> tests/components/<site-id>
     ```
@@ -102,7 +104,7 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
 
 **11.b — Auth setup** (solo si el contract tiene `auth.enabled: true`): idéntico a S4 (ver `autonomous.md` Acto 4 paso 8.b). Genera `auth.setup.ts`.
 
-12. Para cada `scenario` en `discovery-report.scenarios_recommended` **cuyo RF NO esté bloqueado por open_questions y NO esté en drift** (escalonado, warm-cache: el primer Writer solo — o el auth setup 11.b si corrió —, el resto en paralelo):
+12. Para cada `scenario` en `discovery-report.scenarios_recommended` **cuyo RF NO esté bloqueado por open_questions y NO esté en drift** (escalonado, warm-cache: el primer Writer solo — o el auth setup 11.b si corrió —, el resto en paralelo; **SIEMPRE FOREGROUND, PROHIBIDO `run_in_background`** — el patrón background mata el turno del orquestador y paga re-priming, hallazgo F2/Q1):
     - **Construye el `--output`** bajo `tests/e2e/<site-id>/<id>_<feature>.<condicion>.spec.ts` (ID estable del registro). Invoca `ia4d-writer` via Task tool con `--plan-entry`, `--style-contract`, `--pom-skeleton-dir=tests/pages/<site-id>`, `--output` (el construido), `--discovery-report=<workDir>/discovery-report.json` **y `--criteria=<criteria-dir>/criteria.json`** (activa el S3 mode: `@criterion` cita RF-NNN + source_ref; usa given/when/then del criterio).
     - El Writer escribe el `.spec.ts` e invoca al Reviewer (ping-pong N≤2). Pasa por el hook `pii-post.ts`.
 13. (Opcional) `ia4d-style-enforcer` por cada `.spec.ts`.
@@ -147,6 +149,8 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-i
 - **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el QA decide (no-mapeado / rescate MCP / abortar).
 - No se fabrica drift ni el `then` ambiguo. Un flujo no mapeado se reporta; un criterio ambiguo no se genera.
 - Writer+Reviewer activos (igual que S4); el **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`).
+- **Writers SIEMPRE en foreground: pasa `run_in_background: false` EXPLÍCITO en cada Task/Agent** (en algunos harness el default es background — el default NO es seguro). PROHIBIDO background y ScheduleWakeup para esperar subagents (F2/Q1/Q2). Paralelo ≠ background.
+- Guarda de locators (10.b) antes del scaffold: `verified:false` prohibido para el Writer sin TODO o evidencia del plan.
 - Cada invocación de subagent y cada decisión (ingest, drift, bloqueo, judge omitido) registra al audit-log.
 - Writers del Acto 4 escalonados: el primero solo (escribe la caché del prefijo compartido), el resto en paralelo — solo criterios no bloqueados.
 

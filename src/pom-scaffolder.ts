@@ -19,6 +19,8 @@ export interface InteractiveElement {
   name?: string;                      // accessible name if available
   test_id?: string;                   // data-test attr if present
   label?: string;
+  verified?: boolean | null;          // anotado por verify-locators (Q2.1): true = resuelve único contra el DOM real
+  verify_reason?: string;             // 'not-found' | 'ambiguous(n)' | ... cuando verified !== true
 }
 
 export interface DiscoveryScreen {
@@ -59,7 +61,7 @@ function toCamelCase(input: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
-function fileNameFor(name: string, kind: 'page' | 'component'): string {
+export function fileNameFor(name: string, kind: 'page' | 'component'): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + `.${kind}.ts`;
 }
 
@@ -111,7 +113,13 @@ function locatorAssignments(elements: InteractiveElement[]): Array<{ key: string
       unique = `${base}${n++}`;
     }
     seenKeys.add(unique);
-    return { key: unique, locator: renderLocator(el) };
+    // verify-locators (Q2.1) marcó el elemento como no resuelto contra el DOM real: el campo se
+    // scaffoldea igual (puede ser un estado condicional), pero con la advertencia para el Writer.
+    const locator =
+      el.verified === false
+        ? `${renderLocator(el)} /* verify-locators: ${el.verify_reason ?? 'not-found'} en el estado por defecto — usar solo con evidencia del plan o TODO */`
+        : renderLocator(el);
+    return { key: unique, locator };
   });
 }
 

@@ -37,6 +37,16 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 | MF-8 | POM not used when a Page class exists for the screen |
 | MF-9 | Test does not assert a **business post-condition** when `test_design.require_business_postcondition: true`. Extends MF-3: a test whose only assertions are navigation/URL/visibility of chrome (`toHaveURL`, a nav element visible) is a violation. It must assert the *outcome* of the flow — e.g. after checkout, the order confirmation/number is visible; after login, an authenticated-only element is present. Also fails if fewer than `test_design.min_functional_asserts` functional asserts. Only enforced when the contract carries a `test_design` block with the flag on (absent block → not enforced, no regression). |
 
+### Locator provenance (objetivo, no opinión — Q2)
+
+The discovery-report comes annotated by `verify-locators` (deterministic pass against the live DOM). Judge locator legitimacy by data, not intuition:
+
+- A locator present in discovery with `verified: true` is **never** "fabricated" — do not reject it as invented, in any iteration, in any spec.
+- A parameterized locator (e.g. `` getByTestId(`remove-${slug}`) ``) citing a concrete `verified: true` instance (`// instancia verificada: ...`) is legitimate.
+- A `verified: false` locator is acceptable ONLY with the Writer's evidence comment (`// estado condicional: ...` citing the plan) or a TODO. Used bare, flag it (must-fix, category `locator-strategy`).
+- A locator absent from discovery with no TODO and no cited instance IS a fabrication — must-fix.
+- **MF-8 exception (POM ownership)**: a spec-local locator tagged `// TODO consolidacion-pom: <Clase>` is NOT an MF-8 violation — the Writer couldn't edit a POM it doesn't own. Report it as should-fix (`consolidación pendiente`), never rejection.
+
 ### Should-fix criteria (non-blocking but reported)
 
 - Locator priority not optimal (uses getByRole when data-test exists).

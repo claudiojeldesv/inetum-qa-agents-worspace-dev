@@ -64,6 +64,29 @@ Decisión QA (2026-07-22, cierre Q1): la sanación entra al producto como los de
 
 ---
 
+## Fase Q4 — Shift-left del pre-review (hipótesis de robustez)
+
+Independiente de Q2/Q3, ejecutable en cualquier orden. Origen: exploración de palancas post-token-efficiency (conversación QA 2026-07-22).
+
+**Hipótesis**: mover el check determinístico DELANTE del juez reduce las iteraciones de ping-pong cuando el Writer produce defectos mecánicos, sin alterar verdicts en el camino normal. El valor no es el $ del run actual (con Writer Sonnet el perfil ya es approved iter 0 con 0 must-fix mecánicos y el pre-review saldría clean a la primera): es robustez del proceso. F6-B midió el modo de fallo que esto asegura: 9 must-fix mecánicos → 10 invocaciones de Reviewer (vs 4 del control), cada ronda a precio Sonnet para señalar lo que un regex detecta gratis, y 1 defecto (scan axe antes del goto) aprobado por churn que solo cazó la red 11.c al final, costando la única invocación real del rescate a11y. Seguro asimétrico: coste ~0 siempre (una llamada Bash de ~2s por writer), pago grande en días malos, sitios raros o si algún día se reabre la pregunta del writer barato.
+
+**Cambio** (uno, de prompt): paso 3.5 en `ia4d-writer.md` — tras escribir el spec y ANTES de invocar al Reviewer, ejecutar `npx tsx src/scripts/pre-review.ts <output> --style-contract=<contract>`; si reporta must-fix, corregirlos y re-ejecutar hasta clean (máx 2 pasadas; si no llega a clean, invocar al Reviewer igual — el protocolo N≤2 no cambia). La red 11.c post-review NO se mueve (defensa en profundidad, el mismo script dos veces cuesta $0). Propagación a template vía `build:template`.
+
+**Validación — A/B congelado doble** (discovery `frozen-fase3`, mismo método F3/F6; los brazos de control YA están medidos, solo se corren los brazos con tratamiento):
+
+1. **Brazo paridad (guardrail)**: Writers Sonnet + shift-left vs control F6-A (dato existente: 4/4 iter 0, 0 must-fix, 8 should-fix). Criterio: verdicts idénticos, riqueza del feedback del Reviewer no empobrecida, cero cambio de comportamiento observable. Cualquier degradación aquí mata la hipótesis — un seguro que degrada el caso común no se compra.
+2. **Brazo estrés (la señal discriminante)**: Writers Haiku + shift-left vs control F6-B (dato existente: 9 must-fix al Reviewer, 10 invocaciones, 1 escape a 11.c). Haiku actúa como **generador de defectos del experimento**, no como reapertura de la decisión F6 (cerrada: el Writer de producto sigue Sonnet). Criterios de éxito: must-fix mecánicos que llegan al Reviewer ≈0, invocaciones de Reviewer ≤6, escapes a la red 11.c = 0.
+
+**Riesgo a inspeccionar en el A/B**: el Writer corrigiendo "para pasar el regex" en vez de corregir bien (p.ej. tag `// css-fallback:` sin atributo sancionado en el contract — el script ya exige ambas condiciones, pero los diffs de corrección del brazo estrés se revisan a mano).
+
+**Decisión**: adopta si el brazo paridad sale limpio Y el brazo estrés mejora en ≥2 de las 3 métricas. Ambos desenlaces cierran la fase (patrón F3/F6: la hipótesis se mata con dato barato).
+
+**Coste estimado del A/B**: ~$1,5-2,5 (8 writers sobre discovery congelado; controles ya pagados en F6).
+
+**Commit**: `feat(qa-automator): fase Q4 quality-greens — shift-left pre-review en el Writer (A/B: <resultado>)` o `docs(qa-automator): fase Q4 — shift-left pre-review descartado por A/B`
+
+---
+
 ## Fuera de plan (explícito)
 
 - Re-abrir cualquier decisión del carril token-efficiency (Writer/main Haiku, reviewer de lote) — cerradas con dato.
@@ -77,8 +100,9 @@ Decisión QA (2026-07-22, cierre Q1): la sanación entra al producto como los de
 |---|---|---|---|---|---|---|---|
 | Referencia (F4/F6) | 2026-07-22 | 0/5 · 2/4 | sin dato (Healer nunca medido) | 11,2 | — | 5/5 · 4/4 | Clases: gap discovery cart + observación planner |
 | Q1 | 2026-07-22 | 2/5 | **5/5** ✓ KPI | 12,0 (+2,2 Healer) | 0,51-0,92 (μ 0,72) | 5/5 (2 iter 0, 3 iter 1) | Las 2 clases de F4 no reaparecieron; clase nueva: locators por convención. Healer 3/3, 1 causa raíz compartida. Post-heal auditado: Reviewer 3/3 approved, pre-review clean. Ver notas Q1 |
-| Q2 (prevención+estabilización) | | | | | | | |
+| Q2 (prevención+estabilización) | 2026-07-22 | **4/5** ✓ | 1 rojo, heal pendiente (decisión QA) | 11,1 (4,4+6,6) | — | 5/5 (3 a la 1ª review; 2 rechazos legítimos no-race) | Guarda locators viva (16/24, 1 fantasma cazado pre-Writer), ownership 100% sin race, planner con evidencia de estado (clase F4 muerta); rojo = clase nueva estrecha (regex substring del Writer sobre evidencia precisa). Ver notas Q2 |
 | Q3 (productización Healer) | | | | | | | |
+| Q4 (shift-left pre-review) | | n/a — métricas propias: must-fix al Reviewer, invocaciones Reviewer, escapes 11.c | | | | | Brazos de control ya medidos en F6 |
 
 ### Notas Q1 (2026-07-22, streams `.work/audit-runs/baseline-q1{,-2,-3}.jsonl` sesión `0c3111a3` + `healer-q1-tc00{2,3,4}.jsonl`)
 
@@ -109,3 +133,29 @@ Total **$2,17 / ~10 min / 3/3 éxito**. Hallazgo de economía: los rojos compart
 **Bugs menores nuevos flaggeados**: (a) el Writer de TC-004 escribió una entrada de audit-log con ruta Windows backslash → fichero basura en la raíz del repo (misma clase que la hard rule ya presente en el Reviewer; candidato: normalizar rutas en `appendAuditEntry` en vez de confiar en prompts); (b) specs stale pre-namespace en la raíz de `tests/e2e/` (ahorro-inversion, santalucia) siguen sin limpiarse — hueco ya flaggeado en el anexo del informe, no bloquea.
 
 **Criterio de salida: CUMPLIDO** — 5/5 verdes post-Healer, guardrails intactos, coste del Healer medido y trasladado al marco €/run del informe (§7). **Decisión de productización (QA, 2026-07-22): híbrido patrón regla #10** — knob `healing` en el Style Contract (off por defecto), command aparte `/qa-automator:heal` re-ejecutable, y el orquestador de `autonomous` NO sana por defecto (reporta rojos y termina; si el contract activa healing, encadena). El QA lo lanza o lo activa cuando decide sobre los rojos. Implementación en Fase Q3.
+
+### Notas Q2 (2026-07-22, streams `.work/audit-runs/baseline-q2{,-2}.jsonl` sesión `d445b3b5`)
+
+**Implementación (los 6 puntos del plan; red estructural verde: tsc, 229/229 unit, healthcheck 25/25, `build:template`):**
+
+- **Q2.1 `verify-locators.ts`**: resuelve cada locator del discovery contra el DOM real (chromium headless, `locator.count()`) con la misma prioridad que el scaffolder; anota in-place `verified: true` (resuelve único) / `false` (`not-found` | `ambiguous(n)` | `invalid-locator`) / `null` (inalcanzable). **Bootstrap de sesión contract-driven** (formulario de login detectado en el propio discovery + `synthetic_fixtures.credentials`) — sin él la guarda no vería nada tras login (SauceDemo redirige todo a `/`). Integrado en el stage `checkpoint` (cero turnos extra de orquestador) y como paso 10.b en S2/S3; el scaffolder marca los unverified en el POM. **Matiz de diseño descubierto en el smoke**: `not-found` ≠ fantasma siempre — los elementos condicionales de estado (banner de error, Remove, badge del carrito) no resuelven en el estado por defecto; la regla del Writer quedó en "unverified → TODO **o cita de evidencia de estado del plan**".
+- **Q2.2 prompt del planner**: exigencia de evidencia de estado, verificada en los fragmentos del baseline — secciones explícitas "navegado y verificado" vs "NO verificado (no asumir como hecho)", y el plan de login documenta la trampa exacta de F4 con precisión (`input_error` es clase base SIEMPRE presente; la exclusiva del error es `error` añadida encima). **La clase F4 "observación imprecisa del planner" murió.**
+- **Q2.3 discovery-analyzer**: `locator_confidence: weak` para role-only, prohibición de `test_id` wildcard (el smoke cazó un `add-to-cart-*` real de Q1), y `screens[]` por entrada del catálogo (insumo del ownership).
+- **Q2.4 race de POMs — candidata (b), ownership mecánico**: `computePomOwnership()` en el checkpoint (cada POM al primer escenario seleccionado que pisa la pantalla; `pom_ownership` + `owned_poms` en selection.json), el command pasa `--owned-poms` al Writer, no-propios read-only con patrón `// TODO consolidacion-pom`. La candidata (a) quedó cubierta de facto por Q2.1+Q2.3 (el scaffold ya pre-rellena todo lo verificado); (c) serializar sigue PROHIBIDO y no hizo falta. El Reviewer ganó **procedencia objetiva de locators** (verified nunca es fabricado; parametrizado con instancia concreta citada es legítimo; excepción MF-8 para el TODO de consolidación) — el juicio "¿fabricado?" dejó de ser opinión.
+- **Q2.5 writers foreground**: hard rule en los 3 commands, **enmendada en caliente durante el baseline** — el harness lanza subagents en background POR DEFECTO (el segmento 1 murió esperando al Writer TC-001, y hasta el Reviewer interno del Writer quedó en background); prohibir no basta, la regla exige `run_in_background: false` EXPLÍCITO en cada Task. El segmento 2 cumplió (visible en el stream: `bg:false` en los 4 Writers paralelos y en todos los Reviewers).
+- **Q2.6 `appendAuditEntry`**: la ruta del log debe terminar en el segmento literal `audit-log.json`; una ruta mangled (backslashes comidos por interpolación JS/shell) cae al log default del run con la ruta inválida en metadata — el fichero basura de Q1 es irreproducible por construcción (test unitario de la clase). `target` se normaliza a forward slashes en código (la hard rule del prompt del Reviewer pasa a ser redundante).
+
+**Baseline (protocolo enmendado, `total_cost_usd` del CLI)**: $4,45 + $6,61 = **$11,06** · wall ~43 min en 2 segmentos · orquestador 26 llamadas API. Catálogo 5 escenarios (auto-under-cap, sin pausa de selección; slugs nuevos → TC-006/007/008). Un re-planner de negativos por auto-corrección del orquestador (~$0,4). El corte de segmento fue el hallazgo Q2.5 (background-default del harness), no una pausa legítima.
+
+**Criterios de salida:**
+
+- **Verdes a la primera: 4/5 ✓** (objetivo ≥4/5; Q1: 2/5, F4: 0/5). La clase Q1 "locators por convención" no reaparició (0 apariciones — TC-006 la intentó y el Reviewer la rechazó por procedencia antes de llegar a rojo); la clase F4 del planner tampoco.
+- **Approved iter-0: 3/5, no llega al 4/5 numérico — pero la atribución importa**: los 2 rechazos NO son la clase race que el criterio medía. TC-006 rechazado por la regla NUEVA de procedencia (locator `verified:false` usado sin evidencia → el Writer añadió la cita → approved): es la guarda funcionando como se diseñó, no ruido. TC-007 por MF-9 real (post-condición de negocio). **Síntomas de race: cero** — ownership cumplido al 100% (verificado en el stream: cada POM editado solo por su dueño — TC-001 login, TC-006 cart, TC-007 checkout×2; nadie tocó un POM ajeno), un Reviewer por spec, 5/5 ficheros de feedback con UN objeto, sin verdicts inconsistentes inter-Reviewer. La intención del criterio (matar la race) se cumplió; el número no, porque la vara de Q2 es más alta que la del control F6-A (que no tenía la regla de procedencia).
+- **Carga del Healer: 1 rojo vs 3 en Q1 ✓**. No se ejecutó (decisión QA pendiente sobre el rojo, coherente con "el QA decide"; el fix es de una línea).
+- **Guardrails: intactos** — coste $11,06 dentro de ~$11±ruido; Writer/Reviewer Sonnet, N≤2, pre-review 8/8 clean 0 must-fix, a11y 5/5 warning-mode; **cero ficheros basura ✓**.
+
+**El rojo (TC-005 usuario-bloqueado)**: clase nueva y más estrecha que las anteriores — el plan documentaba el patrón de clases con precisión y el Writer lo tradujo mal: "pierde la clase error" → `not.toHaveClass(/error/)`, y el regex matchea por substring contra la clase base `input_error` (siempre presente). El Reviewer lo aprobó (iter 0). Caso de uso directo del Healer; candidato barato a check determinístico en pre-review (`toHaveClass` con regex sin anclas). La cadena de prevención acortó la distancia: F4 = el dato estaba mal; Q1 = el dato no existía; Q2 = el dato es preciso y el fallo es solo de traducción.
+
+**Flags nuevos**: (a) **slug drift entre runs** — el discovery de Q2 nombró `pago.compra-exitosa` lo que Q1 llamó `pago.compra-completa` → entradas duplicadas en el tc-registry (TC-004 y TC-007 cubren el mismo flujo); conecta con las decisiones de naming cerradas sin implementar (carril propio); (b) **specs stale intra-namespace, escalado** — los TC-002/003/004 de Q1 quedaron en `tests/e2e/saucedemo/` con slugs distintos a los de Q2; el verify los ejecutó (el run-summary filtra por selección, KPI limpio) y además ROMPIERON tsc post-baseline: referenciaban miembros de POM (`title`, `addToCartBySlug`…) que el scaffold regenerado ya no declara. Borrados a mano tras el baseline; el fix sistémico (limpieza/archivado post-selección de specs del site-id fuera de la selección, en el checkpoint) queda como decisión de diseño pendiente — interactúa con el slug drift (a); (c) `rate_limit_event` en el segmento 1 (infra, no diseño).
+
+**Criterio de salida: CUMPLIDO con una salvedad numérica** — verdes 1ª 4/5 ✓, race eliminada con evidencia ✓, carga Healer reducida ✓, guardrails ✓, cero basura ✓; approved iter-0 3/5 (<4/5) con los 2 rechazos atribuidos a reglas nuevas de calidad, no a la inestabilidad que el criterio vigilaba. La decisión de dar el criterio por satisfecho o exigir un re-run es del QA.
