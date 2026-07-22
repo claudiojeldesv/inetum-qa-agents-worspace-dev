@@ -57,10 +57,26 @@ Decisión QA (2026-07-22, cierre Q1): la sanación entra al producto como los de
 2. **Command `/qa-automator:heal`** (mismo patrón desacoplado que `report`): lee los artefactos del último run (`<workDir>`, rojos del summary), invoca `playwright-test-healer` nativo por spec rojo, y aplica el **protocolo de auditoría post-heal validado en Q1** — el Healer no es juez: suite re-ejecutada + pre-review + Reviewer sobre los specs afectados + verify-a11y; actualiza el run-summary con `healed[]`, $/spec y verdicts. Re-ejecutable.
 3. **Audit-log**: cada sanación registra spec, ficheros tocados, causa raíz y verdicts post-heal (trazabilidad regulatoria del cambio sobre código de test).
 4. Propagación a template + healthcheck + docs (README del template: el marco €/run incluye la línea Healer medida en Q1: μ $0,72/spec, 1 fix cura N).
+5. **Check determinístico nuevo en pre-review** (añadido al cierre de Q2): `toHaveClass` con regex sin anclas (`/error/` matchea substrings de clases base) → must-fix. Mata para siempre la clase del rojo TC-005 de Q2. Test unitario con el caso real (`input_error` vs `\berror\b`).
+6. **Validación del command**: Q2 quedó 5/5 verde (TC-005 sanado a mano al cierre), así que no hay rojo real — fabricar el fixture: mutar un locator en una COPIA del namespace (o un spec de sacrificio) y validar `/qa-automator:heal` de punta a punta contra él, incluyendo el protocolo post-heal completo.
 
-**Criterio de salida**: `/qa-automator:heal` sana los rojos de un baseline real con el protocolo completo y el knob del contract activa/desactiva el encadenado en `autonomous`; red estructural verde; regla #10 actualizada en CLAUDE.md/SPEC mencionando `healing` junto a PII/Judge/a11y-gate.
+**Criterio de salida**: `/qa-automator:heal` sana el fixture rojo con el protocolo completo y el knob del contract activa/desactiva el encadenado en `autonomous`; el check de regex sin anclas vive en pre-review con test; red estructural verde; regla #10 actualizada en CLAUDE.md/SPEC mencionando `healing` junto a PII/Judge/a11y-gate.
 
-**Commit**: `feat(qa-automator): fase Q3 quality-greens — /qa-automator:heal + knob healing off-por-defecto (regla #10)`
+**Commit**: `feat(qa-automator): fase Q3 quality-greens — /qa-automator:heal + knob healing off-por-defecto (regla #10) + check regex sin anclas`
+
+---
+
+## Fase Q4 — Identidad estable (slug drift + specs stale + naming)
+
+Origen: flags (a) y (b) del cierre de Q2, que interactúan entre sí y con las decisiones de naming ya cerradas sin implementar (memoria del proyecto: naming español sin naturaleza en el nombre + cobertura por-flujo en S4).
+
+1. **Slug drift entre runs**: el discovery nombra el mismo flujo con slugs distintos entre runs (`pago.compra-completa` vs `pago.compra-exitosa`) → entradas duplicadas en el tc-registry con IDs distintos para el mismo caso. Diseñar la reconciliación: ¿matching semántico en el checkpoint contra los slugs ya registrados (candidato barato: mismo `feature` + naturaleza + pantalla de destino)? ¿O naming determinístico derivado del flujo del brief? Conecta con implementar las decisiones de naming pendientes.
+2. **Specs stale intra-namespace**: los specs de runs anteriores con slugs viejos sobreviven en `tests/e2e/<site-id>/`, se ejecutan en el verify (ruido) y rompen tsc cuando el scaffold regenerado cambia miembros del POM (ocurrió en Q2, limpieza a mano). Fix sistémico en el stage `checkpoint`: archivado (no borrado — pueden tener ediciones del QA) de los specs del site-id fuera de la selección actual, a `tests/e2e/<site-id>/_archive/` con entrada al audit-log.
+3. Revisitar el hueco ya flaggeado de limpieza inter-namespace (specs pre-namespace en la raíz de `tests/e2e/`) — misma pasada.
+
+**Criterio de salida**: dos runs consecutivos con catálogos distintos no duplican entradas del registro ni dejan specs stale activos; tsc verde post-baseline sin limpieza manual; el archivado queda auditado.
+
+**Commit**: `feat(qa-automator): fase Q4 quality-greens — identidad estable (reconciliación de slugs, archivado post-selección)`
 
 ---
 
@@ -100,8 +116,9 @@ Independiente de Q2/Q3, ejecutable en cualquier orden. Origen: exploración de p
 |---|---|---|---|---|---|---|---|
 | Referencia (F4/F6) | 2026-07-22 | 0/5 · 2/4 | sin dato (Healer nunca medido) | 11,2 | — | 5/5 · 4/4 | Clases: gap discovery cart + observación planner |
 | Q1 | 2026-07-22 | 2/5 | **5/5** ✓ KPI | 12,0 (+2,2 Healer) | 0,51-0,92 (μ 0,72) | 5/5 (2 iter 0, 3 iter 1) | Las 2 clases de F4 no reaparecieron; clase nueva: locators por convención. Healer 3/3, 1 causa raíz compartida. Post-heal auditado: Reviewer 3/3 approved, pre-review clean. Ver notas Q1 |
-| Q2 (prevención+estabilización) | 2026-07-22 | **4/5** ✓ | 1 rojo, heal pendiente (decisión QA) | 11,1 (4,4+6,6) | — | 5/5 (3 a la 1ª review; 2 rechazos legítimos no-race) | Guarda locators viva (16/24, 1 fantasma cazado pre-Writer), ownership 100% sin race, planner con evidencia de estado (clase F4 muerta); rojo = clase nueva estrecha (regex substring del Writer sobre evidencia precisa). Ver notas Q2 |
-| Q3 (productización Healer) | | | | | | | |
+| Q2 (prevención+estabilización) | 2026-07-22 | **4/5** ✓ | **5/5** (TC-005 sanado a mano, decisión QA) | 11,1 (4,4+6,6) | — | 5/5 (3 a la 1ª review; 2 rechazos legítimos no-race → criterio satisfecho por atribución, decisión QA) | Guarda locators viva (16/24, 1 fantasma cazado pre-Writer), ownership 100% sin race, planner con evidencia de estado (clase F4 muerta); rojo = clase nueva estrecha (regex substring), fix `\b` verificado verde. Ver notas Q2 y Cierre Q2 |
+| Q3 (productización Healer + check regex) | | | | | | | |
+| Q4 (identidad estable) | | | | | | | |
 | Q4 (shift-left pre-review) | | n/a — métricas propias: must-fix al Reviewer, invocaciones Reviewer, escapes 11.c | | | | | Brazos de control ya medidos en F6 |
 
 ### Notas Q1 (2026-07-22, streams `.work/audit-runs/baseline-q1{,-2,-3}.jsonl` sesión `0c3111a3` + `healer-q1-tc00{2,3,4}.jsonl`)
@@ -159,3 +176,5 @@ Total **$2,17 / ~10 min / 3/3 éxito**. Hallazgo de economía: los rojos compart
 **Flags nuevos**: (a) **slug drift entre runs** — el discovery de Q2 nombró `pago.compra-exitosa` lo que Q1 llamó `pago.compra-completa` → entradas duplicadas en el tc-registry (TC-004 y TC-007 cubren el mismo flujo); conecta con las decisiones de naming cerradas sin implementar (carril propio); (b) **specs stale intra-namespace, escalado** — los TC-002/003/004 de Q1 quedaron en `tests/e2e/saucedemo/` con slugs distintos a los de Q2; el verify los ejecutó (el run-summary filtra por selección, KPI limpio) y además ROMPIERON tsc post-baseline: referenciaban miembros de POM (`title`, `addToCartBySlug`…) que el scaffold regenerado ya no declara. Borrados a mano tras el baseline; el fix sistémico (limpieza/archivado post-selección de specs del site-id fuera de la selección, en el checkpoint) queda como decisión de diseño pendiente — interactúa con el slug drift (a); (c) `rate_limit_event` en el segmento 1 (infra, no diseño).
 
 **Criterio de salida: CUMPLIDO con una salvedad numérica** — verdes 1ª 4/5 ✓, race eliminada con evidencia ✓, carga Healer reducida ✓, guardrails ✓, cero basura ✓; approved iter-0 3/5 (<4/5) con los 2 rechazos atribuidos a reglas nuevas de calidad, no a la inestabilidad que el criterio vigilaba. La decisión de dar el criterio por satisfecho o exigir un re-run es del QA.
+
+**Cierre Q2 (decisiones QA 2026-07-22, ventana de plan):** (1) **criterio approved iter-0 satisfecho por atribución** — la intención (race) se cumplió con evidencia directa; no se re-corre por un número cuya vara cambió (la regla de procedencia no existía en el control F6-A). (2) **TC-005 sanado a mano en la ventana de plan** (no vía Healer): regex anclado con `\b` en las 4 apariciones de `toHaveClass` (la clase base `input_error` ya no matchea por substring); verificado verde (7,8s). **Q2 queda 5/5 verde.** Consecuencia para Q3: la validación de `/qa-automator:heal` necesitará un rojo fabricado (mutar un locator en una copia) o esperar al primer rojo real. (3) Los flags de identidad (slug drift + specs stale intra-namespace) van a **Fase Q4 propia**. Además, la clase del rojo (regex sin anclas en `toHaveClass`) se convierte en check determinístico del pre-review — añadido al scope de Q3.
