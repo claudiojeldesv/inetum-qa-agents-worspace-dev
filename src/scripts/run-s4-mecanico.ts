@@ -29,11 +29,12 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
@@ -398,35 +399,174 @@ export function parseSelection(
   return { mode: 'checkpoint', picks };
 }
 
-/** IDs estables: reusa por slug; nuevo → siguiente `<prefix>-NNN` libre (max+1, 3 dígitos). */
+/**
+ * Q4 — registro v2: entradas objeto `{ id, source?, nature?, screens?, aliases? }` (el schema del
+ * Style Contract ya documentaba `{ id, source }`). El formato plano legacy `slug → "TC-NNN"` se
+ * tolera al leer y migra al primer write. `nature`/`screens` alimentan la reconciliación de drift;
+ * `aliases` conserva los slugs históricos del mismo caso (el drift oscila entre runs).
+ */
+export interface RegistryEntry {
+  id: string;
+  source?: string;
+  nature?: string;
+  screens?: string[];
+  aliases?: string[];
+}
+
+export function normalizeRegistry(raw: Record<string, unknown> | null): Record<string, RegistryEntry> {
+  const out: Record<string, RegistryEntry> = {};
+  for (const [slug, value] of Object.entries(raw ?? {})) {
+    if (typeof value === 'string') out[slug] = { id: value };
+    else if (value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string') {
+      out[slug] = value as RegistryEntry;
+    }
+  }
+  return out;
+}
+
+export interface SlugResolution {
+  id: string | null;
+  via: 'slug' | 'alias' | 'reconciled' | 'new';
+  from?: string;
+  ambiguous_with?: string[];
+}
+
+/**
+ * Q4.1 — reconciliación de slug drift: el discovery puede nombrar el MISMO flujo con slugs
+ * distintos entre runs (`pago.compra-completa` vs `pago.compra-exitosa`, hallazgo Q2) y duplicar
+ * entradas del registro con IDs distintos. Matching CONSERVADOR contra los slugs registrados:
+ * mismo feature + misma naturaleza + misma pantalla de destino (campos ausentes en entradas
+ * legacy no filtran), solo si el slug registrado NO aparece en el catálogo actual y hay
+ * EXACTAMENTE UN candidato. 0 o >1 candidatos → ID nuevo (comportamiento previo); el empate se
+ * reporta en `ambiguous_with` para que el QA lo vea, nunca se adivina.
+ */
+export function reconcileCatalog(
+  catalog: Array<Pick<CatalogEntry, 'scenario_slug' | 'feature' | 'nature' | 'screens'>>,
+  registry: Record<string, RegistryEntry>,
+): Record<string, SlugResolution> {
+  const catalogSlugs = new Set(catalog.map((c) => c.scenario_slug));
+  const claimed = new Set<string>();
+  const out: Record<string, SlugResolution> = {};
+  for (const entry of catalog) {
+    const slug = entry.scenario_slug;
+    if (registry[slug]) {
+      out[slug] = { id: registry[slug].id, via: 'slug' };
+      continue;
+    }
+    const aliasKeys = Object.keys(registry).filter(
+      (k) => !catalogSlugs.has(k) && !claimed.has(k) && registry[k].aliases?.includes(slug),
+    );
+    if (aliasKeys.length === 1) {
+      out[slug] = { id: registry[aliasKeys[0]].id, via: 'alias', from: aliasKeys[0] };
+      claimed.add(aliasKeys[0]);
+      continue;
+    }
+    const dest = entry.screens?.length ? entry.screens[entry.screens.length - 1] : undefined;
+    const candidates = Object.keys(registry).filter((k) => {
+      if (catalogSlugs.has(k) || claimed.has(k)) return false;
+      if (k.split('.')[0] !== entry.feature) return false;
+      const reg = registry[k];
+      if (reg.nature && entry.nature && reg.nature !== entry.nature) return false;
+      const regDest = reg.screens?.length ? reg.screens[reg.screens.length - 1] : undefined;
+      if (regDest && dest && regDest !== dest) return false;
+      return true;
+    });
+    if (candidates.length === 1) {
+      out[slug] = { id: registry[candidates[0]].id, via: 'reconciled', from: candidates[0] };
+      claimed.add(candidates[0]);
+    } else {
+      out[slug] = { id: null, via: 'new', ...(candidates.length > 1 ? { ambiguous_with: candidates } : {}) };
+    }
+  }
+  return out;
+}
+
+/**
+ * IDs estables: reusa por slug/alias/reconciliación; nuevo → siguiente `<prefix>-NNN` libre
+ * (max+1, 3 dígitos). Alias y reconciliación RE-KEYEAN la entrada al slug actual (el registro
+ * refleja el último run que seleccionó el caso) y el slug viejo pasa a `aliases` — el ID nunca
+ * cambia. Las entradas seleccionadas refrescan `nature`/`screens` desde el catálogo actual.
+ */
 export function assignIds(
-  slugs: string[],
-  registry: Record<string, string>,
+  chosen: Array<{ slug: string; nature?: string; screens?: string[] }>,
+  registry: Record<string, RegistryEntry>,
   prefix: string,
-): { ids: Record<string, string>; registry: Record<string, string>; assigned: string[]; reused: string[] } {
-  const updated = { ...registry };
+  resolution: Record<string, SlugResolution>,
+): {
+  ids: Record<string, string>;
+  registry: Record<string, RegistryEntry>;
+  assigned: string[];
+  reused: string[];
+  reconciled: Array<{ slug: string; from: string; id: string }>;
+} {
+  const updated: Record<string, RegistryEntry> = { ...registry };
   const ids: Record<string, string> = {};
   const assigned: string[] = [];
   const reused: string[] = [];
+  const reconciled: Array<{ slug: string; from: string; id: string }> = [];
   const numPattern = new RegExp(`^${prefix}-(\\d+)$`);
   let max = 0;
-  for (const id of Object.values(updated)) {
-    const m = numPattern.exec(id);
+  for (const e of Object.values(updated)) {
+    const m = numPattern.exec(e.id);
     if (m) max = Math.max(max, Number(m[1]));
   }
-  for (const slug of slugs) {
-    if (updated[slug]) {
-      ids[slug] = updated[slug];
+  for (const { slug, nature, screens } of chosen) {
+    const res = resolution[slug] ?? ({ id: null, via: 'new' } as SlugResolution);
+    if (res.via === 'slug' && updated[slug]) {
+      updated[slug] = { ...updated[slug], ...(nature ? { nature } : {}), ...(screens ? { screens } : {}) };
+      ids[slug] = updated[slug].id;
       reused.push(slug);
+      continue;
+    }
+    if ((res.via === 'alias' || res.via === 'reconciled') && res.from && updated[res.from]) {
+      const old = updated[res.from];
+      delete updated[res.from];
+      updated[slug] = {
+        id: old.id,
+        ...(old.source ? { source: old.source } : {}),
+        ...(nature ? { nature } : old.nature ? { nature: old.nature } : {}),
+        ...(screens ? { screens } : old.screens ? { screens: old.screens } : {}),
+        aliases: [...new Set([...(old.aliases ?? []), res.from])].filter((a) => a !== slug),
+      };
+      ids[slug] = old.id;
+      if (res.via === 'reconciled') reconciled.push({ slug, from: res.from, id: old.id });
+      else reused.push(slug);
       continue;
     }
     max += 1;
     const id = `${prefix}-${String(max).padStart(3, '0')}`;
-    updated[slug] = id;
+    updated[slug] = { id, source: 'agent', ...(nature ? { nature } : {}), ...(screens ? { screens } : {}) };
     ids[slug] = id;
     assigned.push(slug);
   }
-  return { ids, registry: updated, assigned, reused };
+  return { ids, registry: updated, assigned, reused, reconciled };
+}
+
+/**
+ * Q4.2/Q4.3 — archivado post-selección: los specs del namespace fuera de la selección actual
+ * (slugs viejos tras drift, casos no re-seleccionados, seed de un run abortado) se ejecutan en
+ * el verify como ruido y rompen tsc cuando el scaffold regenerado cambia miembros del POM
+ * (ocurrió en Q2, limpieza a mano). Se ARCHIVAN — no se borran: pueden llevar ediciones del
+ * QA — a `<dir>/_archive/`, excluido de playwright (`testIgnore`) y de tsc (`exclude`).
+ * Colisión de nombre en el archivo → sufijo numérico (nunca se pisa un archivado previo).
+ */
+export function archiveStaleSpecs(dirAbs: string, keep: Set<string>): Array<{ from: string; to: string }> {
+  if (!existsSync(dirAbs)) return [];
+  const moves: Array<{ from: string; to: string }> = [];
+  const archiveDir = join(dirAbs, '_archive');
+  for (const name of readdirSync(dirAbs)) {
+    if (!name.endsWith('.spec.ts') || keep.has(name)) continue;
+    const from = join(dirAbs, name);
+    if (!statSync(from).isFile()) continue;
+    mkdirSync(archiveDir, { recursive: true });
+    let to = join(archiveDir, name);
+    for (let n = 2; existsSync(to); n += 1) {
+      to = join(archiveDir, name.replace(/\.spec\.ts$/, `.${n}.spec.ts`));
+    }
+    renameSync(from, to);
+    moves.push({ from, to });
+  }
+  return moves;
 }
 
 export function specPathFor(
@@ -445,7 +585,7 @@ export function specPathFor(
 }
 
 export function renderCheckpointTable(
-  rows: Array<CatalogEntry & { num: number; current_id: string | null }>,
+  rows: Array<CatalogEntry & { num: number; current_id: string | null; reconciled_from?: string | null }>,
   cap: number,
 ): string {
   const lines = [
@@ -454,10 +594,11 @@ export function renderCheckpointTable(
     '#     ID            Escenario (slug)                          Naturaleza  Tags                    Rank  Crit.',
   ];
   for (const r of rows) {
+    const idCell = r.current_id ? `${r.current_id}${r.reconciled_from ? '*' : ''}` : 'nuevo';
     lines.push(
       [
         String(r.num).padEnd(5),
-        (r.current_id ?? 'nuevo').padEnd(13),
+        idCell.padEnd(13),
         r.scenario_slug.padEnd(41),
         r.nature.padEnd(11),
         r.suite_tags.join(' ').padEnd(23),
@@ -465,6 +606,13 @@ export function renderCheckpointTable(
         r.criticality,
       ].join(' '),
     );
+  }
+  const renamed = rows.filter((r) => r.current_id && r.reconciled_from);
+  if (renamed.length > 0) {
+    lines.push('');
+    for (const r of renamed) {
+      lines.push(`* ${r.current_id}: mismo caso registrado como \`${r.reconciled_from}\` — el ID se reusa, el slug viejo pasa a alias.`);
+    }
   }
   lines.push(
     '',
@@ -504,10 +652,20 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
   const registryEnabled = contract.tc_registry?.enabled !== false;
   const registryPath = resolve(process.cwd(), contract.tc_registry?.path || `config/tc-registry/${ctx.siteId}.json`);
   const idPrefix: string = contract.tc_registry?.id_prefix || 'TC';
-  const registry = readJson<Record<string, string>>(registryPath) ?? {};
+  const registry = normalizeRegistry(readJson<Record<string, unknown>>(registryPath));
 
   const catalog = [...discovery.scenarios_catalog].sort((a, b) => a.rank - b.rank);
-  const rows = catalog.map((s, i) => ({ ...s, num: i + 1, current_id: registry[s.scenario_slug] ?? null }));
+  // Q4.1 — resolución de identidad ANTES de la tabla: el QA ve el ID reconciliado (marcado con *)
+  const resolution = reconcileCatalog(catalog, registry);
+  const rows = catalog.map((s, i) => {
+    const res = resolution[s.scenario_slug];
+    return {
+      ...s,
+      num: i + 1,
+      current_id: res?.id ?? null,
+      reconciled_from: res?.via === 'reconciled' || res?.via === 'alias' ? res.from ?? null : null,
+    };
+  });
 
   let mode: 'auto-under-cap' | 'checkpoint' | 'all-acknowledged';
   let picks: SelectionPick[];
@@ -537,10 +695,11 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
   }
 
   const chosen = picks.map((p) => ({ row: rows[p.num - 1], tags: p.tags }));
-  const { ids, registry: updatedRegistry, assigned, reused } = assignIds(
-    chosen.map((c) => c.row.scenario_slug),
+  const { ids, registry: updatedRegistry, assigned, reused, reconciled } = assignIds(
+    chosen.map((c) => ({ slug: c.row.scenario_slug, nature: c.row.nature, screens: c.row.screens })),
     registry,
     idPrefix,
+    resolution,
   );
   if (registryEnabled) {
     mkdirSync(resolve(registryPath, '..'), { recursive: true });
@@ -598,8 +757,35 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
         action: 'write_file',
         target: toPosix(contract.tc_registry?.path || `config/tc-registry/${ctx.siteId}.json`),
         rule: 'tc-registry',
-        reason: `IDs estables: ${reused.length} reusados, ${assigned.length} nuevos (${idPrefix}-NNN correlativo)`,
-        metadata: { assigned, reused },
+        reason: `IDs estables: ${reused.length} reusados, ${assigned.length} nuevos (${idPrefix}-NNN correlativo), ${reconciled.length} reconciliados (drift de slug)`,
+        metadata: { assigned, reused, reconciled },
+      },
+      ctx.logPath,
+    );
+  }
+
+  // Q4.2 — archivado post-selección: specs del namespace fuera de la selección actual → _archive/.
+  // Q4.3 — misma pasada: barrido de specs pre-namespace sueltos en la raíz de tests/e2e/ (la
+  // arquitectura namespacea siempre desde v0.2; un spec suelto ahí es de un run viejo).
+  const keep = new Set(selected.map((s) => basename(s.spec_path)));
+  const specsDirAbs = resolve(process.cwd(), ctx.specsDir);
+  const e2eRootAbs = resolve(process.cwd(), 'tests/e2e');
+  const archivedMoves = [
+    ...archiveStaleSpecs(specsDirAbs, keep),
+    ...(specsDirAbs !== e2eRootAbs ? archiveStaleSpecs(e2eRootAbs, keep) : []),
+  ].map((m) => ({
+    from: toPosix(relative(process.cwd(), m.from)),
+    to: toPosix(relative(process.cwd(), m.to)),
+  }));
+  if (archivedMoves.length > 0) {
+    appendAuditEntry(
+      {
+        source: 'command',
+        action: 'archive_file',
+        rule: 'spec-archive',
+        reason: 'archivado post-selección: specs fuera de la selección actual (intra-namespace + barrido pre-namespace en la raíz); no se borran — pueden llevar ediciones del QA',
+        result: 'pass',
+        metadata: { archived: archivedMoves },
       },
       ctx.logPath,
     );
@@ -613,11 +799,23 @@ function stageCheckpoint(flags: Record<string, string | undefined>): number {
     components: contract.pom?.components !== false ? discovery.components : undefined,
   });
 
+  const ambiguous = Object.fromEntries(
+    Object.entries(resolution)
+      .filter(([, r]) => r.ambiguous_with?.length)
+      .map(([slug, r]) => [slug, r.ambiguous_with!]),
+  );
   out({
     stage: 'checkpoint',
     locator_verification: locatorVerify
       ? { session_bootstrap: locatorVerify.session_bootstrap, totals: locatorVerify.totals }
       : 'skipped (sin --url o verify-locators falló)',
+    identity: {
+      reconciled,
+      ...(Object.keys(ambiguous).length > 0
+        ? { ambiguous_note: 'slugs nuevos con >1 candidato registrado — ID nuevo asignado, revisar si duplican un caso', ambiguous }
+        : {}),
+      archived: archivedMoves,
+    },
     selection,
     scaffold: scaffoldResult.files.map((f) => ({ className: f.className, path: toPosix(f.path) })),
     next:

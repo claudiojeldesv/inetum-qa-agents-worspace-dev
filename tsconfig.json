@@ -15,5 +15,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "hooks/**/*.ts", "tests/**/*.ts", "copilot/src/**/*.ts", "copilot/tests/**/*.ts"],
-  "exclude": ["node_modules", "docs/spike/artifacts"]
+  "exclude": ["node_modules", "docs/spike/artifacts", "tests/**/_archive"]
 }

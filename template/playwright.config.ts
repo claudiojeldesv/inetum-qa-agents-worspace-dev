@@ -14,6 +14,9 @@ const workDir = process.env.QA_WORK_DIR || '.work';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // Specs archivados por el checkpoint (Q4: fuera de la selección actual → _archive/, no se
+  // borran). Nunca se ejecutan; tsconfig los excluye del typecheck por la misma razón.
+  testIgnore: '**/_archive/**',
   outputDir: `${workDir}/test-results`,
   // Limpia .work/allure-results antes de cada run (allure-playwright nunca limpia: acumula
   // resultados entre corridas → el reporte mezclaría runs viejos, skipped rancios y fallos ya

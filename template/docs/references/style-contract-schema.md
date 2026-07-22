@@ -64,14 +64,25 @@ naming:
 tc_registry:
   enabled: boolean                  # default true. false → sin prefijo de ID (archivo = feature.condicion).
   path: string                      # default 'config/tc-registry/<site-id>.json'. Mapea el slug estable
-                                    #   '<feature>.<condicion>' → { id, source }. Versionado, auditable.
+                                    #   '<feature>.<condicion>' → { id, source, nature, screens, aliases }.
+                                    #   Versionado, auditable. El formato plano legacy (slug → "TC-NNN")
+                                    #   se tolera al leer y migra al primer write.
   id_prefix: string                 # default 'TC'. Prefijo del ID que ASIGNA el agente cuando no hay key
                                     #   de gestor (TC-001, TC-002…). Secuencial estable, NO por rank.
-  # source por entrada del registro:
-  #   'xray'  → el id es el key del gestor de pruebas (lo rellena el QA; el agente NUNCA lo inventa).
-  #   'agent' → el id es el TC-NNN que asignó y persistió el agente (fallback cuando no hay key).
-  # Resolución por escenario en cada run: si el slug ya está en el registro → reusa su id;
-  # si es nuevo → el agente asigna el siguiente TC-NNN libre, source:'agent', y lo añade al registro.
+  # Entrada del registro (v2, quality-greens Q4):
+  #   id      → key del gestor de pruebas o TC-NNN del agente.
+  #   source  → 'xray' (key del gestor, lo rellena el QA; el agente NUNCA lo inventa) |
+  #             'agent' (TC-NNN asignado y persistido por el agente).
+  #   nature / screens → metadata del último run que seleccionó el caso; alimenta la reconciliación.
+  #   aliases → slugs históricos del MISMO caso (el drift de naming oscila entre runs).
+  # Resolución por escenario en cada run (checkpoint):
+  #   1. slug ya en el registro (key o alias) → reusa su id.
+  #   2. slug nuevo → RECONCILIACIÓN conservadora contra los slugs registrados ausentes del catálogo
+  #      actual: mismo feature + misma naturaleza + misma pantalla de destino (los campos que una
+  #      entrada legacy no tiene no filtran). EXACTAMENTE UN candidato → mismo caso renombrado por
+  #      drift del discovery: reusa el id, re-keyea la entrada al slug actual y el viejo pasa a
+  #      aliases. 0 o >1 candidatos → id nuevo (el empate se reporta, nunca se adivina).
+  #   3. resto → siguiente TC-NNN libre, source:'agent'.
 
 # Asserts
 asserts:

@@ -120,7 +120,9 @@ naming:
 # --- Registro de IDs estables de caso -----------------------------------------
 tc_registry:
   enabled: true          # default true. false → sin prefijo de ID en el archivo.
-  path: config/tc-registry/mi-sitio.json   # mapa <feature>.<condicion> → {id, source}. Versionado.
+  path: config/tc-registry/mi-sitio.json   # mapa <feature>.<condicion> → {id, source, nature, screens, aliases}.
+                                           # Versionado. El drift de naming entre runs se reconcilia solo
+                                           # (mismo caso renombrado → mismo ID, slug viejo a aliases).
   id_prefix: TC           # default TC. Prefijo cuando el agente asigna el ID (sin key de gestor): TC-001…
 
 # --- Asserts -------------------------------------------------------------------

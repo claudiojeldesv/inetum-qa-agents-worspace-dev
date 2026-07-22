@@ -19,6 +19,7 @@ export type AuditAction =
   | 'write_file'
   | 'edit_file'
   | 'read_file'
+  | 'archive_file'
   | 'judge_decision'
   | 'review_decision'
   | 'llm_call';

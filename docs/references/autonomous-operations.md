@@ -36,7 +36,12 @@ El descubrimiento devolvió <total> escenarios; el cap es <max>. Selecciona cuá
 > Selecciona los escenarios a materializar por su `#` (ej. `1,2,3`), o escribe `TOP` para los <max> de
 > mayor rank, o `TODOS` para ignorar el cap bajo tu responsabilidad. Puedes editar tags con `3:@regression,@negative`.
 
-La columna `ID` muestra el ID actual del registro `tc_registry` si el slug ya existe, o `nuevo`.
+La columna `ID` muestra el ID actual del registro `tc_registry` si el slug ya existe, o `nuevo`. Un
+`*` tras el ID (ej. `TC-004*`) marca una **reconciliación de drift** (Q4): el slug es nuevo pero el
+caso ya estaba registrado con otro nombre (mismo feature + naturaleza + pantalla de destino, candidato
+único) — el ID se reusa y el slug viejo pasa a `aliases`; la leyenda bajo la tabla lo detalla. Un slug
+nuevo con VARIOS candidatos registrados no se reconcilia (ID nuevo) y el empate sale en el bloque
+`ambiguous` del output para que el QA lo revise.
 
 ## §3 — Verification step: ejemplos shell y detalle
 

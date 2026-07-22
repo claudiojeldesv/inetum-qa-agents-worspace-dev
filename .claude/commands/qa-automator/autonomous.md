@@ -46,7 +46,7 @@ Módulo **S4 Autonomous**: de una URL (+ Style Contract opcional) a specs Playwr
 
 ## Actos 2.5 + 3 — Checkpoint + Estructurar (una llamada)
 
-4. `npx tsx src/scripts/run-s4-mecanico.ts checkpoint --style=<--style> --url=<--url> --max-scenarios=<N>` — primero corre la **guarda determinística de locators** (`verify-locators.ts`: resuelve cada locator del discovery contra el DOM real y anota `verified`/`unverified` in-place; summary en `<workDir>/locator-verify.json`), luego aplica el cap, resuelve IDs estables contra el tc-registry (reusa por slug; nuevo → `TC-NNN` correlativo; **nunca** keys de gestor inventados), reescribe el registro, persiste `<workDir>/selection.json` (con `tc_id`, `suite_tags`, `spec_path`, `screens` y `owned_poms` por escenario, `pom_ownership` global, drop auditado) y scaffoldea el POM determinístico (BasePage + `*.page.ts` + components, toggles del contract; los locators unverified quedan marcados en el POM).
+4. `npx tsx src/scripts/run-s4-mecanico.ts checkpoint --style=<--style> --url=<--url> --max-scenarios=<N>` — primero corre la **guarda determinística de locators** (`verify-locators.ts`: resuelve cada locator del discovery contra el DOM real y anota `verified`/`unverified` in-place; summary en `<workDir>/locator-verify.json`), luego aplica el cap, resuelve IDs estables contra el tc-registry (reusa por slug o alias; slug nuevo → **reconciliación de drift** con candidato único mismo feature+naturaleza+destino, ambiguo → `TC-NNN` correlativo nuevo; **nunca** keys de gestor inventados), reescribe el registro, **archiva post-selección** los specs del namespace fuera de la selección actual (+ specs pre-namespace sueltos en la raíz de `tests/e2e/`) a `_archive/` — no los borra, y persiste `<workDir>/selection.json` (con `tc_id`, `suite_tags`, `spec_path`, `screens` y `owned_poms` por escenario, `pom_ownership` global, drop auditado) y scaffoldea el POM determinístico (BasePage + `*.page.ts` + components, toggles del contract; los locators unverified quedan marcados en el POM). El bloque `identity` del output (reconciliados, empates `ambiguous`, archivados) va al reporte final al QA.
    - `pending:"checkpoint-selection"` (count > max) → **PAUSA**: muestra la `table` del JSON tal cual y pide lista de `#` (tags editables `3:@regression,@negative`), `TOP` o `TODOS`. Re-invoca con `--select=<respuesta literal>`. Ambiguo o silencio → no generes.
    - Exit 0 → continúa con los seleccionados de `selection.json`. Los NO seleccionados no se materializan ni registran (es la rienda, no un fallo).
 
@@ -81,7 +81,8 @@ Módulo **S4 Autonomous**: de una URL (+ Style Contract opcional) a specs Playwr
 - Modo ciego solo con `EXPLORAR SIN ACOTAR` exacto. El warning no se silencia.
 - El cap no se salta en silencio; ignorarlo requiere `TODOS` explícito ("no silent caps").
 - Writer+Reviewer (N≤2) obligatorios. Judge opcional off por defecto; su omisión se registra.
-- IDs estables: reusa por slug, `TC-NNN` si es nuevo, nunca keys de gestor inventados. Naturaleza solo en el tag `@negative`, jamás en nombre/título.
+- IDs estables: reusa por slug/alias, reconcilia el drift de naming solo con candidato único (ambiguo → ID nuevo reportado, nunca se adivina), `TC-NNN` si es nuevo, nunca keys de gestor inventados. Naturaleza solo en el tag `@negative`, jamás en nombre/título.
+- Specs fuera de la selección actual → `tests/e2e/<site-id>/_archive/` (auditado, nunca borrado — pueden llevar ediciones del QA). `_archive/` no corre (testIgnore) ni compila (tsc exclude).
 - Negativos opt-in; criticidad inferida por el discovery-analyzer según propósito.
 - **Task prompts a subagents llevan rutas, nunca payload inline.**
 - Writers en Acto 4: primero UNO (escribe la caché del prefijo compartido), el resto en paralelo.
