@@ -80,7 +80,7 @@ Origen: flags (a) y (b) del cierre de Q2, que interactúan entre sí y con las d
 
 ---
 
-## Fase Q4 — Shift-left del pre-review (hipótesis de robustez)
+## Fase Q5 — Shift-left del pre-review (hipótesis de robustez)
 
 Independiente de Q2/Q3, ejecutable en cualquier orden. Origen: exploración de palancas post-token-efficiency (conversación QA 2026-07-22).
 
@@ -99,7 +99,7 @@ Independiente de Q2/Q3, ejecutable en cualquier orden. Origen: exploración de p
 
 **Coste estimado del A/B**: ~$1,5-2,5 (8 writers sobre discovery congelado; controles ya pagados en F6).
 
-**Commit**: `feat(qa-automator): fase Q4 quality-greens — shift-left pre-review en el Writer (A/B: <resultado>)` o `docs(qa-automator): fase Q4 — shift-left pre-review descartado por A/B`
+**Commit**: `feat(qa-automator): fase Q5 quality-greens — shift-left pre-review en el Writer (A/B: <resultado>)` o `docs(qa-automator): fase Q5 — shift-left pre-review descartado por A/B`
 
 ---
 
@@ -119,7 +119,7 @@ Independiente de Q2/Q3, ejecutable en cualquier orden. Origen: exploración de p
 | Q2 (prevención+estabilización) | 2026-07-22 | **4/5** ✓ | **5/5** (TC-005 sanado a mano, decisión QA) | 11,1 (4,4+6,6) | — | 5/5 (3 a la 1ª review; 2 rechazos legítimos no-race → criterio satisfecho por atribución, decisión QA) | Guarda locators viva (16/24, 1 fantasma cazado pre-Writer), ownership 100% sin race, planner con evidencia de estado (clase F4 muerta); rojo = clase nueva estrecha (regex substring), fix `\b` verificado verde. Ver notas Q2 y Cierre Q2 |
 | Q3 (productización Healer + check regex) | 2026-07-22 | n/a (fase de productización, sin generación) | fixture 1/1 sanado y auditado ✓ | n/a | no medido en sesión (referencia Q1: μ 0,72) | Reviewer post-heal 1/1 approved, 0 MF | Knob `healing` off-default + `/qa-automator:heal` + `run-heal-mecanico.ts` + check MF-regex-anchor. Validación end-to-end contra rojo fabricado (protocolo post-heal completo, re-ejecutable). Ver notas Q3 |
 | Q4 (identidad estable) | 2026-07-22 | n/a (sin generación) | n/a | n/a | n/a | n/a | Reconciliación conservadora de slugs en el checkpoint (registro v2 + aliases), archivado post-selección a `_archive/` (+ barrido pre-namespace: 16 specs), validado end-to-end con 2 checkpoints consecutivos drifteados: ID estable, registro sin duplicados, stale archivado y auditado, tsc verde. Ver notas Q4-identidad |
-| Q4 (shift-left pre-review) | | n/a — métricas propias: must-fix al Reviewer, invocaciones Reviewer, escapes 11.c | | | | | Brazos de control ya medidos en F6 |
+| Q5 (shift-left pre-review) | | n/a — métricas propias: must-fix al Reviewer, invocaciones Reviewer, escapes 11.c | | | | | Brazos de control ya medidos en F6 |
 
 ### Notas Q1 (2026-07-22, streams `.work/audit-runs/baseline-q1{,-2,-3}.jsonl` sesión `0c3111a3` + `healer-q1-tc00{2,3,4}.jsonl`)
 
