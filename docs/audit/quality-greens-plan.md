@@ -27,17 +27,40 @@
 
 ---
 
-## Fase Q2 — Prevención (causas raíz de los rojos)
+## Fase Q2 — Prevención + estabilización
 
-Objetivo: reducir la carga del Healer atacando las dos clases verificadas contra el sitio real (F4).
+Objetivo doble (decisión QA 2026-07-22, tras Q1): reducir la carga del Healer atacando las clases de rojos verificadas (F4 + la clase nueva de Q1), y eliminar las fuentes de inestabilidad que Q1 identificó ensuciando los guardrails.
 
-1. **Guarda determinística de locators del discovery** (la clase cart): script `src/scripts/verify-locators.ts` que, tras el discovery, resuelve cada locator del `discovery-report.json` contra el DOM real (playwright headless, `locator.count()`): los que no resuelven se marcan `unverified` y el Writer tiene prohibido usarlos sin TODO. Caza `getByRole('generic')` sin accessible name y cualquier locator fantasma, antes de generar. Coste: una pasada de navegador sin LLM.
+**Bloque A — Prevención (causas raíz de los rojos):**
+
+1. **Guarda determinística de locators del discovery**: script `src/scripts/verify-locators.ts` que, tras el discovery, resuelve cada locator del `discovery-report.json` contra el DOM real (playwright headless, `locator.count()`): los que no resuelven se marcan `unverified` y el Writer tiene prohibido usarlos sin TODO. Caza la clase cart de F4 (`getByRole('generic')`) Y la clase nueva de Q1 (locators por convención — heading asumido vs `data-test` real): en ambas, el locator fantasma muere antes de llegar al Writer. Coste: una pasada de navegador sin LLM.
 2. **Prompt por-flujo del planner (lo nuestro, no el agente nativo)**: exigir evidencia de estado para observaciones condicionales — "documenta atributos/clases de estados de error SOLO si navegaste ese estado; si no, márcalo como no-verificado". Ataca la clase "clase `error` siempre presente" (F4). Validar con A/B congelado si cambia el contenido del plan.
-3. **discovery-analyzer — degradar lo no verificable**: los elementos sin locator semántico verificable bajan de prioridad o se marcan, en vez de entrar silenciosamente al catálogo de selectores del Writer.
+3. **discovery-analyzer — degradar lo no verificable**: los elementos sin locator semántico verificable bajan de prioridad o se marcan, en vez de entrar silenciosamente al catálogo de selectores del Writer. Insumo de Q1: el should-fix común post-heal (el discovery no enumeraba `title` fuera de inventory).
 
-**Criterio de salida**: verdes a la primera ≥4/5 en baseline (secundario convertido en objetivo de la fase), carga del Healer reducida vs Q1, guardrails intactos.
+**Bloque B — Estabilización (hallazgos Q1):**
 
-**Commit**: `feat(qa-automator): fase Q2 quality-greens — verify-locators + evidencia de estado en planner/discovery`
+4. **Race de POMs compartidos entre Writers paralelos** (el trigger del approved iter-0 2/5 y de los verdicts inconsistentes inter-Reviewer): mitigación a diseñar por la sesión ejecutora con evidencia, candidatas en orden de preferencia: (a) el scaffolder pre-rellena desde el discovery verificado (Q2.1) todo locator conocido — los Writers dejan de editar POMs compartidos en el caso común; (b) ownership: el command asigna cada POM compartido al primer Writer que lo necesita, el resto solo lee y deja TODO para una pasada de consolidación; (c) serializar Writers queda PROHIBIDO como solución (mata el paralelismo del wall-clock). Nota: Q2.1 también disuelve la mitad del problema inter-Reviewer ("¿fabricado?" deja de ser opinión con locators verificados).
+5. **Writers-en-background prohibido**: hard rule en los 3 commands funcionales — los Writers se lanzan foreground/síncronos (el patrón background mató turnos del orquestador en F2 y Q1, pagando re-priming en cada corte).
+6. **Normalización de rutas en `appendAuditEntry`** (código, no prompts): mata la clase "fichero basura por ruta Windows" de F4/Q1.
+
+**Criterio de salida**: verdes a la primera ≥4/5 en baseline, approved iter-0 ≥4/5 (recuperar el nivel del control F6-A — mide la race), carga del Healer reducida vs Q1, guardrails intactos, cero ficheros basura.
+
+**Commit**: `feat(qa-automator): fase Q2 quality-greens — prevención (verify-locators, planner, discovery) + estabilización (POM race, writers foreground, rutas)`
+
+---
+
+## Fase Q3 — Productización del Healer (patrón regla #10)
+
+Decisión QA (2026-07-22, cierre Q1): la sanación entra al producto como los demás gates — **off por defecto, reactivable**. Independiente de Q2 (puede ejecutarse antes si una demo lo pide).
+
+1. **Knob en el Style Contract**: bloque `healing` en el schema (`docs/references/style-contract-schema.md`), default `enabled: false`. Con `enabled: true`, el run de `autonomous` encadena la sanación tras el Verification step sobre los rojos; sin él, reporta rojos y termina (comportamiento actual).
+2. **Command `/qa-automator:heal`** (mismo patrón desacoplado que `report`): lee los artefactos del último run (`<workDir>`, rojos del summary), invoca `playwright-test-healer` nativo por spec rojo, y aplica el **protocolo de auditoría post-heal validado en Q1** — el Healer no es juez: suite re-ejecutada + pre-review + Reviewer sobre los specs afectados + verify-a11y; actualiza el run-summary con `healed[]`, $/spec y verdicts. Re-ejecutable.
+3. **Audit-log**: cada sanación registra spec, ficheros tocados, causa raíz y verdicts post-heal (trazabilidad regulatoria del cambio sobre código de test).
+4. Propagación a template + healthcheck + docs (README del template: el marco €/run incluye la línea Healer medida en Q1: μ $0,72/spec, 1 fix cura N).
+
+**Criterio de salida**: `/qa-automator:heal` sana los rojos de un baseline real con el protocolo completo y el knob del contract activa/desactiva el encadenado en `autonomous`; red estructural verde; regla #10 actualizada en CLAUDE.md/SPEC mencionando `healing` junto a PII/Judge/a11y-gate.
+
+**Commit**: `feat(qa-automator): fase Q3 quality-greens — /qa-automator:heal + knob healing off-por-defecto (regla #10)`
 
 ---
 
@@ -54,7 +77,8 @@ Objetivo: reducir la carga del Healer atacando las dos clases verificadas contra
 |---|---|---|---|---|---|---|---|
 | Referencia (F4/F6) | 2026-07-22 | 0/5 · 2/4 | sin dato (Healer nunca medido) | 11,2 | — | 5/5 · 4/4 | Clases: gap discovery cart + observación planner |
 | Q1 | 2026-07-22 | 2/5 | **5/5** ✓ KPI | 12,0 (+2,2 Healer) | 0,51-0,92 (μ 0,72) | 5/5 (2 iter 0, 3 iter 1) | Las 2 clases de F4 no reaparecieron; clase nueva: locators por convención. Healer 3/3, 1 causa raíz compartida. Post-heal auditado: Reviewer 3/3 approved, pre-review clean. Ver notas Q1 |
-| Q2 | | | | | | | |
+| Q2 (prevención+estabilización) | | | | | | | |
+| Q3 (productización Healer) | | | | | | | |
 
 ### Notas Q1 (2026-07-22, streams `.work/audit-runs/baseline-q1{,-2,-3}.jsonl` sesión `0c3111a3` + `healer-q1-tc00{2,3,4}.jsonl`)
 
@@ -84,4 +108,4 @@ Total **$2,17 / ~10 min / 3/3 éxito**. Hallazgo de economía: los rojos compart
 
 **Bugs menores nuevos flaggeados**: (a) el Writer de TC-004 escribió una entrada de audit-log con ruta Windows backslash → fichero basura en la raíz del repo (misma clase que la hard rule ya presente en el Reviewer; candidato: normalizar rutas en `appendAuditEntry` en vez de confiar en prompts); (b) specs stale pre-namespace en la raíz de `tests/e2e/` (ahorro-inversion, santalucia) siguen sin limpiarse — hueco ya flaggeado en el anexo del informe, no bloquea.
 
-**Criterio de salida: CUMPLIDO** — 5/5 verdes post-Healer, guardrails intactos, coste del Healer medido y trasladado al marco €/run del informe (§7). **Decisión de productización pendiente del QA** (datos sobre la mesa): ¿paso opcional del command (`--heal`) o command aparte `/qa-automator:heal`? A favor del command aparte: post-proceso desacoplado re-ejecutable (mismo patrón que `report`), sesiones separadas = coste atribuible; a favor del paso opcional: un solo gesto para el QA. La economía medida (μ $0,72/spec, causa raíz compartida) cabe en ambos.
+**Criterio de salida: CUMPLIDO** — 5/5 verdes post-Healer, guardrails intactos, coste del Healer medido y trasladado al marco €/run del informe (§7). **Decisión de productización (QA, 2026-07-22): híbrido patrón regla #10** — knob `healing` en el Style Contract (off por defecto), command aparte `/qa-automator:heal` re-ejecutable, y el orquestador de `autonomous` NO sana por defecto (reporta rojos y termina; si el contract activa healing, encadena). El QA lo lanza o lo activa cuando decide sobre los rojos. Implementación en Fase Q3.
