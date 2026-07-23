@@ -91,7 +91,9 @@ Desde `template/examples/01-saucedemo/saucedemo-fd.md`:
 
 Secuencia deliberada: **validar barato en Claude Code antes de gastar créditos Copilot.**
 
-### Fase A — Baseline lean en Claude Code (número $ + validación de calidad). Barata, headless.
+### Fase A — Baseline lean en Claude Code (número $ + validación de calidad). Barata, headless. — ✅ SUPERADA (2026-07-23, ver [`docs/findings/copilot-efficient-tokens/fase-a-baseline.md`](../findings/copilot-efficient-tokens/fase-a-baseline.md))
+
+> Gate A superado con matiz: 3/3 verdes a la primera sin Reviewer. En contexto de desarrollo **$0,66/caso**; en **workspace limpio aislado (CLAUDE.md neutro) $0,56/caso** (Refiner Haiku ~$0,11 + Writer Sonnet batch $1,55). Healer segregado $0,48/lote (1 fix cura 3). El CLAUDE.md de dev inflaba ~15% (secundario); el coste lo domina el contexto de trabajo acumulado (discovery 103 elem + POMs + 42 turns). Debilidad semántica SISTÉMICA (2/2 corridas): assert de cierre de checkout sobre chrome (`backToProducts`), no sobre `"Thank you for your order!"` — el mensaje no está en el discovery (texto no interactivo). Es el coste acotado del Cubo C + un gap del dom-walker.
 Ensamblar el espinazo desde las piezas existentes y correr los 3 casos headless. Objetivo doble: (1) confirmar que **los tests quedan bien construidos sin Reviewer** (verdes a la primera + inspección manual: POM limpio, locators por contract, asserts reales); (2) obtener el **$ por caso** con `total_cost_usd`.
 - Protocolo de medición del carril tokens (headless `claude -p`, `parse-usage.mjs`, discovery/walk congelado).
 - Medir con y sin healer (forzar el camino común y el de rojo).
@@ -116,11 +118,12 @@ Actualizar el marco €/run del informe con la línea "flujo lean 3 casos" (Clau
 
 ---
 
-## Decisiones abiertas para Claudio (marcadas, no las decido yo)
-1. **¿Fase A (Claude Code) primero, o directo a Copilot?** Recomiendo A→B: A valida la hipótesis del Cubo C barato y da el $ sin quemar créditos. Coste de A: ~$1,5-3, una sesión headless.
-2. **Modelo del Writer**: el A/B de Fase B lo resuelve con dato. Default de arranque: Sonnet (control conocido).
-3. **Batch 3-en-1 vs 3 invocaciones del Writer**: recomiendo 1 batch (prefijo pagado una vez). Riesgo: un output más largo puede degradar; si el A/B lo muestra, se parte.
-4. **Refiner desde FD vs reusar el walk-script del fixture**: para "partir del FD" de verdad, el refiner lee el FD y emite la lista de casos; el walk-script puede venir del fixture existente (0 tokens) o del refiner. Recomiendo fixture para el MVP (ya validado), refiner solo para la lista de casos.
+## Decisiones cerradas con Claudio (2026-07-23 — no reabrir sin hablar)
+1. **Fase A (Claude Code) primero, y se ejecuta ya.** Se ensambla el espinazo lean y se corren los 3 casos headless en la misma sesión → cierre de Gate A con `total_cost_usd`. A valida la hipótesis del Cubo C barato antes de quemar créditos Copilot.
+2. **Modelo del Writer en Fase A: Sonnet** (control conocido). El A/B Sonnet 5 vs Haiku 4.5 se resuelve con dato en Fase B.
+3. **Writer en 1 batch → 3 ficheros** (un contexto, prefijo pagado una vez). Riesgo asumido: output largo puede degradar; si el A/B de B lo muestra, se parte.
+4. **Refiner: llamada LLM real (Haiku) leyendo el FD** → lista de 3 casos sin RF-NNN. Honra "partir del FD de verdad"; es 1 touchpoint LLM barato, contado. El walk-script viene del fixture existente ya validado (0 tokens) — el refiner NO reconstruye el guion, solo emite la lista de casos.
+5. **Medición del Healer segregada.** Se fabrica un rojo deliberado (fallo controlado tipo F4: assert semántico sobre clase siempre presente) para ejercitar el Healer y obtener su número. Pero **su coste NO se suma al $/caso del camino limpio**: el titular refleja la vía natural (verde a la primera); el coste del heal se reporta aparte, etiquetado como condicional. El rojo es real (fallo genuino), no simulado.
 
 ---
 
