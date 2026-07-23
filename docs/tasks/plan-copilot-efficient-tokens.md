@@ -99,7 +99,10 @@ Ensamblar el espinazo desde las piezas existentes y correr los 3 casos headless.
 - Medir con y sin healer (forzar el camino común y el de rojo).
 - **Gate A**: 3/3 construidos y verdes (o rojos con causa raíz identificada y sanados por el Healer), $ por caso medido y desglosado. Si sin Reviewer la calidad se cae por debajo de lo presentable (rojos semánticos que el Healer no sana limpio), el dato mata la hipótesis del Cubo C aquí, barato, antes de Copilot.
 
-### Fase B — Medición en Copilot (número en créditos). Requiere sesión VS Code (la ejecuta Claudio).
+### Fase B — Medición en Copilot (número en créditos). Requiere sesión VS Code (la ejecuta Claudio). — 🔧 ARTEFACTOS CONSTRUIDOS (2026-07-23, deploy in-repo; medición pendiente de Claudio, ver [`docs/findings/copilot-efficient-tokens/fase-b-setup.md`](../findings/copilot-efficient-tokens/fase-b-setup.md))
+
+> Portados y committeados: `.github/agents/ia4d-{writer,spec-refiner}-lean.agent.md` (formato VS Code, model array), `.github/prompts/qa-lean.prompt.md` (orquestador), `.github/hooks/hooks.json` + `copilot/hooks/{pre-flight,audit-write}` (deny-JSON portable, bundle esbuild, sin pii-post), `.vscode/mcp.json`. Deploy **in-repo**: VS Code abre este repo y corre `/qa-lean`. Smoke del gate deny-JSON OK; red estructural 26/26 + 263/263 + tsc. Pendiente: la sesión interactiva Copilot (créditos por acto, A/B Sonnet vs Haiku, Healer segregado) la corre Claudio con los pasos exactos del setup.
+
 Portar el flavor lean validado en A a VS Code: `.agent.md` (writer lean + refiner), prompt file, hooks deny-JSON del spike, `.vscode/mcp.json`. Correr los 3 casos e instrumentar créditos por acto.
 - **A/B del modelo del Writer** (el experimento central): brazo Sonnet 5 vs brazo Haiku 4.5, mismo dom-map congelado. Hipótesis a falsar: sin el ping-pong del Reviewer, la dinámica de contención de F6 (Reviewer ×2,5 que se comía el descuento Haiku) **no aplica** — el Writer barato podría ganar aquí. Métricas: créditos por brazo, verdes a la primera, coste del Healer por brazo.
 - Calcular a precio promo (Sonnet $2/$10 hasta 2026-08-31) Y post-promo (+50%; cuota Business 3.000→1.900).
