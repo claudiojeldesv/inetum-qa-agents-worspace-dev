@@ -1,0 +1,14 @@
+{
+  "comment": "Flavor lean S3 (prueba copilot-efficient-tokens) — hooks para VS Code Copilot (Preview). Los matchers se declaran pero VS Code los IGNORA (corren en cada tool call); el filtrado real vive DENTRO de pre-flight.mjs (guard de tool_name). Los scripts ejecutables viven en copilot/hooks/ (fuente única): los .mjs de dist/ son bundles esbuild (~100ms, regenerar con `npm run build:hooks:copilot`), probe.mjs es .mjs puro. cwd = raíz del workspace. Recorte vs spike: SIN pii-post (PII off en el flavor lean).",
+  "hooks": {
+    "SessionStart": [
+      { "type": "command", "command": "node copilot/hooks/probe.mjs github-hooks", "timeout": 10 }
+    ],
+    "PreToolUse": [
+      { "type": "command", "command": "node copilot/hooks/dist/pre-flight.mjs", "timeout": 30 }
+    ],
+    "Stop": [
+      { "type": "command", "command": "node copilot/hooks/dist/audit-write.mjs", "timeout": 30 }
+    ]
+  }
+}
