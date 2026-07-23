@@ -149,6 +149,14 @@ const SCHEMA: Record<string, FieldSpec> = {
       },
     },
   },
+  // Sanación off por defecto (regla #10, v0.3 quality-greens Q3). enabled:true → autonomous
+  // encadena /qa-automator:heal sobre los rojos tras el Verification step.
+  healing: {
+    type: 'object',
+    fields: {
+      enabled: { type: 'boolean' },
+    },
+  },
   evidence: {
     type: 'object',
     fields: {
@@ -436,6 +444,18 @@ export function resolveConfigState(
     value: failOn === true ? 'ON (aborta)' : 'off (warning)',
     origin: failOn === undefined ? 'default' : 'contract',
     note: 'el scan axe-core se inyecta SIEMPRE; esto es solo el gate',
+  });
+
+  // healing (contract-driven, regla #10 — off por defecto)
+  const healing = (c.healing as Record<string, unknown>) ?? {};
+  rows.push({
+    key: 'healing (post-proceso)',
+    value:
+      healing.enabled === true
+        ? 'ON (autonomous encadena la sanación sobre los rojos)'
+        : 'off (reporta rojos y termina)',
+    origin: healing.enabled === undefined ? 'default' : 'contract',
+    note: '/ia4d-qa-automator:heal siempre disponible como command desacoplado',
   });
 
   // Evidence

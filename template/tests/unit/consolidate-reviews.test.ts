@@ -45,6 +45,20 @@ describe('consolidate-reviews — fix de append concurrente', () => {
     expect(placeholder?.error).toContain('invalid JSON');
   });
 
+  it('recupera objetos pretty-printed concatenados en un mismo fichero (bug F4 multi-iteración)', () => {
+    const work = tmp('qa-cons-concat-');
+    const dir = resolve(work, 'review-feedback');
+    mkdirSync(dir, { recursive: true });
+    const iter0 = JSON.stringify({ test_file: 'a', iteration: 0, verdict: 'rejected', feedback: [{ severity: 'must-fix', description: 'usa "{llaves}" en strings' }] }, null, 2);
+    const iter1 = JSON.stringify({ test_file: 'a', iteration: 1, verdict: 'approved', feedback: [] }, null, 2);
+    writeFileSync(resolve(dir, 'TC-004.spec.ts.json'), iter0 + '\n' + iter1);
+    const { count, corrupt } = consolidateReviews(work);
+    expect(corrupt).toEqual([]);
+    expect(count).toBe(2);
+    const out = readFileSync(resolve(work, 'review-feedback.json'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    expect(out.map((o) => o.verdict)).toEqual(['rejected', 'approved']);
+  });
+
   it('no-op si no existe el directorio per-spec', () => {
     const work = tmp('qa-cons-empty-');
     const { files, count } = consolidateReviews(work);

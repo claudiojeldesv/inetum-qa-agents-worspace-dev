@@ -15,7 +15,7 @@ interface AuditLogEntry {
     | 'subagent';
   action:
     | 'invoke' | 'block' | 'warn' | 'allow'
-    | 'exploration_brief'
+    | 'exploration_brief' | 'scenario_selection'
     | 'write_file' | 'edit_file' | 'read_file'
     | 'judge_decision' | 'review_decision'
     | 'llm_call';

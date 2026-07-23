@@ -1,7 +1,7 @@
 ---
 name: ia4d-reviewer
 description: Use this agent to audit a .spec.ts written by ia4d-writer against objective criteria (locators, asserts, waits, POM, A11y, criterion citation, data contamination). Returns approved | rejected with feedback[]. Invoked only by ia4d-writer or directly by a command.
-tools: Read, Grep, Bash
+tools: Read, Grep, Bash, Write
 model: sonnet
 color: purple
 ---
@@ -37,6 +37,16 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 | MF-8 | POM not used when a Page class exists for the screen |
 | MF-9 | Test does not assert a **business post-condition** when `test_design.require_business_postcondition: true`. Extends MF-3: a test whose only assertions are navigation/URL/visibility of chrome (`toHaveURL`, a nav element visible) is a violation. It must assert the *outcome* of the flow — e.g. after checkout, the order confirmation/number is visible; after login, an authenticated-only element is present. Also fails if fewer than `test_design.min_functional_asserts` functional asserts. Only enforced when the contract carries a `test_design` block with the flag on (absent block → not enforced, no regression). |
 
+### Locator provenance (objetivo, no opinión — Q2)
+
+The discovery-report comes annotated by `verify-locators` (deterministic pass against the live DOM). Judge locator legitimacy by data, not intuition:
+
+- A locator present in discovery with `verified: true` is **never** "fabricated" — do not reject it as invented, in any iteration, in any spec.
+- A parameterized locator (e.g. `` getByTestId(`remove-${slug}`) ``) citing a concrete `verified: true` instance (`// instancia verificada: ...`) is legitimate.
+- A `verified: false` locator is acceptable ONLY with the Writer's evidence comment (`// estado condicional: ...` citing the plan) or a TODO. Used bare, flag it (must-fix, category `locator-strategy`).
+- A locator absent from discovery with no TODO and no cited instance IS a fabrication — must-fix.
+- **MF-8 exception (POM ownership)**: a spec-local locator tagged `// TODO consolidacion-pom: <Clase>` is NOT an MF-8 violation — the Writer couldn't edit a POM it doesn't own. Report it as should-fix (`consolidación pendiente`), never rejection.
+
 ### Should-fix criteria (non-blocking but reported)
 
 - Locator priority not optimal (uses getByRole when data-test exists).
@@ -70,12 +80,16 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 }
 ```
 
-4. **Escribe UN fichero propio por spec — NO hagas append a un fichero compartido.** Los writers/reviewers
-   corren en paralelo (Acto 4); un append concurrente sobre un único `review-feedback.json` corrompe el JSON
-   (entradas truncadas). Escribe (sobrescribe) — **vía Bash, este agente no tiene tool `Write`** — UN objeto JSON con el schema de arriba en
-   `<workDir>/review-feedback/<basename-del-test-file>.json`
-   (p.ej. `.work/<site-id>/review-feedback/TC-001_inicio-sesion.usuario-valido.spec.ts.json`). Crea el
-   directorio `review-feedback/` si no existe. La última iteración deja el veredicto final en ese fichero.
+4. **Escribe UN fichero propio por spec, y el fichero contiene UN ÚNICO objeto JSON — siempre.**
+   El fichero es `<workDir>/review-feedback/<basename-del-test-file>.json`
+   (p.ej. `.work/<site-id>/review-feedback/TC-001_inicio-sesion.usuario-valido.spec.ts.json`).
+   - Escríbelo **con la tool `Write`** (contenido completo). NUNCA con `Edit`, NUNCA con `Bash` (`>>`, `cat >`, `tee`),
+     NUNCA añadiendo un objeto detrás del anterior.
+   - **En cada iteración (0, 1 o 2) sobrescribes el fichero entero** con el objeto de ESA iteración: el estado
+     final es el de la última escritura, no un histórico acumulado. Dos objetos JSON concatenados en el fichero
+     = feedback corrupto (bug F4).
+   - No hagas append a ningún fichero compartido: los writers/reviewers corren en paralelo (Acto 4) y un append
+     concurrente sobre un único `review-feedback.json` corrompe el JSON.
    Deriva `<workDir>` del `--discovery-report` que recibes (vive en el mismo work dir) o de `$QA_WORK_DIR`;
    default `.work/`. El command consolida estos ficheros en `<workDir>/review-feedback.json` al final (no lo hagas tú).
 5. Append `audit-log` entry: `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.
@@ -93,8 +107,8 @@ You are the **Reviewer** of the Quality layer. You audit a `.spec.ts` produced b
 - Do not invoke other subagents. You are a leaf in the graph.
 - Be objective: every rejection must cite a criterion ID (MF-1...MF-9) and a specific line.
 - Be consistent across iterations: if you approved a pattern in iteration 0 of one test, do not reject the same pattern in iteration 0 of another.
-- **El fichero de feedback debe ser JSON VÁLIDO.** Lo escribes a mano vía Bash, así que en `description`/`suggested_fix` escapa cada `\` como `\\` (un regex `/x\.y/` se escribe `/x\\.y/`) y cada `"` como `\"`. Preferible describir el assert en prosa sin regex literal. Un JSON inválido se registra como feedback corrupto y se pierde en la consolidación.
-- **Rutas SIEMPRE con `/` (forward slash), nunca `\`.** Una ruta Windows con backslashes pasada por Bash crea un fichero basura con la ruta como nombre literal.
+- **El fichero de feedback debe ser JSON VÁLIDO.** En `description`/`suggested_fix` escapa cada `\` como `\\` (un regex `/x\.y/` se escribe `/x\\.y/`) y cada `"` como `\"`. Preferible describir el assert en prosa sin regex literal. Un JSON inválido se registra como feedback corrupto y se pierde en la consolidación.
+- **Rutas SIEMPRE con `/` (forward slash), nunca `\`.** Una ruta Windows con backslashes crea un fichero basura con la ruta como nombre literal.
 
 ## Reference
 

@@ -1,6 +1,6 @@
 # Compliance pre-flight rules
 
-Reglas que el hook `hooks/pre-flight.ts` y el subagent `ia4d-compliance-checker` aplican antes de cualquier invocación al Planner/Generator nativos. **Sin override**.
+Reglas que el hook `hooks/pre-flight.ts` y el script `src/scripts/check-compliance.ts` (invocado por los commands; sustituye al subagent `ia4d-compliance-checker`, deprecated) aplican antes de cualquier invocación al Planner/Generator nativos. **Sin override**.
 
 ## Reglas duras (bloqueo)
 

@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { scaffoldPage, scaffoldBasePage, scaffold } from '../../src/pom-scaffolder.ts';
 
 describe('pom-scaffolder scaffoldPage', () => {
@@ -83,6 +86,16 @@ describe('pom-scaffolder scaffoldPage', () => {
     expect(result.content).toContain('this.nav = new NavComponent(page);');
     expect(result.content).toContain("import { NavComponent } from '../components/nav.component'");
   });
+
+  it('derives the component import path from site-namespaced dirs (spike bug)', () => {
+    const result = scaffoldPage(
+      { name: 'home', components: ['nav'] },
+      { outputDir: 'tests/pages/saucedemo', componentsDir: 'tests/components/saucedemo' },
+    );
+    expect(result.content).toContain(
+      "import { NavComponent } from '../../components/saucedemo/nav.component'",
+    );
+  });
 });
 
 describe('pom-scaffolder scaffoldBasePage', () => {
@@ -131,5 +144,66 @@ describe('pom-scaffolder scaffold (in-memory)', () => {
     const result = scaffold([{ name: 'login' }], { basePage: false }, false);
     expect(result.files).toHaveLength(1);
     expect(result.files[0].className).toBe('LoginPage');
+  });
+});
+
+describe('pom-scaffolder — el esqueleto solo declara lo que el discovery vio (hallazgo F2)', () => {
+  let dir: string;
+
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('cada locator del esqueleto proviene de un interactive_element del discovery', () => {
+    const result = scaffoldPage({
+      name: 'inventory',
+      url_pattern: '/inventory.html',
+      interactive_elements: [
+        { role: 'heading', name: 'Products', test_id: 'title' },
+        { role: 'button', name: 'Add to Cart', test_id: 'add-to-cart-sauce-labs-backpack' },
+      ],
+    });
+    // Exactamente los locators del discovery, ni uno más
+    const locatorLines = result.content.split('\n').filter((l) => /this\.\w+ = this\.page\.getBy/.test(l));
+    expect(locatorLines).toHaveLength(2);
+    expect(result.content).toContain("getByTestId('title')");
+    expect(result.content).toContain("getByTestId('add-to-cart-sauce-labs-backpack')");
+    // La clase histórica del bug: nada de menuButton/logo/orderSummary sin respaldo
+    expect(result.content).not.toMatch(/menuButton|logo|orderSummary/);
+  });
+
+  it('marca con advertencia los locators que verify-locators no resolvió (Q2.1)', () => {
+    const result = scaffoldPage({
+      name: 'login',
+      interactive_elements: [
+        { role: 'button', name: 'Login', test_id: 'login-button', verified: true },
+        { role: 'heading', name: 'Error message', test_id: 'error', verified: false, verify_reason: 'not-found' },
+      ],
+    });
+    const errorLine = result.content.split('\n').find((l) => l.includes("getByTestId('error')"))!;
+    expect(errorLine).toContain('verify-locators: not-found');
+    expect(errorLine).toContain('evidencia del plan');
+    const okLine = result.content.split('\n').find((l) => l.includes("getByTestId('login-button')"))!;
+    expect(okLine).not.toContain('verify-locators');
+  });
+
+  it('sobrescribe un POM stale de un discovery anterior (los locators fantasma desaparecen)', () => {
+    dir = mkdtempSync(join(tmpdir(), 'pom-scaffolder-'));
+    const stalePath = join(dir, 'inventory.page.ts');
+    writeFileSync(
+      stalePath,
+      `export class InventoryPage {\n  readonly menuButton = this.page.getByRole('button', { name: 'Open Menu' });\n}\n`,
+      'utf8',
+    );
+
+    scaffold(
+      [{ name: 'inventory', interactive_elements: [{ role: 'heading', name: 'Products', test_id: 'title' }] }],
+      { outputDir: dir, componentsDir: join(dir, 'components'), basePage: false },
+    );
+
+    const regenerated = readFileSync(stalePath, 'utf8');
+    expect(regenerated).toContain("getByTestId('title')");
+    expect(regenerated).not.toContain('menuButton');
+    expect(regenerated).not.toContain('Open Menu');
   });
 });

@@ -69,6 +69,16 @@ a11y:
     - serious                  #   (tanto para fallar como para anotar).
     - critical
 
+# --- Sanación (Healer) como post-proceso — off por defecto ---------------------
+healing:
+  # false (default) → el run autónomo reporta los rojos y termina; TÚ decides:
+  #   /ia4d-qa-automator:heal (sana + audita: el Healer no es juez) o ajuste manual.
+  # true → el run autónomo encadena la sanación sobre los rojos, con el mismo
+  #   protocolo de auditoría post-heal (suite re-ejecutada + pre-review + Reviewer + a11y).
+  # CUÁNDO true — pipelines desatendidos donde quieres la suite verde entregada
+  #   sin una segunda intervención. Déjalo false mientras revisas los rojos tú.
+  enabled: false
+
 # --- Evidencia visual para el reporte Allure (no es un gate, no aborta) --------
 evidence:
   # minimal → comentarios de paso + screenshot final. Rápido, ligero.
@@ -110,7 +120,9 @@ naming:
 # --- Registro de IDs estables de caso -----------------------------------------
 tc_registry:
   enabled: true          # default true. false → sin prefijo de ID en el archivo.
-  path: config/tc-registry/mi-sitio.json   # mapa <feature>.<condicion> → {id, source}. Versionado.
+  path: config/tc-registry/mi-sitio.json   # mapa <feature>.<condicion> → {id, source, nature, screens, aliases}.
+                                           # Versionado. El drift de naming entre runs se reconcilia solo
+                                           # (mismo caso renombrado → mismo ID, slug viejo a aliases).
   id_prefix: TC           # default TC. Prefijo cuando el agente asigna el ID (sin key de gestor): TC-001…
 
 # --- Asserts -------------------------------------------------------------------

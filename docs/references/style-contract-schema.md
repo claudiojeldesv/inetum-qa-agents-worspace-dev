@@ -64,14 +64,25 @@ naming:
 tc_registry:
   enabled: boolean                  # default true. false → sin prefijo de ID (archivo = feature.condicion).
   path: string                      # default 'config/tc-registry/<site-id>.json'. Mapea el slug estable
-                                    #   '<feature>.<condicion>' → { id, source }. Versionado, auditable.
+                                    #   '<feature>.<condicion>' → { id, source, nature, screens, aliases }.
+                                    #   Versionado, auditable. El formato plano legacy (slug → "TC-NNN")
+                                    #   se tolera al leer y migra al primer write.
   id_prefix: string                 # default 'TC'. Prefijo del ID que ASIGNA el agente cuando no hay key
                                     #   de gestor (TC-001, TC-002…). Secuencial estable, NO por rank.
-  # source por entrada del registro:
-  #   'xray'  → el id es el key del gestor de pruebas (lo rellena el QA; el agente NUNCA lo inventa).
-  #   'agent' → el id es el TC-NNN que asignó y persistió el agente (fallback cuando no hay key).
-  # Resolución por escenario en cada run: si el slug ya está en el registro → reusa su id;
-  # si es nuevo → el agente asigna el siguiente TC-NNN libre, source:'agent', y lo añade al registro.
+  # Entrada del registro (v2, quality-greens Q4):
+  #   id      → key del gestor de pruebas o TC-NNN del agente.
+  #   source  → 'xray' (key del gestor, lo rellena el QA; el agente NUNCA lo inventa) |
+  #             'agent' (TC-NNN asignado y persistido por el agente).
+  #   nature / screens → metadata del último run que seleccionó el caso; alimenta la reconciliación.
+  #   aliases → slugs históricos del MISMO caso (el drift de naming oscila entre runs).
+  # Resolución por escenario en cada run (checkpoint):
+  #   1. slug ya en el registro (key o alias) → reusa su id.
+  #   2. slug nuevo → RECONCILIACIÓN conservadora contra los slugs registrados ausentes del catálogo
+  #      actual: mismo feature + misma naturaleza + misma pantalla de destino (los campos que una
+  #      entrada legacy no tiene no filtran). EXACTAMENTE UN candidato → mismo caso renombrado por
+  #      drift del discovery: reusa el id, re-keyea la entrada al slug actual y el viejo pasa a
+  #      aliases. 0 o >1 candidatos → id nuevo (el empate se reporta, nunca se adivina).
+  #   3. resto → siguiente TC-NNN libre, source:'agent'.
 
 # Asserts
 asserts:
@@ -117,6 +128,18 @@ auth:
     type: string                    #   'url' (patrón de URL post-login) | 'locator' (elemento solo visible autenticado)
     value: string                   #   ej. '**/overview.htm'  o  "getByRole('link', { name: 'Log Out' })"
 
+# Sanación (Healer nativo) como post-proceso — patrón regla #10: off por defecto, reactivable
+# (v0.3 quality-greens Q3). El Healer NO es juez: su output se audita con el protocolo post-heal
+# (suite re-ejecutada + pre-review + Reviewer sobre los specs afectados + verify-a11y), validado
+# en Q1 (3/3 sanados, μ $0,72/spec, 1 fix en POM compartido cura N specs).
+healing:
+  enabled: boolean                  # default false → el run de `autonomous` reporta los rojos y
+                                    #   termina (el QA decide: /ia4d-qa-automator:heal o ajuste manual).
+                                    #   true → `autonomous` encadena la sanación tras el Verification
+                                    #   step sobre los rojos, con el mismo protocolo post-heal.
+                                    #   El command /ia4d-qa-automator:heal es independiente del knob:
+                                    #   se puede lanzar siempre, re-ejecutable, sobre el último run.
+
 # Política de evidencia visual para el reporte Allure. NO es un gate — no aborta nada.
 # Es evidencia de RUN-TIME: /ia4d-qa-automator:report solo muestra lo que el run capturó.
 # El command lee `level` en el Verification step y exporta QA_SCREENSHOT / QA_TRACE
@@ -127,6 +150,10 @@ evidence:
                                     #   minimal → comentarios `// Step N` + screenshot final (según screenshots)
                                     #   steps   → cada acción lógica en `await test.step('desc')` → timeline en Allure
                                     #   full    → steps + screenshot por paso (test.info().attach) + trace 'on'
+                                    #   Es también un KNOB DE COSTE: 'full' genera specs más largos
+                                    #   (test.step + attach por paso) y el output del Writer se paga
+                                    #   por spec. 'full' = vitrina/demo; para contracts de cliente,
+                                    #   'minimal' o 'steps' como default.
   screenshots: string               # 'on' | 'only-on-failure' | 'off' — default 'only-on-failure'.
                                     #   Solo aplica a level 'minimal' (captura final). En 'full' el command
                                     #   fuerza screenshots=on + trace=on automáticamente.

@@ -31,11 +31,12 @@
 
 ### Capa transversal (siempre activa, todos los modos)
 
-- **Compliance pre-flight** (`PreToolUse` hook + `ia4d-compliance-checker`): valida URL contra `allowed-targets.yaml` y modo declarado. Sin override.
+- **Compliance pre-flight** (`PreToolUse` hook + `src/scripts/check-compliance.ts` en los commands): valida URL contra `allowed-targets.yaml` y modo declarado. Sin override. (El subagent `ia4d-compliance-checker` quedó deprecated en Fase 1 token-efficiency — misma lógica, cero tokens.)
 - **PII scanner** (`PostToolUse` hook + `ia4d-pii-scanner`): regex banca-ES (DNI/IBAN/Luhn/teléfono/email) sobre cada `.spec.ts` escrito. **Off por defecto** (v0.2 `design/gates-off-by-default`), reactivable con `QA_ENABLE_PII=1` — funcionalidad apagada, no eliminada. La detección de `test.fixme()` no autorizado del Healer en el mismo hook **sigue activa siempre** (no es PII).
 - **Style Contract enforcer** (`ia4d-style-enforcer`): post-procesa al output del Generator nativo según `style-contract.yaml`.
-- **A11y injector** (`ia4d-a11y-injector`): inyecta `AxeBuilder({ page }).analyze()` al inicio de cada `test()`. El scan siempre se inyecta; el **gate** (`fail_on_violations`) está **off por defecto** (modo warning), reactivable por-sitio con `true`.
+- **A11y garantizado** (`src/scripts/verify-a11y.ts` + `ia4d-a11y-injector` como rescate): el Writer inyecta el scan `AxeBuilder`; el verificador determinístico lo comprueba en cada `test()` y solo escala al injector el spec que falle. El scan siempre presente; el **gate** (`fail_on_violations`) está **off por defecto** (modo warning), reactivable por-sitio con `true`.
 - **Audit log** (`audit-write.ts` hook): JSON line append-only por cada llamada LLM, archivo escrito, decisión Reviewer/Judge.
+- **Sanación (Healer) como post-proceso** (`/ia4d-qa-automator:heal` + `src/scripts/run-heal-mecanico.ts`, v0.3 quality-greens Q3): **off por defecto** (regla #10), reactivable con `healing.enabled: true` en el Style Contract (autonomous encadena la sanación sobre los rojos) o lanzando el command desacoplado. El Healer nativo **no es juez**: cada sanación pasa el protocolo post-heal (suite re-ejecutada + pre-review + Reviewer + verify-a11y), queda en `healed[]` del run-summary y en el audit-log (spec, ficheros tocados, causa raíz, verdicts). Economía medida en Q1: μ $0,72/spec, 1 fix en POM compartido cura N specs.
 
 ### Quality layer (Writer + Reviewer + Judge)
 
@@ -90,7 +91,7 @@ No incluye admisión formal al catálogo Inetum ni piloto con cliente real. Eso 
 
 ## 2. Commands
 
-El proyecto expone cinco slash commands bajo el namespace `/ia4d-qa-automator:*`.
+El proyecto expone los slash commands bajo el namespace `/ia4d-qa-automator:*`.
 
 | Comando | Estado MVP | Responsabilidad | Output |
 |---|---|---|---|
@@ -99,6 +100,7 @@ El proyecto expone cinco slash commands bajo el namespace `/ia4d-qa-automator:*`
 | `/ia4d-qa-automator:code-driven` | Stub | Módulo S1 (roadmap, sin versión comprometida) | Mensaje de stub + redirección a las puertas funcionales S2/S3/S4 |
 | `/ia4d-qa-automator:req-driven` | **Funcional (Gherkin, v0.2 Fase E)** | Módulo S2. Toma `--gherkin=` + `--url=` + `--style=`. Ingiere el `.feature` (determinístico) y reusa el motor S3/S4 | criteria.json + drift-report.json + discovery-report.json + N `.spec.ts` (con `@criterion RF-NNN`) + judge-report.json + audit-log.json |
 | `/ia4d-qa-automator:spec-refiner` | **Funcional (v0.2 Fase D)** | Módulo S3 Forma B. Toma `--fd=` + `--url=` | criteria.json + drift-report.json + N `.spec.ts` + judge-report.json + audit-log.json |
+| `/ia4d-qa-automator:heal` | **Funcional (v0.3 quality-greens Q3)** | Post-proceso desacoplado (patrón `report`): sana los rojos del último run con `playwright-test-healer` + protocolo de auditoría post-heal (suite + pre-review + Reviewer + verify-a11y). Off por defecto en `autonomous` (knob `healing.enabled`, regla #10); el command siempre disponible, re-ejecutable | `healed[]` en qa-automator-run-summary.json (causa raíz, ficheros tocados, $/spec, verdicts post-heal) + heal-notes.json + audit-log |
 
 **Convención de orquestación**: cada command es orquestador. Encadena subagents nativos de Playwright (Planner, Generator, Healer) con subagents nuestros (`ia4d-*`) vía invocaciones explícitas con la Task tool y handoffs por archivos. La regla "ningún subagent invoca a otro" está activa por defecto; la **excepción nombrada y documentada** es el par Writer↔Reviewer (composición explícita del Quality layer).
 

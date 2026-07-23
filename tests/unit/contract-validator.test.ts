@@ -141,3 +141,29 @@ describe('resolveConfigState — effective session state', () => {
     expect(rows.find((r) => r.key === 'evidence.level')?.value).toBe('minimal');
   });
 });
+
+describe('contract-validator — healing (regla #10, Q3)', () => {
+  it('acepta el bloque healing con enabled boolean', () => {
+    const res = validateContract('version: 1\nhealing:\n  enabled: true\n');
+    expect(res.ok).toBe(true);
+    expect(res.issues).toEqual([]);
+  });
+
+  it('rechaza enabled no-boolean y flaggea campos desconocidos del bloque', () => {
+    const res = validateContract('version: 1\nhealing:\n  enabled: siempre\n  max_specs: 3\n');
+    expect(res.issues.some((i) => i.path === 'healing.enabled' && i.severity === 'error')).toBe(true);
+    expect(res.issues.some((i) => i.path === 'healing.max_specs' && i.severity === 'warning')).toBe(true);
+  });
+
+  it('resolveConfigState: off por defecto, ON solo con enabled:true del contract', () => {
+    const off = resolveConfigState({}, {});
+    const offRow = off.rows.find((r) => r.key.startsWith('healing'));
+    expect(offRow?.value).toContain('off');
+    expect(offRow?.origin).toBe('default');
+
+    const on = resolveConfigState({ healing: { enabled: true } }, {});
+    const onRow = on.rows.find((r) => r.key.startsWith('healing'));
+    expect(onRow?.value).toContain('ON');
+    expect(onRow?.origin).toBe('contract');
+  });
+});

@@ -1,10 +1,14 @@
 ---
 name: ia4d-mode-router
-description: Use this agent to classify the input flags as S1-S4 and report each module status (functional | stub | needs_input). S2-Gherkin, S3 and S4 are functional; S1 and S2-OpenAPI route to stubs.
+description: "DEPRECATED (Fase 1 token-efficiency, 2026-07) — la resolución de módulo es determinística: los commands ejecutan `npx tsx src/scripts/resolve-mode.ts` en vez de invocar este agente. Se conserva por auditabilidad; borrarlo es decisión del cierre del branch. Semántica original: classify the input flags as S1-S4 and report each module status (functional | stub | needs_input)."
 tools: Read, Glob
 model: haiku
 color: cyan
 ---
+
+> **DEPRECATED.** Sustituido por `src/scripts/resolve-mode.ts` (misma semántica, cero tokens).
+> Ningún command invoca este agente desde la Fase 1 de token-efficiency. Se conserva como
+> documentación de la semántica hasta el cierre del branch `design/token-efficiency`.
 
 You are the **Mode Router** of `ia4d-qa-automator`. Given the input flags from a command invocation, you classify which of the four modules should handle the request.
 

@@ -11,14 +11,16 @@
  * repeat across screens, and one Page class per discovered screen.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { resolve, dirname, relative } from 'node:path';
 
 export interface InteractiveElement {
   role: string;                       // 'button' | 'textbox' | 'link' | 'checkbox' | etc.
   name?: string;                      // accessible name if available
   test_id?: string;                   // data-test attr if present
   label?: string;
+  verified?: boolean | null;          // anotado por verify-locators (Q2.1): true = resuelve único contra el DOM real
+  verify_reason?: string;             // 'not-found' | 'ambiguous(n)' | ... cuando verified !== true
 }
 
 export interface DiscoveryScreen {
@@ -59,12 +61,24 @@ function toCamelCase(input: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
-function fileNameFor(name: string, kind: 'page' | 'component'): string {
+export function fileNameFor(name: string, kind: 'page' | 'component'): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + `.${kind}.ts`;
 }
 
 function componentClassName(name: string): string {
   return toPascalCase(name) + 'Component';
+}
+
+/**
+ * Import base from the pages dir to the components dir. With site namespacing
+ * (tests/pages/<site-id> vs tests/components/<site-id>) the hardcoded
+ * '../components' was wrong: it must be derived from the actual dirs.
+ */
+function componentsImportBase(options: ScaffoldOptions): string {
+  const pagesDir = resolve(options.outputDir ?? 'tests/pages');
+  const componentsDir = resolve(options.componentsDir ?? 'tests/components');
+  const rel = relative(pagesDir, componentsDir).replace(/\\/g, '/');
+  return rel.startsWith('.') ? rel : `./${rel}`;
 }
 
 function renderLocator(el: InteractiveElement): string {
@@ -99,7 +113,13 @@ function locatorAssignments(elements: InteractiveElement[]): Array<{ key: string
       unique = `${base}${n++}`;
     }
     seenKeys.add(unique);
-    return { key: unique, locator: renderLocator(el) };
+    // verify-locators (Q2.1) marcó el elemento como no resuelto contra el DOM real: el campo se
+    // scaffoldea igual (puede ser un estado condicional), pero con la advertencia para el Writer.
+    const locator =
+      el.verified === false
+        ? `${renderLocator(el)} /* verify-locators: ${el.verify_reason ?? 'not-found'} en el estado por defecto — usar solo con evidencia del plan o TODO */`
+        : renderLocator(el);
+    return { key: unique, locator };
   });
 }
 
@@ -193,8 +213,9 @@ export function scaffoldPage(
 
   const imports = [`import { type Locator, type Page } from '@playwright/test';`];
   if (useBase) imports.push(`import { BasePage } from './base.page';`);
+  const importBase = componentsImportBase(options);
   for (const c of usedComponents) {
-    imports.push(`import { ${componentClassName(c)} } from '../components/${fileNameFor(c, 'component').replace(/\.ts$/, '')}';`);
+    imports.push(`import { ${componentClassName(c)} } from '${importBase}/${fileNameFor(c, 'component').replace(/\.ts$/, '')}';`);
   }
   const classDecl = useBase ? `export class ${className} extends BasePage {` : `export class ${className} {`;
   const pageField = useBase ? '' : '  readonly page: Page;\n';
@@ -232,14 +253,16 @@ export function scaffold(
   const useBase = options.basePage !== false;
   const files: ScaffoldResult['files'] = [];
 
+  // Sobrescribe SIEMPRE: el esqueleto solo declara lo que el discovery actual vio. Un fichero
+  // stale de un run anterior conserva locators sin respaldo del discovery vigente (hallazgo F2:
+  // menuButton/title/logo/orderSummary) y el Writer los usa creyéndolos legítimos. Lo que no está
+  // en el discovery lo añade el Writer de este run, con evidencia.
   const emit = (dir: string, file: { className: string; fileName: string; content: string }) => {
     const fullPath = resolve(dir, file.fileName);
     files.push({ path: fullPath, className: file.className, content: file.content });
     if (writeToDisk) {
       mkdirSync(dirname(fullPath), { recursive: true });
-      if (!existsSync(fullPath)) {
-        writeFileSync(fullPath, file.content, 'utf8');
-      }
+      writeFileSync(fullPath, file.content, 'utf8');
     }
   };
 

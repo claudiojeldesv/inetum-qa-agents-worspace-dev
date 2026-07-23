@@ -1,5 +1,10 @@
 {
   "inicio-sesion.usuario-valido": "TC-001",
-  "inicio-sesion.usuario-bloqueado": "TC-002",
-  "pago.compra-completa": "TC-003"
+  "carrito.anadir-un-producto": "TC-002",
+  "carrito.anadir-multiples-productos": "TC-003",
+  "pago.compra-completa": "TC-004",
+  "inicio-sesion.usuario-bloqueado": "TC-005",
+  "carrito.productos-en-carrito": "TC-006",
+  "pago.compra-exitosa": "TC-007",
+  "inicio-sesion.credenciales-invalidas": "TC-008"
 }

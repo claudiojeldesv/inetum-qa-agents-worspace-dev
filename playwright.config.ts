@@ -14,6 +14,9 @@ const workDir = process.env.QA_WORK_DIR || '.work';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // Specs archivados por el checkpoint (Q4: fuera de la selección actual → _archive/, no se
+  // borran). Nunca se ejecutan; tsconfig los excluye del typecheck por la misma razón.
+  testIgnore: '**/_archive/**',
   outputDir: `${workDir}/test-results`,
   // Limpia .work/allure-results antes de cada run (allure-playwright nunca limpia: acumula
   // resultados entre corridas → el reporte mezclaría runs viejos, skipped rancios y fallos ya
@@ -25,6 +28,10 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
+    // Reporter JSON opt-in (Fase 4 token-efficiency): run-s4-mecanico.ts setea
+    // PLAYWRIGHT_JSON_OUTPUT_NAME para parsear el veredicto por-test de forma determinística.
+    // El reporter 'json' escribe a esa ruta él solo cuando la var existe. Sin la var → sin cambio.
+    ...(process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? ([['json']] as const) : []),
     ['html', { outputFolder: `${workDir}/playwright-report`, open: 'never' }],
     // allure-playwright produce allure-results/; /ia4d-qa-automator:report lo enriquece
     // con la evidencia del agente y genera el HTML estático (npx allure generate).
