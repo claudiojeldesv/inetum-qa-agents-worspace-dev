@@ -33,6 +33,10 @@ interface DiscoveryElement {
 interface DiscoveryScreen {
   name: string;
   url_pattern?: string;
+  /** URL absoluta donde el walker capturó la pantalla. Evidencia independiente:
+   *  verify-locators compara su aterrizaje contra esto, no contra el pattern
+   *  recomputado (que compartiría cualquier error de resolución). */
+  source_url?: string;
   interactive_elements: DiscoveryElement[];
   components: string[];
 }
@@ -102,23 +106,27 @@ function toDiscoveryScreen(screen: DomScreen, baseUrl: string): DiscoveryScreen 
   return {
     name: screen.name,
     url_pattern: relativePattern(screen.url_pattern, baseUrl),
+    source_url: screen.url_pattern,
     interactive_elements: ordered,
     components: [],
   };
 }
 
-/** URL absoluta del dom-map → fragmento relativo que espera el discovery. */
-function relativePattern(urlPattern: string, baseUrl: string): string {
+/**
+ * URL absoluta del dom-map → fragmento RELATIVO A LA BASE (no al origen) que
+ * espera el discovery. Fuera de la base (otro host, otro context path — p.ej.
+ * un redirect SSO) se conserva la URL absoluta: recortarla al pathname del
+ * origen la haría re-anclarse bajo la base al resolver (src/app-url.ts) y
+ * apuntaría a una página que no existe.
+ */
+export function relativePattern(urlPattern: string, baseUrl: string): string {
   if (baseUrl && urlPattern.startsWith(baseUrl)) {
     const rest = urlPattern.slice(baseUrl.length);
-    return rest === '' ? '/' : rest;
+    if (rest === '' || rest === '/') return '/';
+    // corte solo en límite de segmento: base '/npa' NO es prefijo de '/npa-escritorio/x'
+    if (rest.startsWith('/')) return rest;
   }
-  try {
-    const u = new URL(urlPattern);
-    return u.pathname + u.search;
-  } catch {
-    return urlPattern;
-  }
+  return urlPattern;
 }
 
 export function domMapToDiscovery(map: DomMap): DiscoveryReport {
