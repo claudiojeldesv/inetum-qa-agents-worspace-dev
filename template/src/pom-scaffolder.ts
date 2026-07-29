@@ -138,9 +138,19 @@ export class BasePage {
     this.page = page;
   }
 
-  /** Navigate to a path (relative to baseURL) or an absolute URL. */
+  /**
+   * Navigate to a path (relative to the app base URL) or an absolute URL.
+   * Resolves by APPENDING to QA_BASE_URL: \`page.goto('/x')\` would resolve
+   * against the origin and drop the context path of apps served under a
+   * subpath (e.g. https://host/mi-app — the norm in corporate Java webapps).
+   */
   async goto(path = '/') {
-    await this.page.goto(path);
+    const base = process.env.QA_BASE_URL;
+    const url =
+      /^https?:\\/\\//i.test(path) || !base
+        ? path
+        : base.replace(/\\/+$/, '') + (path.startsWith('/') ? path : \`/\${path}\`);
+    await this.page.goto(url);
   }
 
   /** Wait until the page has settled. Override per page when a better signal exists. */
@@ -207,8 +217,12 @@ export function scaffoldPage(
   const ctorOpen = useBase ? '    super(page);' : '    this.page = page;';
   const fieldInits = [ctorOpen, ...locatorInits, ...componentInits].join('\n');
 
+  // Con BasePage delega en super.goto: resuelve el pattern contra la base de la
+  // app (context path incluido). Sin BasePage, goto directo (comportamiento previo).
   const gotoBlock = screen.url_pattern
-    ? `  async goto() {\n    await this.page.goto('${screen.url_pattern}');\n  }`
+    ? useBase
+      ? `  async goto() {\n    await super.goto('${screen.url_pattern}');\n  }`
+      : `  async goto() {\n    await this.page.goto('${screen.url_pattern}');\n  }`
     : `  // TODO writer: add goto() method when URL is known`;
 
   const imports = [`import { type Locator, type Page } from '@playwright/test';`];

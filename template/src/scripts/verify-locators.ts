@@ -31,6 +31,8 @@ import { parse as parseYaml } from 'yaml';
 import { chromium, selectors, type Page } from '@playwright/test';
 
 import { appendAuditEntry } from '../audit-log.ts';
+import { resolveAppUrl, appPathname } from '../app-url.ts';
+import { proxyFromEnv } from '../proxy-env.ts';
 
 // ---------------------------------------------------------------------------
 // Tipos (espejo de pom-scaffolder + anotaciones de verificación)
@@ -49,6 +51,10 @@ export interface DiscoveryElement {
 interface DiscoveryScreen {
   name: string;
   url_pattern?: string;
+  /** URL absoluta donde el walker capturó la pantalla — evidencia independiente
+   *  para el check de reachability (nunca comparar contra un valor recomputado
+   *  por el mismo código que navega). */
+  source_url?: string;
   interactive_elements?: DiscoveryElement[];
   components?: string[];
   dom_verified?: boolean | null;
@@ -97,13 +103,11 @@ export function parseTestIdAttribute(configSource: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Pathname normalizado de un url_pattern (ruta relativa o URL absoluta). */
+/** Pathname normalizado de un url_pattern (relativo A LA BASE DE LA APP, o URL
+ *  absoluta). Resuelve vía app-url: `new URL('/x', base)` descartaría el context
+ *  path de la base (bug apps Java corporativas bajo subruta). */
 export function pathnameOf(pattern: string, base: string): string {
-  try {
-    return new URL(pattern, base).pathname.replace(/\/+$/, '') || '/';
-  } catch {
-    return pattern;
-  }
+  return appPathname(base, pattern);
 }
 
 export interface LoginForm {
@@ -207,7 +211,7 @@ export interface VerifySummary {
 
 async function bootstrapSession(page: Page, form: LoginForm, creds: Credentials, screens: DiscoveryScreen[], baseUrl: string): Promise<void> {
   const loginScreen = screens.find((s) => s.name === form.screen);
-  await page.goto(new URL(loginScreen?.url_pattern ?? '/', baseUrl).href, { waitUntil: 'load', timeout: 20000 });
+  await page.goto(resolveAppUrl(baseUrl, loginScreen?.url_pattern ?? '/'), { waitUntil: 'load', timeout: 20000 });
   await applyLocator(page, locatorSpecFor(form.user)).fill(creds.username, { timeout: 5000 });
   await applyLocator(page, locatorSpecFor(form.password)).fill(creds.password, { timeout: 5000 });
   await applyLocator(page, locatorSpecFor(form.submit)).click({ timeout: 5000 });
@@ -233,8 +237,11 @@ async function verifyDiscovery(
       continue;
     }
 
-    const target = new URL(screen.url_pattern, opts.baseUrl).href;
-    const expectedPath = pathnameOf(screen.url_pattern, opts.baseUrl);
+    const target = resolveAppUrl(opts.baseUrl, screen.url_pattern);
+    // Evidencia del walker (source_url) manda sobre el pattern recomputado: si el
+    // adapter y este script compartieran un mismo error de resolución, comparar
+    // pattern-contra-pattern lo taparía (falso reachable, como pasó con /login.do).
+    const expectedPath = pathnameOf(screen.source_url ?? screen.url_pattern, opts.baseUrl);
     let landedPath: string;
     try {
       await page.goto(target, { waitUntil: 'load', timeout: 20000 });
@@ -337,7 +344,7 @@ async function main(): Promise<void> {
   selectors.setTestIdAttribute(testIdAttribute);
 
   const report = JSON.parse(readFileSync(reportAbs, 'utf8'));
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, proxy: proxyFromEnv() });
   let bootstrap: VerifySummary['session_bootstrap'] = 'none';
   try {
     const page = await browser.newPage();

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "site_id": "onesait",
+  "entry": "/",
+  "flows": [
+    {
+      "flow": "descubrimiento",
+      "steps": [
+        { "id": "s1", "action": "capture" }
+      ]
+    }
+  ]
+}

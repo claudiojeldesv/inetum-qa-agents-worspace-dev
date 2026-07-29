@@ -41,7 +41,17 @@ describe('pom-scaffolder scaffoldPage', () => {
       url_pattern: 'https://www.saucedemo.com/',
     });
     expect(result.content).toContain('async goto()');
-    expect(result.content).toContain("page.goto('https://www.saucedemo.com/')");
+    // con BasePage delega en super.goto: resuelve contra la base de la app
+    // (context path incluido), no contra el origen
+    expect(result.content).toContain("super.goto('https://www.saucedemo.com/')");
+  });
+
+  it('goto() without BasePage keeps the direct page.goto', () => {
+    const result = scaffoldPage(
+      { name: 'login', url_pattern: '/login.do' },
+      { basePage: false },
+    );
+    expect(result.content).toContain("page.goto('/login.do')");
   });
 
   it('leaves a TODO when url_pattern is missing', () => {

@@ -1,0 +1,69 @@
+# Style Contract — onesait (prueba Fase B sobre app propia)
+# Schema docs: docs/references/style-contract-schema.md
+
+version: 1
+project: onesait
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByRole        # app corporativa: sin data-testid garantizado, el rol accesible manda
+    - getByLabel
+    - getByTestId
+    - getByText
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  language: es
+  spec_pattern: '{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+# El flavor lean no usa tc-registry (ver cabecera de copilot/src/lean-run.ts)
+tc_registry:
+  enabled: false
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false   # gate off por defecto (regla #10)
+  severity_threshold:
+    - serious
+    - critical
+
+evidence:
+  level: full
+  screenshots: on
+
+# SIN credenciales aquí. Para una app corporativa la sesión entra por QA_STORAGE_STATE
+# (ver copilot/src/dom-walker.ts:714) — nada de secretos en un YAML del repo.
+synthetic_fixtures:
+  credentials: []
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath
