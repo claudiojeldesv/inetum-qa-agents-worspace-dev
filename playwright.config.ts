@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { proxyFromEnv } from './src/proxy-env.ts';
+
 // auth-handler (v0.2 Fase C): cuando el contract tiene auth.enabled, el command
 // autonomous setea QA_STORAGE_STATE con la ruta del storageState. Eso activa un setup
 // project que loguea una vez y un dependency que garantiza el orden bajo fullyParallel
@@ -49,6 +51,9 @@ export default defineConfig({
     // desde evidence.screenshots del contract. Sin la var → solo en fallo (comportamiento previo).
     screenshot: (process.env.QA_SCREENSHOT as 'on' | 'off' | 'only-on-failure') || 'only-on-failure',
     testIdAttribute: 'data-test',
+    // Proxy corporativo opt-in por entorno (HTTPS_PROXY/HTTP_PROXY + NO_PROXY para
+    // hosts internos que van directo). Sin variables → undefined, sin cambio.
+    proxy: proxyFromEnv(),
   },
   projects: [
     // El setup project solo existe cuando hay auth activa. testMatch aísla los *.setup.ts.

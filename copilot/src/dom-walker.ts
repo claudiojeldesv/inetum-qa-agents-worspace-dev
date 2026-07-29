@@ -27,6 +27,7 @@ import { parseArgs } from 'node:util';
 import { parse as parseYaml } from 'yaml';
 import { chromium, type BrowserContext, type Frame, type Locator, type Page } from '@playwright/test';
 import { appendAuditEntry } from '../../src/audit-log.ts';
+import { proxyFromEnv } from '../../src/proxy-env.ts';
 import {
   buildLocatorCandidates,
   dedupeAndPrune,
@@ -567,7 +568,7 @@ class DomWalker {
   // ----------------------------------------------------------------- run
 
   async run(): Promise<DomMap> {
-    const browser = await chromium.launch({ headless: !this.opts.headed });
+    const browser = await chromium.launch({ headless: !this.opts.headed, proxy: proxyFromEnv() });
     // prioridad de sesión: checkpoint propio (reanudación) > QA_STORAGE_STATE (auth-handler Fase C)
     const sessionCheckpoint = resolve(this.opts.workDir, 'walk-session.json');
     const storageState =
