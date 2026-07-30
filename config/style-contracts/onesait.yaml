@@ -50,10 +50,13 @@ evidence:
   level: full
   screenshots: on
 
-# SIN credenciales aquí. Para una app corporativa la sesión entra por QA_STORAGE_STATE
-# (ver copilot/src/dom-walker.ts:714) — nada de secretos en un YAML del repo.
+# SIN datos reales aquí. Copia este fichero a onesait.local.yaml (gitignored),
+# rellena credentials[0] (usuario en MAYÚSCULAS) y polizas[0].numero (póliza
+# vigente Mod437 de pre), y pasa --contract=config/style-contracts/onesait.local.yaml.
+# Credenciales corporativas y números de póliza reales NUNCA en el repo.
 synthetic_fixtures:
   credentials: []
+  polizas: []
   test_cards: []
   test_iban: []
 
