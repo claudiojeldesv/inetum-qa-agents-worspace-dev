@@ -9,10 +9,13 @@
  * SIN tc-registry, SIN a11y, SIN consolidación de reviews. Lo que queda es lo que
  * hace que el test quede bien construido y cuesta ~0 (Cubo B del plan).
  *
- *   prepare  — compliance (sin override) + walker + adapter + verify-locators + scaffold POM
- *   verify   — pre-review (informativo) + `npx playwright test` + run-summary
+ *   gate     — compliance pre-flight aislado (sin override), ANTES de gastar LLM
+ *   prepare  — compliance (repetido, $0) + walker + adapter + verify-locators + scaffold POM
+ *   verify   — pre-review (con MF-postcondition) + `npx playwright test` + run-summary
  *
- * Entre prepare y verify: (1) refiner LLM → cases.json ; (2) writer lean batch → specs.
+ * Orden del run (K0.8): gate → refiner LLM (cases.json + walk-script.json) →
+ * prepare (el walker ejecuta EL GUION DEL FD) → writer lean batch → verify.
+ * El guion sale del FD; el fixture del sitio queda como semilla/regresión.
  *
  * Exit: 0 ok · 2 block (compliance) · 1 error.
  */
@@ -75,9 +78,58 @@ function toPosix(p: string): string {
 // prepare
 // ---------------------------------------------------------------------------
 
+/**
+ * gate — compliance pre-flight AISLADO (K0.8). Corre ANTES del refiner: un target
+ * bloqueado no debe costar ni un token de LLM. `prepare` lo repite (defensa en
+ * profundidad, $0), y el hook PreToolUse es la tercera barrera. Sin override.
+ */
+function stageGate(values: Record<string, string | undefined>): number {
+  const ctx = ctxFrom(values);
+  if (!ctx.url) {
+    console.error('[lean-run] gate: falta --url');
+    return 1;
+  }
+  const v = runPreflight(ctx.url, values.config);
+  const verdict = { verdict: v.verdict, rule: v.rule ?? null, url: v.url, reason: v.reason ?? null };
+  mkdirSync(resolve(process.cwd(), '.work'), { recursive: true });
+  writeFileSync(
+    resolve(process.cwd(), '.work/compliance-verdict.json'),
+    JSON.stringify(verdict, null, 2) + '\n',
+    'utf8',
+  );
+  if (verdict.verdict === 'block') {
+    out({ stage: 'gate', compliance: verdict, next: 'abortar: target bloqueado por compliance (sin override)' });
+    return 2;
+  }
+  out({
+    stage: 'gate',
+    compliance: verdict,
+    site_id: ctx.site,
+    work_dir: ctx.workDir,
+    walk_script_expected: `${ctx.workDir}/walk-script.json`,
+    next: 'delegar en ia4d-spec-refiner-lean (cases.json + walk-script.json), luego lean-run prepare',
+  });
+  return 0;
+}
+
+/**
+ * Guion del walk: prioridad --walk explícito > walk-script.json del refiner
+ * (K0.8, el camino normal: el guion se deriva del FD) > fixture del sitio
+ * (semilla/regresión). La procedencia se reporta en `walk_source`.
+ */
+function resolveWalkScript(
+  values: Record<string, string | undefined>,
+  ctx: ReturnType<typeof ctxFrom>,
+): { walk: string; source: 'flag' | 'refiner' | 'fixture' } {
+  if (values.walk) return { walk: values.walk, source: 'flag' };
+  const fromRefiner = `${ctx.workDir}/walk-script.json`;
+  if (existsSync(resolve(process.cwd(), fromRefiner))) return { walk: fromRefiner, source: 'refiner' };
+  return { walk: `copilot/fixtures/${ctx.site}.lean.walk.json`, source: 'fixture' };
+}
+
 function stagePrepare(values: Record<string, string | undefined>): number {
   const ctx = ctxFrom(values);
-  const walk = values.walk ?? `copilot/fixtures/${ctx.site}.lean.walk.json`;
+  const { walk, source: walkSource } = resolveWalkScript(values, ctx);
   const logPath = resolve(process.cwd(), ctx.workDir, 'audit-log.json');
   if (!ctx.url) {
     console.error('[lean-run] prepare: falta --url');
@@ -161,17 +213,35 @@ function stagePrepare(values: Record<string, string | undefined>): number {
     logPath,
   );
 
+  // Drift FD↔aplicación: los expect_* del guion que el walker no observó (K0.2).
+  // No son fallos del walker — son hallazgos QA sobre el FD.
+  const domMapFull = JSON.parse(readFileSync(resolve(process.cwd(), domMapPath), 'utf8')) as {
+    open_questions?: Array<{ flow: string; step: string; action: string; reason: string }>;
+    screens?: Array<{ name: string; business_text?: Array<{ name?: string }> }>;
+  };
+  const drift = (domMapFull.open_questions ?? []).filter((q) => q.action?.startsWith('expect'));
+  const businessText = (domMapFull.screens ?? []).flatMap((s) =>
+    (s.business_text ?? []).map((b) => ({ screen: s.name, text: b.name })),
+  );
+
   out({
     stage: 'prepare',
     compliance: verdict,
     site_id: ctx.site,
     work_dir: ctx.workDir,
+    walk_script: toPosix(walk),
+    walk_source: walkSource,
     dom_map: toPosix(domMapPath),
     discovery_report: toPosix(discoveryPath),
     locator_verification: { session_bootstrap: locatorVerify.session_bootstrap, totals: locatorVerify.totals },
+    business_text: businessText,
+    fd_drift: drift,
     scaffold: scaffoldResult.files.map((f) => ({ className: f.className, path: toPosix(f.path) })),
     dirs: { specs: ctx.specsDir, pages: ctx.pagesDir, components: ctx.componentsDir },
-    next: 'touchpoint LLM #1 (refiner → cases.json) y #2 (writer lean batch → specs); luego verify.',
+    next:
+      drift.length > 0
+        ? `DRIFT FD↔app: ${drift.length} postcondición(es) del FD no observadas — repórtalo al QA antes de generar specs`
+        : 'touchpoint LLM #2 (writer lean batch → specs); luego verify.',
   });
   return 0;
 }
@@ -217,9 +287,12 @@ function stageVerify(values: Record<string, string | undefined>): number {
     return 1;
   }
 
-  // pre-review determinístico (informativo; el writer lean ya lo corrió shift-left)
+  // pre-review determinístico (informativo; el writer lean ya lo corrió shift-left).
+  // --discovery-report activa MF-postcondition (K0.7): exige assert sobre el texto
+  // de resultado que el walker observó, no solo N asserts funcionales.
   const pre = sh(
-    `npx --no-install tsx src/scripts/pre-review.ts ${ctx.specsDir} --style-contract=${ctx.contract} --out-dir=${ctx.workDir}/pre-review`,
+    `npx --no-install tsx src/scripts/pre-review.ts ${ctx.specsDir} --style-contract=${ctx.contract} ` +
+      `--discovery-report=${ctx.workDir}/discovery-report.json --out-dir=${ctx.workDir}/pre-review`,
   );
   let preJson: any = null;
   try {
@@ -324,6 +397,9 @@ function main(): void {
     allowPositionals: false,
   });
   switch (stage) {
+    case 'gate':
+      process.exit(stageGate(values));
+      break;
     case 'prepare':
       process.exit(stagePrepare(values));
       break;
@@ -331,7 +407,7 @@ function main(): void {
       process.exit(stageVerify(values));
       break;
     default:
-      console.error('[lean-run] uso: tsx copilot/src/lean-run.ts <prepare|verify> [--site --contract --url --walk --work-dir --specs-dir]');
+      console.error('[lean-run] uso: tsx copilot/src/lean-run.ts <gate|prepare|verify> [--site --contract --url --walk --work-dir --specs-dir]');
       process.exit(1);
   }
 }

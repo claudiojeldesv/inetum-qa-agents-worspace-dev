@@ -21,6 +21,10 @@ export interface InteractiveElement {
   label?: string;
   verified?: boolean | null;          // anotado por verify-locators (Q2.1): true = resuelve único contra el DOM real
   verify_reason?: string;             // 'not-found' | 'ambiguous(n)' | ... cuando verified !== true
+  /** Cadena de iframes hasta el frame del elemento (K0.4). El locator se emite
+   *  encadenando page.frameLocator(...) — sin esto el POM apunta al top frame
+   *  y el locator de un form embebido (p.ej. pago) no resuelve jamás. */
+  frame_path?: string[];
 }
 
 export interface DiscoveryScreen {
@@ -82,16 +86,24 @@ function componentsImportBase(options: ScaffoldOptions): string {
 }
 
 function renderLocator(el: InteractiveElement): string {
+  // K0.4: elemento dentro de iframes → encadenar frameLocator por segmento
+  const scope = el.frame_path?.length
+    ? 'this.page' + el.frame_path.map((s) => `.frameLocator('${s.replace(/'/g, "\\'")}')`).join('')
+    : 'this.page';
   if (el.test_id) {
-    return `this.page.getByTestId('${el.test_id}')`;
+    return `${scope}.getByTestId('${el.test_id}')`;
+  }
+  // business_text de expect_text (K0.2): texto plano sin rol ARIA
+  if (el.role === 'text' && el.name) {
+    return `${scope}.getByText('${el.name.replace(/'/g, "\\'")}')`;
   }
   if (el.role && el.name) {
-    return `this.page.getByRole('${el.role}', { name: '${el.name.replace(/'/g, "\\'")}' })`;
+    return `${scope}.getByRole('${el.role}', { name: '${el.name.replace(/'/g, "\\'")}' })`;
   }
   if (el.label) {
-    return `this.page.getByLabel('${el.label.replace(/'/g, "\\'")}')`;
+    return `${scope}.getByLabel('${el.label.replace(/'/g, "\\'")}')`;
   }
-  return `this.page.getByRole('${el.role ?? 'generic'}') /* TODO writer: refine */`;
+  return `${scope}.getByRole('${el.role ?? 'generic'}') /* TODO writer: refine */`;
 }
 
 /**

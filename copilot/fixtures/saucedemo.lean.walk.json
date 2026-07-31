@@ -27,7 +27,7 @@
         { "id": "s10", "action": "fill", "hint": { "role": "textbox", "name": "Zip/Postal Code" }, "value": "$fixtures.buyer_info[0].postalCode" },
         { "id": "s11", "action": "click", "hint": { "role": "button", "name": "Continue" }, "expect_transition": true, "screen": "checkout-resumen" },
         { "id": "s12", "action": "click", "hint": { "role": "button", "name": "Finish" }, "expect_transition": true, "screen": "checkout-completado" },
-        { "id": "s13", "action": "wait_text", "value": "Thank you for your order!" }
+        { "id": "s13", "action": "expect_text", "value": "Thank you for your order!" }
       ]
     }
   ]

@@ -70,11 +70,14 @@ export type LocatorSpec =
   | { kind: 'testId'; testId: string }
   | { kind: 'roleName'; role: string; name: string }
   | { kind: 'label'; label: string }
+  | { kind: 'text'; text: string }
   | { kind: 'role'; role: string };
 
-/** Misma prioridad que renderLocator del pom-scaffolder: test_id → role+name → label → role. */
+/** Misma prioridad que renderLocator del pom-scaffolder: test_id → role+name → label → role.
+ *  role 'text' (business_text de expect_text, K0.2): texto plano sin rol ARIA → getByText. */
 export function locatorSpecFor(el: DiscoveryElement): LocatorSpec {
   if (el.test_id) return { kind: 'testId', testId: el.test_id };
+  if (el.role === 'text' && el.name) return { kind: 'text', text: el.name };
   if (el.role && el.name) return { kind: 'roleName', role: el.role, name: el.name };
   if (el.label) return { kind: 'label', label: el.label };
   return { kind: 'role', role: el.role ?? 'generic' };
@@ -88,6 +91,8 @@ function applyLocator(page: Page, spec: LocatorSpec) {
       return page.getByRole(spec.role as never, { name: spec.name });
     case 'label':
       return page.getByLabel(spec.label);
+    case 'text':
+      return page.getByText(spec.text);
     case 'role':
       return page.getByRole(spec.role as never);
   }

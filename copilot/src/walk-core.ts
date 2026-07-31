@@ -43,13 +43,51 @@ export function resolveFixtureRef(value: string, fixtures: Record<string, unknow
   return String(cursor);
 }
 
+// ------------------------------------------------------------ normalizador
+
+/**
+ * Normalización determinística para comparar textos FD↔DOM (K0.1): acentos
+ * fuera (NFD + strip de combinantes), lowercase, espacios plegados. Mata la
+ * clase GESTIÓN-con-tilde sin tokens. NO se aplica a test_ids (atributos exactos).
+ */
+export function normalizeText(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Variantes con/sin diacrítico por letra base — cubre es/pt/fr/ca corporativo. */
+const ACCENT_CLASS: Record<string, string> = {
+  a: '[aáàäâã]', e: '[eéèëê]', i: '[iíìïî]', o: '[oóòöôõ]', u: '[uúùüû]',
+  n: '[nñ]', c: '[cç]', y: '[yý]',
+};
+
+/**
+ * Patrón regex accent-insensitive desde un texto ya normalizado: cada letra
+ * base acepta sus variantes acentuadas, espacios = \s+. Con flag 'i' matchea
+ * "GESTIÓN" desde el hint "gestion" y viceversa. Determinístico y testeable.
+ */
+export function accentInsensitivePattern(text: string): string {
+  const normalized = normalizeText(text);
+  let out = '';
+  for (const ch of normalized) {
+    if (ACCENT_CLASS[ch]) out += ACCENT_CLASS[ch];
+    else if (ch === ' ') out += '\\s+';
+    else out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return out;
+}
+
 // ---------------------------------------------------------- locator plans
 
 export type LocatorAttempt =
   | { kind: 'test_id'; value: string }
-  | { kind: 'role'; role: string; name?: string }
-  | { kind: 'label'; value: string }
-  | { kind: 'text'; value: string };
+  | { kind: 'role'; role: string; name?: string; normalized?: boolean }
+  | { kind: 'label'; value: string; normalized?: boolean }
+  | { kind: 'text'; value: string; normalized?: boolean };
 
 const PRIORITY_TO_KIND: Record<string, LocatorAttempt['kind']> = {
   getByTestId: 'test_id',
@@ -75,18 +113,36 @@ export function hintLocatorPlan(hint: StepHint, priority: string[]): LocatorAtte
   return attempts;
 }
 
+/**
+ * Segunda pasada de la escalera (K0.1): mismo plan con matching normalizado
+ * (regex accent-insensitive). test_id queda fuera — es atributo exacto.
+ */
+export function normalizedPlan(attempts: LocatorAttempt[]): LocatorAttempt[] {
+  const out: LocatorAttempt[] = [];
+  for (const a of attempts) {
+    if (a.kind === 'test_id') continue;
+    if (a.kind === 'role' && !a.name) continue; // sin name no hay texto que normalizar
+    out.push({ ...a, normalized: true });
+  }
+  return out;
+}
+
 /** Representación textual de un intento (para dom-map, transitions y audit). */
 export function locatorSource(a: LocatorAttempt): string {
+  const norm = (v: string) => `/${accentInsensitivePattern(v)}/i`;
   switch (a.kind) {
     case 'test_id':
       return `getByTestId('${a.value}')`;
     case 'role':
+      if (a.normalized && a.name) return `getByRole('${a.role}', { name: ${norm(a.name)} })`;
       return a.name
         ? `getByRole('${a.role}', { name: '${a.name.replace(/'/g, "\\'")}' })`
         : `getByRole('${a.role}')`;
     case 'label':
+      if (a.normalized) return `getByLabel(${norm(a.value)})`;
       return `getByLabel('${a.value.replace(/'/g, "\\'")}')`;
     case 'text':
+      if (a.normalized) return `getByText(${norm(a.value)})`;
       return `getByText('${a.value.replace(/'/g, "\\'")}')`;
   }
 }
@@ -188,7 +244,26 @@ export function slugFromUrl(url: string): string {
   }
 }
 
+// ----------------------------------------------------------------- aliases
+
+/**
+ * Clave estable de un hint para hint-aliases.json (K0.5): campos normalizados,
+ * orden fijo. Dos hints que solo difieren en acentos/case/espacios comparten
+ * alias. test_id se incluye sin normalizar (atributo exacto).
+ */
+export function aliasKey(hint: StepHint): string {
+  return [
+    hint.test_id ?? '',
+    hint.role ? normalizeText(hint.role) : '',
+    hint.name ? normalizeText(hint.name) : '',
+    hint.label ? normalizeText(hint.label) : '',
+    hint.text ? normalizeText(hint.text) : '',
+  ].join('|');
+}
+
 // ------------------------------------------------------------- validación
+
+const EXPECT_STATES = new Set(['visible', 'enabled', 'disabled', 'checked', 'unchecked']);
 
 export function validateWalkScript(script: unknown): { ok: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -198,8 +273,8 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
   if (!s.site_id) errors.push('site_id requerido');
   if (!s.entry) errors.push('entry requerido');
   if (!Array.isArray(s.flows) || s.flows.length === 0) errors.push('flows[] requerido y no vacío');
-  const NEEDS_HINT: WalkStep['action'][] = ['fill', 'click', 'select', 'check', 'uncheck'];
-  const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text'];
+  const NEEDS_HINT: WalkStep['action'][] = ['fill', 'click', 'select', 'check', 'uncheck', 'expect_state'];
+  const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state'];
   for (const flow of s.flows ?? []) {
     if (!flow.flow) errors.push('flow sin id');
     const seen = new Set<string>();
@@ -212,6 +287,8 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
       if (NEEDS_VALUE.includes(step.action) && step.value === undefined) errors.push(`${at}: '${step.action}' requiere value`);
       if (step.action === 'goto' && !step.target) errors.push(`${at}: 'goto' requiere target`);
       if (step.action === 'wait_url' && !step.target) errors.push(`${at}: 'wait_url' requiere target`);
+      if (step.action === 'expect_state' && step.value !== undefined && !EXPECT_STATES.has(step.value))
+        errors.push(`${at}: 'expect_state' requiere value ∈ {visible|enabled|disabled|checked|unchecked}`);
     }
     if (!flow.steps?.length) errors.push(`${flow.flow}: flujo sin pasos`);
   }

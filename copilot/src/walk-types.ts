@@ -25,16 +25,19 @@ export interface StepHint {
 }
 
 export type WalkAction =
-  | 'goto'        // target = path o URL absoluta
-  | 'fill'        // hint + value (soporta refs $fixtures.*)
+  | 'goto'          // target = path o URL absoluta
+  | 'fill'          // hint + value (soporta refs $fixtures.*)
   | 'click'
-  | 'select'      // hint + value (option label o value)
+  | 'select'        // hint + value (option label o value)
   | 'check'
   | 'uncheck'
-  | 'press'       // value = tecla ('Enter', 'Tab', ...)
-  | 'wait_url'    // target = substring/regex-source de URL esperada
-  | 'wait_text'   // value = texto visible esperado
-  | 'capture';    // captura explícita de pantalla sin acción
+  | 'press'         // value = tecla ('Enter', 'Tab', ...)
+  | 'wait_url'      // target = substring/regex-source de URL esperada
+  | 'wait_text'     // value = texto visible esperado
+  | 'expect_text'   // POSTCONDICIÓN del FD: value = texto de negocio. Fallo → drift (open_question);
+                    // éxito → el texto se registra como business_text de la pantalla con locator
+  | 'expect_state'  // POSTCONDICIÓN del FD: hint + value ∈ visible|enabled|disabled|checked|unchecked
+  | 'capture';      // captura explícita de pantalla sin acción
 
 export interface WalkStep {
   id: string;                    // único dentro del flujo, p.ej. 's3'
@@ -92,6 +95,12 @@ export interface DomScreen {
   elements: DomElement[];
   forms: DomForm[];
   landmarks: DomElement[];       // nav/main/banner/contentinfo/search
+  /**
+   * Textos de resultado NO interactivos (headings, role=alert/status): las
+   * postconditions de negocio que el Writer necesita asertar y que la captura
+   * de interactivos no ve (gap semántico clase checkout, Fase A). K0.3.
+   */
+  business_text?: DomElement[];
   /** Elementos descartados por el cap por pantalla (transparencia de poda). */
   truncated?: number;
   dialogs?: string[];            // mensajes de diálogos nativos aparecidos
@@ -184,6 +193,24 @@ export interface WalkState {
   rescues: RescueRecord[];
   current_screen: string | null;
   testid_attr?: string;          // autodetección estable entre reanudaciones
+}
+
+/**
+ * Aliases de hints (K0.5): memoria de instancias del cliente. Un rescate pagado
+ * (y con postcondición cumplida) se promueve aquí y no se vuelve a pagar nunca.
+ * Fichero durable `config/hint-aliases/<site_id>.json` — semilla del client pack,
+ * versionable y revisable por PR. La clave es el hint normalizado (aliasKey).
+ */
+export interface HintAlias {
+  locator: string;               // grammar de locatorFromSource (getBy* | css=)
+  hint: StepHint;                // hint original que falló (documentación)
+  origin: { flow: string; step: string; date: string };
+}
+
+export interface HintAliasFile {
+  version: 1;
+  site_id: string;
+  aliases: Record<string, HintAlias>;
 }
 
 /** Exit codes del CLI: el runner/orquestador distingue rescate de error. */

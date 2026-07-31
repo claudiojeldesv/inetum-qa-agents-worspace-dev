@@ -14,7 +14,10 @@
  * should-fix contextuales) sigue siendo del ia4d-reviewer per-spec. El "Reviewer de lote" que
  * habría consumido este output fue DESCARTADO por A/B en la Fase 3 (ver token-efficiency-plan.md).
  *
- * Uso:  tsx src/scripts/pre-review.ts <spec.ts|dir>... [--style-contract=<path>] [--out-dir=<dir>]
+ * Uso:  tsx src/scripts/pre-review.ts <spec.ts|dir>... [--style-contract=<path>]
+ *       [--discovery-report=<path>] [--out-dir=<dir>]
+ *       (--discovery-report activa MF-postcondition, K0.7: exige assert sobre el
+ *        texto de resultado que el walker observó — sin él, el check no aplica)
  * Output: un JSON por spec en <out-dir>/<basename>.json (default: $QA_WORK_DIR/pre-review/ o
  * .work/pre-review/) + resumen JSON por stdout. Exit 0 siempre (informa, no bloquea).
  */
@@ -59,6 +62,72 @@ export interface PreReviewResult {
   must_fix: number;
   should_fix: number;
   clean: boolean;
+}
+
+/**
+ * Postcondiciones de negocio observadas por el walker (K0.7): textos de resultado
+ * no interactivos que el dom-map capturó como `business_text` y el adapter propagó
+ * al discovery (role 'text' o 'heading'/'alert'/'status'). Son la evidencia contra
+ * la que se mide si el spec asserta el RESULTADO o solo el mueble de la pantalla.
+ */
+export interface BusinessPostcondition {
+  screen: string;
+  text: string;
+  test_id?: string;
+}
+
+const BUSINESS_ROLES = new Set(['text', 'heading', 'alert', 'status']);
+
+/**
+ * Extrae las postcondiciones de negocio de un discovery-report. Solo cuenta las
+ * VERIFICADAS contra el DOM real (verify-locators): exigir un assert sobre un
+ * texto que no resuelve sería pedirle al Writer que invente.
+ */
+export function loadBusinessPostconditions(discoveryPath?: string): BusinessPostcondition[] {
+  if (!discoveryPath) return [];
+  const path = resolve(process.cwd(), discoveryPath);
+  if (!existsSync(path)) return [];
+  let parsed: Record<string, any> | null = null;
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8')) as Record<string, any>;
+  } catch {
+    return []; // discovery ilegible: el check no aplica (no inventamos exigencias)
+  }
+  const out: BusinessPostcondition[] = [];
+  for (const screen of parsed?.screens ?? []) {
+    for (const el of screen.interactive_elements ?? []) {
+      if (!BUSINESS_ROLES.has(el.role) || !el.name) continue;
+      if (el.verified === false) continue;
+      out.push({ screen: screen.name, text: el.name, ...(el.test_id ? { test_id: el.test_id } : {}) });
+    }
+  }
+  return out;
+}
+
+/** Normalización laxa para comparar el texto del discovery con el del spec. */
+function laxText(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * ¿El spec asserta alguna de las postcondiciones de negocio disponibles?
+ * Cuenta como assert válido tanto el texto literal (getByText / toContainText /
+ * toHaveText) como el test_id del elemento que lo porta (el locator más fuerte
+ * del mismo hecho: `getByTestId('complete-header')` ES la confirmación).
+ */
+export function assertsSomePostcondition(source: string, posts: BusinessPostcondition[]): boolean {
+  const haystack = laxText(source);
+  const rawSource = source;
+  return posts.some((p) => {
+    if (p.test_id && rawSource.includes(p.test_id)) return true;
+    const needle = laxText(p.text);
+    return needle.length > 0 && haystack.includes(needle);
+  });
 }
 
 export function loadPreReviewContract(contractPath?: string): PreReviewContract {
@@ -112,6 +181,7 @@ export function preReviewSpec(
   filePath: string,
   contract: PreReviewContract,
   a11yContractPath?: string,
+  postconditions: BusinessPostcondition[] = [],
 ): PreReviewResult {
   const file = filePath.replace(/\\/g, '/');
   const source = readFileSync(filePath, 'utf8');
@@ -226,6 +296,34 @@ export function preReviewSpec(
     }
   }
 
+  /**
+   * MF-postcondition (K0.7) — el hueco que MF-9 no cubre: MF-9 cuenta CANTIDAD de
+   * asserts funcionales; esto mide su FUERZA SEMÁNTICA. Si el walker observó un
+   * texto de resultado de negocio (business_text verificado) y el spec no asserta
+   * sobre ninguno, el test cierra sobre el mueble de la pantalla (clase medida dos
+   * veces en Fase A: `backToProducts` visible en vez de "Thank you for your
+   * order!"). Pasa verde y no verifica el resultado. Con la evidencia disponible
+   * en el discovery, no asertarla es un must-fix, no una preferencia.
+   */
+  if (contract.require_business_postcondition && postconditions.length > 0) {
+    if (!assertsSomePostcondition(source, postconditions)) {
+      const sample = postconditions
+        .slice(0, 3)
+        .map((p) => `"${p.text}"${p.test_id ? ` (${p.test_id})` : ''}`)
+        .join(', ');
+      add({
+        criterion_id: 'MF-postcondition',
+        category: 'assert-quality',
+        severity: 'must-fix',
+        location: { line: 1 },
+        description:
+          `ningún assert sobre la postcondición de negocio observada por el walker — ` +
+          `disponibles y verificadas: ${sample}${postconditions.length > 3 ? ` (+${postconditions.length - 3})` : ''}. ` +
+          `Asertar estado/chrome en vez del resultado deja el test verde sin verificar el negocio`,
+      });
+    }
+  }
+
   // Should-fix — naturaleza en el título/describe (la naturaleza vive solo en el tag @negative)
   for (const m of source.matchAll(TITLE_CALL)) {
     const title = m[2];
@@ -267,14 +365,21 @@ function main(): void {
   const args = process.argv.slice(2);
   const contractPath = args.find((a) => a.startsWith('--style-contract='))?.slice('--style-contract='.length);
   const outDirArg = args.find((a) => a.startsWith('--out-dir='))?.slice('--out-dir='.length);
+  const discoveryArg = args
+    .find((a) => a.startsWith('--discovery-report='))
+    ?.slice('--discovery-report='.length);
   const targets = args.filter((a) => !a.startsWith('--'));
 
   if (targets.length === 0) {
-    console.error('[pre-review] uso: tsx src/scripts/pre-review.ts <spec.ts|dir>... [--style-contract=<path>] [--out-dir=<dir>]');
+    console.error(
+      '[pre-review] uso: tsx src/scripts/pre-review.ts <spec.ts|dir>... [--style-contract=<path>] [--discovery-report=<path>] [--out-dir=<dir>]',
+    );
     process.exit(1);
   }
 
   const contract = loadPreReviewContract(contractPath);
+  // K0.7: sin discovery el check MF-postcondition no aplica (no se inventan exigencias)
+  const postconditions = loadBusinessPostconditions(discoveryArg);
   const specs = collectSpecs(targets);
   if (specs.length === 0) {
     console.error(`[pre-review] no se encontraron specs en: ${targets.join(', ')}`);
@@ -284,7 +389,7 @@ function main(): void {
   const outDir = resolve(process.cwd(), outDirArg || join(process.env.QA_WORK_DIR || '.work', 'pre-review'));
   mkdirSync(outDir, { recursive: true });
 
-  const results = specs.map((s) => preReviewSpec(s, contract, contractPath));
+  const results = specs.map((s) => preReviewSpec(s, contract, contractPath, postconditions));
   for (const r of results) {
     if (r.skipped) continue;
     writeFileSync(join(outDir, `${basename(r.test_file)}.json`), JSON.stringify(r, null, 2), 'utf8');

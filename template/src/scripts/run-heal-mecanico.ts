@@ -351,9 +351,11 @@ function stageVerify(flags: Record<string, string | undefined>): number {
   }
   const outcomes = parsePlaywrightResults(results).filter((o) => o.project !== 'setup');
 
-  // 2 — pre-review determinístico post-heal
+  // 2 — pre-review determinístico post-heal (con MF-postcondition si hay discovery:
+  // sanar no puede degradar el assert de negocio a chrome)
   const pre = runChild(
-    `npx --no-install tsx src/scripts/pre-review.ts ${toPosix(specsDir)}${styleFlag} --out-dir=${ctx.workDir}/healing/pre-review`,
+    `npx --no-install tsx src/scripts/pre-review.ts ${toPosix(specsDir)}${styleFlag} ` +
+      `--discovery-report=${ctx.workDir}/discovery-report.json --out-dir=${ctx.workDir}/healing/pre-review`,
     ctx,
   );
   let preJson: any = null;

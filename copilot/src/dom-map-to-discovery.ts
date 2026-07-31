@@ -28,6 +28,8 @@ interface DiscoveryElement {
   name?: string;
   test_id?: string;
   label?: string;
+  /** Cadena de iframes hasta el frame del elemento (K0.4) — el scaffolder emite frameLocator. */
+  frame_path?: string[];
 }
 
 interface DiscoveryScreen {
@@ -78,6 +80,7 @@ function toDiscoveryElement(el: DomElement): DiscoveryElement {
   if (el.name !== undefined) out.name = el.name;
   if (el.test_id !== undefined) out.test_id = el.test_id;
   if (el.label !== undefined) out.label = el.label;
+  if (el.frame_path?.length) out.frame_path = el.frame_path;
   return out;
 }
 
@@ -88,7 +91,11 @@ function toDiscoveryElement(el: DomElement): DiscoveryElement {
  * porque el scaffolder/verify-locators esperan el fragmento.
  */
 function toDiscoveryScreen(screen: DomScreen, baseUrl: string): DiscoveryScreen {
-  const elements = [...screen.elements, ...screen.landmarks].map(toDiscoveryElement);
+  // business_text al final (K0.3): postcondiciones de negocio — verify-locators
+  // las verifica igual que al resto y el Writer las usa para el assert de cierre.
+  const elements = [...screen.elements, ...screen.landmarks, ...(screen.business_text ?? [])].map(
+    toDiscoveryElement,
+  );
   // dedupe estable por (role|test_id|name) — el walker ya dedupó por pantalla,
   // pero al unir landmarks puede reaparecer el footer; mantener orden.
   const seen = new Set<string>();

@@ -29,12 +29,15 @@ import { chromium, type BrowserContext, type Frame, type Locator, type Page } fr
 import { appendAuditEntry } from '../../src/audit-log.ts';
 import { proxyFromEnv } from '../../src/proxy-env.ts';
 import {
+  accentInsensitivePattern,
+  aliasKey,
   buildLocatorCandidates,
   dedupeAndPrune,
   hashScript,
   hintLocatorPlan,
   isLandmarkRole,
   locatorSource,
+  normalizedPlan,
   pruneAriaSnapshot,
   resolveFixtureRef,
   slugFromUrl,
@@ -49,6 +52,7 @@ import {
   type DomForm,
   type DomMap,
   type DomScreen,
+  type HintAliasFile,
   type RescueRequest,
   type RescueResponse,
   type WalkFlow,
@@ -73,6 +77,8 @@ interface WalkerOptions {
   screenCap: number;
   headed: boolean;
   storageState?: string;
+  /** hint-aliases durable del sitio (K0.5). Default: config/hint-aliases/<site_id>.json */
+  aliasesPath?: string;
 }
 
 interface StyleContract {
@@ -91,6 +97,10 @@ interface RawElement {
   disabled?: boolean;
   landmark?: boolean;
   formIndex?: number;
+  /** Texto de resultado no interactivo (heading/alert/status) — K0.3. */
+  business?: boolean;
+  /** El elemento vive dentro de un role=dialog abierto — K0.3 (sub-pantalla). */
+  inDialog?: boolean;
 }
 
 /** Corre DENTRO del frame. Aproximación determinística de rol + accessible name. */
@@ -98,7 +108,8 @@ function captureScript(testidAttrs: string[]): string {
   // Serializado como string para frame.evaluate — sin closures externas.
   return `(() => {
     const ATTRS = ${JSON.stringify(testidAttrs)};
-    const ROLE_BY_TAG = { a: 'link', button: 'button', select: 'combobox', textarea: 'textbox', nav: 'navigation', main: 'main', header: 'banner', footer: 'contentinfo', form: 'form', dialog: 'dialog', summary: 'button' };
+    const ROLE_BY_TAG = { a: 'link', button: 'button', select: 'combobox', textarea: 'textbox', nav: 'navigation', main: 'main', header: 'banner', footer: 'contentinfo', form: 'form', dialog: 'dialog', summary: 'button', h1: 'heading', h2: 'heading', h3: 'heading' };
+    const BUSINESS_ROLES = ['heading', 'alert', 'status'];
     const INPUT_ROLE = { checkbox: 'checkbox', radio: 'radio', submit: 'button', button: 'button', reset: 'button', search: 'searchbox', number: 'spinbutton', range: 'slider' };
     const clean = (s) => (s || '').replace(/\\s+/g, ' ').trim().slice(0, 80);
     const NO_TEXT_NAME = ['select', 'textarea', 'nav', 'main', 'header', 'footer', 'form', 'dialog'];
@@ -133,7 +144,7 @@ function captureScript(testidAttrs: string[]): string {
       return ROLE_BY_TAG[tag] || 'generic';
     };
     const forms = Array.from(document.querySelectorAll('form'));
-    const sel = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], nav, main, header, footer, form';
+    const sel = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], nav, main, header, footer, form, h1, h2, h3';
     const out = [];
     for (const el of document.querySelectorAll(sel)) {
       if (!isVisible(el)) continue;
@@ -143,11 +154,19 @@ function captureScript(testidAttrs: string[]): string {
       for (const a of ATTRS) { const v = el.getAttribute(a); if (v) { test_id = v; test_attr = a; break; } }
       const landmark = ['navigation', 'banner', 'main', 'contentinfo', 'search', 'form', 'region'].includes(role);
       const item = { role, landmark };
-      const nm = nameOf(el); if (nm) item.name = nm;
+      // K0.3: headings/alerts/status = postcondiciones de negocio (texto no interactivo)
+      if (BUSINESS_ROLES.includes(role)) {
+        const txt = clean(el.textContent);
+        if (!txt) continue;
+        item.business = true;
+        item.name = txt;
+      }
+      const nm = item.name || nameOf(el); if (nm) item.name = nm;
       if (test_id) { item.test_id = test_id; item.test_attr = test_attr; }
       const lab = labelOf(el); if (lab && lab !== nm) item.label = lab;
       if (el.disabled === true) item.disabled = true;
       const f = el.closest('form'); if (f) item.formIndex = forms.indexOf(f);
+      if (el.closest('[role=dialog], dialog[open]')) item.inDialog = true;
       out.push(item);
     }
     return out;
@@ -189,6 +208,8 @@ class DomWalker {
   private context!: BrowserContext;
   private testidAttr: string | undefined;
   private lastDialogs: string[] = [];
+  private aliases: HintAliasFile;
+  private readonly aliasesPath: string;
 
   constructor(opts: WalkerOptions, script: WalkScript, contract: StyleContract, state: WalkState) {
     this.opts = opts;
@@ -198,6 +219,31 @@ class DomWalker {
     this.auditPath = resolve(opts.workDir, 'audit-log.json');
     this.state = state;
     this.testidAttr = opts.testidAttr ?? state.testid_attr;
+    this.aliasesPath = resolve(opts.aliasesPath ?? `config/hint-aliases/${script.site_id}.json`);
+    this.aliases = this.loadAliases();
+  }
+
+  /** hint-aliases durable (K0.5): memoria de instancias del cliente. Ausente o corrupto → vacío. */
+  private loadAliases(): HintAliasFile {
+    try {
+      if (existsSync(this.aliasesPath)) {
+        const parsed = JSON.parse(readFileSync(this.aliasesPath, 'utf8')) as HintAliasFile;
+        if (parsed.version === 1 && parsed.aliases) return parsed;
+      }
+    } catch {
+      console.error(`[dom-walker] hint-aliases ilegible (${this.aliasesPath}) — se ignora`);
+    }
+    return { version: 1, site_id: this.script.site_id, aliases: {} };
+  }
+
+  private saveAliases(): void {
+    const sorted: HintAliasFile = {
+      version: 1,
+      site_id: this.aliases.site_id,
+      aliases: Object.fromEntries(Object.entries(this.aliases.aliases).sort(([a], [b]) => (a < b ? -1 : 1))),
+    };
+    mkdirSync(resolve(this.aliasesPath, '..'), { recursive: true });
+    writeFileSync(this.aliasesPath, JSON.stringify(sorted, null, 2), 'utf8');
   }
 
   private baseUrl(): string {
@@ -236,56 +282,100 @@ class DomWalker {
   // ------------------------------------------------------- resolución hints
 
   private attemptToLocator(scope: Page | Frame, a: LocatorAttempt): Locator {
+    // K0.1: intento normalizado → matching por regex accent-insensitive
+    const val = (v: string): string | RegExp =>
+      'normalized' in a && a.normalized ? new RegExp(accentInsensitivePattern(v), 'i') : v;
     switch (a.kind) {
       case 'test_id': {
         const attr = this.testidAttr ?? 'data-testid';
         return scope.locator(`[${attr}="${a.value}"]`);
       }
       case 'role':
-        return scope.getByRole(a.role as Parameters<Page['getByRole']>[0], a.name ? { name: a.name } : undefined);
+        return scope.getByRole(a.role as Parameters<Page['getByRole']>[0], a.name ? { name: val(a.name) } : undefined);
       case 'label':
-        return scope.getByLabel(a.value);
+        return scope.getByLabel(val(a.value));
       case 'text':
-        return scope.getByText(a.value);
+        return scope.getByText(val(a.value));
     }
   }
 
-  /** Locator desde string de rescate: getBy*(...) o `css=<selector>` (escape hatch del rescate). */
+  /**
+   * Locator desde string: getBy*('...') literal, getBy*(/re/i) normalizado (K0.1),
+   * o `css=<selector>` (escape hatch del rescate). Grammar compartida por
+   * rescates, aliases y replay.
+   */
   private locatorFromSource(scope: Page | Frame, src: string): Locator | null {
     const css = src.match(/^css=(.+)$/);
     if (css) return scope.locator(css[1]);
     const testId = src.match(/^getByTestId\('([^']+)'\)$/);
     if (testId) return this.attemptToLocator(scope, { kind: 'test_id', value: testId[1] });
+    const roleRe = src.match(/^getByRole\('([^']+)',\s*\{\s*name:\s*\/(.+)\/i\s*\}\)$/);
+    if (roleRe) return scope.getByRole(roleRe[1] as Parameters<Page['getByRole']>[0], { name: new RegExp(roleRe[2], 'i') });
     const role = src.match(/^getByRole\('([^']+)'(?:,\s*\{\s*name:\s*'((?:[^'\\]|\\.)*)'\s*\})?\)$/);
     if (role) return this.attemptToLocator(scope, { kind: 'role', role: role[1], name: role[2]?.replace(/\\'/g, "'") });
+    const labelRe = src.match(/^getByLabel\(\/(.+)\/i\)$/);
+    if (labelRe) return scope.getByLabel(new RegExp(labelRe[1], 'i'));
     const label = src.match(/^getByLabel\('((?:[^'\\]|\\.)*)'\)$/);
     if (label) return this.attemptToLocator(scope, { kind: 'label', value: label[1].replace(/\\'/g, "'") });
+    const textRe = src.match(/^getByText\(\/(.+)\/i\)$/);
+    if (textRe) return scope.getByText(new RegExp(textRe[1], 'i'));
     const text = src.match(/^getByText\('((?:[^'\\]|\\.)*)'\)$/);
     if (text) return this.attemptToLocator(scope, { kind: 'text', value: text[1].replace(/\\'/g, "'") });
     return null;
   }
 
-  /**
-   * Resuelve un hint contra page + frames en el orden del contract.
-   * Devuelve el locator único visible o null (→ rescate / open_question).
-   */
-  private async resolveHint(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
-    const plan = hintLocatorPlan(step.hint ?? {}, this.priority);
-    const scopes: Array<{ scope: Page | Frame; path: string[] }> = [{ scope: this.page, path: [] }];
+  private async scopes(): Promise<Array<{ scope: Page | Frame; path: string[] }>> {
+    const out: Array<{ scope: Page | Frame; path: string[] }> = [{ scope: this.page, path: [] }];
     for (const f of this.page.frames()) {
       if (f === this.page.mainFrame()) continue;
-      scopes.push({ scope: f, path: await framePath(f) });
+      out.push({ scope: f, path: await framePath(f) });
     }
-    for (const attempt of plan) {
-      for (const { scope, path } of scopes) {
-        const loc = this.attemptToLocator(scope, attempt);
-        const count = await loc.count().catch(() => 0);
-        if (count === 1) return { locator: loc, via: locatorSource(attempt), frame_path: path };
-        if (count > 1) {
-          const visible = loc.filter({ visible: true });
-          const vcount = await visible.count().catch(() => 0);
-          if (vcount === 1) return { locator: visible, via: locatorSource(attempt), frame_path: path };
-          // ambiguo: NO adivinar con .first() — siguiente intento o rescate
+    return out;
+  }
+
+  /** Único visible o null. Nunca .first() sobre ambiguos (regla dura). */
+  private async uniqueOrNull(loc: Locator): Promise<Locator | null> {
+    const count = await loc.count().catch(() => 0);
+    if (count === 1) return loc;
+    if (count > 1) {
+      const visible = loc.filter({ visible: true });
+      if ((await visible.count().catch(() => 0)) === 1) return visible;
+    }
+    return null;
+  }
+
+  /**
+   * Escalera v2 (K0.1/K0.5): aliases del cliente → plan crudo del contract →
+   * plan normalizado (accent-insensitive). Devuelve el locator único visible o
+   * null (→ rescate / open_question). El walker nunca decide equivalencias:
+   * el alias viene de un rescate ya verificado; el normalizado es una función.
+   */
+  private async resolveHint(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+    const scopes = await this.scopes();
+
+    if (step.hint) {
+      const alias = this.aliases.aliases[aliasKey(step.hint)];
+      if (alias) {
+        for (const { scope, path } of scopes) {
+          const loc = this.locatorFromSource(scope, alias.locator);
+          if (!loc) break; // grammar ilegible: la escalera normal decide
+          const unique = await this.uniqueOrNull(loc);
+          if (unique) {
+            this.audit('allow', `alias-hit ${step.id}: ${alias.locator}`, { phase: 'alias' });
+            return { locator: unique, via: alias.locator, frame_path: path };
+          }
+        }
+        // el alias dejó de resolver (drift del DOM): sigue la escalera, no bloquea
+      }
+    }
+
+    const rawPlan = hintLocatorPlan(step.hint ?? {}, this.priority);
+    for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
+      for (const attempt of plan) {
+        for (const { scope, path } of scopes) {
+          const unique = await this.uniqueOrNull(this.attemptToLocator(scope, attempt));
+          if (unique) return { locator: unique, via: locatorSource(attempt), frame_path: path };
+          // ambiguo o ausente: siguiente intento — jamás adivinar
         }
       }
     }
@@ -368,6 +458,9 @@ class DomWalker {
 
     const all: DomElement[] = [];
     const landmarks: DomElement[] = [];
+    const business: DomElement[] = [];
+    const dialogEls: DomElement[] = [];
+    const dialogBusiness: DomElement[] = [];
     const formsAcc = new Map<string, DomForm>();
     for (const { raw, path } of rawByFrame) {
       for (const el of raw) {
@@ -381,6 +474,15 @@ class DomWalker {
           locator_candidates: [],
         };
         dom.locator_candidates = buildLocatorCandidates(dom, this.priority);
+        // K0.3: texto de negocio y contenido de diálogo van a sus propios cubos
+        if (el.business) {
+          (el.inDialog ? dialogBusiness : business).push(dom);
+          continue;
+        }
+        if (el.inDialog) {
+          dialogEls.push(dom);
+          continue;
+        }
         if (el.landmark || isLandmarkRole(el.role)) {
           if (el.role !== 'form') landmarks.push(dom);
         } else {
@@ -399,6 +501,7 @@ class DomWalker {
 
     const { elements, truncated } = dedupeAndPrune(all, this.opts.screenCap);
     const { elements: prunedLandmarks } = dedupeAndPrune(landmarks, 15);
+    const { elements: prunedBusiness } = dedupeAndPrune(business, 10);
 
     const screen: DomScreen = {
       name,
@@ -407,16 +510,36 @@ class DomWalker {
       elements,
       forms: [...formsAcc.values()],
       landmarks: prunedLandmarks,
+      ...(prunedBusiness.length ? { business_text: prunedBusiness } : {}),
       ...(truncated > 0 ? { truncated } : {}),
       ...(this.lastDialogs.length ? { dialogs: [...this.lastDialogs] } : {}),
     };
     this.lastDialogs = [];
 
-    const existing = this.state.screens.findIndex((s) => s.name === name);
-    if (existing >= 0) this.state.screens[existing] = screen;
-    else this.state.screens.push(screen);
+    this.upsertScreen(screen);
+
+    // K0.3: diálogo abierto = sub-pantalla propia — locators scoped, sin mezclar con el fondo
+    if (dialogEls.length || dialogBusiness.length) {
+      const { elements: dEls } = dedupeAndPrune(dialogEls, this.opts.screenCap);
+      const { elements: dBiz } = dedupeAndPrune(dialogBusiness, 10);
+      this.upsertScreen({
+        name: `${name}-dialog`,
+        url_pattern: url,
+        flow: flow.flow,
+        elements: dEls,
+        forms: [],
+        landmarks: [],
+        ...(dBiz.length ? { business_text: dBiz } : {}),
+      });
+    }
 
     this.state.current_screen = name;
+  }
+
+  private upsertScreen(screen: DomScreen): void {
+    const existing = this.state.screens.findIndex((s) => s.name === screen.name);
+    if (existing >= 0) this.state.screens[existing] = screen;
+    else this.state.screens.push(screen);
   }
 
   private recordTransition(flow: WalkFlow, step: WalkStep, via: string, from: string | null): void {
@@ -465,6 +588,34 @@ class DomWalker {
       case 'wait_text': {
         await this.page.getByText(step.value!).first().waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
         break;
+      }
+      case 'expect_text': {
+        // K0.2: postcondición del FD. Fallo = DRIFT (hallazgo), no problema de locator → sin rescate.
+        const value = resolveFixtureRef(step.value!, fixtures);
+        const found = await this.findVisibleText(value);
+        if (!found) {
+          this.blockStep(flow, step, `drift: postcondición del FD no observada — texto '${value}' no visible`, false);
+          this.audit('block', `expect_text fallido ${stepKey}: '${value}'`, { phase: 'expect' });
+          return;
+        }
+        // éxito → el texto queda como business_text de la pantalla con locator verificado en vivo
+        this.recordBusinessText(value, found.via, found.frame_path);
+        return;
+      }
+      case 'expect_state': {
+        const want = step.value!;
+        const resolved = await this.resolveHint(step); // aliases + escalera; sin rescate para expects
+        if (!resolved) {
+          this.blockStep(flow, step, `drift: elemento de la postcondición no resuelto en el DOM`, false);
+          this.audit('block', `expect_state fallido ${stepKey}: hint irresoluble`, { phase: 'expect' });
+          return;
+        }
+        const ok = await this.checkState(resolved.locator, want);
+        if (!ok) {
+          this.blockStep(flow, step, `drift: postcondición del FD no cumplida — ${resolved.via} no está '${want}'`, false);
+          this.audit('block', `expect_state fallido ${stepKey}: ${resolved.via} != ${want}`, { phase: 'expect' });
+        }
+        return;
       }
       default: {
         // acciones con hint: fill/click/select/check/uncheck
@@ -553,6 +704,58 @@ class DomWalker {
     }
   }
 
+  /** Texto visible en page/frames: literal primero, regex normalizado después (K0.1). */
+  private async findVisibleText(value: string): Promise<{ via: string; frame_path: string[] } | null> {
+    const scopes = await this.scopes();
+    const attempts: Array<{ needle: string | RegExp; via: string }> = [
+      { needle: value, via: `getByText('${value.replace(/'/g, "\\'")}')` },
+      { needle: new RegExp(accentInsensitivePattern(value), 'i'), via: `getByText(/${accentInsensitivePattern(value)}/i)` },
+    ];
+    for (const { needle, via } of attempts) {
+      for (const { scope, path } of scopes) {
+        const visible = await scope
+          .getByText(needle)
+          .first()
+          .waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS })
+          .then(() => true)
+          .catch(() => false);
+        if (visible) return { via, frame_path: path };
+      }
+    }
+    return null;
+  }
+
+  private async checkState(locator: Locator, want: string): Promise<boolean> {
+    switch (want) {
+      case 'visible':
+        return locator.waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS }).then(() => true).catch(() => false);
+      case 'enabled':
+        return locator.isEnabled({ timeout: STEP_TIMEOUT_MS }).catch(() => false);
+      case 'disabled':
+        return locator.isDisabled({ timeout: STEP_TIMEOUT_MS }).catch(() => false);
+      case 'checked':
+        return locator.isChecked({ timeout: STEP_TIMEOUT_MS }).catch(() => false);
+      case 'unchecked':
+        return locator.isChecked({ timeout: STEP_TIMEOUT_MS }).then((v) => !v).catch(() => false);
+      default:
+        return false;
+    }
+  }
+
+  /** Upsert de un texto de negocio verificado en la pantalla actual (K0.2/K0.3). */
+  private recordBusinessText(value: string, via: string, frame_path: string[]): void {
+    const screen = this.state.screens.find((s) => s.name === this.state.current_screen);
+    if (!screen) return;
+    screen.business_text = screen.business_text ?? [];
+    if (screen.business_text.some((b) => b.name === value)) return;
+    screen.business_text.push({
+      role: 'text',
+      name: value,
+      ...(frame_path.length ? { frame_path } : {}),
+      locator_candidates: [via],
+    });
+  }
+
   private blockStep(flow: WalkFlow, step: WalkStep, reason: string, rescueAttempted: boolean): void {
     if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id)) return;
     this.state.open_questions.push({
@@ -563,6 +766,49 @@ class DomWalker {
       reason,
       rescue_attempted: rescueAttempted,
     });
+  }
+
+  // ------------------------------------------------- promoción de rescates
+
+  /**
+   * K0.5 — promoción CONDICIONAL de rescates a hint-aliases: solo si el paso
+   * rescatado completó, su postcondición se cumplió (transición registrada si
+   * expect_transition) y ningún expect_* posterior del flujo quedó en drift.
+   * Un rescate que resolvió pero llevó al sitio equivocado NO contamina la
+   * memoria. Aliases existentes nunca se sobrescriben (cambiarlos = PR humano).
+   */
+  private promoteRescues(flow: WalkFlow): void {
+    const flowExpectsFailed = this.state.open_questions.some(
+      (q) => q.flow === flow.flow && q.action.startsWith('expect'),
+    );
+    for (const rescue of this.state.rescues) {
+      if (rescue.flow !== flow.flow || !rescue.resolved || !rescue.locator) continue;
+      const step = flow.steps.find((s) => s.id === rescue.step);
+      if (!step?.hint) continue;
+      const key = aliasKey(step.hint);
+      if (this.aliases.aliases[key]) continue;
+      const blocked = this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id);
+      const transitionOk =
+        !step.expect_transition ||
+        this.state.transitions.some((t) => t.flow === flow.flow && t.step === step.id);
+      if (blocked || !transitionOk || flowExpectsFailed) {
+        this.audit('skip', `rescate NO promovido a alias ${flow.flow}/${step.id}: postcondición no confirmada`, {
+          phase: 'alias-promotion',
+          locator: rescue.locator,
+        });
+        continue;
+      }
+      this.aliases.aliases[key] = {
+        locator: rescue.locator,
+        hint: step.hint,
+        origin: { flow: flow.flow, step: step.id, date: new Date().toISOString().slice(0, 10) },
+      };
+      this.saveAliases();
+      this.audit('allow', `rescate promovido a alias: ${key} → ${rescue.locator}`, {
+        phase: 'alias-promotion',
+        file: this.aliasesPath,
+      });
+    }
   }
 
   // ----------------------------------------------------------------- run
@@ -614,6 +860,9 @@ class DomWalker {
           this.markCompleted(`${flow.flow}/${step.id}`);
           await this.persist();
         }
+
+        // flujo cerrado: los rescates con postcondición confirmada pasan a la memoria del cliente
+        this.promoteRescues(flow);
       }
     } finally {
       await browser.close().catch(() => {});
@@ -683,6 +932,7 @@ async function main(): Promise<void> {
       cap: { type: 'string' },
       headed: { type: 'boolean', default: false },
       'storage-state': { type: 'string' },
+      aliases: { type: 'string' },
     },
   });
 
@@ -713,6 +963,7 @@ async function main(): Promise<void> {
     screenCap: Number(values.cap ?? 60),
     headed: values.headed ?? false,
     storageState: values['storage-state'] ?? process.env.QA_STORAGE_STATE,
+    aliasesPath: values.aliases ?? process.env.QA_HINT_ALIASES,
   };
 
   const state = loadState(workDir, rawScript);

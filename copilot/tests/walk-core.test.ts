@@ -2,11 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  accentInsensitivePattern,
+  aliasKey,
   buildLocatorCandidates,
   dedupeAndPrune,
   hashScript,
   hintLocatorPlan,
   locatorSource,
+  normalizedPlan,
+  normalizeText,
   pruneAriaSnapshot,
   resolveFixtureRef,
   slugFromUrl,
@@ -240,5 +244,103 @@ describe('pruneAriaSnapshot', () => {
     const pruned = pruneAriaSnapshot(snap, 50);
     expect(pruned.split('\n')).toHaveLength(51);
     expect(pruned).toMatch(/podado: 150/);
+  });
+});
+
+
+// ------------------------------------------------------------- K0 (kernel v2)
+
+describe('normalizeText (K0.1)', () => {
+  it('pliega acentos, case y espacios', () => {
+    expect(normalizeText('GESTIÓN')).toBe('gestion');
+    expect(normalizeText('  Iniciar   Sesión ')).toBe('iniciar sesion');
+    expect(normalizeText('Póliza')).toBe('poliza');
+  });
+
+  it('es idempotente', () => {
+    expect(normalizeText(normalizeText('GESTIÓN'))).toBe('gestion');
+  });
+});
+
+describe('accentInsensitivePattern (K0.1)', () => {
+  it('matchea GESTIÓN desde el hint sin tilde y viceversa', () => {
+    const re = new RegExp(accentInsensitivePattern('GESTION'), 'i');
+    expect(re.test('GESTIÓN')).toBe(true);
+    expect(re.test('gestion')).toBe(true);
+    const re2 = new RegExp(accentInsensitivePattern('Simulación/Declaración Rescates'), 'i');
+    expect(re2.test('Simulacion/Declaracion Rescates')).toBe(true);
+    expect(re2.test('SIMULACIÓN/DECLARACIÓN  RESCATES')).toBe(true);
+  });
+
+  it('escapa metacaracteres de regex', () => {
+    const re = new RegExp(accentInsensitivePattern('Zip/Postal Code (US)'), 'i');
+    expect(re.test('Zip/Postal Code (US)')).toBe(true);
+    expect(re.test('Zip Postal')).toBe(false);
+  });
+});
+
+describe('normalizedPlan (K0.1)', () => {
+  const PRIORITY = ['getByTestId', 'getByRole', 'getByLabel', 'getByText'];
+
+  it('excluye test_id y conserva el orden del contract', () => {
+    const raw = hintLocatorPlan({ test_id: 'x', role: 'link', name: 'GESTION' }, PRIORITY);
+    const norm = normalizedPlan(raw);
+    expect(norm.map((a) => a.kind)).toEqual(['role', 'text']);
+    expect(norm.every((a) => 'normalized' in a && a.normalized)).toBe(true);
+  });
+
+  it('locatorSource de un intento normalizado emite regex accent-insensitive', () => {
+    const [attempt] = normalizedPlan(hintLocatorPlan({ role: 'link', name: 'GESTION' }, PRIORITY));
+    const src = locatorSource(attempt);
+    expect(src).toMatch(/^getByRole\('link', \{ name: \/.+\/i \}\)$/);
+    const pattern = src.match(/\/(.+)\/i/)![1];
+    expect(new RegExp(pattern, 'i').test('GESTIÓN')).toBe(true);
+  });
+});
+
+describe('aliasKey (K0.5)', () => {
+  it('hints que difieren solo en acentos/case comparten clave', () => {
+    expect(aliasKey({ role: 'link', name: 'GESTIÓN' })).toBe(aliasKey({ role: 'link', name: 'gestion' }));
+    expect(aliasKey({ role: 'link', name: 'GESTION' })).not.toBe(aliasKey({ role: 'button', name: 'GESTION' }));
+  });
+
+  it('test_id se compara exacto (atributo, no texto)', () => {
+    expect(aliasKey({ test_id: 'Login-Button' })).not.toBe(aliasKey({ test_id: 'login-button' }));
+  });
+});
+
+describe('validateWalkScript — expect_* (K0.2)', () => {
+  const base = (): WalkScript => ({
+    version: 1,
+    site_id: 's',
+    entry: '/',
+    flows: [{ flow: 'f1', steps: [{ id: 's1', action: 'goto', target: '/' }] }],
+  });
+
+  it('acepta expect_text con value y expect_state con hint+estado valido', () => {
+    const s = base();
+    s.flows[0].steps.push(
+      { id: 's2', action: 'expect_text', value: 'Thank you for your order!' },
+      { id: 's3', action: 'expect_state', hint: { role: 'button', name: 'Finish' }, value: 'visible' },
+    );
+    expect(validateWalkScript(s)).toEqual({ ok: true, errors: [] });
+  });
+
+  it('rechaza expect_text sin value, expect_state sin hint y estado desconocido', () => {
+    const s = base();
+    s.flows[0].steps.push(
+      { id: 's2', action: 'expect_text' },
+      { id: 's3', action: 'expect_state', value: 'brillante' },
+    );
+    const { ok, errors } = validateWalkScript(s);
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toMatch(/'expect_text' requiere value/);
+    expect(errors.join(' ')).toMatch(/'expect_state' requiere hint/);
+    expect(errors.join(' ')).toMatch(/visible\|enabled\|disabled/);
+  });
+
+  it('el fixture lean de SauceDemo (con expect_text) valida', () => {
+    const raw = JSON.parse(readFileSync(resolve(__dirname, '../fixtures/saucedemo.lean.walk.json'), 'utf8'));
+    expect(validateWalkScript(raw)).toEqual({ ok: true, errors: [] });
   });
 });

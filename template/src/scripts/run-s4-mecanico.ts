@@ -892,9 +892,12 @@ function stagePostWriters(flags: Record<string, string | undefined>): number {
     existsSync(reviews.output) ? readFileSync(reviews.output, 'utf8') : '',
   );
 
-  // 11.c — pre-review determinístico (red objetiva post-review; informa, no bloquea)
+  // 11.c — pre-review determinístico (red objetiva post-review; informa, no bloquea).
+  // --discovery-report activa MF-postcondition (K0.7): assert sobre el texto de
+  // resultado que el discovery trae, no solo N asserts funcionales (MF-9).
   const pre = runChild(
-    `npx --no-install tsx src/scripts/pre-review.ts ${ctx.specsDir} --style-contract=${ctx.stylePath} --out-dir=${ctx.workDir}/pre-review`,
+    `npx --no-install tsx src/scripts/pre-review.ts ${ctx.specsDir} --style-contract=${ctx.stylePath} ` +
+      `--discovery-report=${ctx.workDir}/discovery-report.json --out-dir=${ctx.workDir}/pre-review`,
     ctx,
   );
   let preJson: any = null;

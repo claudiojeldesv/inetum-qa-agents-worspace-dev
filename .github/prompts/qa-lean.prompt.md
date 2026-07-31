@@ -17,34 +17,45 @@ Parámetros del run: FD = `${input:fd}`, URL = `${input:url}`, sitio = `${input:
 `saucedemo`), style contract = `${input:style}` (si no llegó, `config/style-contracts/<site>.yaml`),
 cap de casos = `${input:max}` (si no llegó, `3`). Deriva `<workDir> = .work/lean-<site>`.
 
-## Acto 1-3 — Comprender + Mapear + Estructurar (determinístico, 0 tokens)
+## Acto 1 — Comprender (determinístico, 0 tokens)
 
 1. Verifica que existen `config/allowed-targets.yaml` y `playwright.config.ts` en la raíz. Si falta
    alguno, para y dilo.
-2. Ejecuta en el terminal (PowerShell) la etapa `prepare` del runner lean — hace, en un solo paso:
-   compliance pre-flight (sin override), dom-walker (usa el walk fixture
-   `copilot/fixtures/<site>.lean.walk.json`), adapter dom-map→discovery, verify-locators y scaffold
-   de POMs:
+2. Ejecuta el gate de compliance **antes de gastar un solo token** (sin override):
    ```powershell
-   npx --no-install tsx copilot/src/lean-run.ts prepare --site=${input:site} --url=${input:url} --contract=${input:style}
+   npx --no-install tsx copilot/src/lean-run.ts gate --site=${input:site} --url=${input:url} --contract=${input:style}
    ```
-   - Si el JSON de salida trae `"compliance": { "verdict": "block" }` (o exit code 2) → la URL NO
-     está permitida. **Aborta el run** mostrando el motivo. Sin excepciones, sin override.
-   - Si OK: anota del output `discovery_report` y `dirs` (specs/pages/components). El scaffold ya
-     dejó los POMs en `tests/pages/<site>/`. (El mismo gate de compliance corre además como hook
-     PreToolUse en cada navegación MCP.)
+   - Si el JSON trae `"verdict": "block"` (o exit code 2) → la URL NO está permitida. **Aborta el
+     run** mostrando el motivo. Sin excepciones. (El hook PreToolUse es la segunda barrera.)
 
 ## Acto 1.5 — Refinar (LLM #1, Haiku barato)
 
 3. Delega en `ia4d-spec-refiner-lean` con: `--fd=${input:fd}`, `--target-url=${input:url}`,
-   `--out=<workDir>/cases.json`, `--max-cases=${input:max}`.
+   `--out=<workDir>/cases.json`, `--walk-out=<workDir>/walk-script.json`, `--site=${input:site}`,
+   `--max-cases=${input:max}`.
    - **Guarda anti-fabricación:** comprueba que `<workDir>/cases.json` existe, trae `cases[]` con
      `source_ref` por caso, y que ningún `then` quedó inventado (los ambiguos se marcan `[AMBIGUO]`,
-     no se rellenan). Si el refiner navegó la URL o inventó casos → repórtalo y para.
+     no se rellenan). Comprueba que `<workDir>/walk-script.json` existe y que **ningún caso con
+     `then` `[AMBIGUO]` produjo un paso `expect_text`** (sería una fabricación con forma de dato).
+     Si el refiner navegó la URL o inventó casos/expects → repórtalo y para.
+
+## Actos 2-3 — Mapear + Estructurar (determinístico, 0 tokens)
+
+4. Ejecuta la etapa `prepare`: compliance (repetido, $0), dom-walker **ejecutando el guion del
+   refiner**, adapter dom-map→discovery, verify-locators y scaffold de POMs:
+   ```powershell
+   npx --no-install tsx copilot/src/lean-run.ts prepare --site=${input:site} --url=${input:url} --contract=${input:style}
+   ```
+   - Confirma en el output que `walk_source` es `refiner` (si dice `fixture`, el guion del refiner
+     no se escribió donde debía — repórtalo antes de seguir).
+   - **`fd_drift` no vacío = hallazgo QA, no error de la herramienta**: son postcondiciones que el
+     FD afirma y la aplicación no mostró. Repórtalas al QA con su `reason` **antes** de generar
+     specs; el QA decide si el FD está desactualizado o la app tiene un defecto.
+   - Anota `discovery_report`, `business_text` y `dirs` (specs/pages/components).
 
 ## Acto 4 — Materializar (LLM #2, writer batch — el grueso del coste)
 
-4. Delega en `ia4d-writer-lean` en **UNA sola invocación** (palanca de batch: los 3 casos en un
+5. Delega en `ia4d-writer-lean` en **UNA sola invocación** (palanca de batch: los 3 casos en un
    contexto, un archivo por caso) con: `--cases=<workDir>/cases.json`,
    `--discovery-report=<workDir>/discovery-report.json`, `--style-contract=${input:style}`,
    `--pom-dir=tests/pages/<site>`, `--out-dir=tests/e2e/<site>`.
@@ -52,10 +63,13 @@ cap de casos = `${input:max}` (si no llegó, `3`). Deriva `<workDir> = .work/lea
    - El writer corre el pre-review determinístico él mismo (shift-left) antes de terminar. Verifica
      en su respuesta que escribió los ficheros y cerró el pre-review (sin MF de construcción; MF-4
      axe / MF-5 @criterion están exentos en el flavor lean).
+   - **`MF-postcondition` NO es exento**: si el discovery trae un texto de resultado para la última
+     pantalla del caso, el spec debe asertarlo. Un spec que cierra sobre chrome (un botón "Volver")
+     pasa verde sin verificar el negocio — si el writer terminó con ese must-fix abierto, repórtalo.
 
 ## Verificar (determinístico, 0 tokens)
 
-5. Ejecuta la etapa `verify` del runner:
+6. Ejecuta la etapa `verify` del runner:
    ```powershell
    npx --no-install tsx copilot/src/lean-run.ts verify --site=${input:site} --url=${input:url} --contract=${input:style}
    ```
@@ -63,14 +77,16 @@ cap de casos = `${input:max}` (si no llegó, `3`). Deriva `<workDir> = .work/lea
 
 ## Healer (condicional — solo si hay rojos)
 
-6. Si hay rojos, muestra el motivo de cada uno. El QA decide si sanar. Solo si te lo pide, delega en
-   `playwright-test-healer` sobre el/los spec(s) rojo(s) y re-ejecuta el paso 5. El coste del Healer
+7. Si hay rojos, muestra el motivo de cada uno. El QA decide si sanar. Solo si te lo pide, delega en
+   `playwright-test-healer` sobre el/los spec(s) rojo(s) y re-ejecuta el paso 6. El coste del Healer
    se reporta APARTE del $/caso del camino limpio (decisión #5 del plan).
 
 ## Hard rules del run
 
 - No saltar el compliance pre-flight del paso 2. Sin override.
-- Solo 2 touchpoints LLM: refiner (paso 3) + writer batch (paso 4). Nada más consume.
+- Solo 2 touchpoints LLM: refiner (paso 3) + writer batch (paso 5). Nada más consume.
+- El guion del walk lo emite el REFINER desde el FD (paso 3), no lo escribes tú ni usas el fixture
+  del sitio salvo que el QA lo pida explícitamente con `--walk=`.
 - Writer en UNA invocación batch, un archivo por caso. Nunca "3 casos en un solo output".
 - Todo lo que delegues, delégalo de verdad: si un subagent no está disponible, repórtalo — no hagas
   su trabajo tú, ni por terminal ni inline.

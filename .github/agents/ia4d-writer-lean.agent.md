@@ -45,6 +45,12 @@ Para cada `case` de `cases.json`:
      POM. Cuerpo plano con comentarios `// Paso N:` (evidencia `minimal`, sin `test.step`).
    - Asserts que verifican **estado funcional**, no solo navegación. Honra `test_design` del
      contract (`min_functional_asserts`, `require_business_postcondition`) si existe.
+   - **Postcondición de negocio (obligatoria si el discovery la trae)**: los elementos del
+     discovery con rol `text`/`heading`/`alert`/`status` son los **textos de resultado** que el
+     walker observó en vivo (p.ej. `"Thank you for your order!"`). Si la última pantalla del caso
+     tiene uno, el assert de cierre va **sobre ese texto o sobre su `test_id`** — nunca sobre
+     chrome de la página (un botón "Volver", un elemento presente antes y después de la
+     operación). El pre-review lo caza como `MF-postcondition`.
    - **Naming español**: `test.describe` = `Feature: <flow>`; título del `test()` = el `title` del
      caso (ya viene en patrón `{condición} → {resultado}`). Nunca "happy-path"/"negativo".
    - JSDoc mínimo: `/** Caso: <id> — <source_ref del FD> */`. SIN `@criterion`, SIN `@tc-id`.
@@ -57,14 +63,15 @@ Para cada `case` de `cases.json`:
 Tras escribir **todos** los specs, y ANTES de terminar, ejecútalo en el terminal (PowerShell):
 
 ```powershell
-npx --no-install tsx src/scripts/pre-review.ts <out-dir> --style-contract=<style-contract> --out-dir=<workDir>/pre-review
+npx --no-install tsx src/scripts/pre-review.ts <out-dir> --style-contract=<style-contract> --discovery-report=<workDir>/discovery-report.json --out-dir=<workDir>/pre-review
 ```
 
 (`<workDir>` = el directorio del `--discovery-report`.) Luego:
 
 1. Lee cada `<workDir>/pre-review/<basename>.json`. Corrige **solo** los findings de construcción:
    locators prohibidos MF-1/1b, `waitForTimeout` MF-2, `toHaveClass` con regex sin anclas
-   MF-regex-anchor, API prohibida MF-banned-api, import de POM MF-8, asserts funcionales MF-9.
+   MF-regex-anchor, API prohibida MF-banned-api, import de POM MF-8, asserts funcionales MF-9,
+   postcondicion de negocio no aserta MF-postcondition.
    **IGNORA MF-4 (scan axe) y MF-5 (@criterion): son las features que el flavor lean CORTA a
    propósito — el pre-review de catálogo las exige, pero aquí NO son defectos. NUNCA añadas axe ni
    `@criterion` para acallarlas.** Re-escribe y re-ejecuta el comando. Repite hasta que solo queden

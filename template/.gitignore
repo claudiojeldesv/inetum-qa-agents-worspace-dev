@@ -71,3 +71,6 @@ Thumbs.db
 # Paquete de plugin generado por build:plugin (artefacto; regénéralo, no lo versiones).
 # Contiene una copia del template/ como payload; versionarlo triplicaría el núcleo en git.
 /plugin/
+
+# Style Contracts locales (credenciales/datos de entornos corporativos, nunca al repo)
+config/style-contracts/*.local.yaml

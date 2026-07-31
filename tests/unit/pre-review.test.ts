@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-import { preReviewSpec, loadPreReviewContract, type PreReviewContract } from '../../src/scripts/pre-review.ts';
+import {
+  preReviewSpec,
+  loadPreReviewContract,
+  loadBusinessPostconditions,
+  type PreReviewContract,
+} from '../../src/scripts/pre-review.ts';
 
 const BASE: PreReviewContract = {
   forbid_css_selectors: true,
@@ -258,5 +263,115 @@ describe('loadPreReviewContract', () => {
     expect(c.banned_apis).toContain('page.waitForTimeout');
     expect(c.require_business_postcondition).toBe(true);
     expect(c.min_functional_asserts).toBe(1);
+  });
+});
+
+
+// --------------------------------------------- MF-postcondition (kernel v2 K0.7)
+
+describe('MF-postcondition — fuerza semantica del assert de cierre', () => {
+  const WITH_POST: PreReviewContract = { ...BASE, require_business_postcondition: true };
+  const POSTS = [
+    { screen: 'checkout-completado', text: 'Thank you for your order!', test_id: 'complete-header' },
+  ];
+
+  /** El defecto REAL medido dos veces en Fase A: cierra sobre el boton de chrome. */
+  const CHROME_ASSERT = `${HEADER}
+test.describe('Feature: compra', () => {
+  test('compra completa -> muestra confirmacion', async ({ page }) => {
+    const p = new CheckoutPage(page);
+    await page.goto('/');
+    await expect(p.backToProducts).toBeVisible();
+    await expect(p.backToProducts).toBeEnabled();
+  });
+});
+`;
+
+  const BUSINESS_ASSERT = `${HEADER}
+test.describe('Feature: compra', () => {
+  test('compra completa -> muestra confirmacion', async ({ page }) => {
+    const p = new CheckoutPage(page);
+    await page.goto('/');
+    await expect(page.getByText('Thank you for your order!')).toBeVisible();
+  });
+});
+`;
+
+  const TESTID_ASSERT = `${HEADER}
+test.describe('Feature: compra', () => {
+  test('compra completa -> muestra confirmacion', async ({ page }) => {
+    const p = new CheckoutPage(page);
+    await page.goto('/');
+    await expect(page.getByTestId('complete-header')).toBeVisible();
+  });
+});
+`;
+
+  it('caza el assert sobre chrome cuando el discovery trae la postcondicion', () => {
+    const r = preReviewSpec(write('chrome.spec.ts', CHROME_ASSERT), WITH_POST, undefined, POSTS);
+    const mf = r.findings.filter((f) => f.criterion_id === 'MF-postcondition');
+    expect(mf).toHaveLength(1);
+    expect(mf[0].severity).toBe('must-fix');
+    expect(mf[0].description).toContain('Thank you for your order!');
+  });
+
+  it('acepta el assert sobre el texto de negocio', () => {
+    const r = preReviewSpec(write('business.spec.ts', BUSINESS_ASSERT), WITH_POST, undefined, POSTS);
+    expect(r.findings.some((f) => f.criterion_id === 'MF-postcondition')).toBe(false);
+  });
+
+  it('acepta el assert por test_id del elemento que porta el texto', () => {
+    const r = preReviewSpec(write('testid.spec.ts', TESTID_ASSERT), WITH_POST, undefined, POSTS);
+    expect(r.findings.some((f) => f.criterion_id === 'MF-postcondition')).toBe(false);
+  });
+
+  it('tolera diferencias de acentos y puntuacion en el texto', () => {
+    const posts = [{ screen: 'sim', text: 'Simulacion generada correctamente' }];
+    const src = `${HEADER}
+test('simula -> confirma', async ({ page }) => {
+  await expect(page.getByText('Simulación generada correctamente')).toBeVisible();
+});
+`;
+    const r = preReviewSpec(write('acentos.spec.ts', src), WITH_POST, undefined, posts);
+    expect(r.findings.some((f) => f.criterion_id === 'MF-postcondition')).toBe(false);
+  });
+
+  it('NO aplica sin discovery (no se inventan exigencias)', () => {
+    const r = preReviewSpec(write('nodisc.spec.ts', CHROME_ASSERT), WITH_POST, undefined, []);
+    expect(r.findings.some((f) => f.criterion_id === 'MF-postcondition')).toBe(false);
+  });
+
+  it('NO aplica con require_business_postcondition:false', () => {
+    const r = preReviewSpec(write('off.spec.ts', CHROME_ASSERT), BASE, undefined, POSTS);
+    expect(r.findings.some((f) => f.criterion_id === 'MF-postcondition')).toBe(false);
+  });
+});
+
+describe('loadBusinessPostconditions — extraccion desde el discovery', () => {
+  const discovery = {
+    screens: [
+      {
+        name: 'checkout-completado',
+        interactive_elements: [
+          { role: 'button', name: 'Back Home', test_id: 'back-to-products', verified: true },
+          { role: 'heading', name: 'Thank you for your order!', test_id: 'complete-header', verified: true },
+          { role: 'status', name: 'Pedido registrado', verified: null },
+          { role: 'alert', name: 'Fantasma no verificado', verified: false },
+        ],
+      },
+    ],
+  };
+
+  it('extrae solo roles de negocio y descarta los no verificados', () => {
+    const f = join(dir, 'discovery.json');
+    writeFileSync(f, JSON.stringify(discovery), 'utf8');
+    const posts = loadBusinessPostconditions(f);
+    expect(posts.map((p) => p.text)).toEqual(['Thank you for your order!', 'Pedido registrado']);
+    expect(posts[0].test_id).toBe('complete-header');
+  });
+
+  it('sin path o con fichero ausente devuelve vacio', () => {
+    expect(loadBusinessPostconditions(undefined)).toEqual([]);
+    expect(loadBusinessPostconditions(join(dir, 'no-existe.json'))).toEqual([]);
   });
 });

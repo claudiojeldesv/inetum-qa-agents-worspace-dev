@@ -217,3 +217,49 @@ describe('pom-scaffolder — el esqueleto solo declara lo que el discovery vio (
     expect(regenerated).not.toContain('Open Menu');
   });
 });
+
+
+describe('pom-scaffolder — frame_path y business_text (kernel v2 K0)', () => {
+  it('elemento con frame_path emite cadena de frameLocator (K0.4)', () => {
+    const result = scaffoldPage({
+      name: 'pago',
+      interactive_elements: [
+        { role: 'textbox', name: 'Card number', frame_path: ['iframe[name="pago"]'] },
+      ],
+    });
+    expect(result.content).toContain(
+      `this.page.frameLocator('iframe[name="pago"]').getByRole('textbox', { name: 'Card number' })`,
+    );
+  });
+
+  it('frame_path anidado encadena un frameLocator por segmento', () => {
+    const result = scaffoldPage({
+      name: 'pago-anidado',
+      interactive_elements: [
+        { role: 'button', name: 'Pagar', frame_path: ['iframe#outer', 'iframe[name="inner"]'] },
+      ],
+    });
+    expect(result.content).toContain(
+      `this.page.frameLocator('iframe#outer').frameLocator('iframe[name="inner"]').getByRole('button', { name: 'Pagar' })`,
+    );
+  });
+
+  it('test_id dentro de frame tambien se scopea', () => {
+    const result = scaffoldPage({
+      name: 'pago-tid',
+      interactive_elements: [
+        { role: 'textbox', test_id: 'pan', frame_path: ['iframe[name="pago"]'] },
+      ],
+    });
+    expect(result.content).toContain(`this.page.frameLocator('iframe[name="pago"]').getByTestId('pan')`);
+  });
+
+  it("role 'text' (business_text de expect_text) emite getByText (K0.2)", () => {
+    const result = scaffoldPage({
+      name: 'confirmacion',
+      interactive_elements: [{ role: 'text', name: 'Operacion realizada' }],
+    });
+    expect(result.content).toContain(`this.page.getByText('Operacion realizada')`);
+    expect(result.content).not.toContain(`getByRole('text'`);
+  });
+});
