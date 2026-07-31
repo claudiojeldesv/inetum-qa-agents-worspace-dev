@@ -43,6 +43,23 @@ export function resolveFixtureRef(value: string, fixtures: Record<string, unknow
   return String(cursor);
 }
 
+// -------------------------------------------------------------- JSON de I/O
+
+/**
+ * JSON.parse tolerante al BOM. Los contratos de entrada del walker
+ * (`walk-script.json`, `rescue-response.json`, `hint-aliases.json`) los escriben
+ * SUBAGENTES en Windows, y varios caminos habituales emiten BOM
+ * (`Set-Content -Encoding utf8` de PowerShell 5.1, `Out-File`, editores).
+ * `JSON.parse` muere con `Unexpected token BOM` y el fallo se disfrazaba de
+ * "fallo de ejecución" en `open_questions` — diagnóstico opaco sobre una causa
+ * trivial. Medido en el workspace de prueba de K0.
+ */
+export function parseJsonLoose<T = unknown>(text: string): T {
+  // trimStart() basta: U+FEFF es WhiteSpace en ECMAScript, así que se va con él
+  // (y el espacio en blanco al principio de un JSON es irrelevante).
+  return JSON.parse(text.trimStart()) as T;
+}
+
 // ------------------------------------------------------------ normalizador
 
 /**

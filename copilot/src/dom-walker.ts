@@ -38,6 +38,7 @@ import {
   isLandmarkRole,
   locatorSource,
   normalizedPlan,
+  parseJsonLoose,
   pruneAriaSnapshot,
   resolveFixtureRef,
   slugFromUrl,
@@ -227,7 +228,7 @@ class DomWalker {
   private loadAliases(): HintAliasFile {
     try {
       if (existsSync(this.aliasesPath)) {
-        const parsed = JSON.parse(readFileSync(this.aliasesPath, 'utf8')) as HintAliasFile;
+        const parsed = parseJsonLoose<HintAliasFile>(readFileSync(this.aliasesPath, 'utf8'));
         if (parsed.version === 1 && parsed.aliases) return parsed;
       }
     } catch {
@@ -419,7 +420,18 @@ class DomWalker {
   private consumeRescueResponse(step: WalkStep): RescueResponse | null {
     const path = resolve(this.opts.workDir, 'rescue-response.json');
     if (!existsSync(path)) return null;
-    const res = JSON.parse(readFileSync(path, 'utf8')) as RescueResponse;
+    let res: RescueResponse;
+    try {
+      res = parseJsonLoose<RescueResponse>(readFileSync(path, 'utf8'));
+    } catch (err) {
+      // JSON corrupto del subagent: se descarta con diagnóstico explícito. Sin este
+      // catch la excepción escapaba a run() y el paso quedaba con un
+      // "fallo de ejecución: Unexpected token" que no dice nada del origen real.
+      rmSync(path, { force: true });
+      const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+      this.audit('block', `rescue-response.json ilegible (${msg}) — descartado`, { phase: 'rescue-response' });
+      return null;
+    }
     if (res.step !== step.id) {
       rmSync(path); // respuesta de otro paso = basura; no debe bloquear rescates futuros
       return null;
@@ -901,7 +913,7 @@ function loadState(workDir: string, script: WalkScript): WalkState {
   const statePath = resolve(workDir, 'walk-state.json');
   const hash = hashScript(script);
   if (existsSync(statePath)) {
-    const prev = JSON.parse(readFileSync(statePath, 'utf8')) as WalkState;
+    const prev = parseJsonLoose<WalkState>(readFileSync(statePath, 'utf8'));
     if (prev.script_hash === hash) {
       console.error(`[dom-walker] reanudando: ${prev.completed.length} pasos ya completados`);
       return prev;
@@ -941,7 +953,9 @@ async function main(): Promise<void> {
     process.exit(EXIT_ERROR);
   }
 
-  const rawScript = JSON.parse(readFileSync(resolve(values.script), 'utf8')) as WalkScript;
+  // parseJsonLoose: el walk-script lo escribe el REFINER (subagent, K0.8) — un BOM
+  // de un editor o de PowerShell no puede tumbar el run entero.
+  const rawScript = parseJsonLoose<WalkScript>(readFileSync(resolve(values.script), 'utf8'));
   const validation = validateWalkScript(rawScript);
   if (!validation.ok) {
     console.error('[dom-walker] walk-script inválido:');

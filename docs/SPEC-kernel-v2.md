@@ -259,9 +259,12 @@ Sonnet), que lo ejecuta el QA.
 | K0.5 aliases persistentes | `config/hint-aliases/<site>.json`; lookup como primer peldaño; promoción **solo** con postcondición confirmada. **Ciclo completo validado**: hint fabricado → exit 42 → rescate → alias promovido → run posterior resuelve por `alias-hit` con 0 rescates |
 | K0.7 `MF-postcondition` | pre-review con `--discovery-report`: si el discovery trae texto de resultado verificado y el spec no lo asserta → must-fix. **Validado contra el discovery real**: el spec que cierra sobre `backToProducts` sale con el must-fix, el que asserta el texto sale limpio. Cableado en lean-run, run-s4-mecanico y run-heal-mecanico (sanar no puede degradar el assert a chrome) |
 | K0.8 refiner → guion | Etapa `gate` (compliance aislado antes de gastar LLM, exit 2 verificado); el refiner emite `walk-script.json` además de `cases.json`; `prepare` prefiere el guion del refiner sobre el fixture y lo declara en `walk_source`. **Drift FD↔app validado en vivo**: un `expect_text` que el FD afirma y la app no muestra sale como `fd_drift` en el Acto 2, a $0, antes de generar un solo spec |
+| K0.9 tolerancia al BOM | `parseJsonLoose` en los 4 puntos donde el walker lee JSON ajeno (walk-script del refiner, rescue-response del rescate, hint-aliases del pack, walk-state). **Bug encontrado montando el workspace de prueba**: `Set-Content -Encoding utf8` de PowerShell 5.1 escribe BOM, `JSON.parse` moría, y la excepción escapaba a `run()` disfrazada de `"fallo de ejecución: Unexpected token"` — el paso quedaba bloqueado sin señalar la causa. Importa porque esos ficheros los escribe un **subagente en Windows**. `consumeRescueResponse` además ya no deja escapar la excepción: descarta el fichero con motivo explícito en el audit-log |
 
-Red estructural: 306/306 unit, tsc limpio, healthcheck 26/26, determinismo del dom-map `true`,
-template propagado.
+Red estructural: 309/309 unit, tsc limpio, healthcheck 26/26, determinismo del dom-map `true`,
+template propagado. **Reproducible en un workspace limpio**: manual verificado paso a paso en
+[`docs/tasks/probar-kernel-v2-k0.md`](tasks/probar-kernel-v2-k0.md) (clon del branch, 26/26 + 309/309
++ walk live + ciclo de aliases + drift + MF-postcondition, todo a $0).
 
 **Doctrina que K0 fija** (aplica a K1-K3): el hint del refiner es una **hipótesis falsable** —
 derivarlo del vocabulario del FD es su trabajo, porque el walker lo verifica y la escalera absorbe

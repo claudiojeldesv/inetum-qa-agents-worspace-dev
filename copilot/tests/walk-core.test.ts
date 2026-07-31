@@ -11,6 +11,7 @@ import {
   locatorSource,
   normalizedPlan,
   normalizeText,
+  parseJsonLoose,
   pruneAriaSnapshot,
   resolveFixtureRef,
   slugFromUrl,
@@ -342,5 +343,27 @@ describe('validateWalkScript — expect_* (K0.2)', () => {
   it('el fixture lean de SauceDemo (con expect_text) valida', () => {
     const raw = JSON.parse(readFileSync(resolve(__dirname, '../fixtures/saucedemo.lean.walk.json'), 'utf8'));
     expect(validateWalkScript(raw)).toEqual({ ok: true, errors: [] });
+  });
+});
+
+
+describe('parseJsonLoose (robustez de contratos escritos por subagentes)', () => {
+  const payload = { step: 's3', locator: "getByTestId('login-button')" };
+  const BOM = String.fromCharCode(0xfeff);
+
+  it('parsea JSON con BOM (PowerShell Set-Content -Encoding utf8)', () => {
+    const withBom = BOM + JSON.stringify(payload);
+    expect(() => JSON.parse(withBom)).toThrow();
+    expect(parseJsonLoose(withBom)).toEqual(payload);
+  });
+
+  it('parsea JSON limpio y con espacios/saltos al principio', () => {
+    expect(parseJsonLoose(JSON.stringify(payload))).toEqual(payload);
+    expect(parseJsonLoose('\n  ' + JSON.stringify(payload))).toEqual(payload);
+  });
+
+  it('sigue lanzando ante JSON realmente corrupto (no enmascara errores)', () => {
+    expect(() => parseJsonLoose('{"step": ')).toThrow();
+    expect(() => parseJsonLoose(BOM + 'no-json')).toThrow();
   });
 });
