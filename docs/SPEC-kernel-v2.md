@@ -121,6 +121,63 @@ historial de fingerprints (drift). Solo lectura/merge en v2 — sin planificador
 Widgets nivel 1 = recetas YAML (`match` + secuencia `interact`) interpretadas por el kernel; nivel 2
 = TS cuando el YAML no alcanza.
 
+## 4-bis. Modo asistido (K0.10) — enmienda al spec congelado
+
+Añadido tras el piloto onesait, donde el walker se atascó en un submenú que abre por
+hover: el item existía en el DOM (el locator resolvía) pero el click moría con
+`Timeout 10000ms exceeded`, sin señalar la causa. **No es un problema de identidad
+del elemento, es de coreografía** — y ningún rescate LLM lo arregla, porque el
+locator ya era correcto.
+
+**Por qué no basta el recorder de Playwright**: no graba hover, es una limitación
+conocida y abierta (microsoft/playwright [#5177](https://github.com/microsoft/playwright/issues/5177),
+[#5481](https://github.com/microsoft/playwright/issues/5481),
+[#37075](https://github.com/microsoft/playwright/issues/37075)); su workaround
+oficial es escribir el `hover()` a mano. Nosotros tenemos algo que un recorder
+genérico no: **sabemos cuál es el elemento objetivo**, así que en vez de grabar el
+gesto podemos deducir y verificar el abridor.
+
+**Peldaño nuevo en la escalera** (§5): `... → aliases → ASISTIDO (--assist) →
+rescate LLM → open_questions`. En sesión con el QA se usa el asistido ($0 tokens y
+capta la coreografía); en batch nocturno, el LLM. Ambos escriben el mismo artefacto.
+
+**Mecánica**: `page.exposeFunction` registrada una vez (sobrevive navegaciones) +
+overlay inyectado en la página de la app, en **shadow root cerrado** con marcador
+`data-qa-assist-host`. Cerrado a propósito: los locators de Playwright no lo
+atraviesan, así el panel no interfiere con la resolución del walker; y la captura
+lo salta, así sus botones no acaban en el dom-map ni en los POMs. Modelo **Record**:
+los clicks del QA **pasan a la app** (así navega y abre menús) y se registran; los
+hovers sostenidos (>400 ms) también, que es justo el hueco del recorder. Al pulsar
+Parar: el último click es el objetivo, lo anterior es el camino.
+
+**Verificación por replay, no confianza**: el parche se re-ejecuta desde el entry en
+un **contexto fresco** antes de proponerse. Sin eso, un camino que "funcionó porque
+el QA tenía el menú abierto" se propondría como bueno y fallaría al día siguiente.
+
+**El parche NUNCA se aplica solo**: se escribe en `assist-patch.json` y el QA lo
+funde. El walk-script es artefacto de cliente afinado a mano; que un programa lo
+reescriba en silencio es inaceptable.
+
+**Procedencia en el audit-log**: `source: 'human'` frente al `llm_call` del rescate.
+Cada locator con su origen —código, modelo o persona— con timestamp. En regulado,
+poder decir "este locator lo validó un ingeniero QA el día X" pesa más que el resto
+del sistema junto.
+
+**Botón "No existe aquí"**: el QA declara drift. Va a `open_questions` con el mismo
+tratamiento que un `expect_text` incumplido, y sale en `fd_drift`. Un humano
+confirmando que el FD miente es evidencia, no un fallo.
+
+**Opt-in duro**: `--assist` separado de `--headed`, con timeout (default 600 s). En
+CI un navegador esperando a una persona cuelga el pipeline.
+
+**Semi-automático solo la primera vez**: el QA resuelve una vez, el alias (identidad)
+o el fragmento del pack (coreografía) queda escrito, y a partir de ahí es automático
+en esa app y en las demás de la familia. Es **calibración asistida**, no vuelta al
+manual — y es la puerta natural de entrada del cliente al producto.
+
+Diferido a K1: minimización del parche por delta-debugging (hoy se propone la
+secuencia grabada y podada, no la mínima demostrable).
+
 ## 5. Escalera de resolución v2
 
 Orden estricto; cada peldaño o resuelve mecánicamente o pasa al siguiente. El walker no decide jamás
@@ -133,8 +190,10 @@ que dos cosas significan lo mismo — verifica equivalencias que vienen de fuera
 4. **Estrechamiento mecánico de ambiguos** (nuevo): filtro por visibles (v1) + scope al `role=dialog`
    abierto + scope al contenedor de la interacción reciente (el form donde se rellenaron los últimos
    pasos). Si tras estrechar sigue >1 → NO es resoluble mecánicamente.
-5. **Rescate LLM** (§9), con presupuesto.
-6. **open_questions**. Nunca `.first()` a ciegas. Nunca inventar.
+5. **Asistido** (§4-bis, solo con `--assist`): el QA señala visualmente; $0 tokens y
+   captura además la coreografía (`hover` del abridor).
+6. **Rescate LLM** (§9), con presupuesto.
+7. **open_questions**. Nunca `.first()` a ciegas. Nunca inventar.
 
 Prohibición absoluta: **`force: true` no existe** en el kernel. Un elemento que un usuario no puede
 clickar es un hallazgo (a11y/UX), no un obstáculo a saltar. Excepción legítima (input visualmente
@@ -259,9 +318,10 @@ Sonnet), que lo ejecuta el QA.
 | K0.5 aliases persistentes | `config/hint-aliases/<site>.json`; lookup como primer peldaño; promoción **solo** con postcondición confirmada. **Ciclo completo validado**: hint fabricado → exit 42 → rescate → alias promovido → run posterior resuelve por `alias-hit` con 0 rescates |
 | K0.7 `MF-postcondition` | pre-review con `--discovery-report`: si el discovery trae texto de resultado verificado y el spec no lo asserta → must-fix. **Validado contra el discovery real**: el spec que cierra sobre `backToProducts` sale con el must-fix, el que asserta el texto sale limpio. Cableado en lean-run, run-s4-mecanico y run-heal-mecanico (sanar no puede degradar el assert a chrome) |
 | K0.8 refiner → guion | Etapa `gate` (compliance aislado antes de gastar LLM, exit 2 verificado); el refiner emite `walk-script.json` además de `cases.json`; `prepare` prefiere el guion del refiner sobre el fixture y lo declara en `walk_source`. **Drift FD↔app validado en vivo**: un `expect_text` que el FD afirma y la app no muestra sale como `fd_drift` en el Acto 2, a $0, antes de generar un solo spec |
+| K0.10 modo asistido | `--assist`: overlay Record en shadow root cerrado, puente `exposeFunction`, acción `hover` nueva en el vocabulario, parche verificado por replay a `assist-patch.json`, audit `source: 'human'`. Refactor de la extracción in-page a fragmento compartido capture↔assist (si divergen, el locator del picker no coincide con el del dom-map: bug silencioso) — **probado neutro** comparando dom-maps con y sin refactor. Fixture `hover-menu.html` que reproduce el fallo de onesait (`Timeout 10000ms exceeded` con el elemento en el DOM): **sin** paso `hover` el walker se bloquea igual que en el cliente, **con** él hace 3/3 y captura el `business_text` |
 | K0.9 tolerancia al BOM | `parseJsonLoose` en los 4 puntos donde el walker lee JSON ajeno (walk-script del refiner, rescue-response del rescate, hint-aliases del pack, walk-state). **Bug encontrado montando el workspace de prueba**: `Set-Content -Encoding utf8` de PowerShell 5.1 escribe BOM, `JSON.parse` moría, y la excepción escapaba a `run()` disfrazada de `"fallo de ejecución: Unexpected token"` — el paso quedaba bloqueado sin señalar la causa. Importa porque esos ficheros los escribe un **subagente en Windows**. `consumeRescueResponse` además ya no deja escapar la excepción: descarta el fichero con motivo explícito en el audit-log |
 
-Red estructural: 309/309 unit, tsc limpio, healthcheck 26/26, determinismo del dom-map `true`,
+Red estructural: 319/319 unit, tsc limpio, healthcheck 26/26, determinismo del dom-map `true`,
 template propagado. **Reproducible en un workspace limpio**: manual verificado paso a paso en
 [`docs/tasks/probar-kernel-v2-k0.md`](tasks/probar-kernel-v2-k0.md) (clon del branch, 26/26 + 309/309
 + walk live + ciclo de aliases + drift + MF-postcondition, todo a $0).

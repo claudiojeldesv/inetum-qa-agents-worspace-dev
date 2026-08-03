@@ -16,7 +16,11 @@
  * Uso:
  *   tsx copilot/src/dom-walker.ts --script=<walk-script.json> --contract=<style.yaml> \
  *     [--base-url=<url>] [--work-dir=<dir>] [--rescue-budget=N] [--testid-attr=data-test] \
- *     [--cap=60] [--headed]
+ *     [--cap=60] [--headed] [--assist] [--assist-timeout=600]
+ *
+ * Escalera de resolución: determinístico → normalizador (acentos) → aliases del
+ * cliente → ASISTIDO (--assist, $0, capta también la coreografía) → rescate LLM
+ * (presupuesto) → open_questions. Nunca adivina.
  *
  * Exit codes: 0 ok · 1 error · 42 rescate pendiente (reanudar tras rescue-response.json)
  */
@@ -31,6 +35,7 @@ import { proxyFromEnv } from '../../src/proxy-env.ts';
 import {
   accentInsensitivePattern,
   aliasKey,
+  buildAssistSteps,
   buildLocatorCandidates,
   dedupeAndPrune,
   hashScript,
@@ -40,6 +45,7 @@ import {
   normalizedPlan,
   parseJsonLoose,
   pruneAriaSnapshot,
+  pruneAssistSequence,
   resolveFixtureRef,
   slugFromUrl,
   validateWalkScript,
@@ -49,11 +55,15 @@ import {
   EXIT_ERROR,
   EXIT_OK,
   EXIT_RESCUE_NEEDED,
+  type AssistPatch,
+  type AssistPatchStep,
+  type AssistSubmission,
   type DomElement,
   type DomForm,
   type DomMap,
   type DomScreen,
   type HintAliasFile,
+  type PickedElement,
   type RescueRequest,
   type RescueResponse,
   type WalkFlow,
@@ -80,6 +90,9 @@ interface WalkerOptions {
   storageState?: string;
   /** hint-aliases durable del sitio (K0.5). Default: config/hint-aliases/<site_id>.json */
   aliasesPath?: string;
+  /** Modo asistido (K0.10): panel Record en el navegador cuando un hint no resuelve. */
+  assist: boolean;
+  assistTimeoutMs: number;
 }
 
 interface StyleContract {
@@ -104,13 +117,26 @@ interface RawElement {
   inDialog?: boolean;
 }
 
-/** Corre DENTRO del frame. Aproximación determinística de rol + accessible name. */
-function captureScript(testidAttrs: string[]): string {
-  // Serializado como string para frame.evaluate — sin closures externas.
-  return `(() => {
+/** Marcador del host del panel asistido: la captura lo salta (K0.10). */
+const ASSIST_HOST_ATTR = 'data-qa-assist-host';
+
+/**
+ * Helpers de extracción in-page, COMPARTIDOS por la captura del dom-map y el
+ * overlay del modo asistido (K0.10b). Deliberadamente un único fragmento: si el
+ * picker extrajera los campos con otro código, el locator que propone al QA no
+ * coincidiría con el que el dom-map registra para el mismo elemento — divergencia
+ * silenciosa y muy difícil de diagnosticar.
+ *
+ * Expone: clean, isVisible, nameOf, labelOf, roleOf, fieldsOf, ATTRS,
+ * BUSINESS_ROLES, LANDMARK_ROLES_JS.
+ */
+function extractionHelpers(testidAttrs: string[]): string {
+  return `
     const ATTRS = ${JSON.stringify(testidAttrs)};
+    const ASSIST_HOST = '${ASSIST_HOST_ATTR}';
     const ROLE_BY_TAG = { a: 'link', button: 'button', select: 'combobox', textarea: 'textbox', nav: 'navigation', main: 'main', header: 'banner', footer: 'contentinfo', form: 'form', dialog: 'dialog', summary: 'button', h1: 'heading', h2: 'heading', h3: 'heading' };
     const BUSINESS_ROLES = ['heading', 'alert', 'status'];
+    const LANDMARK_ROLES_JS = ['navigation', 'banner', 'main', 'contentinfo', 'search', 'form', 'region'];
     const INPUT_ROLE = { checkbox: 'checkbox', radio: 'radio', submit: 'button', button: 'button', reset: 'button', search: 'searchbox', number: 'spinbutton', range: 'slider' };
     const clean = (s) => (s || '').replace(/\\s+/g, ' ').trim().slice(0, 80);
     const NO_TEXT_NAME = ['select', 'textarea', 'nav', 'main', 'header', 'footer', 'form', 'dialog'];
@@ -144,16 +170,33 @@ function captureScript(testidAttrs: string[]): string {
       if (tag === 'a') return el.hasAttribute('href') ? 'link' : 'generic';
       return ROLE_BY_TAG[tag] || 'generic';
     };
+    /** Campos de identidad de UN elemento — la unidad que comparten capture y assist. */
+    const fieldsOf = (el) => {
+      const role = roleOf(el);
+      const out = { role };
+      const nm = nameOf(el); if (nm) out.name = nm;
+      for (const a of ATTRS) { const v = el.getAttribute(a); if (v) { out.test_id = v; out.test_attr = a; break; } }
+      const lab = labelOf(el); if (lab && lab !== nm) out.label = lab;
+      return out;
+    };
+  `;
+}
+
+/** Corre DENTRO del frame. Aproximación determinística de rol + accessible name. */
+function captureScript(testidAttrs: string[]): string {
+  // Serializado como string para frame.evaluate — sin closures externas.
+  return `(() => {
+    ${extractionHelpers(testidAttrs)}
     const forms = Array.from(document.querySelectorAll('form'));
     const sel = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], nav, main, header, footer, form, h1, h2, h3';
     const out = [];
     for (const el of document.querySelectorAll(sel)) {
       if (!isVisible(el)) continue;
+      // el panel del modo asistido no es parte de la app (K0.10): jamás al dom-map
+      if (el.closest('[' + ASSIST_HOST + ']')) continue;
       const role = roleOf(el);
       if (role === 'generic' || role === 'presentation' || role === 'none') continue;
-      let test_id, test_attr;
-      for (const a of ATTRS) { const v = el.getAttribute(a); if (v) { test_id = v; test_attr = a; break; } }
-      const landmark = ['navigation', 'banner', 'main', 'contentinfo', 'search', 'form', 'region'].includes(role);
+      const landmark = LANDMARK_ROLES_JS.includes(role);
       const item = { role, landmark };
       // K0.3: headings/alerts/status = postcondiciones de negocio (texto no interactivo)
       if (BUSINESS_ROLES.includes(role)) {
@@ -162,15 +205,152 @@ function captureScript(testidAttrs: string[]): string {
         item.business = true;
         item.name = txt;
       }
-      const nm = item.name || nameOf(el); if (nm) item.name = nm;
-      if (test_id) { item.test_id = test_id; item.test_attr = test_attr; }
-      const lab = labelOf(el); if (lab && lab !== nm) item.label = lab;
+      const f2 = fieldsOf(el);
+      if (!item.name && f2.name) item.name = f2.name;
+      if (f2.test_id) { item.test_id = f2.test_id; item.test_attr = f2.test_attr; }
+      if (f2.label && f2.label !== item.name) item.label = f2.label;
       if (el.disabled === true) item.disabled = true;
       const f = el.closest('form'); if (f) item.formIndex = forms.indexOf(f);
       if (el.closest('[role=dialog], dialog[open]')) item.inDialog = true;
       out.push(item);
     }
     return out;
+  })()`;
+}
+
+// -------------------------------------- overlay del modo asistido (K0.10c)
+
+/**
+ * Panel de asistencia inyectado en la página de la app. Vive en un **shadow root
+ * cerrado** con el marcador `data-qa-assist-host` por dos razones:
+ *  1. el CSS de la app no puede romperlo ni él filtrarse a la app;
+ *  2. la captura del dom-map lo salta — si no, los botones del panel acabarían
+ *     como elementos de la app en el dom-map y en los POMs generados.
+ *
+ * Modelo Record: los clicks del QA **pasan a la app** (así navega y abre menús) y
+ * se van registrando. Al pulsar Parar, el último click es el objetivo del paso y
+ * lo anterior es el camino. Los hovers sostenidos (>400 ms) se registran porque el
+ * abridor de un menú hover no genera click — el hueco que el recorder de Playwright
+ * no cubre (issues microsoft/playwright#5177, #5481).
+ */
+function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: string): string {
+  return `(() => {
+    ${extractionHelpers(testidAttrs)}
+    const prev = document.querySelector('[' + ASSIST_HOST + ']');
+    if (prev) prev.remove();
+    const host = document.createElement('div');
+    host.setAttribute(ASSIST_HOST, '1');
+    host.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;';
+    document.documentElement.appendChild(host);
+    const root = host.attachShadow({ mode: 'closed' });
+    root.innerHTML = \`
+      <style>
+        .p{font:13px/1.45 system-ui,sans-serif;background:#111827;color:#f9fafb;border:1px solid #374151;
+           border-radius:8px;width:330px;box-shadow:0 6px 24px rgba(0,0,0,.4);overflow:hidden}
+        .h{padding:8px 10px;background:#1f2937;cursor:move;font-weight:500;display:flex;justify-content:space-between}
+        .b{padding:10px}
+        .ctx{color:#9ca3af;margin-bottom:8px}
+        .ctx b{color:#f9fafb}
+        .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+        button{font:12px system-ui;padding:5px 9px;border-radius:5px;border:1px solid #4b5563;
+               background:#374151;color:#f9fafb;cursor:pointer}
+        button:hover{background:#4b5563}
+        .rec{background:#065f46;border-color:#047857}
+        .stop{background:#7f1d1d;border-color:#991b1b}
+        .drift{background:#78350f;border-color:#92400e}
+        ol{margin:8px 0 0;padding-left:18px;color:#d1d5db;max-height:130px;overflow:auto}
+        li{margin:2px 0}
+        .st{margin-top:6px;color:#9ca3af;font-size:11px}
+      </style>
+      <div class="p">
+        <div class="h"><span>Asistencia QA</span><span id="s">esperando</span></div>
+        <div class="b">
+          <div class="ctx">Paso <b>\${'${step.id}'}</b> bloqueado.<br>El FD dice: <b>\${'${hintText.replace(/'/g, '&#39;').replace(/</g, '&lt;')}'}</b></div>
+          <div class="st">Pulsa Grabar, navega hasta el elemento y púlsalo. Luego Parar.</div>
+          <ol id="l"></ol>
+          <div class="row">
+            <button id="r" class="rec">Grabar</button>
+            <button id="t" class="stop" disabled>Parar</button>
+            <button id="d" class="drift">No existe aquí</button>
+            <button id="b">Bloquear paso</button>
+          </div>
+        </div>
+      </div>\`;
+    const $ = (id) => root.getElementById(id);
+    const list = $('l'), status = $('s');
+    let recording = false;
+    const seq = [];
+    let hoverTimer = null, hoverEl = null;
+
+    const sameAsLast = (f) => {
+      const p = seq[seq.length - 1];
+      if (!p) return false;
+      return p.role === f.role && (p.name || '') === (f.name || '') && (p.test_id || '') === (f.test_id || '');
+    };
+    const render = () => {
+      list.innerHTML = seq.map((s) => '<li>' + s.via + ' ' + (s.name || s.test_id || s.role) + '</li>').join('');
+      status.textContent = recording ? 'grabando (' + seq.length + ')' : 'parado';
+    };
+    const push = (el, via) => {
+      if (!recording) return;
+      if (el.closest && el.closest('[' + ASSIST_HOST + ']')) return;
+      const f = fieldsOf(el);
+      if (!f.role || f.role === 'generic') return;
+      f.via = via;
+      if (via === 'hover' && sameAsLast(f)) return;
+      seq.push(f);
+      render();
+    };
+    const onClick = (e) => { if (e.target !== host) push(e.target, 'click'); };
+    const onOver = (e) => {
+      if (!recording || e.target === host) return;
+      if (hoverTimer) clearTimeout(hoverTimer);
+      hoverEl = e.target;
+      hoverTimer = setTimeout(() => { if (hoverEl) push(hoverEl, 'hover'); }, 400);
+    };
+    // captura: se registra ANTES de que la app procese, pero NO se cancela el evento
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('mouseover', onOver, true);
+
+    const submit = (kind, reason) => {
+      recording = false;
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('mouseover', onOver, true);
+      if (hoverTimer) clearTimeout(hoverTimer);
+      host.remove();
+      window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: seq, reason });
+    };
+    const startRec = () => { recording = true; $('t').disabled = false; $('r').disabled = true; render(); };
+    $('r').onclick = startRec;
+    $('t').onclick = () => submit('recorded');
+    $('d').onclick = () => submit('drift', 'el QA confirma que el elemento no existe en esta pantalla');
+    $('b').onclick = () => submit('block', 'el QA decidió bloquear el paso');
+
+    // Canal de comandos: el shadow root es CERRADO (los locators de Playwright no lo
+    // atraviesan, así no interfiere con la resolución del walker), así que los botones
+    // no son alcanzables desde fuera. Este evento sobre el host da la misma
+    // funcionalidad de forma programática — lo usan los tests y permitiría guiar el
+    // panel desde el orquestador.
+    host.addEventListener('qa-assist-cmd', (ev) => {
+      const cmd = ev && ev.detail;
+      if (cmd === 'record') startRec();
+      else if (cmd === 'stop') submit('recorded');
+      else if (cmd === 'drift') submit('drift', 'comando: elemento no presente');
+      else if (cmd === 'block') submit('block', 'comando: bloquear paso');
+    });
+
+    // arrastre del panel por la cabecera
+    const head = root.querySelector('.h');
+    let drag = null;
+    head.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, r: host.getBoundingClientRect() }; e.preventDefault(); });
+    document.addEventListener('mousemove', (e) => {
+      if (!drag) return;
+      host.style.left = (drag.r.left + e.clientX - drag.x) + 'px';
+      host.style.top = (drag.r.top + e.clientY - drag.y) + 'px';
+      host.style.right = 'auto';
+    });
+    document.addEventListener('mouseup', () => { drag = null; });
+    render();
   })()`;
 }
 
@@ -211,6 +391,10 @@ class DomWalker {
   private lastDialogs: string[] = [];
   private aliases: HintAliasFile;
   private readonly aliasesPath: string;
+  /** Resolver del envío del overlay (K0.10): lo rellena assistResolve por paso. */
+  private assistPending: ((p: AssistSubmission) => void) | null = null;
+  private assistBridgeReady = false;
+  private readonly assistPatch: AssistPatch;
 
   constructor(opts: WalkerOptions, script: WalkScript, contract: StyleContract, state: WalkState) {
     this.opts = opts;
@@ -222,6 +406,7 @@ class DomWalker {
     this.testidAttr = opts.testidAttr ?? state.testid_attr;
     this.aliasesPath = resolve(opts.aliasesPath ?? `config/hint-aliases/${script.site_id}.json`);
     this.aliases = this.loadAliases();
+    this.assistPatch = { version: 1, site_id: script.site_id, generated_at: '', entries: [] };
   }
 
   /** hint-aliases durable (K0.5): memoria de instancias del cliente. Ausente o corrupto → vacío. */
@@ -381,6 +566,180 @@ class DomWalker {
       }
     }
     return null;
+  }
+
+  // -------------------------------------------------- modo asistido (K0.10d)
+
+  /** Descripción legible del hint, para que el QA sepa qué le pide el FD. */
+  private hintText(step: WalkStep): string {
+    const h = step.hint ?? {};
+    const parts = [h.test_id && `test-id "${h.test_id}"`, h.role, h.name && `"${h.name}"`, h.label && `label "${h.label}"`, h.text && `texto "${h.text}"`];
+    return `${step.action} sobre ${parts.filter(Boolean).join(' ') || '(sin hint)'}`;
+  }
+
+  /** exposeFunction una sola vez: sobrevive navegaciones; registrarla dos veces lanza. */
+  private async ensureAssistBridge(): Promise<void> {
+    if (this.assistBridgeReady) return;
+    await this.page.exposeFunction('__qaAssistSubmit', (payload: AssistSubmission) => {
+      const pending = this.assistPending;
+      this.assistPending = null;
+      pending?.(payload);
+    });
+    this.assistBridgeReady = true;
+  }
+
+  /** Resuelve los campos de un elemento señalado a un locator único verificado. */
+  private async locatorForPicked(el: PickedElement): Promise<{ locator: Locator; source: string } | null> {
+    for (const candidate of buildLocatorCandidates(el, this.priority)) {
+      const loc = this.locatorFromSource(this.page, candidate);
+      if (!loc) continue;
+      const unique = await this.uniqueOrNull(loc);
+      if (unique) return { locator: unique, source: candidate };
+    }
+    return null;
+  }
+
+  /**
+   * Peldaño asistido de la escalera. Abre el panel Record sobre la app, espera al
+   * QA, y con la secuencia grabada: resuelve el objetivo, propone el parche (camino
+   * + objetivo), lo verifica por replay en contexto fresco y promueve el alias.
+   * Devuelve el locator del objetivo si se resolvió, o null (drift/block/timeout).
+   */
+  private async assistResolve(
+    flow: WalkFlow,
+    step: WalkStep,
+  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+    await this.ensureAssistBridge();
+    console.error(`[dom-walker] ASISTENCIA ${flow.flow}/${step.id}: panel abierto en el navegador, esperando al QA...`);
+    this.audit('llm_call', `asistencia solicitada: ${flow.flow}/${step.id}`, { phase: 'assist', source_hint: this.hintText(step) });
+
+    const submission = await new Promise<AssistSubmission | null>((res) => {
+      const timer = setTimeout(() => {
+        this.assistPending = null;
+        res(null);
+      }, this.opts.assistTimeoutMs);
+      this.assistPending = (p) => {
+        clearTimeout(timer);
+        res(p);
+      };
+      void this.page
+        .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, this.hintText(step)))
+        .catch((err) => console.error(`[dom-walker] no se pudo inyectar el panel: ${String(err).split('\n')[0]}`));
+    });
+
+    if (!submission) {
+      this.blockStep(flow, step, `asistencia sin respuesta en ${Math.round(this.opts.assistTimeoutMs / 1000)}s (timeout)`, false);
+      return null;
+    }
+    if (submission.kind === 'drift') {
+      this.blockStep(flow, step, `drift: ${submission.reason ?? 'el QA confirma que el elemento no existe'}`, false);
+      this.audit('block', `drift confirmado por el QA en ${flow.flow}/${step.id}`, { phase: 'assist', source: 'human' });
+      return null;
+    }
+    if (submission.kind === 'block') {
+      this.blockStep(flow, step, submission.reason ?? 'el QA bloqueó el paso', false);
+      this.audit('block', `paso bloqueado por el QA: ${flow.flow}/${step.id}`, { phase: 'assist', source: 'human' });
+      return null;
+    }
+
+    const sequence = pruneAssistSequence(submission.sequence ?? []);
+    if (sequence.length === 0) {
+      this.blockStep(flow, step, 'asistencia: no se grabó ninguna interacción', false);
+      return null;
+    }
+
+    // resolver un locator único para cada elemento de la secuencia
+    const locators: string[] = [];
+    let target: { locator: Locator; source: string } | null = null;
+    for (let i = 0; i < sequence.length; i++) {
+      const resolved = await this.locatorForPicked(sequence[i]);
+      locators.push(resolved?.source ?? '');
+      if (i === sequence.length - 1) target = resolved;
+    }
+    if (!target) {
+      this.blockStep(flow, step, 'asistencia: el elemento señalado no tiene identidad única (rol/nombre/test-id ambiguos)', false);
+      this.audit('block', `asistencia sin locator único en ${flow.flow}/${step.id}`, { phase: 'assist', source: 'human' });
+      return null;
+    }
+
+    const steps = buildAssistSteps(sequence, locators);
+    const verify = await this.verifyAssistPatch(flow, step, steps);
+    this.assistPatch.entries.push({
+      flow: flow.flow,
+      replaces_step: step.id,
+      ...(step.hint ? { original_hint: step.hint } : {}),
+      steps,
+      verified: verify.ok,
+      ...(verify.reason ? { verify_reason: verify.reason } : {}),
+    });
+    this.writeAssistPatch();
+
+    // el objetivo entra en la memoria del cliente igual que un rescate (promoción
+    // condicional al cierre del flujo), pero con procedencia humana
+    if (step.hint) {
+      this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: target.source, audit_logged: true });
+    }
+    this.audit('allow', `asistencia resuelta ${flow.flow}/${step.id} → ${target.source}`, {
+      phase: 'assist',
+      source: 'human',
+      steps: steps.length,
+      patch_verified: verify.ok,
+    });
+    console.error(
+      `[dom-walker] asistencia OK: ${steps.length} paso(s) propuestos, parche ${verify.ok ? 'VERIFICADO' : 'SIN VERIFICAR'} → assist-patch.json`,
+    );
+    return { locator: target.locator, via: target.source, frame_path: [] };
+  }
+
+  /**
+   * Verificación por replay en contexto FRESCO: re-ejecuta el flujo desde entry
+   * con el parche aplicado y comprueba que el objetivo es realmente accionable.
+   * Sin esto, un parche que "funcionó porque el QA tenía el menú abierto" se
+   * propondría como bueno y fallaría en el siguiente run automático.
+   */
+  private async verifyAssistPatch(
+    flow: WalkFlow,
+    failed: WalkStep,
+    steps: AssistPatchStep[],
+  ): Promise<{ ok: boolean; reason?: string }> {
+    const browser = this.page.context().browser();
+    if (!browser) return { ok: false, reason: 'sin navegador para el replay de verificación' };
+    const ctx = await browser.newContext(
+      this.opts.storageState && existsSync(this.opts.storageState) ? { storageState: this.opts.storageState } : {},
+    );
+    const page = await ctx.newPage();
+    const mainPage = this.page;
+    try {
+      this.page = page; // executeStep opera sobre this.page
+      await page.goto(this.resolveTarget(this.script.entry), { timeout: GOTO_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+      // pasos previos al fallido, tal cual estaban en el guion
+      for (const s of flow.steps) {
+        if (s.id === failed.id) break;
+        if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === s.id)) continue;
+        await this.executeStep(flow, s);
+      }
+      // y ahora los pasos propuestos por la asistencia
+      for (const [i, ps] of steps.entries()) {
+        const probe: WalkStep = { id: `${failed.id}-assist${i}`, action: ps.action, hint: ps.hint };
+        const resolved = await this.resolveHint(probe);
+        if (!resolved) return { ok: false, reason: `el paso propuesto ${i + 1} (${ps.action}) no resuelve en un contexto limpio` };
+        if (ps.action === 'hover') await resolved.locator.hover({ timeout: STEP_TIMEOUT_MS });
+        else await resolved.locator.click({ timeout: STEP_TIMEOUT_MS });
+      }
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+      return { ok: false, reason: `replay falló: ${msg}` };
+    } finally {
+      this.page = mainPage;
+      await ctx.close().catch(() => {});
+    }
+  }
+
+  private writeAssistPatch(): void {
+    if (this.assistPatch.entries.length === 0) return;
+    const out = { ...this.assistPatch, generated_at: new Date().toISOString() };
+    writeFileSync(resolve(this.opts.workDir, 'assist-patch.json'), JSON.stringify(out, null, 2), 'utf8');
   }
 
   // ------------------------------------------------------------ rescate LLM
@@ -674,6 +1033,15 @@ class DomWalker {
             this.blockStep(flow, step, 'hint irresoluble; paso marcado optional → anotado sin rescate', false);
             return;
           }
+          // K0.10: peldaño asistido ANTES del rescate LLM. Con el QA delante, resolver
+          // visualmente cuesta $0 y captura además la coreografía (hover de menús).
+          if (this.opts.assist) {
+            resolved = await this.assistResolve(flow, step);
+            if (!resolved) return; // drift, block o timeout: ya anotado
+          }
+        }
+
+        if (!resolved) {
           if (this.state.rescues_used >= this.opts.rescueBudget) {
             this.blockStep(flow, step, `hint irresoluble y presupuesto de rescates agotado (${this.opts.rescueBudget})`, false);
             this.audit('block', `presupuesto de rescates agotado en ${stepKey}`, { budget: this.opts.rescueBudget });
@@ -691,6 +1059,9 @@ class DomWalker {
             break;
           case 'click':
             await resolved.locator.click({ timeout: STEP_TIMEOUT_MS });
+            break;
+          case 'hover':
+            await resolved.locator.hover({ timeout: STEP_TIMEOUT_MS });
             break;
           case 'select':
             await resolved.locator.selectOption(value!, { timeout: STEP_TIMEOUT_MS });
@@ -945,6 +1316,8 @@ async function main(): Promise<void> {
       headed: { type: 'boolean', default: false },
       'storage-state': { type: 'string' },
       aliases: { type: 'string' },
+      assist: { type: 'boolean', default: false },
+      'assist-timeout': { type: 'string' },
     },
   });
 
@@ -967,6 +1340,10 @@ async function main(): Promise<void> {
   const workDir = resolve(values['work-dir'] ?? process.env.QA_WORK_DIR ?? `.work/${rawScript.site_id}`);
   if (!existsSync(workDir)) mkdirSync(workDir, { recursive: true });
 
+  // Modo asistido: opt-in explícito y NUNCA por defecto. En CI un navegador
+  // esperando a una persona cuelga el pipeline; de ahí el flag aparte y el timeout.
+  const assist = (values.assist ?? false) || process.env.QA_ASSIST === '1';
+
   const opts: WalkerOptions = {
     scriptPath: values.script,
     contractPath: values.contract,
@@ -975,9 +1352,11 @@ async function main(): Promise<void> {
     rescueBudget: Number(values['rescue-budget'] ?? process.env.QA_RESCUE_BUDGET ?? 3),
     testidAttr: values['testid-attr'],
     screenCap: Number(values.cap ?? 60),
-    headed: values.headed ?? false,
+    headed: (values.headed ?? false) || assist,
     storageState: values['storage-state'] ?? process.env.QA_STORAGE_STATE,
     aliasesPath: values.aliases ?? process.env.QA_HINT_ALIASES,
+    assist,
+    assistTimeoutMs: Number(values['assist-timeout'] ?? process.env.QA_ASSIST_TIMEOUT ?? 600) * 1000,
   };
 
   const state = loadState(workDir, rawScript);
@@ -1003,5 +1382,5 @@ if (isDirectRun) {
   });
 }
 
-export { DomWalker, loadState };
+export { DomWalker, loadState, assistOverlayScript, extractionHelpers, TESTID_ATTR_CANDIDATES };
 export type { WalkerOptions, StyleContract };

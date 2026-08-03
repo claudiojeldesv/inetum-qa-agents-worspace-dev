@@ -28,6 +28,8 @@ export type WalkAction =
   | 'goto'          // target = path o URL absoluta
   | 'fill'          // hint + value (soporta refs $fixtures.*)
   | 'click'
+  | 'hover'         // abridor de menús que despliegan por hover (K0.10). Sin él, el item del
+                    // submenú resuelve en el DOM pero nunca es clicable: timeout opaco.
   | 'select'        // hint + value (option label o value)
   | 'check'
   | 'uncheck'
@@ -174,6 +176,66 @@ export interface RescueResponse {
   step: string;
   locator: string | null;
   reason?: string;
+}
+
+// ------------------------------------------------- modo asistido (K0.10)
+
+/**
+ * Elemento señalado por el QA en el overlay. Los campos los extrae el MISMO
+ * código in-page que usa la captura del dom-map (fragmento compartido), para que
+ * el locator del picker y el del dom-map no puedan divergir.
+ */
+export interface PickedElement {
+  role: string;
+  name?: string;
+  test_id?: string;
+  label?: string;
+  /** 'click' = el QA lo pulsó · 'hover' = pasó por encima de forma sostenida. */
+  via: 'click' | 'hover';
+}
+
+/**
+ * Payload que el overlay manda a Node vía exposeFunction al pulsar Parar (o los
+ * botones de escape). `sequence` va en orden cronológico: el ÚLTIMO click es el
+ * objetivo del paso; lo anterior es el camino (abridores de menú).
+ */
+export interface AssistSubmission {
+  kind: 'recorded' | 'drift' | 'block';
+  step: string;
+  sequence: PickedElement[];
+  /** true si el último click del QA ya ejecutó la acción del paso (la app navegó). */
+  performed?: boolean;
+  reason?: string;
+}
+
+/** Un paso propuesto por el modo asistido, listo para insertar en el guion. */
+export interface AssistPatchStep {
+  action: WalkAction;
+  hint: StepHint;
+  locator: string;
+  role: 'opener' | 'target';
+}
+
+/**
+ * Parche del modo asistido. Se escribe en `assist-patch.json` del workDir y
+ * NUNCA se aplica solo al guion: el walk-script es artefacto del cliente,
+ * afinado a mano, y reescribirlo en silencio sería inaceptable. El QA lo revisa
+ * y lo funde.
+ */
+export interface AssistPatch {
+  version: 1;
+  site_id: string;
+  generated_at: string;
+  entries: Array<{
+    flow: string;
+    /** Paso del guion que estaba bloqueado y que estos pasos sustituyen. */
+    replaces_step: string;
+    original_hint?: StepHint;
+    steps: AssistPatchStep[];
+    /** Replay en contexto fresco: ¿el parche reproduce de verdad? */
+    verified: boolean;
+    verify_reason?: string;
+  }>;
 }
 
 /**

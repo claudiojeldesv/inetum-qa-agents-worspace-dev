@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  Fixture local del caso que el recorder de Playwright NO sabe grabar
+  (microsoft/playwright#5177, #5481): un submenú que solo es visible mientras el
+  ratón está sobre el item padre. Reproduce el patrón real medido en onesait:
+  el item del submenú EXISTE en el DOM (así que getByText lo resuelve) pero nunca
+  es clicable, y el click muere con timeout sin explicar por qué.
+
+  Nombres con tilde a propósito: sirve además al normalizador de K0.1.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture menú hover</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; padding: 24px; }
+      nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 16px; }
+      nav li { position: relative; }
+      .sub {
+        position: absolute; top: 100%; left: 0; display: block;
+        background: #fff; border: 1px solid #ccc; padding: 8px; min-width: 220px;
+        /* el submenú está en el DOM pero invisible: la clase exacta del bug */
+        visibility: hidden;
+      }
+      li:hover > .sub { visibility: visible; }
+      .sub li { padding: 4px 0; }
+      #resultado { margin-top: 32px; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <nav aria-label="Principal">
+      <ul>
+        <li>
+          <a href="#" id="gestion">GESTIÓN</a>
+          <ul class="sub">
+            <li><a href="#" id="rescates">Rescates/Reinversión</a></li>
+            <li><a href="#" id="simulacion">Simulación/Declaración Rescates</a></li>
+          </ul>
+        </li>
+        <li><a href="#" id="consultas">CONSULTAS</a></li>
+      </ul>
+    </nav>
+
+    <div id="resultado" hidden role="status">Simulación abierta correctamente</div>
+
+    <script>
+      // El destino solo se "abre" si el click llegó de verdad al item del submenú.
+      document.getElementById('simulacion').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('resultado').hidden = false;
+      });
+    </script>
+  </body>
+</html>

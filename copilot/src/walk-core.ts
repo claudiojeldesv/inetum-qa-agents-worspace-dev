@@ -5,7 +5,9 @@
 
 import { createHash } from 'node:crypto';
 import type {
+  AssistPatchStep,
   DomElement,
+  PickedElement,
   StepHint,
   WalkScript,
   WalkStep,
@@ -261,6 +263,72 @@ export function slugFromUrl(url: string): string {
   }
 }
 
+// -------------------------------------------------- modo asistido (K0.10)
+
+/**
+ * Secuencia grabada por el QA → pasos de walk. Convención: el ÚLTIMO click es el
+ * objetivo del paso bloqueado; todo lo anterior es el camino que hubo que recorrer
+ * para que fuera alcanzable (abridores de menú). Un `via: 'hover'` se materializa
+ * como acción `hover`, que es justo lo que el recorder de Playwright no sabe grabar.
+ *
+ * Pura y testeable: no toca navegador. El locator de cada paso lo resuelve el
+ * driver (buildLocatorCandidates + verificación de unicidad) y se inyecta aquí.
+ */
+export function buildAssistSteps(
+  sequence: PickedElement[],
+  locators: string[],
+): AssistPatchStep[] {
+  if (sequence.length === 0) return [];
+  const lastClickIdx = sequence.reduce((acc, el, i) => (el.via === 'click' ? i : acc), -1);
+  const targetIdx = lastClickIdx >= 0 ? lastClickIdx : sequence.length - 1;
+  const steps: AssistPatchStep[] = [];
+  sequence.forEach((el, i) => {
+    // lo posterior al objetivo es ruido: el QA siguió navegando tras marcarlo
+    if (i > targetIdx) return;
+    const hint: StepHint = {
+      ...(el.test_id ? { test_id: el.test_id } : {}),
+      ...(el.role ? { role: el.role } : {}),
+      ...(el.name ? { name: el.name } : {}),
+      ...(el.label ? { label: el.label } : {}),
+    };
+    steps.push({
+      action: i === targetIdx ? 'click' : el.via === 'hover' ? 'hover' : 'click',
+      hint,
+      locator: locators[i] ?? '',
+      role: i === targetIdx ? 'target' : 'opener',
+    });
+  });
+  return steps;
+}
+
+/**
+ * Poda de la secuencia grabada: quita repeticiones consecutivas del mismo
+ * elemento (el QA mueve el ratón y re-entra) y los hovers sobre el elemento que
+ * después clica (redundantes: el click ya implica estar encima).
+ */
+export function pruneAssistSequence(sequence: PickedElement[]): PickedElement[] {
+  const key = (el: PickedElement): string =>
+    [el.test_id ?? '', el.role, normalizeText(el.name ?? ''), normalizeText(el.label ?? '')].join('|');
+  const out: PickedElement[] = [];
+  for (const el of sequence) {
+    const prev = out[out.length - 1];
+    if (prev && key(prev) === key(el)) {
+      // mismo elemento: el click gana sobre el hover
+      if (prev.via === 'hover' && el.via === 'click') out[out.length - 1] = el;
+      continue;
+    }
+    out.push(el);
+  }
+  // hover inmediatamente seguido de click sobre el MISMO elemento ya está cubierto arriba;
+  // aquí quitamos hovers cuyo elemento se clica más adelante (el click lo hace redundante)
+  const clicked = new Set(out.filter((e) => e.via === 'click').map(key));
+  return out.filter((el, i) => {
+    if (el.via !== 'hover') return true;
+    if (!clicked.has(key(el))) return true;
+    return out.findIndex((o) => o.via === 'click' && key(o) === key(el)) < i;
+  });
+}
+
 // ----------------------------------------------------------------- aliases
 
 /**
@@ -290,7 +358,7 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
   if (!s.site_id) errors.push('site_id requerido');
   if (!s.entry) errors.push('entry requerido');
   if (!Array.isArray(s.flows) || s.flows.length === 0) errors.push('flows[] requerido y no vacío');
-  const NEEDS_HINT: WalkStep['action'][] = ['fill', 'click', 'select', 'check', 'uncheck', 'expect_state'];
+  const NEEDS_HINT: WalkStep['action'][] = ['fill', 'click', 'hover', 'select', 'check', 'uncheck', 'expect_state'];
   const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state'];
   for (const flow of s.flows ?? []) {
     if (!flow.flow) errors.push('flow sin id');

@@ -367,3 +367,27 @@ describe('parseJsonLoose (robustez de contratos escritos por subagentes)', () =>
     expect(() => parseJsonLoose(BOM + 'no-json')).toThrow();
   });
 });
+
+
+describe('validateWalkScript — hover (K0.10a)', () => {
+  const base = (): WalkScript => ({
+    version: 1,
+    site_id: 's',
+    entry: '/',
+    flows: [{ flow: 'f1', steps: [{ id: 's1', action: 'goto', target: '/' }] }],
+  });
+
+  it('acepta hover con hint', () => {
+    const s = base();
+    s.flows[0].steps.push({ id: 's2', action: 'hover', hint: { role: 'link', name: 'GESTION' } });
+    expect(validateWalkScript(s)).toEqual({ ok: true, errors: [] });
+  });
+
+  it('rechaza hover sin hint (no hay nada que abrir a ciegas)', () => {
+    const s = base();
+    s.flows[0].steps.push({ id: 's2', action: 'hover' });
+    const { ok, errors } = validateWalkScript(s);
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toMatch(/'hover' requiere hint/);
+  });
+});
