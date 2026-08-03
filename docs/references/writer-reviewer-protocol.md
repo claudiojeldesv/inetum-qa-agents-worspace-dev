@@ -111,7 +111,7 @@ Solo si la iteración 2 ya intentó corregir y persiste. En ese caso:
 `review-feedback.json` (un archivo por sesión, todas las revisiones consolidadas):
 
 ```jsonl
-{"test_file":"login.happy-path.spec.ts","iteration":0,"verdict":"rejected","feedback":[...],"timestamp":"..."}
-{"test_file":"login.happy-path.spec.ts","iteration":1,"verdict":"approved","feedback":[],"timestamp":"..."}
-{"test_file":"cart.add-item.spec.ts","iteration":0,"verdict":"approved","feedback":[],"timestamp":"..."}
+{"test_file":"TC-001_inicio-sesion.credenciales-validas.spec.ts","iteration":0,"verdict":"rejected","feedback":[...],"timestamp":"..."}
+{"test_file":"TC-001_inicio-sesion.credenciales-validas.spec.ts","iteration":1,"verdict":"approved","feedback":[],"timestamp":"..."}
+{"test_file":"TC-002_carrito.anadir-producto.spec.ts","iteration":0,"verdict":"approved","feedback":[],"timestamp":"..."}
 ```

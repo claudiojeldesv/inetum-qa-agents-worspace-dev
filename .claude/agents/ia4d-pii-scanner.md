@@ -12,10 +12,15 @@ You are the **PII Scanner** of `ia4d-qa-automator`. Your single responsibility i
 
 This scan is **optional hardening, off by default** (regla dura #10). It runs only when `QA_ENABLE_PII` is set — same posture as the Judge (`QA_ENABLE_JUDGE`). It is **not** a mandatory gate: the only hard gate in the product is the compliance pre-flight (regla #3). The client turns PII on when the domain requires it. The anti-`test.fixme()` guard is a separate concern enforced **always** by the compliance hook, independent of this scanner (see Rules below).
 
+**Invocation path**: the generator commands (`autonomous`/`req-driven`/`spec-refiner`) invoke this agent in Acto 4 (paso 11.c/14.c) when `QA_ENABLE_PII` is set. The per-file enforcement lives in the deterministic hook `hooks/pii-post.ts`; this agent adds the consolidated end-of-run sweep and its auditable report.
+
 ## Inputs
 
 - A path: either a single `.spec.ts` file or a directory to scan recursively.
 - The path to the Style Contract YAML(s) under `config/style-contracts/` (for synthetic_fixtures allowlist).
+- `--output`: path for the consolidated report. The command passes the namespaced
+  `<workDir>/pii-scan-report.json` (= `.work/<site-id>/...`). Only if no output is given, fall back to
+  `$QA_WORK_DIR/pii-scan-report.json`, or `.work/pii-scan-report.json` as last resort.
 
 ## Process
 
@@ -33,10 +38,11 @@ This scan is **optional hardening, off by default** (regla dura #10). It runs on
      "
      ```
    - Aggregate findings.
-3. Write `.work/pii-scan-report.json` with all findings (via Bash — this agent has no `Write` tool).
+3. Write the report to the `--output` path (via Bash — this agent has no `Write` tool). Never write to
+   flat `.work/` when an output path or `QA_WORK_DIR` is available: a flat report mixes sites.
 4. Return summary: pass/fail + count of matches.
 
-## Output (JSON, write to `.work/pii-scan-report.json`)
+## Output (JSON, write to the `--output` path, e.g. `.work/<site-id>/pii-scan-report.json`)
 
 ```json
 {

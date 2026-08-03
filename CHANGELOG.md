@@ -3,6 +3,35 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
+## [Unreleased]
+
+Cierre de los hallazgos `REQUEST_CHANGES` de la auditoría externa 2026-07-21 (doctor + panel-judge
+sobre el plugin distribuido).
+
+### Removed
+- **`src/scripts/slice65-judge.ts`** (CRÍTICO): Judge standalone huérfano de una sesión de desarrollo;
+  operaba con rutas planas (`tests/e2e`, `.work/judge-report.json`, `.work/audit-log.json`) y, ejecutado
+  a mano con specs de varios sitios, mezclaba resultados cross-site y pisaba el audit-log plano.
+- **`src/native-agents.ts`**: constantes sin ningún consumidor; los commands invocan a los subagents
+  nativos por nombre. Riesgo de rename upstream re-documentado en SPEC anexo #2.
+
+### Fixed
+- **Staleness del POM scaffolder**: `scaffold()` ahora sobrescribe siempre los `*.page.ts`/`*.component.ts`
+  para que un re-run del mismo sitio refleje el discovery-report vigente (antes conservaba el fichero
+  previo con locators rancios, sin aviso). Test unitario de la sobrescritura añadido.
+- **Comentario obsoleto en `playwright.global-setup.ts`**: citaba un paso "History IN" de
+  `build-report.mjs` que no existe; alineado con la decisión vigente (reporte single-file, sin Trends).
+- **Ejemplo de `writer-reviewer-protocol.md`** con `login.happy-path.spec.ts` (violaba la convención
+  "naturaleza fuera del nombre"); ahora usa el patrón real `TC-NNN_<feature>.<condicion>.spec.ts`.
+
+### Added
+- **`ia4d-pii-scanner` cableado**: paso opcional 11.c/14.c en los 3 commands generadores cuando
+  `QA_ENABLE_PII` está seteado (barrido consolidado; el enforcement por-fichero sigue en el hook
+  `pii-post.ts`). El reporte del agente pasa a ruta namespaciada `<workDir>/pii-scan-report.json`.
+- **Limitación de `extractUrl` documentada** en `compliance-rules.md`: el hook solo reconoce
+  `url`/`target`/`base_url`; un rename del schema del MCP degrada el gate a WARN ruidoso, no bloqueo.
+- **Test unitario de `audit-log.ts`** (append-only, JSONL, timestamp, campos opcionales).
+
 ## [0.3.4] - 2026-07-18
 
 Cierre del hallazgo C1 del saneamiento previo (el namespace viejo se había corregido en los `.md`

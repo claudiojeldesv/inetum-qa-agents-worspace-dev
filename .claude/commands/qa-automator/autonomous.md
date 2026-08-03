@@ -224,6 +224,15 @@ registran (no es un fallo: es la rienda).
 `<workDir>/review-feedback.json` plano: `QA_WORK_DIR=<workDir> npx tsx src/scripts/consolidate-reviews.ts`.
 El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrente que corrompía el fichero.)
 
+**11.c — PII scan consolidado (opcional, solo si `QA_ENABLE_PII` está seteado):** el enforcement
+por-fichero ya lo hizo el hook PostToolUse `pii-post.ts` en cada Write/Edit del Writer; este paso añade
+el barrido consolidado del run. Invoca `ia4d-pii-scanner` via Task tool sobre `tests/e2e/<site-id>/`
+con el Style Contract del sitio y **`--output=<workDir>/pii-scan-report.json`** (ruta namespaciada —
+nunca `.work/` plano). Registra su veredicto al audit-log:
+`{ source: 'command', action: 'allow'|'warn', rule: 'pii-scan', target: 'tests/e2e/<site-id>/', reason: '<verdict>, N violations' }`.
+Si la var no está seteada, omite el paso y registra
+`{ source: 'command', action: 'skip', rule: 'pii-scan', reason: 'pii off (QA_ENABLE_PII unset)' }`.
+
 ### Acto 5 — Juzgar
 
 12. **Judge opcional, off por defecto.** Comprueba la env-var `QA_ENABLE_JUDGE` (PowerShell: `$env:QA_ENABLE_JUDGE`; bash: `$QA_ENABLE_JUDGE`). Solo si está seteado (`1`/`true`/`on`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no está seteado, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`; el run-summary marca `judge: skipped`.

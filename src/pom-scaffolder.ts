@@ -11,7 +11,7 @@
  * repeat across screens, and one Page class per discovered screen.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 
 export interface InteractiveElement {
@@ -237,9 +237,9 @@ export function scaffold(
     files.push({ path: fullPath, className: file.className, content: file.content });
     if (writeToDisk) {
       mkdirSync(dirname(fullPath), { recursive: true });
-      if (!existsSync(fullPath)) {
-        writeFileSync(fullPath, file.content, 'utf8');
-      }
+      // Sobrescribe siempre: en un re-run del mismo sitio el esqueleto debe reflejar el
+      // discovery-report vigente; conservar el fichero previo dejaría locators rancios sin aviso.
+      writeFileSync(fullPath, file.content, 'utf8');
     }
   };
 

@@ -36,6 +36,16 @@ Reglas que el hook `hooks/pre-flight.ts` y el subagent `ia4d-compliance-checker`
 - `https://*.qa.*`, `https://*.test.*`, `https://*.int.*`, `https://*.staging.*`, `https://*.dev.*`
 - `http://localhost:*`, `http://127.0.0.1:*`
 
+## Limitación conocida: extracción de URL en el hook
+
+`hooks/pre-flight.ts::extractUrl` solo reconoce los parámetros `url`, `target` y `base_url` del
+`tool_input`. Si una versión futura del MCP `playwright-test` renombrara el parámetro de navegación,
+el gate no podría extraer ni validar esa URL — el "sin override" de las reglas C1-C5 depende de que
+el schema del MCP mantenga esos nombres. No es un bypass silencioso: cuando una tool de navegación
+(`browser_navigate`, `planner_setup_page`, `generator_setup_page`) llega sin URL extraíble, el hook
+emite un `WARN` explícito a stderr avisando de que el gate NO validó esa navegación. Al actualizar
+la versión del MCP, verificar que los nombres de parámetro siguen vigentes.
+
 ## Cómo el agente reporta una violación
 
 JSON estructurado al audit-log + mensaje en stderr:

@@ -125,8 +125,8 @@ El proyecto expone cinco slash commands bajo el namespace `/ia4d-qa-automator:*`
 ├── src/                                           (lógica determinística TS)
 │   ├── pom-scaffolder.ts  gherkin-to-criteria.ts  judge-scoring.ts
 │   ├── compliance-preflight.ts  pii-detector.ts  audit-log.ts
-│   ├── allure-enricher.ts  native-agents.ts
-│   └── scripts/                                   (CLI auxiliares: healthcheck, scaffold-poms, slice65-judge)
+│   ├── allure-enricher.ts
+│   └── scripts/                                   (CLI auxiliares: healthcheck, scaffold-poms, consolidate-reviews)
 ├── hooks/
 │   └── pre-flight.ts  pii-post.ts  audit-write.ts               (wiring en .claude/settings.json)
 ├── config/
@@ -400,7 +400,7 @@ Decisión QA: S3 se construye como **inyección de criterios sobre el motor S4 y
 ## Anexo: Riesgos conocidos del MVP
 
 1. **Playwright Planner contra SauceDemo en demo en vivo**: mitigado por entrega via video, no demo en vivo.
-2. **Dependencia versión Playwright** v1.56+. Pinear en `package.json` (`^1.56.0`). Nombres de subagents nativos encapsulados en `src/native-agents.ts` para protegernos de renames upstream.
+2. **Dependencia versión Playwright** v1.56+. Pinear en `package.json` (`^1.56.0`). Un rename upstream de los subagents nativos se corrige en los commands que los invocan por nombre (no hay capa de constantes: se eliminó `src/native-agents.ts` por no tener consumidores).
 3. **Coste LLM** sin budget cap en MVP. Aceptable según mediciones (≤100k tokens por MVP completo, según Slice 0.5). Budget cap entra en v0.2.
 4. **Sin knowledge graph**, traceability vive en `audit-log.json` + JSDoc. Limitado para queries complejas. Aceptable MVP.
 5. **Sin TMS connector**, JSON catalog genérico. Blocker para piloto cliente. Aceptable demo.

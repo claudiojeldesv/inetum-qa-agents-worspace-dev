@@ -113,6 +113,10 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
 `<workDir>/review-feedback.json` plano: `QA_WORK_DIR=<workDir> npx tsx src/scripts/consolidate-reviews.ts`.
 El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrente que corrompía el fichero.)
 
+**14.c — PII scan consolidado (opcional, solo si `QA_ENABLE_PII` está seteado):** idéntico a S4 (ver
+`autonomous.md` Acto 4 paso 11.c). Invoca `ia4d-pii-scanner` sobre `tests/e2e/<site-id>/` con
+`--output=<workDir>/pii-scan-report.json` y registra el veredicto (o el `skip`) al audit-log.
+
 ### Acto 5 — Juzgar
 
 15. **Judge opcional, off por defecto.** Solo si `QA_ENABLE_JUDGE` está seteado (PowerShell: `$env:QA_ENABLE_JUDGE`; bash: `$QA_ENABLE_JUDGE`) invoca `ia4d-judge` por cada `.spec.ts` con el `<workDir>/review-feedback.json` consolidado. Si no, **omite el Judge** y registra al audit-log `{ source: 'command', action: 'skip', rule: 'judge', reason: 'judge off (QA_ENABLE_JUDGE unset)' }`.

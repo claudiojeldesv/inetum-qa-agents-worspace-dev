@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, it, expect } from 'vitest';
 import { scaffoldPage, scaffoldBasePage, scaffold } from '../../src/pom-scaffolder.ts';
 
 describe('pom-scaffolder scaffoldPage', () => {
@@ -131,5 +134,28 @@ describe('pom-scaffolder scaffold (in-memory)', () => {
     const result = scaffold([{ name: 'login' }], { basePage: false }, false);
     expect(result.files).toHaveLength(1);
     expect(result.files[0].className).toBe('LoginPage');
+  });
+});
+
+describe('pom-scaffolder scaffold (on disk)', () => {
+  let dir: string;
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('overwrites an existing page file on re-scaffold (no staleness between runs)', () => {
+    dir = mkdtempSync(join(tmpdir(), 'pom-scaffold-'));
+    const stalePath = join(dir, 'login.page.ts');
+    writeFileSync(stalePath, '// stale content from a previous run\n', 'utf8');
+
+    scaffold(
+      [{ name: 'login', interactive_elements: [{ role: 'button', name: 'Login', test_id: 'login-button' }] }],
+      { outputDir: dir, basePage: false },
+    );
+
+    const content = readFileSync(stalePath, 'utf8');
+    expect(content).not.toContain('stale content');
+    expect(content).toContain("getByTestId('login-button')");
   });
 });

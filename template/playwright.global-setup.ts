@@ -10,8 +10,9 @@ import { resolve } from 'node:path';
  * corregidos). Limpiar aquí —código determinista, no instrucción al LLM— garantiza que el
  * reporte refleje SOLO la corrida actual, para todos los commands y runs manuales.
  *
- * NO toca `.allure-history/` (vive fuera de `allure-results`): los Trends entre runs se preservan,
- * porque `build-report.mjs` re-inyecta el history en su paso "History IN" tras el run.
+ * NO toca `.allure-history/` (vive fuera de `allure-results`). Nota: el reporte actual es single-file
+ * y NO acumula Trends entre runs (trade-off asumido — ver `/ia4d-qa-automator:report`); no existe
+ * ningún paso que re-inyecte history en `build-report.mjs`.
  */
 function globalSetup(): void {
   // Work dir por-sitio (v0.2): QA_WORK_DIR='.work/<site-id>' aísla los allure-results por sitio.
