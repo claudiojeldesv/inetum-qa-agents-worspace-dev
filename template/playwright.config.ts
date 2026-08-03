@@ -14,6 +14,9 @@ const workDir = process.env.QA_WORK_DIR || '.work';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // Specs archivados (material histórico v0.1/Fase B): fuera del runner y del type-check
+  // (tsconfig los excluye). Se conservan como referencia, no como código vivo.
+  testIgnore: '**/_archive/**',
   outputDir: `${workDir}/test-results`,
   // Limpia .work/allure-results antes de cada run (allure-playwright nunca limpia: acumula
   // resultados entre corridas → el reporte mezclaría runs viejos, skipped rancios y fallos ya

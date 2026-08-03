@@ -7,3 +7,5 @@ template/
 docs/
 # Seed regenerado por el MCP playwright-test en cada setup_page (gitignored)
 tests/e2e/seed.spec.ts
+# Specs archivados (material histórico, excluido también de tsconfig y del runner)
+tests/e2e/_archive/

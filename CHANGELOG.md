@@ -3,10 +3,10 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según el roadmap de [SPEC.md](SPEC.md) §7.
 
-## [Unreleased]
+## [0.3.5] - 2026-08-03
 
 Cierre de los hallazgos `REQUEST_CHANGES` de la auditoría externa 2026-07-21 (doctor + panel-judge
-sobre el plugin distribuido).
+sobre el plugin distribuido) + saneamiento del build del repo.
 
 ### Removed
 - **`src/scripts/slice65-judge.ts`** (CRÍTICO): Judge standalone huérfano de una sesión de desarrollo;
@@ -31,6 +31,13 @@ sobre el plugin distribuido).
 - **Limitación de `extractUrl` documentada** en `compliance-rules.md`: el hook solo reconoce
   `url`/`target`/`base_url`; un rename del schema del MCP degrada el gate a WARN ruidoso, no bloqueo.
 - **Test unitario de `audit-log.ts`** (append-only, JSONL, timestamp, campos opcionales).
+
+### Fixed (build del repo, fuera del alcance de la auditoría)
+- **34 errores de `tsc` preexistentes eliminados**: los specs de `tests/e2e/_archive/` quedaron con
+  imports `../pages/` rotos al moverse a la subcarpeta; al ser material histórico, se excluyen del
+  type-check (`tsconfig`), del runner (`testIgnore` en `playwright.config.ts` — antes un
+  `npx playwright test` sin filtro los intentaba correr) y del lint. Los 3 errores restantes eran
+  reales: el POM `saucedemo/home.page.ts` no tenía el método `login()` que sus specs invocan; añadido.
 
 ## [0.3.4] - 2026-07-18
 
