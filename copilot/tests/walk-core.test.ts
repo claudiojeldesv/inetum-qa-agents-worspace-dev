@@ -4,20 +4,23 @@ import { resolve } from 'node:path';
 import {
   accentInsensitivePattern,
   aliasKey,
+  buildFallbackCandidates,
   buildLocatorCandidates,
   dedupeAndPrune,
   hashScript,
   hintLocatorPlan,
   locatorSource,
+  looksGeneratedId,
   normalizedPlan,
   normalizeText,
+  parseLocatorChain,
   parseJsonLoose,
   pruneAriaSnapshot,
   resolveFixtureRef,
   slugFromUrl,
   validateWalkScript,
 } from '../src/walk-core.ts';
-import type { DomElement, WalkScript } from '../src/walk-types.ts';
+import type { DomElement, PickedElement, WalkScript } from '../src/walk-types.ts';
 
 const FIXTURES = {
   credentials: [
@@ -389,5 +392,100 @@ describe('validateWalkScript — hover (K0.10a)', () => {
     const { ok, errors } = validateWalkScript(s);
     expect(ok).toBe(false);
     expect(errors.join(' ')).toMatch(/'hover' requiere hint/);
+  });
+});
+
+
+// ------------------------------- escalera de fallback de locators (K0.11a)
+
+describe('looksGeneratedId', () => {
+  it('caza los ids autogenerados por framework', () => {
+    for (const id of [':r3:', ':R2ab:', 'ng-tns-c12-4', 'cdk-overlay-0', 'input-347', 'field_12', 'j_id123', '3col', 'a1b2c3d4-1111-2222', 'mat-input-3'])
+      expect(looksGeneratedId(id)).toBe(true);
+  });
+
+  it('acepta los que parecen escritos por una persona', () => {
+    for (const id of ['numeroPoliza', 'login-form', 'btnGuardar', 'tomador_nombre'])
+      expect(looksGeneratedId(id)).toBe(false);
+  });
+
+  it('id vacio no sirve', () => {
+    expect(looksGeneratedId('')).toBe(true);
+  });
+});
+
+describe('buildFallbackCandidates (el fallo real de onesait s7)', () => {
+  const PRIORITY = ['getByRole', 'getByLabel', 'getByText'];
+
+  it('un elemento SIN identidad semantica ya no se queda sin candidatos', () => {
+    // input sin name, sin label, sin test-id: la norma en formularios Java corporativos
+    const el: PickedElement = {
+      role: 'textbox',
+      via: 'click',
+      anchor: { role: 'form', name: 'Datos de la poliza' },
+      nearby_text: 'Numero Poliza',
+      nth_of_role: 2,
+    };
+    const cands = buildFallbackCandidates(el, PRIORITY);
+    expect(cands.length).toBeGreaterThan(0);
+    expect(cands.map((c) => c.tier)).toContain('anchored');
+    expect(cands.map((c) => c.tier)).toContain('indexed');
+  });
+
+  it('el orden es semantic -> scoped -> anchored -> css -> indexed', () => {
+    const el: PickedElement = {
+      role: 'textbox',
+      name: 'Poliza',
+      via: 'click',
+      anchor: { role: 'form', name: 'Datos' },
+      nearby_text: 'Numero',
+      dom_id: 'numeroPoliza',
+      id_stable: true,
+      nth_of_role: 1,
+    };
+    const tiers = buildFallbackCandidates(el, PRIORITY).map((c) => c.tier);
+    expect(tiers[0]).toBe('semantic');
+    expect(tiers.indexOf('scoped')).toBeLessThan(tiers.indexOf('anchored'));
+    expect(tiers.lastIndexOf('indexed')).toBe(tiers.length - 1);
+  });
+
+  it('solo semantic va sin marca de fragilidad; indexed SIEMPRE fragil', () => {
+    const el: PickedElement = { role: 'textbox', via: 'click', nth_of_role: 4 };
+    const cands = buildFallbackCandidates(el, PRIORITY);
+    const indexed = cands.find((c) => c.tier === 'indexed');
+    expect(indexed?.fragile).toBe(true);
+    expect(indexed?.why).toMatch(/posicional/);
+  });
+
+  it('un id de aspecto generado NO produce candidato css', () => {
+    const el: PickedElement = { role: 'textbox', via: 'click', dom_id: 'input-347', id_stable: false };
+    expect(buildFallbackCandidates(el, PRIORITY).some((c) => c.tier === 'css')).toBe(false);
+  });
+
+  it('el scoped se ancla al contenedor con nombre accesible', () => {
+    const el: PickedElement = { role: 'button', name: 'Guardar', via: 'click', anchor: { role: 'region', name: 'Beneficiario' } };
+    const scoped = buildFallbackCandidates(el, PRIORITY).find((c) => c.tier === 'scoped');
+    expect(scoped?.source).toBe("getByRole('region', { name: 'Beneficiario' }) >> getByRole('button', { name: 'Guardar' })");
+  });
+});
+
+describe('parseLocatorChain', () => {
+  it('parte por el separador y extrae el nth de cada segmento', () => {
+    expect(parseLocatorChain("getByRole('form') >> getByRole('textbox').nth(2)")).toEqual([
+      { segment: "getByRole('form')" },
+      { segment: "getByRole('textbox')", nth: 2 },
+    ]);
+  });
+
+  it('un solo segmento se comporta como siempre', () => {
+    expect(parseLocatorChain("getByTestId('x')")).toEqual([{ segment: "getByTestId('x')" }]);
+  });
+
+  it('round-trip con lo que emite buildFallbackCandidates', () => {
+    const el: PickedElement = { role: 'textbox', via: 'click', anchor: { role: 'form', name: 'Datos' }, nth_of_role: 3 };
+    const indexed = buildFallbackCandidates(el, ['getByRole']).find((c) => c.tier === 'indexed')!;
+    const chain = parseLocatorChain(indexed.source);
+    expect(chain).toHaveLength(2);
+    expect(chain[1].nth).toBe(3);
   });
 });

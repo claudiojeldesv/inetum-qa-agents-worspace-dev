@@ -1,0 +1,50 @@
+<!doctype html>
+<!--
+  Fixture del fallo real de onesait s7: formulario Java corporativo donde el campo
+  NO tiene nombre accesible, ni label asociado, ni test-id. Con la escalera vieja
+  (solo identidad semántica) no había locator posible y la asistencia se rendía
+  DESPUÉS de que el QA hubiera señalado el campo con el dedo.
+
+  La etiqueta vive en una celda hermana — el patrón label-en-celda, ubicuo en
+  formularios generados por servidor. Y los ids son autogenerados (j_id…), que es
+  la trampa clásica del locator que funciona hoy y muere en el siguiente despliegue.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture formulario sin identidad</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; padding: 24px; }
+      table { border-collapse: collapse; }
+      td { padding: 6px 10px; border: 1px solid #ddd; }
+      .lbl { background: #f5f5f5; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <form role="form" aria-label="Datos de la póliza">
+      <table>
+        <tr>
+          <td class="lbl">Número Póliza</td>
+          <td><input type="text" id="j_id123" /></td>
+        </tr>
+        <tr>
+          <td class="lbl">Fecha Efecto</td>
+          <td><input type="text" id="j_id124" /></td>
+        </tr>
+        <tr>
+          <td class="lbl">Importe</td>
+          <td><input type="text" id="j_id125" /></td>
+        </tr>
+      </table>
+    </form>
+
+    <form role="form" aria-label="Datos del beneficiario">
+      <table>
+        <tr>
+          <td class="lbl">Nombre</td>
+          <td><input type="text" id="j_id200" /></td>
+        </tr>
+      </table>
+    </form>
+  </body>
+</html>

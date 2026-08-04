@@ -16,7 +16,7 @@
  * Uso:
  *   tsx copilot/src/dom-walker.ts --script=<walk-script.json> --contract=<style.yaml> \
  *     [--base-url=<url>] [--work-dir=<dir>] [--rescue-budget=N] [--testid-attr=data-test] \
- *     [--cap=60] [--headed] [--assist] [--assist-timeout=600]
+ *     [--cap=60] [--headed] [--assist] [--assist-timeout=600] [--no-minimize]
  *
  * Escalera de resolución: determinístico → normalizador (acentos) → aliases del
  * cliente → ASISTIDO (--assist, $0, capta también la coreografía) → rescate LLM
@@ -36,6 +36,7 @@ import {
   accentInsensitivePattern,
   aliasKey,
   buildAssistSteps,
+  buildFallbackCandidates,
   buildLocatorCandidates,
   dedupeAndPrune,
   hashScript,
@@ -44,6 +45,7 @@ import {
   locatorSource,
   normalizedPlan,
   parseJsonLoose,
+  parseLocatorChain,
   pruneAriaSnapshot,
   pruneAssistSequence,
   resolveFixtureRef,
@@ -63,6 +65,7 @@ import {
   type DomMap,
   type DomScreen,
   type HintAliasFile,
+  type LocatorCandidate,
   type PickedElement,
   type RescueRequest,
   type RescueResponse,
@@ -93,6 +96,8 @@ interface WalkerOptions {
   /** Modo asistido (K0.10): panel Record en el navegador cuando un hint no resuelve. */
   assist: boolean;
   assistTimeoutMs: number;
+  /** Minimizar el parche por replay (K0.11e). Off con --no-minimize. */
+  assistMinimize: boolean;
 }
 
 interface StyleContract {
@@ -179,6 +184,62 @@ function extractionHelpers(testidAttrs: string[]): string {
       const lab = labelOf(el); if (lab && lab !== nm) out.label = lab;
       return out;
     };
+
+    // ---- contexto de fallback (K0.11b). Solo lo usa el modo asistido: cuando el
+    // elemento NO tiene identidad semántica (input sin name/label/test-id, la norma
+    // en formularios Java corporativos) esto es lo único que permite construir un
+    // locator en vez de rendirse tras el trabajo del humano.
+    const ANCHOR_ROLES = ['region','form','dialog','navigation','main','table','row','group','tabpanel','article'];
+    const looksGenerated = (id) => !id || /^:.+:$/.test(id) || /ng-tns-|ng-reflect-|cdk-|mat-\\d/.test(id)
+      || /[-_]\\d{2,}$/.test(id) || /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(id) || /^[a-z]{1,3}\\d{3,}$/i.test(id) || /^\\d/.test(id);
+    /** Ancestro más cercano con rol de contenedor Y nombre accesible. */
+    const anchorOf = (el) => {
+      let p = el.parentElement;
+      while (p && p !== document.body) {
+        const r = roleOf(p);
+        if (ANCHOR_ROLES.includes(r)) { const n = nameOf(p); if (n) return { role: r, name: n }; }
+        p = p.parentElement;
+      }
+      return undefined;
+    };
+    /** Texto previo más cercano: la etiqueta en la celda/hermano de al lado. */
+    const nearbyTextOf = (el) => {
+      const cell = el.closest('td, th, li, div');
+      if (cell) {
+        const prev = cell.previousElementSibling;
+        if (prev) { const t = clean(prev.textContent); if (t && t.length <= 60) return t; }
+      }
+      let sib = el.previousElementSibling;
+      while (sib) {
+        const t = clean(sib.textContent);
+        if (t && t.length <= 60 && !sib.querySelector('input, select, textarea, button')) return t;
+        sib = sib.previousElementSibling;
+      }
+      const row = el.closest('tr');
+      if (row) { const t = clean(row.textContent); if (t && t.length <= 60) return t; }
+      return undefined;
+    };
+    /** Índice del elemento entre los de su mismo rol dentro del ancla (o del doc). */
+    const nthOfRole = (el, anchorEl) => {
+      const scope = anchorEl || document;
+      const role = roleOf(el);
+      const all = Array.from(scope.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea, [role]'))
+        .filter((c) => roleOf(c) === role && isVisible(c));
+      const i = all.indexOf(el);
+      return i >= 0 ? i : undefined;
+    };
+    /** fieldsOf + todo el contexto de fallback. */
+    const fieldsWithContext = (el) => {
+      const out = fieldsOf(el);
+      let anchorEl = el.parentElement;
+      while (anchorEl && anchorEl !== document.body && !ANCHOR_ROLES.includes(roleOf(anchorEl))) anchorEl = anchorEl.parentElement;
+      const a = anchorOf(el); if (a) out.anchor = a;
+      const nt = nearbyTextOf(el); if (nt && nt !== out.name && nt !== out.label) out.nearby_text = nt;
+      const n = nthOfRole(el, anchorEl && anchorEl !== document.body ? anchorEl : null);
+      if (typeof n === 'number') out.nth_of_role = n;
+      if (el.id) { out.dom_id = el.id; out.id_stable = !looksGenerated(el.id); }
+      return out;
+    };
   `;
 }
 
@@ -246,7 +307,7 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
     root.innerHTML = \`
       <style>
         .p{font:13px/1.45 system-ui,sans-serif;background:#111827;color:#f9fafb;border:1px solid #374151;
-           border-radius:8px;width:330px;box-shadow:0 6px 24px rgba(0,0,0,.4);overflow:hidden}
+           border-radius:8px;width:390px;box-shadow:0 6px 24px rgba(0,0,0,.4);overflow:hidden}
         .h{padding:8px 10px;background:#1f2937;cursor:move;font-weight:500;display:flex;justify-content:space-between}
         .b{padding:10px}
         .ctx{color:#9ca3af;margin-bottom:8px}
@@ -255,50 +316,112 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
         button{font:12px system-ui;padding:5px 9px;border-radius:5px;border:1px solid #4b5563;
                background:#374151;color:#f9fafb;cursor:pointer}
         button:hover{background:#4b5563}
+        button:disabled{opacity:.45;cursor:default}
         .rec{background:#065f46;border-color:#047857}
         .stop{background:#7f1d1d;border-color:#991b1b}
         .drift{background:#78350f;border-color:#92400e}
-        ol{margin:8px 0 0;padding-left:18px;color:#d1d5db;max-height:130px;overflow:auto}
-        li{margin:2px 0}
+        ul{list-style:none;margin:8px 0 0;padding:0;color:#d1d5db;max-height:190px;overflow:auto}
+        li{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;margin:1px 0;cursor:default}
+        li:hover{background:#1f2937}
+        li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        li .via{color:#6b7280;font-size:11px;min-width:38px}
+        li .q{font-size:10px;padding:1px 5px;border-radius:3px;background:#374151;color:#9ca3af}
+        li .q.bad{background:#7f1d1d;color:#fecaca}
+        li .q.warn{background:#78350f;color:#fed7aa}
+        li.tgt{background:#064e3b;outline:1px solid #059669}
+        li.asr{background:#1e3a5f;outline:1px solid #2563eb}
+        li button{padding:1px 5px;font-size:11px}
         .st{margin-top:6px;color:#9ca3af;font-size:11px}
+        .warn{color:#fca5a5}
       </style>
       <div class="p">
         <div class="h"><span>Asistencia QA</span><span id="s">esperando</span></div>
         <div class="b">
           <div class="ctx">Paso <b>\${'${step.id}'}</b> bloqueado.<br>El FD dice: <b>\${'${hintText.replace(/'/g, '&#39;').replace(/</g, '&lt;')}'}</b></div>
-          <div class="st">Pulsa Grabar, navega hasta el elemento y púlsalo. Luego Parar.</div>
-          <ol id="l"></ol>
+          <div class="st" id="hint">Explora libre con la grabación PARADA. Cuando sepas el camino, pulsa Grabar y hazlo del tirón.</div>
+          <ul id="l"></ul>
           <div class="row">
             <button id="r" class="rec">Grabar</button>
+            <button id="p" disabled>Pausa</button>
+            <button id="c" disabled>Limpiar</button>
             <button id="t" class="stop" disabled>Parar</button>
+          </div>
+          <div class="row">
             <button id="d" class="drift">No existe aquí</button>
             <button id="b">Bloquear paso</button>
           </div>
         </div>
       </div>\`;
     const $ = (id) => root.getElementById(id);
-    const list = $('l'), status = $('s');
+    const list = $('l'), status = $('s'), hintBox = $('hint');
     let recording = false;
-    const seq = [];
+    const seq = [];       // campos capturados
+    const nodes = [];     // el elemento real, para resaltar desde la lista
     let hoverTimer = null, hoverEl = null;
+    let hl = null;        // caja de resaltado
 
     const sameAsLast = (f) => {
       const p = seq[seq.length - 1];
       if (!p) return false;
       return p.role === f.role && (p.name || '') === (f.name || '') && (p.test_id || '') === (f.test_id || '');
     };
+    const setStatus = (t) => { status.textContent = t; };
+
     const render = () => {
-      list.innerHTML = seq.map((s) => '<li>' + s.via + ' ' + (s.name || s.test_id || s.role) + '</li>').join('');
-      status.textContent = recording ? 'grabando (' + seq.length + ')' : 'parado';
+      list.innerHTML = '';
+      seq.forEach((s, i) => {
+        const li = document.createElement('li');
+        if (s.as === 'target') li.className = 'tgt';
+        if (s.as === 'assertion') li.className = 'asr';
+        const q = s._q || {};
+        const cls = !q.ok ? 'q bad' : q.fragile ? 'q warn' : 'q';
+        li.innerHTML = '<span class="via">' + s.via + '</span>'
+          + '<span class="nm">' + (s.name || s.test_id || s.role) + '</span>'
+          + '<span class="' + cls + '" title="' + (q.why || '') + '">' + (q.label || '?') + '</span>';
+        const mk = (txt, title, fn) => { const b = document.createElement('button'); b.textContent = txt; b.title = title; b.onclick = fn; return b; };
+        li.appendChild(mk('◎', 'marcar como objetivo del paso', () => {
+          seq.forEach((x) => { if (x.as === 'target') delete x.as; });
+          s.as = 'target'; render();
+        }));
+        li.appendChild(mk('✓', 'marcar como comprobación (expect_text)', () => {
+          s.as = s.as === 'assertion' ? undefined : 'assertion'; render();
+        }));
+        li.appendChild(mk('×', 'quitar de la secuencia', () => { seq.splice(i, 1); nodes.splice(i, 1); render(); }));
+        // resaltado del elemento real al pasar por la fila
+        li.onmouseenter = () => {
+          const node = nodes[i];
+          if (!node || !node.getBoundingClientRect) return;
+          const r = node.getBoundingClientRect();
+          if (!hl) { hl = document.createElement('div'); hl.setAttribute(ASSIST_HOST, '1');
+            hl.style.cssText = 'position:fixed;z-index:2147483646;border:2px solid #10b981;background:rgba(16,185,129,.15);pointer-events:none';
+            document.documentElement.appendChild(hl); }
+          hl.style.left = r.left + 'px'; hl.style.top = r.top + 'px';
+          hl.style.width = r.width + 'px'; hl.style.height = r.height + 'px';
+          hl.style.display = 'block';
+        };
+        li.onmouseleave = () => { if (hl) hl.style.display = 'none'; };
+        list.appendChild(li);
+      });
+      setStatus(recording ? 'grabando (' + seq.length + ')' : (seq.length ? 'pausado (' + seq.length + ')' : 'esperando'));
+      const frag = seq.some((s) => s._q && !s._q.ok);
+      hintBox.className = frag ? 'st warn' : 'st';
+      if (frag) hintBox.textContent = 'Ojo: hay un elemento SIN identidad única (marcado en rojo). Señala otro, o su contenedor.';
     };
-    const push = (el, via) => {
+
+    const push = async (el, via) => {
       if (!recording) return;
       if (el.closest && el.closest('[' + ASSIST_HOST + ']')) return;
-      const f = fieldsOf(el);
+      const f = fieldsWithContext(el);
       if (!f.role || f.role === 'generic') return;
       f.via = via;
       if (via === 'hover' && sameAsLast(f)) return;
-      seq.push(f);
+      seq.push(f); nodes.push(el);
+      render();
+      // calidad del locator EN VIVO: el walker responde tier + fragilidad
+      try {
+        const { via: _v, as: _a, _q: _o, ...clean } = f;
+        f._q = await window.__qaAssistCheck({ ...clean, role: f.role });
+      } catch { f._q = { ok: false, label: 'sin verificar', fragile: true }; }
       render();
     };
     const onClick = (e) => { if (e.target !== host) push(e.target, 'click'); };
@@ -317,14 +440,42 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
       document.removeEventListener('click', onClick, true);
       document.removeEventListener('mouseover', onOver, true);
       if (hoverTimer) clearTimeout(hoverTimer);
-      host.remove();
-      window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: seq, reason });
+      if (hl) hl.remove();
+      // el panel se queda: el walker informa del resultado de la verificación y lo
+      // cierra él. Antes desaparecía al instante y el QA no veía qué había pasado.
+      $('r').disabled = true; $('p').disabled = true; $('c').disabled = true; $('t').disabled = true;
+      setStatus('verificando...');
+      hintBox.className = 'st';
+      hintBox.textContent = 'Verificando el camino grabado por replay en un contexto limpio...';
+      const targetIndex = seq.findIndex((s) => s.as === 'target');
+      const clean = seq.map(({ _q, ...rest }) => rest);
+      window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: clean, target_index: targetIndex, reason });
     };
-    const startRec = () => { recording = true; $('t').disabled = false; $('r').disabled = true; render(); };
+    const startRec = () => {
+      recording = true;
+      $('r').disabled = true; $('p').disabled = false; $('c').disabled = false; $('t').disabled = false;
+      hintBox.className = 'st';
+      hintBox.textContent = 'Grabando. Navega y pulsa el elemento. ◎ marca objetivo, ✓ comprobación, × quita.';
+      render();
+    };
+    const pauseRec = () => {
+      recording = !recording;
+      $('p').textContent = recording ? 'Pausa' : 'Reanudar';
+      render();
+    };
     $('r').onclick = startRec;
+    $('p').onclick = pauseRec;
+    $('c').onclick = () => { seq.length = 0; nodes.length = 0; render(); };
     $('t').onclick = () => submit('recorded');
     $('d').onclick = () => submit('drift', 'el QA confirma que el elemento no existe en esta pantalla');
     $('b').onclick = () => submit('block', 'el QA decidió bloquear el paso');
+    // el walker llama a esto al terminar de verificar, y luego cierra
+    window.__qaAssistResult = (msg, ok) => {
+      setStatus(ok ? 'verificado' : 'sin verificar');
+      hintBox.className = ok ? 'st' : 'st warn';
+      hintBox.textContent = msg;
+      setTimeout(() => host.remove(), ok ? 1200 : 3500);
+    };
 
     // Canal de comandos: el shadow root es CERRADO (los locators de Playwright no lo
     // atraviesan, así no interfiere con la resolución del walker), así que los botones
@@ -334,9 +485,18 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
     host.addEventListener('qa-assist-cmd', (ev) => {
       const cmd = ev && ev.detail;
       if (cmd === 'record') startRec();
+      else if (cmd === 'pause') pauseRec();
+      else if (cmd === 'clear') { seq.length = 0; nodes.length = 0; render(); }
       else if (cmd === 'stop') submit('recorded');
       else if (cmd === 'drift') submit('drift', 'comando: elemento no presente');
       else if (cmd === 'block') submit('block', 'comando: bloquear paso');
+      else if (cmd && cmd.target !== undefined) {
+        seq.forEach((x) => { if (x.as === 'target') delete x.as; });
+        if (seq[cmd.target]) seq[cmd.target].as = 'target';
+        render();
+      }
+      else if (cmd && cmd.remove !== undefined) { seq.splice(cmd.remove, 1); nodes.splice(cmd.remove, 1); render(); }
+      else if (cmd && cmd.assert !== undefined) { if (seq[cmd.assert]) seq[cmd.assert].as = 'assertion'; render(); }
     });
 
     // arrastre del panel por la cabecera
@@ -467,7 +627,7 @@ class DomWalker {
 
   // ------------------------------------------------------- resolución hints
 
-  private attemptToLocator(scope: Page | Frame, a: LocatorAttempt): Locator {
+  private attemptToLocator(scope: Page | Frame | Locator, a: LocatorAttempt): Locator {
     // K0.1: intento normalizado → matching por regex accent-insensitive
     const val = (v: string): string | RegExp =>
       'normalized' in a && a.normalized ? new RegExp(accentInsensitivePattern(v), 'i') : v;
@@ -486,11 +646,31 @@ class DomWalker {
   }
 
   /**
+   * Resuelve una CADENA de locators (K0.11a): `A >> B >> C` busca B dentro de A y C
+   * dentro de B, con sufijo `.nth(N)` opcional por segmento. Es lo que permite
+   * expresar los tiers scoped/anchored/indexed que Playwright genera y nosotros no
+   * teníamos. Un solo segmento = comportamiento de siempre.
+   */
+  private locatorFromChain(scope: Page | Frame, src: string): Locator | null {
+    let current: Page | Frame | Locator = scope;
+    for (const { segment, nth } of parseLocatorChain(src)) {
+      const filterMatch = segment.match(/^(.*)\.filter\(\{\s*hasText:\s*'((?:[^'\\]|\\.)*)'\s*\}\)$/);
+      const base = filterMatch ? filterMatch[1] : segment;
+      let loc = this.locatorFromSource(current, base);
+      if (!loc) return null;
+      if (filterMatch) loc = loc.filter({ hasText: filterMatch[2].replace(/\\'/g, "'") });
+      if (typeof nth === 'number') loc = loc.nth(nth);
+      current = loc;
+    }
+    return current === scope ? null : (current as Locator);
+  }
+
+  /**
    * Locator desde string: getBy*('...') literal, getBy*(/re/i) normalizado (K0.1),
    * o `css=<selector>` (escape hatch del rescate). Grammar compartida por
    * rescates, aliases y replay.
    */
-  private locatorFromSource(scope: Page | Frame, src: string): Locator | null {
+  private locatorFromSource(scope: Page | Frame | Locator, src: string): Locator | null {
     const css = src.match(/^css=(.+)$/);
     if (css) return scope.locator(css[1]);
     const testId = src.match(/^getByTestId\('([^']+)'\)$/);
@@ -543,7 +723,7 @@ class DomWalker {
       const alias = this.aliases.aliases[aliasKey(step.hint)];
       if (alias) {
         for (const { scope, path } of scopes) {
-          const loc = this.locatorFromSource(scope, alias.locator);
+          const loc = this.locatorFromChain(scope, alias.locator);
           if (!loc) break; // grammar ilegible: la escalera normal decide
           const unique = await this.uniqueOrNull(loc);
           if (unique) {
@@ -585,16 +765,42 @@ class DomWalker {
       this.assistPending = null;
       pending?.(payload);
     });
+    /**
+     * Segundo puente (K0.11c): el panel pregunta EN VIVO por la calidad del locator
+     * de un elemento recién señalado y el walker responde con tier + fragilidad. Así
+     * el QA se entera de que un campo no tiene identidad única con la pantalla
+     * delante, no media hora después leyendo un JSON — que fue lo que pasó en s7.
+     * El Inspector de Playwright muestra el locator pero no juzga su fragilidad.
+     */
+    await this.page.exposeFunction('__qaAssistCheck', async (el: PickedElement) => {
+      const resolved = await this.locatorForPicked(el).catch(() => null);
+      if (!resolved) return { ok: false, label: 'sin identidad única', fragile: true };
+      const { candidate } = resolved;
+      return {
+        ok: true,
+        tier: candidate.tier,
+        fragile: candidate.fragile,
+        label: candidate.fragile ? `frágil (${candidate.tier})` : candidate.tier,
+        why: candidate.why ?? '',
+        source: candidate.source,
+      };
+    });
     this.assistBridgeReady = true;
   }
 
-  /** Resuelve los campos de un elemento señalado a un locator único verificado. */
-  private async locatorForPicked(el: PickedElement): Promise<{ locator: Locator; source: string } | null> {
-    for (const candidate of buildLocatorCandidates(el, this.priority)) {
-      const loc = this.locatorFromSource(this.page, candidate);
+  /**
+   * Escalera COMPLETA sobre un elemento señalado (K0.11a): semantic → scoped →
+   * anchored → css → indexed. Devuelve el primero que resuelve único, con su tier y
+   * su fragilidad, para que el parche y el panel puedan decir la verdad sobre él.
+   */
+  private async locatorForPicked(
+    el: PickedElement,
+  ): Promise<{ locator: Locator; candidate: LocatorCandidate } | null> {
+    for (const candidate of buildFallbackCandidates(el, this.priority)) {
+      const loc = this.locatorFromChain(this.page, candidate.source);
       if (!loc) continue;
-      const unique = await this.uniqueOrNull(loc);
-      if (unique) return { locator: unique, source: candidate };
+      const unique = await this.uniqueOrNull(loc).catch(() => null);
+      if (unique) return { locator: unique, candidate };
     }
     return null;
   }
@@ -608,6 +814,7 @@ class DomWalker {
   private async assistResolve(
     flow: WalkFlow,
     step: WalkStep,
+    contextReason?: string,
   ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
     await this.ensureAssistBridge();
     console.error(`[dom-walker] ASISTENCIA ${flow.flow}/${step.id}: panel abierto en el navegador, esperando al QA...`);
@@ -623,7 +830,7 @@ class DomWalker {
         res(p);
       };
       void this.page
-        .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, this.hintText(step)))
+        .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, contextReason ?? this.hintText(step)))
         .catch((err) => console.error(`[dom-walker] no se pudo inyectar el panel: ${String(err).split('\n')[0]}`));
     });
 
@@ -644,26 +851,49 @@ class DomWalker {
 
     const sequence = pruneAssistSequence(submission.sequence ?? []);
     if (sequence.length === 0) {
+      await this.assistTell('No se grabó ninguna interacción. Vuelvo a intentarlo en el siguiente paso.', false);
       this.blockStep(flow, step, 'asistencia: no se grabó ninguna interacción', false);
       return null;
     }
 
-    // resolver un locator único para cada elemento de la secuencia
-    const locators: string[] = [];
-    let target: { locator: Locator; source: string } | null = null;
-    for (let i = 0; i < sequence.length; i++) {
-      const resolved = await this.locatorForPicked(sequence[i]);
-      locators.push(resolved?.source ?? '');
-      if (i === sequence.length - 1) target = resolved;
+    // escalera completa por elemento (K0.11a)
+    const candidates: Array<LocatorCandidate | null> = [];
+    const resolvedByIdx: Array<{ locator: Locator; candidate: LocatorCandidate } | null> = [];
+    for (const el of sequence) {
+      const r = await this.locatorForPicked(el);
+      candidates.push(r?.candidate ?? null);
+      resolvedByIdx.push(r);
     }
+
+    let steps = buildAssistSteps(sequence, candidates, {
+      targetIndex: submission.target_index !== undefined && submission.target_index >= 0 ? submission.target_index : undefined,
+      targetAction: step.action,
+    });
+    const targetIdx = steps.findIndex((s) => s.role === 'target');
+    const target = targetIdx >= 0 ? resolvedByIdx[targetIdx] : null;
+
     if (!target) {
-      this.blockStep(flow, step, 'asistencia: el elemento señalado no tiene identidad única (rol/nombre/test-id ambiguos)', false);
+      const why = candidates[targetIdx] === null
+        ? 'el elemento señalado no tiene identidad única ni por ancla, texto vecino, id estable o posición'
+        : 'no se pudo determinar el objetivo de la secuencia';
+      await this.assistTell(`No pude construir un locator: ${why}.`, false);
+      this.blockStep(flow, step, `asistencia: ${why}`, false);
       this.audit('block', `asistencia sin locator único en ${flow.flow}/${step.id}`, { phase: 'assist', source: 'human' });
       return null;
     }
 
-    const steps = buildAssistSteps(sequence, locators);
-    const verify = await this.verifyAssistPatch(flow, step, steps);
+    let verify = await this.verifyAssistPatch(flow, step, steps);
+    // minimización por replay (K0.11e): quitar abridores de uno en uno mientras siga
+    // verificando. El QA exploró antes de dar con el camino; no tiene por qué saber
+    // cuáles de sus pasos eran necesarios — se PRUEBA, no se pregunta.
+    if (verify.ok && this.opts.assistMinimize) {
+      const min = await this.minimizeAssistSteps(flow, step, steps);
+      if (min.steps.length < steps.length) {
+        steps = min.steps;
+        console.error(`[dom-walker] parche minimizado: ${min.dropped} paso(s) innecesario(s) descartados por replay`);
+      }
+    }
+
     this.assistPatch.entries.push({
       flow: flow.flow,
       replaces_step: step.id,
@@ -674,21 +904,67 @@ class DomWalker {
     });
     this.writeAssistPatch();
 
+    const frag = steps.filter((s) => s.fragile);
+    await this.assistTell(
+      verify.ok
+        ? `Parche verificado: ${steps.length} paso(s)${frag.length ? `, ${frag.length} con locator frágil` : ''}.`
+        : `El camino grabado NO reproduce en limpio: ${verify.reason ?? 'motivo desconocido'}`,
+      verify.ok,
+    );
+
     // el objetivo entra en la memoria del cliente igual que un rescate (promoción
     // condicional al cierre del flujo), pero con procedencia humana
     if (step.hint) {
-      this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: target.source, audit_logged: true });
+      this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: target.candidate.source, audit_logged: true });
     }
-    this.audit('allow', `asistencia resuelta ${flow.flow}/${step.id} → ${target.source}`, {
+    this.audit('allow', `asistencia resuelta ${flow.flow}/${step.id} → ${target.candidate.source}`, {
       phase: 'assist',
       source: 'human',
       steps: steps.length,
+      tier: target.candidate.tier,
+      fragile: target.candidate.fragile,
       patch_verified: verify.ok,
     });
     console.error(
-      `[dom-walker] asistencia OK: ${steps.length} paso(s) propuestos, parche ${verify.ok ? 'VERIFICADO' : 'SIN VERIFICAR'} → assist-patch.json`,
+      `[dom-walker] asistencia OK: ${steps.length} paso(s), locator ${target.candidate.tier}` +
+        `${target.candidate.fragile ? ' (FRÁGIL)' : ''}, parche ${verify.ok ? 'VERIFICADO' : 'SIN VERIFICAR'} → assist-patch.json`,
     );
-    return { locator: target.locator, via: target.source, frame_path: [] };
+    return { locator: target.locator, via: target.candidate.source, frame_path: [] };
+  }
+
+  /** Devuelve el resultado al panel para que el QA lo vea antes de que se cierre. */
+  private async assistTell(message: string, ok: boolean): Promise<void> {
+    await this.page
+      .evaluate(([m, o]) => (window as unknown as { __qaAssistResult?: (a: string, b: boolean) => void }).__qaAssistResult?.(m as string, o as boolean), [message, ok] as const)
+      .catch(() => {});
+  }
+
+  /**
+   * Delta-debugging acotado del parche: intenta quitar cada abridor y re-verifica.
+   * Se queda con el conjunto mínimo que sigue reproduciendo. Cap de replays porque
+   * cada uno re-ejecuta el flujo entero desde entry.
+   */
+  private async minimizeAssistSteps(
+    flow: WalkFlow,
+    failed: WalkStep,
+    steps: AssistPatchStep[],
+  ): Promise<{ steps: AssistPatchStep[]; dropped: number }> {
+    const MAX_REPLAYS = 6;
+    let best = steps;
+    let replays = 0;
+    let i = 0;
+    while (i < best.length && replays < MAX_REPLAYS) {
+      if (best[i].role !== 'opener') { i += 1; continue; }
+      const trial = best.filter((_, k) => k !== i);
+      replays += 1;
+      const v = await this.verifyAssistPatch(flow, failed, trial);
+      if (v.ok) best = trial; // sobraba: no avanzamos i, el siguiente ocupa su sitio
+      else i += 1;
+    }
+    if (replays >= MAX_REPLAYS) {
+      console.error(`[dom-walker] minimización cortada en ${MAX_REPLAYS} replays (cap); el parche puede tener pasos de más`);
+    }
+    return { steps: best, dropped: steps.length - best.length };
   }
 
   /**
@@ -720,11 +996,23 @@ class DomWalker {
       }
       // y ahora los pasos propuestos por la asistencia
       for (const [i, ps] of steps.entries()) {
-        const probe: WalkStep = { id: `${failed.id}-assist${i}`, action: ps.action, hint: ps.hint };
-        const resolved = await this.resolveHint(probe);
-        if (!resolved) return { ok: false, reason: `el paso propuesto ${i + 1} (${ps.action}) no resuelve en un contexto limpio` };
-        if (ps.action === 'hover') await resolved.locator.hover({ timeout: STEP_TIMEOUT_MS });
-        else await resolved.locator.click({ timeout: STEP_TIMEOUT_MS });
+        if (ps.action === 'expect_text') {
+          const found = ps.value ? await this.findVisibleText(ps.value) : null;
+          if (!found) return { ok: false, reason: `la comprobación propuesta ("${ps.value}") no se observa en limpio` };
+          continue;
+        }
+        // el locator del parche es autoritativo (puede ser scoped/anchored/indexed:
+        // el hint solo no lo reproduce); el hint queda como fallback
+        let loc = ps.locator ? this.locatorFromChain(page, ps.locator) : null;
+        let unique = loc ? await this.uniqueOrNull(loc) : null;
+        if (!unique) {
+          const probe: WalkStep = { id: `${failed.id}-assist${i}`, action: ps.action, hint: ps.hint };
+          const byHint = await this.resolveHint(probe);
+          unique = byHint?.locator ?? null;
+        }
+        if (!unique) return { ok: false, reason: `el paso propuesto ${i + 1} (${ps.action}) no resuelve en un contexto limpio` };
+        if (ps.action === 'hover') await unique.hover({ timeout: STEP_TIMEOUT_MS });
+        else await unique.click({ timeout: STEP_TIMEOUT_MS });
       }
       return { ok: true };
     } catch (err) {
@@ -994,9 +1282,9 @@ class DomWalker {
         const prior = this.state.rescues.find(
           (r) => r.flow === flow.flow && r.step === step.id && r.resolved && r.locator,
         );
-        let resolved: { locator: Locator; via: string; frame_path: string[] } | null = null;
+        let resolved: { locator: Locator; via: string; frame_path: string[] } | null = null; // reasignable: la asistencia puede sustituirlo (K0.11d)
         if (prior?.locator) {
-          const loc = this.locatorFromSource(this.page, prior.locator);
+          const loc = this.locatorFromChain(this.page, prior.locator);
           if (loc && (await loc.count().catch(() => 0)) >= 1) {
             resolved = { locator: loc.first(), via: prior.locator, frame_path: [] };
           }
@@ -1013,7 +1301,7 @@ class DomWalker {
               this.audit('block', `rescate fallido ${stepKey}: paso a open_questions`, { phase: 'rescue-response' });
               return;
             }
-            const loc = this.locatorFromSource(this.page, rescue.locator);
+            const loc = this.locatorFromChain(this.page, rescue.locator);
             const count = loc ? await loc.count().catch(() => 0) : 0;
             if (loc && count >= 1) {
               resolved = { locator: count === 1 ? loc : loc.first(), via: rescue.locator, frame_path: [] };
@@ -1053,25 +1341,59 @@ class DomWalker {
         const from = this.state.current_screen;
         const preUrl = this.page.url();
         const value = step.value !== undefined ? resolveFixtureRef(step.value, fixtures) : undefined;
-        switch (step.action) {
-          case 'fill':
-            await resolved.locator.fill(value!, { timeout: STEP_TIMEOUT_MS });
-            break;
-          case 'click':
-            await resolved.locator.click({ timeout: STEP_TIMEOUT_MS });
-            break;
-          case 'hover':
-            await resolved.locator.hover({ timeout: STEP_TIMEOUT_MS });
-            break;
-          case 'select':
-            await resolved.locator.selectOption(value!, { timeout: STEP_TIMEOUT_MS });
-            break;
-          case 'check':
-            await resolved.locator.check({ timeout: STEP_TIMEOUT_MS });
-            break;
-          case 'uncheck':
-            await resolved.locator.uncheck({ timeout: STEP_TIMEOUT_MS });
-            break;
+
+        const runAction = async (loc: Locator): Promise<void> => {
+          switch (step.action) {
+            case 'fill':
+              await loc.fill(value!, { timeout: STEP_TIMEOUT_MS });
+              break;
+            case 'click':
+              await loc.click({ timeout: STEP_TIMEOUT_MS });
+              break;
+            case 'hover':
+              await loc.hover({ timeout: STEP_TIMEOUT_MS });
+              break;
+            case 'select':
+              await loc.selectOption(value!, { timeout: STEP_TIMEOUT_MS });
+              break;
+            case 'check':
+              await loc.check({ timeout: STEP_TIMEOUT_MS });
+              break;
+            case 'uncheck':
+              await loc.uncheck({ timeout: STEP_TIMEOUT_MS });
+              break;
+          }
+        };
+
+        try {
+          await runAction(resolved.locator);
+        } catch (err) {
+          /**
+           * K0.11d — el elemento SE RESOLVIÓ pero la acción falló. Es la clase de
+           * COREOGRAFÍA (el caso onesait s6: item de submenú presente en el DOM pero
+           * nunca clicable) y hasta ahora caía en el catch genérico de run(): el paso
+           * quedaba bloqueado con un timeout opaco y la asistencia ni se enteraba,
+           * porque solo se disparaba cuando el elemento no se encontraba.
+           *
+           * El `via` va SIEMPRE en el motivo: saber QUÉ matcheó es lo que distingue
+           * "no es clicable" de "matcheé el elemento equivocado" — un hint por texto
+           * puede resolver único sobre un título o un div oculto.
+           */
+          const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+          const detail = `la acción '${step.action}' falló sobre ${resolved.via}: ${msg}`;
+          if (this.opts.assist) {
+            this.audit('block', `action_failed en ${flow.flow}/${step.id}: ${detail}`, {
+              phase: 'assist-trigger',
+              matched: resolved.via,
+            });
+            const assisted = await this.assistResolve(flow, step, detail);
+            if (!assisted) return; // drift/block/timeout: ya anotado
+            await runAction(assisted.locator);
+            resolved = assisted;
+          } else {
+            this.blockStep(flow, step, detail, false);
+            return;
+          }
         }
 
         if (step.expect_transition) {
@@ -1318,6 +1640,7 @@ async function main(): Promise<void> {
       aliases: { type: 'string' },
       assist: { type: 'boolean', default: false },
       'assist-timeout': { type: 'string' },
+      'no-minimize': { type: 'boolean', default: false },
     },
   });
 
@@ -1357,6 +1680,7 @@ async function main(): Promise<void> {
     aliasesPath: values.aliases ?? process.env.QA_HINT_ALIASES,
     assist,
     assistTimeoutMs: Number(values['assist-timeout'] ?? process.env.QA_ASSIST_TIMEOUT ?? 600) * 1000,
+    assistMinimize: !(values['no-minimize'] ?? false),
   };
 
   const state = loadState(workDir, rawScript);

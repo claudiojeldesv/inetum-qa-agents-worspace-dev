@@ -175,8 +175,56 @@ o el fragmento del pack (coreografía) queda escrito, y a partir de ahí es auto
 en esa app y en las demás de la familia. Es **calibración asistida**, no vuelta al
 manual — y es la puerta natural de entrada del cliente al producto.
 
-Diferido a K1: minimización del parche por delta-debugging (hoy se propone la
-secuencia grabada y podada, no la mínima demostrable).
+### K0.11 — lo que faltaba, medido contra el Inspector de Playwright
+
+Tras contrastar con lo que usan los pros (Inspector / extensión VS Code: *Pick
+locator*, *Record at cursor*, 3 aserciones, *Clear*; **sin** edición por paso y
+**sin** grabación de hover) quedaron claros tres huecos propios y cuatro cosas que
+copiar.
+
+**Escalera de locators ampliada** — el hueco grave, y el que explica el fallo real de
+onesait s7: su generador produce un locator casi siempre (scoping, `filter`, `nth`);
+el nuestro solo miraba identidad semántica y **se rendía después de que el QA
+señalara el campo con el dedo**. Tiers nuevos, en orden: `semantic` → `scoped`
+(ancestro con role+name) → `anchored` (fila/listitem/group filtrado por la etiqueta
+vecina: el patrón label-en-celda de formularios Java) → `css` (solo si el id NO
+parece generado: `j_id123`, `mat-input-3`, `:r3:`, `input-347` se descartan) →
+`indexed` (`nth`, **siempre marcado frágil**). La fragilidad y el tier **viajan al
+parche y al panel**: un `nth` funciona hoy y muere al insertar una fila, y el QA
+tiene derecho a saberlo antes de aceptarlo. Grammar de cadena `A >> B >> C` con
+sufijo `.nth(N)`, parser puro y resolución por segmentos sobre `Page | Frame |
+Locator`.
+
+Lección de la implementación: el primer anchored que escribí filtraba el
+**formulario** por la etiqueta y devolvía **3 campos** — el formulario contiene todas
+las etiquetas. Hay que estrechar a la **fila**. Medido contra DOM real, no razonado.
+
+**Disparo en `action_failed`** — la asistencia solo se activaba cuando el elemento no
+se encontraba, y el caso onesait era el contrario: resolvía y la acción fallaba. Caía
+en el `catch` genérico y el panel ni se enteraba. Ahora se ofrece para el mismo paso,
+y el motivo del bloqueo **incluye siempre el `via`**: distinguir "no es clicable" de
+"matcheé el elemento equivocado" (un hint por texto puede resolver único sobre un
+título o un div oculto — que es lo que pasaba de verdad en s6).
+
+**UX del panel** — pausa/reanudar (explorar con la grabación parada y luego grabar la
+ruta limpia: mata la causa raíz de la basura en la secuencia), limpiar, borrar por
+fila, marcar objetivo, marcar comprobación (emite `expect_text`, cerrando el círculo
+con K0.2), resaltado del elemento al pasar por la fila, y **aviso de identidad frágil
+en vivo** por un segundo puente `exposeFunction`: el walker responde tier +
+fragilidad por elemento capturado. El Inspector muestra el locator pero no juzga su
+fragilidad. Y el panel **ya no se cierra al pulsar Parar**: espera el veredicto de la
+verificación y lo muestra — el bug de ergonomía por el que el QA no llegó a ver por
+qué había fallado s7.
+
+**Minimización por replay** — delta-debugging acotado (cap 6 replays, `--no-minimize`
+para saltarlo): se quita cada abridor y se re-verifica; se queda el conjunto mínimo
+que sigue reproduciendo. El QA exploró antes de dar con el camino y **no tiene por qué
+saber cuáles de sus pasos eran necesarios**: se prueba, no se pregunta.
+
+Lo que NO se hace: competir con el Inspector como grabadora general. Nuestra ventaja
+es contexto (sabemos qué paso está atascado), esquema propio (sin traducir código),
+verificación y memoria. Donde somos flojos —calidad de locators— se copia, no se
+inventa.
 
 ## 5. Escalera de resolución v2
 
@@ -319,9 +367,10 @@ Sonnet), que lo ejecuta el QA.
 | K0.7 `MF-postcondition` | pre-review con `--discovery-report`: si el discovery trae texto de resultado verificado y el spec no lo asserta → must-fix. **Validado contra el discovery real**: el spec que cierra sobre `backToProducts` sale con el must-fix, el que asserta el texto sale limpio. Cableado en lean-run, run-s4-mecanico y run-heal-mecanico (sanar no puede degradar el assert a chrome) |
 | K0.8 refiner → guion | Etapa `gate` (compliance aislado antes de gastar LLM, exit 2 verificado); el refiner emite `walk-script.json` además de `cases.json`; `prepare` prefiere el guion del refiner sobre el fixture y lo declara en `walk_source`. **Drift FD↔app validado en vivo**: un `expect_text` que el FD afirma y la app no muestra sale como `fd_drift` en el Acto 2, a $0, antes de generar un solo spec |
 | K0.10 modo asistido | `--assist`: overlay Record en shadow root cerrado, puente `exposeFunction`, acción `hover` nueva en el vocabulario, parche verificado por replay a `assist-patch.json`, audit `source: 'human'`. Refactor de la extracción in-page a fragmento compartido capture↔assist (si divergen, el locator del picker no coincide con el del dom-map: bug silencioso) — **probado neutro** comparando dom-maps con y sin refactor. Fixture `hover-menu.html` que reproduce el fallo de onesait (`Timeout 10000ms exceeded` con el elemento en el DOM): **sin** paso `hover` el walker se bloquea igual que en el cliente, **con** él hace 3/3 y captura el `business_text` |
+| K0.11 escalera + UX del panel | Tiers `semantic/scoped/anchored/css/indexed` con fragilidad propagada; grammar de cadena `A >> B >> C` + `.nth(N)`; extracción in-page ampliada (ancla, texto vecino, nth, juicio de id generado); disparo en `action_failed` con el `via` en el motivo; panel con pausa/limpiar/borrar/objetivo/comprobación/resaltado y aviso de fragilidad EN VIVO; minimización por replay. **Fixture `form-sin-identidad.html`** (campo sin name/label/test-id con ids `j_id…`, patrón label-en-celda): el candidato `anchored` resuelve **único** contra DOM real y **discrimina entre campos hermanos** — el fallo de onesait s7 muerto con test |
 | K0.9 tolerancia al BOM | `parseJsonLoose` en los 4 puntos donde el walker lee JSON ajeno (walk-script del refiner, rescue-response del rescate, hint-aliases del pack, walk-state). **Bug encontrado montando el workspace de prueba**: `Set-Content -Encoding utf8` de PowerShell 5.1 escribe BOM, `JSON.parse` moría, y la excepción escapaba a `run()` disfrazada de `"fallo de ejecución: Unexpected token"` — el paso quedaba bloqueado sin señalar la causa. Importa porque esos ficheros los escribe un **subagente en Windows**. `consumeRescueResponse` además ya no deja escapar la excepción: descarta el fichero con motivo explícito en el audit-log |
 
-Red estructural: 319/319 unit, tsc limpio, healthcheck 26/26, determinismo del dom-map `true`,
+Red estructural: 338/338 unit, tsc limpio, healthcheck 26/26, determinismo del dom-map `true`,
 template propagado. **Reproducible en un workspace limpio**: manual verificado paso a paso en
 [`docs/tasks/probar-kernel-v2-k0.md`](tasks/probar-kernel-v2-k0.md) (clon del branch, 26/26 + 309/309
 + walk live + ciclo de aliases + drift + MF-postcondition, todo a $0).

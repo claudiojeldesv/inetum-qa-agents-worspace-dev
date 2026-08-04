@@ -192,6 +192,33 @@ export interface PickedElement {
   label?: string;
   /** 'click' = el QA lo pulsó · 'hover' = pasó por encima de forma sostenida. */
   via: 'click' | 'hover';
+  // --- contexto para la escalera de fallback (K0.11b). Sin esto, un elemento sin
+  // identidad semántica (input sin name/label/test-id: la norma en formularios Java
+  // corporativos) no tiene locator posible y la asistencia se rendía tras el trabajo
+  // del humano. Playwright genera algo casi siempre; esto es lo que le faltaba.
+  /** Ancestro más cercano con role+name — ancla de scope. */
+  anchor?: { role: string; name: string };
+  /** Texto previo más cercano (patrón label-en-celda de tablas corporativas). */
+  nearby_text?: string;
+  /** Índice del elemento entre los de su mismo rol dentro del ancla (o del documento). */
+  nth_of_role?: number;
+  /** id del DOM y juicio de estabilidad (los generados no sirven como locator). */
+  dom_id?: string;
+  id_stable?: boolean;
+  /** Rol del elemento marcado por el QA como comprobación (K0.11c). */
+  as?: 'opener' | 'target' | 'assertion';
+}
+
+/**
+ * Candidato de locator con su nivel de la escalera y si es frágil. La fragilidad se
+ * PROPAGA al parche y al panel: un `nth` funciona hoy y se rompe al añadir una fila,
+ * y el QA tiene derecho a saberlo antes de aceptarlo.
+ */
+export interface LocatorCandidate {
+  source: string;
+  tier: 'semantic' | 'scoped' | 'anchored' | 'indexed' | 'css';
+  fragile: boolean;
+  why?: string;
 }
 
 /**
@@ -203,6 +230,8 @@ export interface AssistSubmission {
   kind: 'recorded' | 'drift' | 'block';
   step: string;
   sequence: PickedElement[];
+  /** Índice del objetivo si el QA lo marcó explícitamente; si no, el último click. */
+  target_index?: number;
   /** true si el último click del QA ya ejecutó la acción del paso (la app navegó). */
   performed?: boolean;
   reason?: string;
@@ -213,7 +242,13 @@ export interface AssistPatchStep {
   action: WalkAction;
   hint: StepHint;
   locator: string;
-  role: 'opener' | 'target';
+  role: 'opener' | 'target' | 'assertion';
+  /** Nivel de la escalera del locator y fragilidad (K0.11a). */
+  tier?: LocatorCandidate['tier'];
+  fragile?: boolean;
+  fragile_why?: string;
+  /** value del paso cuando es una comprobación (expect_text). */
+  value?: string;
 }
 
 /**

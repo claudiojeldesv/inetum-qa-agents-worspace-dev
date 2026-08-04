@@ -7,8 +7,10 @@ import { createHash } from 'node:crypto';
 import type {
   AssistPatchStep,
   DomElement,
+  LocatorCandidate,
   PickedElement,
   StepHint,
+  WalkAction,
   WalkScript,
   WalkStep,
 } from './walk-types.ts';
@@ -263,6 +265,119 @@ export function slugFromUrl(url: string): string {
   }
 }
 
+// ------------------------------- escalera de fallback de locators (K0.11a)
+
+/** Separador de cadena de locators. `A >> B` = B buscado DENTRO de A. */
+export const CHAIN_SEP = ' >> ';
+
+/**
+ * ¿El `id` del DOM parece generado por el framework? Los ids autogenerados rotan
+ * entre despliegues y son la trampa clásica del locator que funciona hoy y muere
+ * mañana. Se descartan como locator: Angular (`ng-tns-c12-4`), React 18
+ * (`:r3:`, `:R2ab:`), secuenciales (`input-347`, `field_12`), GUIDs.
+ */
+export function looksGeneratedId(id: string): boolean {
+  if (!id) return true;
+  return (
+    /^:.+:$/.test(id) ||                            // React useId — :r3:, :R2ab:
+    /^(mat|cdk|ng)[-_]/i.test(id) ||                // Angular Material / CDK — mat-input-3
+    /ng-tns-|ng-reflect-/.test(id) ||               // Angular internals en cualquier posición
+    /[-_]\d{2,}$/.test(id) ||                       // sufijo numérico largo — field_12, input-347
+    /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(id) ||         // GUID
+    /^[a-z]{1,4}([-_][a-z]{1,4})?\d{2,}$/i.test(id) || // JSF/JSP — j_id123, jid45, u1234
+    /^\d/.test(id)                                  // empieza por dígito (ni siquiera es CSS-válido)
+  );
+}
+
+/**
+ * Escalera COMPLETA de candidatos para un elemento señalado por el QA.
+ *
+ * Motivación (K0.11a): el generador de Playwright produce un locator casi siempre
+ * (usa scoping, filter y nth); el nuestro solo miraba identidad semántica y se
+ * rendía. Ese fue el fallo real de onesait s7 — un input sin name, sin label y sin
+ * test-id, que el QA había señalado con el dedo. Rendirse DESPUÉS de que el humano
+ * hizo el trabajo es lo peor de los dos mundos.
+ *
+ * Orden: semantic → scoped → anchored → indexed → css. Todo lo que no es semantic
+ * se marca `fragile` y la marca viaja al parche y al panel.
+ */
+export function buildFallbackCandidates(
+  el: PickedElement,
+  priority: string[],
+): LocatorCandidate[] {
+  const out: LocatorCandidate[] = [];
+  const q = (s: string): string => s.replace(/'/g, "\\'");
+
+  // 1. semantic — la escalera de siempre, del contract
+  for (const source of buildLocatorCandidates(el, priority)) {
+    out.push({ source, tier: 'semantic', fragile: false });
+  }
+
+  const anchorSrc = el.anchor
+    ? `getByRole('${el.anchor.role}', { name: '${q(el.anchor.name)}' })`
+    : null;
+
+  // 2. scoped — dentro de un ancestro con identidad. Estable mientras la región
+  //    conserve su nombre accesible, que es mucho más que un nth suelto.
+  if (anchorSrc) {
+    if (el.name) {
+      out.push({
+        source: `${anchorSrc}${CHAIN_SEP}getByRole('${el.role}', { name: '${q(el.name)}' })`,
+        tier: 'scoped',
+        fragile: false,
+      });
+    }
+    if (el.label) {
+      out.push({ source: `${anchorSrc}${CHAIN_SEP}getByLabel('${q(el.label)}')`, tier: 'scoped', fragile: false });
+    }
+  }
+
+  // 3. anchored — patrón label-en-celda: se estrecha a la FILA (o al item de lista)
+  //    que contiene el texto de la etiqueta, y dentro se busca el control. Filtrar
+  //    el formulario entero por ese texto NO estrecha nada: el formulario contiene
+  //    todas las etiquetas y devuelve todos sus campos (medido contra DOM real).
+  if (el.nearby_text) {
+    const prefix = anchorSrc ? `${anchorSrc}${CHAIN_SEP}` : '';
+    for (const container of ['row', 'listitem', 'group']) {
+      out.push({
+        source: `${prefix}getByRole('${container}').filter({ hasText: '${q(el.nearby_text)}' })${CHAIN_SEP}getByRole('${el.role}')`,
+        tier: 'anchored',
+        fragile: false,
+        why: `anclado a la etiqueta vecina "${el.nearby_text}" dentro de su ${container}`,
+      });
+    }
+  }
+
+  // 4. css — solo con id que NO parezca generado
+  if (el.dom_id && el.id_stable) {
+    out.push({ source: `css=#${el.dom_id}`, tier: 'css', fragile: false, why: 'id de aspecto estable' });
+  }
+
+  // 5. indexed — último recurso. Funciona hoy y se rompe al insertar una fila.
+  if (typeof el.nth_of_role === 'number') {
+    const scope = anchorSrc ? `${anchorSrc}${CHAIN_SEP}` : '';
+    out.push({
+      source: `${scope}getByRole('${el.role}').nth(${el.nth_of_role})`,
+      tier: 'indexed',
+      fragile: true,
+      why: 'posicional: se rompe si cambia el orden o se añaden elementos',
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Parte una cadena `A >> B >> C` en segmentos, extrayendo el sufijo `.nth(N)` de
+ * cada uno. El driver resuelve segmento a segmento anidando scopes.
+ */
+export function parseLocatorChain(src: string): Array<{ segment: string; nth?: number }> {
+  return src.split(CHAIN_SEP).map((raw) => {
+    const m = raw.match(/^(.*)\.nth\((\d+)\)$/);
+    return m ? { segment: m[1], nth: Number(m[2]) } : { segment: raw };
+  });
+}
+
 // -------------------------------------------------- modo asistido (K0.10)
 
 /**
@@ -276,26 +391,46 @@ export function slugFromUrl(url: string): string {
  */
 export function buildAssistSteps(
   sequence: PickedElement[],
-  locators: string[],
+  candidates: Array<LocatorCandidate | null>,
+  opts: { targetIndex?: number; targetAction?: WalkAction } = {},
 ): AssistPatchStep[] {
   if (sequence.length === 0) return [];
+  // objetivo: el que el QA marcó explícitamente en el panel; si no, el último click
+  const explicit = sequence.findIndex((el) => el.as === 'target');
   const lastClickIdx = sequence.reduce((acc, el, i) => (el.via === 'click' ? i : acc), -1);
-  const targetIdx = lastClickIdx >= 0 ? lastClickIdx : sequence.length - 1;
+  const targetIdx =
+    opts.targetIndex !== undefined && opts.targetIndex >= 0
+      ? opts.targetIndex
+      : explicit >= 0
+        ? explicit
+        : lastClickIdx >= 0
+          ? lastClickIdx
+          : sequence.length - 1;
+
   const steps: AssistPatchStep[] = [];
   sequence.forEach((el, i) => {
-    // lo posterior al objetivo es ruido: el QA siguió navegando tras marcarlo
-    if (i > targetIdx) return;
+    // lo posterior al objetivo solo se conserva si es una comprobación marcada
+    if (i > targetIdx && el.as !== 'assertion') return;
     const hint: StepHint = {
       ...(el.test_id ? { test_id: el.test_id } : {}),
       ...(el.role ? { role: el.role } : {}),
       ...(el.name ? { name: el.name } : {}),
       ...(el.label ? { label: el.label } : {}),
     };
+    const cand = candidates[i] ?? null;
+    const isTarget = i === targetIdx && el.as !== 'assertion';
+    const role: AssistPatchStep['role'] = el.as === 'assertion' ? 'assertion' : isTarget ? 'target' : 'opener';
+    const action: WalkAction =
+      role === 'assertion' ? 'expect_text' : role === 'target' ? (opts.targetAction ?? 'click') : el.via === 'hover' ? 'hover' : 'click';
     steps.push({
-      action: i === targetIdx ? 'click' : el.via === 'hover' ? 'hover' : 'click',
+      action,
       hint,
-      locator: locators[i] ?? '',
-      role: i === targetIdx ? 'target' : 'opener',
+      locator: cand?.source ?? '',
+      role,
+      ...(cand ? { tier: cand.tier, fragile: cand.fragile } : {}),
+      ...(cand?.why ? { fragile_why: cand.why } : {}),
+      // una comprobación se materializa como expect_text del texto observado
+      ...(role === 'assertion' && el.name ? { value: el.name } : {}),
     });
   });
   return steps;
