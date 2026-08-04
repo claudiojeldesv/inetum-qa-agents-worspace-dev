@@ -179,6 +179,20 @@ const SCHEMA: Record<string, FieldSpec> = {
       no_assume_undiscovered_flows: { type: 'boolean' },
     },
   },
+  // Sincronización del walker (K0.13). Home del client pack para las señales de
+  // "ocupado" del stack: aquí es donde vive que el spinner de esta familia de
+  // aplicaciones es `.blockUI` o `div[id$=":status"]`. Los selectores se ACUMULAN
+  // sobre las heurísticas del kernel, no las sustituyen.
+  settle: {
+    type: 'object',
+    fields: {
+      quiet_ms: { type: 'number' },
+      timeout_ms: { type: 'number' },
+      max_mutations: { type: 'number' },
+      busy_selectors: { type: 'string[]' },
+      ignore_selectors: { type: 'string[]' },
+    },
+  },
   // Client-defined test data (sites add buyer_info, invalid_credentials, ...).
   // Freeform: unknown children are NOT typo suspects.
   synthetic_fixtures: { type: 'object', freeform: true },
@@ -456,6 +470,20 @@ export function resolveConfigState(
         : 'off (reporta rojos y termina)',
     origin: healing.enabled === undefined ? 'default' : 'contract',
     note: '/ia4d-qa-automator:heal siempre disponible como command desacoplado',
+  });
+
+  // settle del walker (K0.13). Se reporta porque es el knob que explica por qué un
+  // sitio con spinners múltiples pasa o no: la ventana de quietud, no el timeout.
+  const settle = (c.settle as Record<string, unknown>) ?? {};
+  const extraSignals = Array.isArray(settle.busy_selectors) ? (settle.busy_selectors as string[]).length : 0;
+  rows.push({
+    key: 'settle (ventana de quietud)',
+    value: `${settle.quiet_ms ?? 400} ms de quietud, tope ${settle.timeout_ms ?? 10_000} ms`,
+    origin: settle.quiet_ms === undefined && settle.timeout_ms === undefined ? 'default' : 'contract',
+    note:
+      extraSignals > 0
+        ? `${extraSignals} señales de ocupado del pack, sumadas a las heurísticas`
+        : 'solo heurísticas del kernel; el tope se recalibra con el p95 observado',
   });
 
   // Evidence

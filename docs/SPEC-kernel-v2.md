@@ -226,6 +226,86 @@ es contexto (sabemos qué paso está atascado), esquema propio (sin traducir có
 verificación y memoria. Donde somos flojos —calidad de locators— se copia, no se
 inventa.
 
+### K0.13 — sincronización: la ventana de quietud y el oráculo
+
+El problema que lo motiva, planteado por el QA: hay aplicaciones donde los elementos
+aparecen **después** de un spinner, y el spinner **se abre 2 o 3 veces en la misma
+carga**. Cualquier estrategia basada en "espera a que el spinner desaparezca" devuelve
+el control en el **hueco entre ciclos**, que es una calma falsa. Ahí ocurre el fallo
+intermitente que nadie reproduce: el clic ocurre y no sirve de nada.
+
+Consecuencia de diseño aceptada de entrada: **el 100% de fidelidad en el replay no es
+el objetivo.** El objetivo es que el fallo esté *clasificado*. Si no distinguimos
+"fue timing" de "el plan está desactualizado", el informe de reconciliación —que es el
+producto— reporta drift donde solo hubo un spinner.
+
+Cuatro capas, de la más barata a la más específica:
+
+**Capa 1 — actionability de Playwright.** Ya cubre la mayoría: `click()` espera
+visible + estable + habilitado + que reciba eventos. No se reimplementa.
+
+**Capa 2 — ventana de quietud, no comprobación instantánea.** La señal de settle es
+*"ninguna señal de ocupado y menos de N mutaciones durante `quiet_ms` **seguidos**"*.
+Con 400 ms, el hueco entre ciclos (100–300 ms en las SPA medidas) no llega a contar
+como calma, y el ciclo múltiple muere. Dos señales conjugadas: selectores de ocupado
+visibles (heurísticas del kernel + las del client pack, **acumuladas**) y **tasa** de
+mutaciones del DOM — agnóstica de la señal, que es lo que cubre el spinner que nadie
+declaró. Por ser tasa y no presencia, un reloj de polling o un contador de sesión no
+cuelgan la espera. Se observa el frame principal **y** los iframes accesibles: un
+MutationObserver del top no ve dentro de un iframe, y en corporativo el spinner vive
+ahí. Agotar el tope **no bloquea el paso**: se anota como `settle_timeout` y se sigue.
+Límite honesto: la ventana solo puentea huecos más cortos que ella misma; los más
+largos son trabajo de la capa 3.
+
+**Capa 3 — la postcondición como oráculo, con reintento discriminado.** El paso y su
+`expect_after` son una unidad: si el texto de negocio no aparece, la acción no surtió
+efecto — y eso se sabe sin haber detectado ningún spinner. El reintento (uno) exige
+**dos condiciones simultáneas**:
+
+1. la **huella de pantalla** no cambió (hash de URL + nº de frames + inventario de
+   elementos visibles con nombre) → la acción no tuvo efecto, repetirla es inocuo;
+2. la acción está declarada segura: `hover`/`fill`/`press`/`select`/`goto` por
+   defecto; **`click`/`check`/`uncheck` NO**, porque re-pulsar "Finalizar" crea dos
+   declaraciones. Opt-in explícito `retry_safe: true` solo para navegación.
+
+Si la huella **cambió** y la postcondición no se cumple → `postcondition_unmet`,
+candidato a drift, **sin reintentar aunque el guion diga que es seguro**: repetir sobre
+un estado ya alterado duplicaría la operación. Si la huella no cambió pero la acción no
+es reintentable → se para y se dice por qué (`retry_refused`), en vez de arriesgar el
+entorno. `retry_safe: true` sin `expect_after` ni `expect_transition` **no valida**:
+reintentar sin oráculo es reintentar a ciegas.
+
+**Capa 4 — los tiempos salen de la observación.** Cada settle se mide y se persiste en
+`config/timing-profiles/<site_id>.json` (ventana móvil de 10 muestras por paso,
+versionable como los `hint-aliases`). El tope de cada paso pasa a ser `p95 × 2`, acotado
+[3 s, 60 s], en vez de un 10 000 inventado. Con menos de 3 muestras degrada al máximo,
+que es lo prudente. Cada run recalibra el siguiente: **la flakiness converge a la baja
+en vez de pelearse para siempre.** Una declaración explícita de `settle.timeout_ms` en
+el paso no se pisa con estadística.
+
+**Clasificación del desenlace** (lo que hace entregable el informe de PRE en vez de
+excusa): `ok` · `ok_after_retry` → ruido de entorno · `settle_timeout` → telemetría ·
+`postcondition_unmet` → candidato a drift · `action_failed`. Van al `dom-map.json`
+(`step_reports[]` + `stats.flaky_timing` / `settle_timeouts` / `postcondition_unmet`) y
+a la consola en un bloque aparte del recuento de pasos, deliberadamente: **un flaky no
+es un drift y mezclarlos en una sola cifra de "fallos" es la forma más rápida de mentir.**
+
+No construido aquí, y consciente: clasificación de peticiones de red en dirigidas por
+acción vs polling (settle podría exigir "ninguna petición de acción en vuelo"; hacerlo a
+medias es peor que no hacerlo, porque en una app con polling el contador nunca llega a
+cero). Y `settle` sigue sin observarse durante una **grabación**, que es lo que lo
+convertiría de heurística en perfil medido de la app.
+
+Validación: fixture `copilot/fixtures/spinner-multi.html` con doble ciclo (700 ms /
+hueco 300 ms / 900 ms) más un reloj que repinta cada 250 ms para siempre. El test
+central es un **par falsable**: el mismo guion sobre la misma página, y lo único que
+cambia es la política de espera — con "el spinner ya no está" el clic se pierde
+(`postcondition_unmet` + `retry_refused`), con la ventana de quietud pasa a la primera.
+Más: los 2 ciclos contados, el reloj sin colgar la espera, el clic perdido recuperado
+como `ok_after_retry`, y la prueba dura de seguridad — un `retry_safe: true` sobre una
+acción que ya mutó negocio **no** se reintenta y el contador de la app queda en
+`Creados: 1`, nunca en 2.
+
 ## 5. Escalera de resolución v2
 
 Orden estricto; cada peldaño o resuelve mecánicamente o pasa al siguiente. El walker no decide jamás
@@ -284,10 +364,15 @@ El walker sigue sin criterio: sensores + taxonomía + runbook. Solo `unknown` to
   reintentan solas — la respuesta al "el servicio tardó 3s" es timeout correcto + settle de familia,
   jamás sleeps.
 - `goto` con reintento y backoff (default 2 reintentos).
-- **Retry-clasificado**: fallo → settle → UN reintento. Pasa al reintento → `flaky_environment`
-  (ambos intentos al audit-log). Falla consistente → hallazgo real.
+- **Retry-clasificado** (implementado en K0.13): fallo de postcondición → settle → UN reintento,
+  **solo si la huella de pantalla no cambió y la acción no muta negocio**. Pasa al reintento →
+  `ok_after_retry` (ambos intentos al audit-log). Falla consistente → hallazgo real. Los dos
+  guardias no son opcionales: sin la huella el reintento es ciego, y sin la clasificación por
+  acción un reintento crea la segunda declaración.
 - Entregable nuevo derivado: **informe de flakiness del entorno** por run (transitorios vs
-  consistentes, por pantalla/servicio). El caos de PRE se mide, no se sufre.
+  consistentes, por pantalla/servicio). El caos de PRE se mide, no se sufre. Materia prima ya
+  emitida: `step_reports[]` del `dom-map.json` + `config/timing-profiles/<site_id>.json`
+  (p95 por paso). El informe como documento sigue pendiente.
 
 ## 9. Rescate y memoria
 

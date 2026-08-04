@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Spinner múltiple — fixture de sincronización (K0.13)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 1.5rem; }
+    .spinner, .overlay { padding: .5rem; margin: .5rem 0; background: #eee; border: 1px solid #999; }
+    .overlay { background: #ddd; }
+    [hidden] { display: none; }
+    button { margin: .25rem; padding: .4rem .8rem; }
+    #salida { margin-top: 1rem; min-height: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Consulta de declaraciones</h1>
+
+  <!--
+    Reloj de polling: repinta CADA 250 ms para siempre. Está aquí a propósito.
+    Una regla de quietud de tolerancia cero ("ninguna mutación") nunca se
+    cumpliría en esta página; la de TASA (max_mutations dentro de la ventana) sí.
+    Las apps corporativas tienen relojes, contadores de sesión y chats.
+  -->
+  <div id="reloj" role="none">sesión <span id="tic">0</span></div>
+
+  <button id="consultar">Consultar</button>
+  <button id="buscar">Buscar</button>
+  <button id="filtrar">Filtrar</button>
+  <button id="crear">Crear declaración</button>
+  <button id="muerto">Continuar</button>
+
+  <div id="spinner-a" class="spinner" hidden>Cargando…</div>
+  <div id="spinner-b" class="overlay" aria-busy="true" hidden>Procesando…</div>
+
+  <div id="salida"></div>
+  <div id="contador" role="status">Creados: 0</div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const show = (el) => el.removeAttribute('hidden');
+    const hide = (el) => el.setAttribute('hidden', '');
+    const spinnerA = $('spinner-a');
+    const spinnerB = $('spinner-b');
+    const salida = $('salida');
+
+    let tics = 0;
+    setInterval(() => { $('tic').textContent = String(++tics); }, 250);
+
+    /**
+     * El patrón que rompe la sincronización naíf: DOS ciclos de spinner en la
+     * misma carga, con un hueco de calma FALSA entre ellos. Esperar a que "el
+     * spinner no esté visible" devuelve el control dentro del hueco.
+     *
+     * Las duraciones están en el orden de magnitud de una SPA corporativa (casi
+     * dos segundos en total) y NO por debajo: con ciclos de 250 ms el propio
+     * waitForLoadState('networkidle') de Playwright ya se los tragaba, y el
+     * fixture dejaba de reproducir el problema por accidente.
+     *
+     * El hueco (300 ms) es más corto que la ventana de quietud (400 ms): esa es
+     * justo la condición que la capa 2 sabe puentear. Huecos más largos que la
+     * ventana los caza la capa 3, no esta.
+     */
+    function dobleCiclo(alTerminar) {
+      show(spinnerA);
+      setTimeout(() => {
+        hide(spinnerA);
+        setTimeout(() => {                 // <-- hueco de calma falsa
+          show(spinnerB);
+          setTimeout(() => {
+            hide(spinnerB);
+            alTerminar();
+          }, 900);
+        }, 300);
+      }, 700);
+    }
+
+    // --- clase 1: el efecto solo existe cuando la carga terminó de verdad.
+    // Antes de eso el clic se pierde en silencio (no hay error, no hay nada).
+    let cargaLista = false;
+    dobleCiclo(() => { cargaLista = true; });
+
+    $('consultar').addEventListener('click', () => {
+      if (!cargaLista) return;             // clic perdido: el repintado se lo llevó
+      salida.innerHTML = '<div role="status">Consulta OK</div>';
+    });
+
+    // --- clase 2: doble ciclo disparado por la acción, resultado al final
+    $('buscar').addEventListener('click', () => {
+      dobleCiclo(() => {
+        salida.innerHTML = '<div role="status">Resultado: 3 registros</div>';
+      });
+    });
+
+    // --- clase 3: el PRIMER clic se pierde (llega la respuesta tardía del ciclo
+    // anterior y descarta el efecto); el segundo surte efecto. Reintentar cura.
+    let intentosFiltrar = 0;
+    $('filtrar').addEventListener('click', () => {
+      intentosFiltrar += 1;
+      show(spinnerA);
+      setTimeout(() => {
+        hide(spinnerA);
+        if (intentosFiltrar === 1) return; // clic descartado por el repintado
+        salida.innerHTML = '<div role="status">Paso 2 listo</div>';
+      }, 150);
+    });
+
+    // --- clase 4: acción con MUTACIÓN DE NEGOCIO. Cada pulsación crea una
+    // declaración. Un reintento aquí crea dos: el daño que la huella evita.
+    let creados = 0;
+    $('crear').addEventListener('click', () => {
+      creados += 1;
+      $('contador').textContent = 'Creados: ' + creados;
+      show(spinnerA);
+      setTimeout(() => {
+        hide(spinnerA);
+        salida.innerHTML = '<div role="status">Declaración guardada</div>';
+      }, 150);
+    });
+
+    // --- clase 5: botón sin efecto alguno (el "Continuar" que no hace nada).
+    // Postcondición ausente y pantalla intacta, pero repetirlo no es seguro.
+  </script>
+</body>
+</html>

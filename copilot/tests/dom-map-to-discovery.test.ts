@@ -49,7 +49,18 @@ describe('domMapToDiscovery — business_text y frame_path (K0)', () => {
     target_url: 'https://www.saucedemo.com',
     contract: 'config/style-contracts/saucedemo.yaml',
     testid_attribute: 'data-test',
-    stats: { flows: 1, steps_total: 1, steps_executed: 1, steps_blocked: 0, rescues_used: 0, rescue_budget: 3, screens: 1 },
+    stats: {
+      flows: 1,
+      steps_total: 1,
+      steps_executed: 1,
+      steps_blocked: 0,
+      rescues_used: 0,
+      rescue_budget: 3,
+      screens: 1,
+      flaky_timing: 0,
+      settle_timeouts: 0,
+      postcondition_unmet: 0,
+    },
     screens: [
       {
         name: 'checkout-completado',

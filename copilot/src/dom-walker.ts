@@ -16,11 +16,19 @@
  * Uso:
  *   tsx copilot/src/dom-walker.ts --script=<walk-script.json> --contract=<style.yaml> \
  *     [--base-url=<url>] [--work-dir=<dir>] [--rescue-budget=N] [--testid-attr=data-test] \
- *     [--cap=60] [--headed] [--assist] [--assist-timeout=600] [--no-minimize]
+ *     [--cap=60] [--headed] [--assist] [--assist-timeout=600] [--no-minimize] \
+ *     [--quiet-ms=400] [--settle-timeout=10000] [--max-mutations=2] \
+ *     [--busy-selector=<sel> ...] [--timing-profile=<file>] [--no-calibrate]
  *
  * Escalera de resolución: determinístico → normalizador (acentos) → aliases del
  * cliente → ASISTIDO (--assist, $0, capta también la coreografía) → rescate LLM
  * (presupuesto) → open_questions. Nunca adivina.
+ *
+ * Sincronización (K0.13): ventana de quietud en vez de "el spinner ya no está"
+ * (capa 2), postcondición del paso como ORÁCULO con reintento discriminado por
+ * huella de pantalla (capa 3), y timeouts calibrados con el p95 observado en runs
+ * anteriores (capa 4). El desenlace de cada paso se clasifica: `ok_after_retry` es
+ * ruido de entorno, `postcondition_unmet` es candidato a drift. No son lo mismo.
  *
  * Exit codes: 0 ok · 1 error · 42 rescate pendiente (reanudar tras rescue-response.json)
  */
@@ -38,11 +46,15 @@ import {
   buildAssistSteps,
   buildFallbackCandidates,
   buildLocatorCandidates,
+  calibratedTimeout,
   dedupeAndPrune,
+  fingerprintHash,
   hashScript,
   hintLocatorPlan,
   isLandmarkRole,
+  isRetrySafe,
   locatorSource,
+  mergeSettle,
   normalizedPlan,
   parseJsonLoose,
   parseLocatorChain,
@@ -50,6 +62,7 @@ import {
   pruneAssistSequence,
   resolveFixtureRef,
   slugFromUrl,
+  updateTimingProfile,
   validateWalkScript,
   type LocatorAttempt,
 } from './walk-core.ts';
@@ -69,6 +82,11 @@ import {
   type PickedElement,
   type RescueRequest,
   type RescueResponse,
+  type SettleObservation,
+  type SettleProfile,
+  type StepOutcome,
+  type StepReport,
+  type TimingProfile,
   type WalkFlow,
   type WalkScript,
   type WalkState,
@@ -80,6 +98,8 @@ import {
 const TESTID_ATTR_CANDIDATES = ['data-test', 'data-testid', 'data-test-id', 'data-cy', 'data-qa'];
 const STEP_TIMEOUT_MS = 10_000;
 const GOTO_TIMEOUT_MS = 30_000;
+/** Espera del oráculo de postcondición: la pantalla ya está estable (K0.13 capa 3). */
+const ORACLE_TIMEOUT_MS = 1_500;
 
 interface WalkerOptions {
   scriptPath: string;
@@ -98,11 +118,19 @@ interface WalkerOptions {
   assistTimeoutMs: number;
   /** Minimizar el parche por replay (K0.11e). Off con --no-minimize. */
   assistMinimize: boolean;
+  /** Override global de settle por CLI/env (K0.13). Pisa contract y script, no el paso. */
+  settleOverride?: SettleProfile;
+  /** Perfil de tiempos durable. Default config/timing-profiles/<site_id>.json */
+  timingProfilePath?: string;
+  /** Calibrar timeouts con lo observado en runs anteriores. Off con --no-calibrate. */
+  calibrate: boolean;
 }
 
 interface StyleContract {
   locators?: { priority?: string[] };
   synthetic_fixtures?: Record<string, unknown>;
+  /** Señales de ocupado y ventana de quietud del sitio (K0.13) — home del client pack. */
+  settle?: SettleProfile;
 }
 
 // ------------------------------------------------- captura in-page (frame)
@@ -536,6 +564,103 @@ async function framePath(frame: Frame): Promise<string[]> {
   return path;
 }
 
+// ------------------------------------------------ settle in-page (K0.13 c2)
+
+interface SettleArgs {
+  busySel: string[];
+  ignoreSel: string[];
+  quietMs: number;
+  timeoutMs: number;
+  maxMut: number;
+}
+
+/**
+ * Observador de quietud, ejecutado DENTRO de la página (top o iframe).
+ *
+ * Se emite como STRING y no como referencia de función, igual que el resto del
+ * código in-page de este fichero, y no por gusto: `page.evaluate(fn)` serializa
+ * `fn.toString()`, y esbuild (que es lo que usa `tsx` en producción) envuelve las
+ * declaraciones con su helper `__name` de keepNames. Ese helper no existe en la
+ * página → `ReferenceError: __name is not defined`, settle silenciosamente inerte.
+ * El transform de vitest NO lo añade, así que la variante por referencia pasaba los
+ * tests en verde y fallaba solo al ejecutar el CLI. Un string no depende del
+ * transpilador de nadie.
+ *
+ * Dos señales conjugadas:
+ *  (a) señales de "ocupado" VISIBLES (spinners, aria-busy, progressbar);
+ *  (b) TASA de mutaciones del DOM — agnóstica de la señal, que es lo que cubre el
+ *      spinner que nadie declaró. Como es tasa y no presencia, un reloj que
+ *      tictaquea o un contador de polling no cuelgan la espera para siempre.
+ *
+ * La ventana se REINICIA con cualquiera de las dos. Ahí muere el ciclo múltiple.
+ */
+function settleScript(args: SettleArgs): string {
+  return `(() => {
+  const { busySel, ignoreSel, quietMs, timeoutMs, maxMut } = ${JSON.stringify(args)};
+  const start = performance.now();
+  const signals = new Set();
+  let mutations = 0, resets = 0, busyCycles = 0, wasBusy = false, quietSince = start;
+  const ignoreQuery = ignoreSel.join(',');
+
+  const observer = new MutationObserver((records) => {
+    for (const rec of records) {
+      const node = rec.target;
+      const el = node.nodeType === 1 ? node : node.parentElement;
+      if (el && ignoreQuery) {
+        try { if (el.closest(ignoreQuery)) continue; } catch (e) { /* selector del pack inválido */ }
+      }
+      mutations += 1;
+    }
+  });
+  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+
+  const busyNow = () => {
+    for (const sel of busySel) {
+      let list;
+      try { list = document.querySelectorAll(sel); } catch (e) { continue; }
+      for (const el of Array.from(list)) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) continue;
+        const st = getComputedStyle(el);
+        if (st.visibility === 'hidden' || st.display === 'none' || st.opacity === '0') continue;
+        signals.add(sel);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return new Promise((resolveOuter) => {
+    const done = (timedOut) => {
+      observer.disconnect();
+      resolveOuter({
+        waited_ms: Math.round(performance.now() - start),
+        busy_cycles: busyCycles,
+        resets,
+        timed_out: timedOut,
+        signals: Array.from(signals),
+      });
+    };
+    const tick = () => {
+      const now = performance.now();
+      if (now - start >= timeoutMs) return done(true);
+      const busy = busyNow();
+      if (busy && !wasBusy) busyCycles += 1;   // un ciclo de spinner contado
+      wasBusy = busy;
+      if (busy || mutations > maxMut) {
+        if (!busy) resets += 1;                // la ventana cayó por mutaciones, sin señal declarada
+        mutations = 0;
+        quietSince = now;
+      } else if (now - quietSince >= quietMs) {
+        return done(false);
+      }
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
+})()`;
+}
+
 // -------------------------------------------------------------- el walker
 
 class DomWalker {
@@ -555,6 +680,9 @@ class DomWalker {
   private assistPending: ((p: AssistSubmission) => void) | null = null;
   private assistBridgeReady = false;
   private readonly assistPatch: AssistPatch;
+  /** Perfil de tiempos observados (K0.13 capas 4/6) y su ruta durable. */
+  private timing: TimingProfile;
+  private readonly timingPath: string;
 
   constructor(opts: WalkerOptions, script: WalkScript, contract: StyleContract, state: WalkState) {
     this.opts = opts;
@@ -563,10 +691,161 @@ class DomWalker {
     this.priority = contract.locators?.priority ?? ['getByTestId', 'getByRole', 'getByLabel', 'getByText'];
     this.auditPath = resolve(opts.workDir, 'audit-log.json');
     this.state = state;
+    this.state.step_reports = this.state.step_reports ?? [];
     this.testidAttr = opts.testidAttr ?? state.testid_attr;
     this.aliasesPath = resolve(opts.aliasesPath ?? `config/hint-aliases/${script.site_id}.json`);
     this.aliases = this.loadAliases();
     this.assistPatch = { version: 1, site_id: script.site_id, generated_at: '', entries: [] };
+    this.timingPath = resolve(opts.timingProfilePath ?? `config/timing-profiles/${script.site_id}.json`);
+    this.timing = this.loadTiming();
+  }
+
+  // ------------------------------------------- sincronización (K0.13)
+
+  /** Perfil de tiempos durable. Ausente o corrupto → vacío (nunca revienta el run). */
+  private loadTiming(): TimingProfile {
+    try {
+      if (existsSync(this.timingPath)) {
+        const parsed = parseJsonLoose<TimingProfile>(readFileSync(this.timingPath, 'utf8'));
+        if (parsed.version === 1 && parsed.steps) return parsed;
+      }
+    } catch {
+      console.error(`[dom-walker] timing-profile ilegible (${this.timingPath}) — se ignora`);
+    }
+    return { version: 1, site_id: this.script.site_id, steps: {} };
+  }
+
+  private saveTiming(): void {
+    if (Object.keys(this.timing.steps).length === 0) return;
+    const dir = resolve(this.timingPath, '..');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const sorted: TimingProfile = {
+      version: 1,
+      site_id: this.timing.site_id,
+      steps: Object.fromEntries(Object.entries(this.timing.steps).sort(([a], [b]) => (a < b ? -1 : 1))),
+    };
+    writeFileSync(this.timingPath, JSON.stringify(sorted, null, 2), 'utf8');
+  }
+
+  /**
+   * Settle efectivo del paso. Precedencia: DEFAULT < contract < script < CLI < paso.
+   * El timeout se CALIBRA con lo observado en runs anteriores (capa 4) salvo que el
+   * paso declare el suyo: una declaración explícita del QA no se pisa con estadística.
+   */
+  private settleProfileFor(flow: WalkFlow, step: WalkStep): Required<SettleProfile> {
+    const profile = mergeSettle(this.contract.settle, this.script.settle, this.opts.settleOverride, step.settle);
+    if (this.opts.calibrate && step.settle?.timeout_ms === undefined) {
+      const samples = this.timing.steps[`${flow.flow}/${step.id}`]?.samples ?? [];
+      const calibrated = calibratedTimeout(samples);
+      if (calibrated !== null) profile.timeout_ms = calibrated;
+    }
+    return profile;
+  }
+
+  /**
+   * Capa 2 — espera a que la pantalla esté QUIETA durante `quiet_ms` seguidos, no a
+   * que el spinner desaparezca una vez. Esa es toda la diferencia: en una SPA que
+   * abre el spinner 2 o 3 veces por carga, el hueco entre ciclos es una ventana
+   * falsa de calma, y actuar dentro de ella es el fallo intermitente clásico
+   * ("el clic ocurrió y no sirvió de nada").
+   *
+   * Devuelve OBSERVACIÓN, no veredicto: agotar el tope no bloquea el paso — el
+   * oráculo es la postcondición (capa 3). Y los ciclos contados son el dato que
+   * alimenta la calibración (capa 4) y el informe de flakiness del entorno.
+   *
+   * Se observa el frame principal Y los iframes accesibles: un MutationObserver del
+   * top no ve dentro de un iframe, y en corporativo el spinner suele vivir ahí.
+   */
+  private async waitForSettle(profile: Required<SettleProfile>): Promise<SettleObservation> {
+    const IFRAME_CAP = 4;
+    const scopes: Array<Page | Frame> = [this.page];
+    for (const f of this.page.frames()) {
+      if (f === this.page.mainFrame()) continue;
+      if (scopes.length > IFRAME_CAP) break;
+      scopes.push(f);
+    }
+
+    const script = settleScript({
+      busySel: profile.busy_selectors,
+      ignoreSel: [...profile.ignore_selectors, `[${ASSIST_HOST_ATTR}]`],
+      quietMs: profile.quiet_ms,
+      timeoutMs: profile.timeout_ms,
+      maxMut: profile.max_mutations,
+    });
+
+    const observe = async (scope: Page | Frame): Promise<SettleObservation> => {
+      // red de seguridad de Node: el bucle in-page se autolimita, pero si el
+      // contexto muere a media navegación evaluate puede quedar colgado. El timer
+      // se CANCELA al ganar la carrera; si no, cada settle deja 12 s de timer vivo.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const guard = new Promise<SettleObservation>((r) => {
+        timer = setTimeout(
+          () => r({ waited_ms: profile.timeout_ms, busy_cycles: 0, resets: 0, timed_out: true, signals: [] }),
+          profile.timeout_ms + 2_000,
+        );
+      });
+      try {
+        return await Promise.race([scope.evaluate<SettleObservation>(script), guard]);
+      } catch (err) {
+        // el contexto murió a media navegación: se sigue, pero NO en silencio —
+        // un settle inerte es indistinguible de una app rápida en el informe.
+        const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+        console.error(`[dom-walker] settle no observado (${msg}) — se continúa sin ventana de quietud`);
+        return { waited_ms: 0, busy_cycles: 0, resets: 0, timed_out: false, signals: [] };
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
+    const results = await Promise.all(scopes.map(observe));
+
+    return {
+      waited_ms: Math.max(...results.map((r) => r.waited_ms)),
+      busy_cycles: results.reduce((n, r) => n + r.busy_cycles, 0),
+      resets: results.reduce((n, r) => n + r.resets, 0),
+      timed_out: results.some((r) => r.timed_out),
+      signals: [...new Set(results.flatMap((r) => r.signals))],
+    };
+  }
+
+  /**
+   * Huella de pantalla. Es lo que convierte el reintento en algo seguro: si la
+   * postcondición falla y la huella NO cambió, la acción no surtió efecto y
+   * repetirla es inocuo. Si la huella cambió, algo pasó — y repetir podría
+   * duplicar una operación de negocio, así que no se repite: es candidato a drift.
+   */
+  private async fingerprint(): Promise<string> {
+    const sig = await this.page
+      .evaluate(() => {
+        const visible = (el: Element): boolean => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        };
+        const els = Array.from(
+          document.querySelectorAll('h1,h2,h3,[role="heading"],button,a,input,select,textarea,[role="status"],[role="alert"]'),
+        ).filter(visible);
+        const names = els
+          .slice(0, 80)
+          .map((e) => e.getAttribute('aria-label') ?? e.textContent ?? e.getAttribute('name') ?? e.tagName)
+          .map((s) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, 40));
+        return `${els.length}|${names.join('~')}`;
+      })
+      .catch(() => '');
+    return fingerprintHash(`${this.page.url()}#${this.page.frames().length}#${sig}`);
+  }
+
+  /** Registra la telemetría del paso y alimenta el perfil de tiempos. */
+  private pushReport(flow: WalkFlow, step: WalkStep, r: Omit<StepReport, 'flow' | 'step' | 'action'>): void {
+    const reports = (this.state.step_reports ??= []);
+    const at = reports.findIndex((x) => x.flow === flow.flow && x.step === step.id);
+    const report: StepReport = { flow: flow.flow, step: step.id, action: step.action, ...r };
+    if (at >= 0) reports[at] = report;
+    else reports.push(report);
+    if (r.settle && !r.settle.timed_out) {
+      updateTimingProfile(this.timing, `${flow.flow}/${step.id}`, r.settle.waited_ms, {
+        screen: step.screen ?? this.state.current_screen ?? undefined,
+      });
+    }
   }
 
   /** hint-aliases durable (K0.5): memoria de instancias del cliente. Ausente o corrupto → vacío. */
@@ -1223,21 +1502,57 @@ class DomWalker {
       });
     }
 
+    const settle = this.settleProfileFor(flow, step);
+    const startedAt = Date.now();
+
     switch (step.action) {
       case 'goto': {
         await this.page.goto(this.resolveTarget(step.target!), { timeout: GOTO_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
-        await this.page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+        /**
+         * SIN `waitForLoadState('networkidle')` a propósito. La ventana de quietud lo
+         * sustituye —networkidle no llega nunca en una app con polling, y cuando llega
+         * es antes del segundo ciclo de spinner— pero además ESPERARLO HACÍA DAÑO: el
+         * observador arrancaba medio segundo tarde y se perdía el primer ciclo de la
+         * carga. Todo lo que ocurre antes de empezar a mirar es invisible, y si el
+         * observador entra dentro del hueco entre ciclos puede cerrar la ventana ahí.
+         * Observar lo antes posible es parte de la garantía, no una optimización.
+         */
+        const obs = await this.waitForSettle(settle);
         this.state.current_screen = null;
         await this.captureScreen(flow, step);
+        this.pushReport(flow, step, {
+          outcome: obs.timed_out ? 'settle_timeout' : 'ok',
+          action_ms: Date.now() - startedAt,
+          settle: obs,
+          retried: false,
+        });
         return;
       }
       case 'capture': {
+        // capturar una pantalla a medio pintar produce un dom-map con elementos
+        // que no existen media pantalla después: se estabiliza primero.
+        const obs = await this.waitForSettle(settle);
         this.state.current_screen = null;
         await this.captureScreen(flow, step);
+        this.pushReport(flow, step, {
+          outcome: obs.timed_out ? 'settle_timeout' : 'ok',
+          action_ms: Date.now() - startedAt,
+          settle: obs,
+          retried: false,
+        });
         return;
       }
       case 'press': {
         await this.page.keyboard.press(step.value!);
+        // el Tab de onesait dispara la consulta de la póliza: aquí es donde el
+        // spinner múltiple hace más daño, porque el paso siguiente asserta el resultado.
+        const obs = await this.waitForSettle(settle);
+        this.pushReport(flow, step, {
+          outcome: obs.timed_out ? 'settle_timeout' : 'ok',
+          action_ms: Date.now() - startedAt,
+          settle: obs,
+          retried: false,
+        });
         break;
       }
       case 'wait_url': {
@@ -1250,30 +1565,43 @@ class DomWalker {
       }
       case 'expect_text': {
         // K0.2: postcondición del FD. Fallo = DRIFT (hallazgo), no problema de locator → sin rescate.
+        // K0.13: se estabiliza ANTES de juzgar. Declarar drift sobre una pantalla a
+        // medio pintar es la forma más rápida de mentir en el informe.
+        const obs = await this.waitForSettle(settle);
         const value = resolveFixtureRef(step.value!, fixtures);
         const found = await this.findVisibleText(value);
+        const report = { action_ms: Date.now() - startedAt, settle: obs, retried: false };
         if (!found) {
-          this.blockStep(flow, step, `drift: postcondición del FD no observada — texto '${value}' no visible`, false);
-          this.audit('block', `expect_text fallido ${stepKey}: '${value}'`, { phase: 'expect' });
+          const suffix = obs.timed_out
+            ? ` (la pantalla NO se estabilizó en ${settle.timeout_ms} ms, ${obs.busy_cycles} ciclos de ocupado: el hallazgo puede ser de sincronización)`
+            : '';
+          this.blockStep(flow, step, `drift: postcondición del FD no observada — texto '${value}' no visible${suffix}`, false);
+          this.audit('block', `expect_text fallido ${stepKey}: '${value}'`, { phase: 'expect', settle: obs });
+          this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
           return;
         }
         // éxito → el texto queda como business_text de la pantalla con locator verificado en vivo
         this.recordBusinessText(value, found.via, found.frame_path);
+        this.pushReport(flow, step, { ...report, outcome: obs.timed_out ? 'settle_timeout' : 'ok' });
         return;
       }
       case 'expect_state': {
+        const obs = await this.waitForSettle(settle);
         const want = step.value!;
+        const report = { action_ms: Date.now() - startedAt, settle: obs, retried: false };
         const resolved = await this.resolveHint(step); // aliases + escalera; sin rescate para expects
         if (!resolved) {
           this.blockStep(flow, step, `drift: elemento de la postcondición no resuelto en el DOM`, false);
-          this.audit('block', `expect_state fallido ${stepKey}: hint irresoluble`, { phase: 'expect' });
+          this.audit('block', `expect_state fallido ${stepKey}: hint irresoluble`, { phase: 'expect', settle: obs });
+          this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
           return;
         }
         const ok = await this.checkState(resolved.locator, want);
         if (!ok) {
           this.blockStep(flow, step, `drift: postcondición del FD no cumplida — ${resolved.via} no está '${want}'`, false);
-          this.audit('block', `expect_state fallido ${stepKey}: ${resolved.via} != ${want}`, { phase: 'expect' });
+          this.audit('block', `expect_state fallido ${stepKey}: ${resolved.via} != ${want}`, { phase: 'expect', settle: obs });
         }
+        this.pushReport(flow, step, { ...report, outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet' });
         return;
       }
       default: {
@@ -1365,52 +1693,149 @@ class DomWalker {
           }
         };
 
-        try {
-          await runAction(resolved.locator);
-        } catch (err) {
-          /**
-           * K0.11d — el elemento SE RESOLVIÓ pero la acción falló. Es la clase de
-           * COREOGRAFÍA (el caso onesait s6: item de submenú presente en el DOM pero
-           * nunca clicable) y hasta ahora caía en el catch genérico de run(): el paso
-           * quedaba bloqueado con un timeout opaco y la asistencia ni se enteraba,
-           * porque solo se disparaba cuando el elemento no se encontraba.
-           *
-           * El `via` va SIEMPRE en el motivo: saber QUÉ matcheó es lo que distingue
-           * "no es clicable" de "matcheé el elemento equivocado" — un hint por texto
-           * puede resolver único sobre un título o un div oculto.
-           */
-          const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
-          const detail = `la acción '${step.action}' falló sobre ${resolved.via}: ${msg}`;
-          if (this.opts.assist) {
-            this.audit('block', `action_failed en ${flow.flow}/${step.id}: ${detail}`, {
-              phase: 'assist-trigger',
-              matched: resolved.via,
-            });
-            const assisted = await this.assistResolve(flow, step, detail);
-            if (!assisted) return; // drift/block/timeout: ya anotado
-            await runAction(assisted.locator);
-            resolved = assisted;
-          } else {
-            this.blockStep(flow, step, detail, false);
-            return;
+        /**
+         * K0.13 capa 3 — la acción y su POSTCONDICIÓN son una unidad. El intento
+         * puede repetirse una vez, pero solo cuando repetirlo es demostrablemente
+         * inocuo: huella de pantalla intacta (la acción no surtió efecto) Y acción
+         * declarada segura. Cualquier otra combinación no se reintenta y se reporta.
+         */
+        const fpBefore = await this.fingerprint();
+        const MAX_ATTEMPTS = 2;
+        let attempt = 0;
+        let outcome: StepOutcome = 'ok';
+        let obs: SettleObservation | undefined;
+        let retried = false;
+        let retryReason: string | undefined;
+        let retryRefused: string | undefined;
+
+        for (;;) {
+          attempt += 1;
+          try {
+            await runAction(resolved.locator);
+          } catch (err) {
+            /**
+             * K0.11d — el elemento SE RESOLVIÓ pero la acción falló. Es la clase de
+             * COREOGRAFÍA (el caso onesait s6: item de submenú presente en el DOM pero
+             * nunca clicable) y hasta ahora caía en el catch genérico de run(): el paso
+             * quedaba bloqueado con un timeout opaco y la asistencia ni se enteraba,
+             * porque solo se disparaba cuando el elemento no se encontraba.
+             *
+             * El `via` va SIEMPRE en el motivo: saber QUÉ matcheó es lo que distingue
+             * "no es clicable" de "matcheé el elemento equivocado" — un hint por texto
+             * puede resolver único sobre un título o un div oculto.
+             */
+            const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+            const detail = `la acción '${step.action}' falló sobre ${resolved.via}: ${msg}`;
+            if (this.opts.assist) {
+              this.audit('block', `action_failed en ${flow.flow}/${step.id}: ${detail}`, {
+                phase: 'assist-trigger',
+                matched: resolved.via,
+              });
+              const assisted = await this.assistResolve(flow, step, detail);
+              if (!assisted) {
+                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+                return; // drift/block/timeout: ya anotado
+              }
+              await runAction(assisted.locator);
+              resolved = assisted;
+            } else {
+              this.blockStep(flow, step, detail, false);
+              this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+              return;
+            }
           }
+
+          if (step.expect_transition) {
+            // SPAs: domcontentloaded ya disparó — la señal de transición es el cambio de URL.
+            // El settle va DESPUÉS de las esperas de navegación y solo una vez: la pantalla
+            // que interesa estabilizar es la nueva, y estabilizar la vieja de paso solo
+            // añade la ventana de quietud a cada transición sin comprar nada.
+            await this.page.waitForURL((u) => u.toString() !== preUrl, { timeout: STEP_TIMEOUT_MS }).catch(() => {});
+            await this.page.waitForLoadState('domcontentloaded', { timeout: STEP_TIMEOUT_MS }).catch(() => {});
+            // networkidle fuera por lo mismo que en 'goto': retrasa el inicio de la
+            // observación, que es justo lo que no podemos permitirnos.
+            obs = await this.waitForSettle(settle);
+            this.state.current_screen = null;
+            await this.captureScreen(flow, step);
+            this.recordTransition(flow, step, resolved.via, from);
+          } else {
+            obs = await this.waitForSettle(settle);
+          }
+
+          if (step.expect_after === undefined) {
+            outcome = obs.timed_out ? 'settle_timeout' : 'ok';
+            break;
+          }
+
+          const wanted = resolveFixtureRef(step.expect_after, fixtures);
+          const found = await this.findVisibleText(wanted, ORACLE_TIMEOUT_MS);
+          if (found) {
+            this.recordBusinessText(wanted, found.via, found.frame_path);
+            outcome = attempt > 1 ? 'ok_after_retry' : obs.timed_out ? 'settle_timeout' : 'ok';
+            break;
+          }
+
+          const fpAfter = await this.fingerprint();
+          const unchanged = fpAfter === fpBefore;
+          const safe = isRetrySafe(step);
+
+          if (unchanged && safe && attempt < MAX_ATTEMPTS) {
+            retried = true;
+            retryReason =
+              `postcondición '${wanted}' no observada y la huella de pantalla no cambió (${fpBefore}) ` +
+              `→ la acción no surtió efecto; ${obs.busy_cycles} ciclos de ocupado observados`;
+            this.audit('skip', `reintento por sincronización ${stepKey}: ${retryReason}`, {
+              phase: 'retry',
+              attempt,
+              settle: obs,
+            });
+            continue;
+          }
+
+          outcome = 'postcondition_unmet';
+          if (unchanged && !safe) {
+            retryRefused =
+              `acción '${step.action}' NO reintentable por defecto (repetirla podría duplicar estado de negocio); ` +
+              `declara retry_safe: true en el guion si este paso es solo navegación`;
+          }
+          const why = unchanged
+            ? `la acción no surtió efecto: postcondición '${wanted}' no observada y la pantalla no cambió` +
+              (retryRefused ? ` — ${retryRefused}` : ` (ya reintentado ${attempt} veces)`)
+            : `drift candidato: la pantalla cambió (huella ${fpBefore} → ${fpAfter}) pero la postcondición ` +
+              `'${wanted}' no se observa — NO se reintenta: repetir sobre un estado ya alterado duplicaría la operación`;
+          this.blockStep(flow, step, why, false);
+          this.audit('block', `postcondición no cumplida ${stepKey}`, {
+            phase: 'postcondition',
+            fingerprint_before: fpBefore,
+            fingerprint_after: fpAfter,
+            retried,
+            settle: obs,
+          });
+          break;
         }
 
-        if (step.expect_transition) {
-          // SPAs: domcontentloaded ya disparó — la señal de transición es el cambio de URL
-          await this.page.waitForURL((u) => u.toString() !== preUrl, { timeout: STEP_TIMEOUT_MS }).catch(() => {});
-          await this.page.waitForLoadState('domcontentloaded', { timeout: STEP_TIMEOUT_MS }).catch(() => {});
-          await this.page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
-          this.state.current_screen = null;
-          await this.captureScreen(flow, step);
-          this.recordTransition(flow, step, resolved.via, from);
-        }
+        this.pushReport(flow, step, {
+          outcome,
+          action_ms: Date.now() - startedAt,
+          settle: obs,
+          retried,
+          ...(retryReason ? { retry_reason: retryReason } : {}),
+          ...(retryRefused ? { retry_refused: retryRefused } : {}),
+        });
       }
     }
   }
 
-  /** Texto visible en page/frames: literal primero, regex normalizado después (K0.1). */
-  private async findVisibleText(value: string): Promise<{ via: string; frame_path: string[] } | null> {
+  /**
+   * Texto visible en page/frames: literal primero, regex normalizado después (K0.1).
+   * `timeoutMs` acotado (K0.13): cuando esto se usa como ORÁCULO del paso la pantalla
+   * ya se estabilizó, así que si el texto no está no va a llegar — y 10 s por intento
+   * y por scope convertían el reintento en algo inasumible.
+   */
+  private async findVisibleText(
+    value: string,
+    timeoutMs = STEP_TIMEOUT_MS,
+  ): Promise<{ via: string; frame_path: string[] } | null> {
     const scopes = await this.scopes();
     const attempts: Array<{ needle: string | RegExp; via: string }> = [
       { needle: value, via: `getByText('${value.replace(/'/g, "\\'")}')` },
@@ -1421,7 +1846,7 @@ class DomWalker {
         const visible = await scope
           .getByText(needle)
           .first()
-          .waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS })
+          .waitFor({ state: 'visible', timeout: timeoutMs })
           .then(() => true)
           .catch(() => false);
         if (visible) return { via, frame_path: path };
@@ -1573,7 +1998,11 @@ class DomWalker {
       await browser.close().catch(() => {});
     }
 
+    // el perfil de tiempos se persiste al cerrar: cada run recalibra el siguiente
+    this.saveTiming();
+
     const stepsTotal = this.script.flows.reduce((n, f) => n + f.steps.length, 0);
+    const reports = this.state.step_reports ?? [];
     const map: DomMap = {
       version: 1,
       site_id: this.script.site_id,
@@ -1590,11 +2019,15 @@ class DomWalker {
         rescues_used: this.state.rescues_used,
         rescue_budget: this.opts.rescueBudget,
         screens: this.state.screens.length,
+        flaky_timing: reports.filter((r) => r.outcome === 'ok_after_retry').length,
+        settle_timeouts: reports.filter((r) => r.outcome === 'settle_timeout').length,
+        postcondition_unmet: reports.filter((r) => r.outcome === 'postcondition_unmet').length,
       },
       screens: this.state.screens,
       transitions: this.state.transitions,
       open_questions: this.state.open_questions,
       rescues: this.state.rescues,
+      step_reports: reports,
     };
     return map;
   }
@@ -1622,7 +2055,26 @@ function loadState(workDir: string, script: WalkScript): WalkState {
     open_questions: [],
     rescues: [],
     current_screen: null,
+    step_reports: [],
   };
+}
+
+/** Override de settle por CLI/env. Sin ninguno de los tres → undefined (no pisa nada). */
+function settleFromCli(values: Record<string, unknown>): SettleProfile | undefined {
+  const num = (v: unknown, env?: string): number | undefined => {
+    const raw = (v as string | undefined) ?? env;
+    if (raw === undefined || raw === '') return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const profile: SettleProfile = {
+    quiet_ms: num(values['quiet-ms'], process.env.QA_SETTLE_QUIET_MS),
+    timeout_ms: num(values['settle-timeout'], process.env.QA_SETTLE_TIMEOUT_MS),
+    max_mutations: num(values['max-mutations'], process.env.QA_SETTLE_MAX_MUTATIONS),
+    busy_selectors: (values['busy-selector'] as string[] | undefined) ?? undefined,
+  };
+  const has = Object.values(profile).some((v) => v !== undefined);
+  return has ? profile : undefined;
 }
 
 async function main(): Promise<void> {
@@ -1641,6 +2093,12 @@ async function main(): Promise<void> {
       assist: { type: 'boolean', default: false },
       'assist-timeout': { type: 'string' },
       'no-minimize': { type: 'boolean', default: false },
+      'quiet-ms': { type: 'string' },
+      'settle-timeout': { type: 'string' },
+      'max-mutations': { type: 'string' },
+      'busy-selector': { type: 'string', multiple: true },
+      'timing-profile': { type: 'string' },
+      'no-calibrate': { type: 'boolean', default: false },
     },
   });
 
@@ -1681,6 +2139,9 @@ async function main(): Promise<void> {
     assist,
     assistTimeoutMs: Number(values['assist-timeout'] ?? process.env.QA_ASSIST_TIMEOUT ?? 600) * 1000,
     assistMinimize: !(values['no-minimize'] ?? false),
+    settleOverride: settleFromCli(values),
+    timingProfilePath: values['timing-profile'] ?? process.env.QA_TIMING_PROFILE,
+    calibrate: !(values['no-calibrate'] ?? false),
   };
 
   const state = loadState(workDir, rawScript);
@@ -1695,6 +2156,18 @@ async function main(): Promise<void> {
     `[dom-walker] OK  ${map.stats.screens} pantallas, ${map.stats.steps_executed}/${map.stats.steps_total} pasos, ` +
       `${map.stats.rescues_used} rescates, ${map.stats.steps_blocked} bloqueados → ${outPath}`,
   );
+  // la sincronización se REPORTA aparte: un flaky no es un drift, y mezclarlos en
+  // una sola cifra de "fallos" es exactamente lo que envenena el informe.
+  if (map.stats.flaky_timing || map.stats.settle_timeouts || map.stats.postcondition_unmet) {
+    console.log(
+      `[dom-walker] sincronización: ${map.stats.flaky_timing} flaky (pasaron al reintentar), ` +
+        `${map.stats.settle_timeouts} sin estabilizar, ${map.stats.postcondition_unmet} postcondiciones no cumplidas`,
+    );
+    for (const r of (map.step_reports ?? []).filter((x) => x.outcome !== 'ok')) {
+      const cycles = r.settle ? `, ${r.settle.busy_cycles} ciclos de ocupado en ${r.settle.waited_ms} ms` : '';
+      console.log(`  - ${r.flow}/${r.step} (${r.action}): ${r.outcome}${cycles}`);
+    }
+  }
   process.exit(EXIT_OK);
 }
 
@@ -1706,5 +2179,5 @@ if (isDirectRun) {
   });
 }
 
-export { DomWalker, loadState, assistOverlayScript, extractionHelpers, TESTID_ATTR_CANDIDATES };
+export { DomWalker, loadState, assistOverlayScript, extractionHelpers, settleScript, TESTID_ATTR_CANDIDATES };
 export type { WalkerOptions, StyleContract };

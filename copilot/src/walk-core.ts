@@ -9,7 +9,9 @@ import type {
   DomElement,
   LocatorCandidate,
   PickedElement,
+  SettleProfile,
   StepHint,
+  TimingProfile,
   WalkAction,
   WalkScript,
   WalkStep,
@@ -509,6 +511,7 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
   if (!Array.isArray(s.flows) || s.flows.length === 0) errors.push('flows[] requerido y no vacío');
   const NEEDS_HINT: WalkStep['action'][] = ['fill', 'click', 'hover', 'select', 'check', 'uncheck', 'expect_state'];
   const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state'];
+  const NO_POSTCONDITION: WalkStep['action'][] = ['capture', 'expect_text', 'expect_state', 'wait_url', 'wait_text'];
   for (const flow of s.flows ?? []) {
     if (!flow.flow) errors.push('flow sin id');
     const seen = new Set<string>();
@@ -523,10 +526,156 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
       if (step.action === 'wait_url' && !step.target) errors.push(`${at}: 'wait_url' requiere target`);
       if (step.action === 'expect_state' && step.value !== undefined && !EXPECT_STATES.has(step.value))
         errors.push(`${at}: 'expect_state' requiere value ∈ {visible|enabled|disabled|checked|unchecked}`);
+      // K0.13 capa 3: reintentar sin oráculo es reintentar a ciegas. Si el paso
+      // se declara reintentable tiene que haber forma de saber si surtió efecto.
+      if (step.retry_safe === true && !step.expect_after && !step.expect_transition)
+        errors.push(`${at}: 'retry_safe: true' exige expect_after o expect_transition (sin oráculo el reintento es ciego)`);
+      if (step.expect_after !== undefined && NO_POSTCONDITION.includes(step.action))
+        errors.push(`${at}: 'expect_after' no aplica a '${step.action}' (no ejecuta acción); usa un paso expect_text`);
+      for (const [k, v] of [
+        ['quiet_ms', step.settle?.quiet_ms],
+        ['timeout_ms', step.settle?.timeout_ms],
+        ['max_mutations', step.settle?.max_mutations],
+      ] as const) {
+        if (v !== undefined && (!Number.isFinite(v) || v < 0)) errors.push(`${at}: settle.${k} debe ser un número >= 0`);
+      }
     }
     if (!flow.steps?.length) errors.push(`${flow.flow}: flujo sin pasos`);
   }
   return { ok: errors.length === 0, errors };
+}
+
+// -------------------------------------- sincronización (K0.13, capas 2/3/4)
+
+/**
+ * Defaults del settle. `quiet_ms` es el parámetro clave: exigir 400 ms de
+ * quietud CONTINUADA mata la clase "el spinner se abre 2 o 3 veces en la misma
+ * carga", porque el hueco entre ciclos (típicamente 100-200 ms en las SPA
+ * corporativas medidas) no llega a contar como calma.
+ */
+export const DEFAULT_SETTLE: Required<Pick<SettleProfile, 'quiet_ms' | 'timeout_ms' | 'max_mutations'>> = {
+  quiet_ms: 400,
+  timeout_ms: 10_000,
+  max_mutations: 2,
+};
+
+/**
+ * Señales heurísticas de "ocupado". Deliberadamente amplias: un falso positivo
+ * solo cuesta espera (y la espera está topada), mientras que un falso negativo
+ * cuesta un fallo intermitente que nadie sabe reproducir.
+ */
+export const BUSY_SELECTORS: string[] = [
+  '[aria-busy="true"]',
+  '[role="progressbar"]',
+  'progress',
+  '.spinner',
+  '.loading',
+  '.loader',
+  '.overlay-loading',
+  '.blockUI',
+  '[class*="spinner" i]',
+  '[class*="loading" i]',
+  '[class*="cargando" i]',
+  '[id*="spinner" i]',
+  '[id*="loading" i]',
+];
+
+/** Precedencia: DEFAULT < contract < script < paso. `undefined` no pisa. */
+export function mergeSettle(...layers: Array<SettleProfile | undefined>): Required<SettleProfile> {
+  const out: Required<SettleProfile> = {
+    ...DEFAULT_SETTLE,
+    busy_selectors: [...BUSY_SELECTORS],
+    ignore_selectors: [],
+  };
+  for (const l of layers) {
+    if (!l) continue;
+    if (typeof l.quiet_ms === 'number') out.quiet_ms = l.quiet_ms;
+    if (typeof l.timeout_ms === 'number') out.timeout_ms = l.timeout_ms;
+    if (typeof l.max_mutations === 'number') out.max_mutations = l.max_mutations;
+    // los selectores se ACUMULAN: el pack del cliente añade sus señales, no
+    // sustituye las heurísticas (perder una por descuido cuesta flakiness).
+    if (l.busy_selectors?.length) out.busy_selectors = [...new Set([...out.busy_selectors, ...l.busy_selectors])];
+    if (l.ignore_selectors?.length) out.ignore_selectors = [...new Set([...out.ignore_selectors, ...l.ignore_selectors])];
+  }
+  return out;
+}
+
+/** Acciones cuya repetición no puede duplicar estado de negocio. */
+const RETRY_SAFE_BY_DEFAULT: ReadonlySet<WalkAction> = new Set<WalkAction>([
+  'goto',
+  'hover',
+  'fill',
+  'press',
+  'select',
+  'capture',
+  'wait_url',
+  'wait_text',
+  'expect_text',
+  'expect_state',
+]);
+
+/**
+ * ¿Es seguro repetir esta acción? `click`, `check` y `uncheck` NO lo son por
+ * defecto: re-pulsar "Finalizar" en onesait crea DOS declaraciones, y un test
+ * que ensucia PRE es peor que un test rojo. Los clicks de navegación (menú,
+ * pestañas) se declaran `retry_safe: true` en el guion, explícitamente.
+ */
+export function isRetrySafe(step: WalkStep): boolean {
+  if (typeof step.retry_safe === 'boolean') return step.retry_safe;
+  return RETRY_SAFE_BY_DEFAULT.has(step.action);
+}
+
+/** Percentil por rango más cercano (sin interpolar: con 3 muestras interpolar es teatro). */
+export function percentile(samples: number[], p: number): number {
+  if (samples.length === 0) return 0;
+  const sorted = [...samples].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[idx];
+}
+
+/**
+ * Timeout calibrado por observación (capa 4). Sustituye el 10 000 inventado por
+ * p95(observado) × margen, acotado. Con pocas muestras el p95 degrada al máximo,
+ * que es exactamente lo prudente.
+ */
+export function calibratedTimeout(
+  samples: number[],
+  opts: { margin?: number; floorMs?: number; ceilingMs?: number } = {},
+): number | null {
+  if (samples.length === 0) return null;
+  const margin = opts.margin ?? 2;
+  const floorMs = opts.floorMs ?? 3_000;
+  const ceilingMs = opts.ceilingMs ?? 60_000;
+  const base = samples.length < 3 ? Math.max(...samples) : percentile(samples, 95);
+  return Math.min(ceilingMs, Math.max(floorMs, Math.round(base * margin)));
+}
+
+/** Añade una muestra al perfil, conservando solo las últimas `keep` (ventana móvil). */
+export function updateTimingProfile(
+  profile: TimingProfile,
+  key: string,
+  ms: number,
+  opts: { screen?: string; keep?: number; date?: string } = {},
+): TimingProfile {
+  const keep = opts.keep ?? 10;
+  const entry = profile.steps[key] ?? { samples: [], updated: '' };
+  const samples = [...entry.samples, Math.max(0, Math.round(ms))].slice(-keep);
+  profile.steps[key] = {
+    samples,
+    ...(opts.screen ? { screen: opts.screen } : entry.screen ? { screen: entry.screen } : {}),
+    updated: opts.date ?? new Date().toISOString().slice(0, 10),
+  };
+  return profile;
+}
+
+/**
+ * Huella de pantalla: lo que permite distinguir "la acción no surtió efecto"
+ * (huella igual → reintentar es seguro) de "algo pasó pero no lo esperado"
+ * (huella distinta → NO reintentar, es candidato a drift). Sin esta distinción
+ * el reintento es ciego y puede duplicar operaciones.
+ */
+export function fingerprintHash(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex').slice(0, 12);
 }
 
 // ----------------------------------------------------------------- estado

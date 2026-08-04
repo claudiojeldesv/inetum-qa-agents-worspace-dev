@@ -140,6 +140,34 @@ healing:
                                     #   El command /ia4d-qa-automator:heal es independiente del knob:
                                     #   se puede lanzar siempre, re-ejecutable, sobre el último run.
 
+# Sincronización del dom-walker (kernel v2 K0.13). Home del CLIENT PACK para las señales
+# de "ocupado" de la familia de stack: aquí es donde se declara que el spinner de estas
+# aplicaciones es `.blockUI` o `div[id$=":status"]`, y qué subárboles repintan por polling.
+# Bloque OPCIONAL: sin él manda el default del kernel (400 ms de quietud, heurísticas).
+#
+# Por qué una VENTANA y no "el spinner ya no está": en una SPA que abre el spinner 2 o 3
+# veces por carga, el hueco entre ciclos es una calma FALSA, y actuar dentro de él es el
+# fallo intermitente clásico (el clic ocurre y no sirve de nada). Se exige quietud
+# CONTINUADA. Agotar el tope NO es un fallo: se anota y sigue — el veredicto lo da la
+# postcondición del paso (`expect_after` en el walk-script), no el reloj.
+settle:
+  quiet_ms: number                  # default 400 — ms consecutivos de quietud exigidos. Puentea
+                                    #   huecos entre ciclos MÁS CORTOS que este valor; los más
+                                    #   largos los caza la postcondición, no esta capa.
+  timeout_ms: number                # default 10000 — tope de espera. Se RECALIBRA por paso con el
+                                    #   p95 observado en runs anteriores (config/timing-profiles/
+                                    #   <site_id>.json), salvo que el paso declare el suyo.
+  max_mutations: number             # default 2 — mutaciones toleradas DENTRO de la ventana. Es un
+                                    #   umbral de TASA: un ciclo de spinner produce decenas, un reloj
+                                    #   de polling una. Por eso una app que repinta un contador no
+                                    #   cuelga el walk para siempre.
+  busy_selectors: string[]          # señales del sitio, ACUMULADAS sobre las heurísticas del kernel
+                                    #   ([aria-busy=true], [role=progressbar], .spinner, .loading,
+                                    #   .blockUI, [class*=cargando]...). No las sustituye: perder una
+                                    #   por descuido cuesta flakiness.
+  ignore_selectors: string[]        # subárboles cuyas mutaciones no cuentan (relojes de sesión,
+                                    #   contadores de notificaciones, chats embebidos).
+
 # Política de evidencia visual para el reporte Allure. NO es un gate — no aborta nada.
 # Es evidencia de RUN-TIME: /ia4d-qa-automator:report solo muestra lo que el run capturó.
 # El command lee `level` en el Verification step y exporta QA_SCREENSHOT / QA_TRACE

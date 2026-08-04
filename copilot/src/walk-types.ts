@@ -52,6 +52,102 @@ export interface WalkStep {
   expect_transition?: boolean;   // tras el paso se espera navegación/cambio de pantalla → capturar
   dialog?: 'accept' | 'dismiss'; // manejo del diálogo nativo que dispara el paso
   optional?: boolean;            // si no resuelve, se anota y se continúa SIN rescate
+  /**
+   * K0.13 capa 3 — postcondición INLINE del paso: texto de negocio que debe
+   * aparecer después de la acción. Es a la vez aserción y ORÁCULO de
+   * sincronización: si no aparece, el paso no surtió efecto (o hay drift), y esa
+   * distinción se resuelve comparando la huella de pantalla, no adivinando.
+   */
+  expect_after?: string;
+  /**
+   * ¿Se puede repetir la acción sin duplicar estado de negocio? Default por
+   * acción (ver isRetrySafe): hover/fill/press/select son seguras; `click` NO,
+   * porque re-pulsar "Finalizar" crea dos declaraciones. Opt-in explícito para
+   * los clicks de navegación.
+   */
+  retry_safe?: boolean;
+  /** Válvula declarada para la pantalla patológica: settle propio de este paso. */
+  settle?: SettleProfile;
+}
+
+// -------------------------------------------- sincronización (K0.13, capa 2)
+
+/**
+ * Perfil de settle. La señal de quietud es una VENTANA, no una comprobación
+ * instantánea: con spinners que se abren 2 o 3 veces por carga, "el spinner no
+ * está visible ahora" es falso positivo — el hueco entre ciclos parece calma.
+ * Se exige quietud CONTINUADA durante quiet_ms.
+ *
+ * Agotar timeout_ms NO es un fallo: se continúa y se anota. El veredicto lo da
+ * la postcondición (capa 3), no el reloj.
+ */
+export interface SettleProfile {
+  /** ms consecutivos de quietud exigidos. Default DEFAULT_SETTLE.quiet_ms. */
+  quiet_ms?: number;
+  /** tope de espera. Agotarlo se registra como settle_timeout y se sigue. */
+  timeout_ms?: number;
+  /**
+   * Mutaciones toleradas DENTRO de la ventana. Un ciclo de spinner produce
+   * decenas; un reloj que tictaquea, una. Es un umbral de TASA, y por eso una
+   * app con polling que repinta un contador no cuelga el walk para siempre.
+   */
+  max_mutations?: number;
+  /** Selectores de "ocupado" propios del sitio, además de los heurísticos. */
+  busy_selectors?: string[];
+  /** Subárboles cuyas mutaciones no cuentan (relojes, contadores, chats). */
+  ignore_selectors?: string[];
+}
+
+/** Lo OBSERVADO en un settle. Es telemetría, no veredicto. */
+export interface SettleObservation {
+  waited_ms: number;
+  /** Veces que una señal de ocupado apareció: los ciclos de spinner, contados. */
+  busy_cycles: number;
+  /** Veces que la ventana de quietud se reinició por exceso de mutaciones. */
+  resets: number;
+  timed_out: boolean;
+  /** Qué selectores de ocupado matchearon de verdad (los demás no se reportan). */
+  signals: string[];
+}
+
+/**
+ * Desenlace de un paso. La distinción que importa: `ok_after_retry` es ruido de
+ * entorno y `postcondition_unmet` es candidato a drift. Confundirlos envenena el
+ * informe de reconciliación — reportaríamos que el plan cambió cuando solo hubo
+ * un spinner.
+ */
+export type StepOutcome =
+  | 'ok'
+  | 'ok_after_retry'
+  | 'settle_timeout'
+  | 'postcondition_unmet'
+  | 'action_failed';
+
+export interface StepReport {
+  flow: string;
+  step: string;
+  action: WalkAction;
+  outcome: StepOutcome;
+  action_ms: number;
+  screen?: string;
+  settle?: SettleObservation;
+  retried: boolean;
+  retry_reason?: string;
+  /** Por qué NO se reintentó habiendo motivo: la acción podía duplicar negocio. */
+  retry_refused?: string;
+}
+
+/**
+ * Perfil de tiempos observados, durable (K0.13, capas 4 y 6). Convierte el
+ * "10 segundos" inventado en un p95 medido por paso, y cada run recalibra: la
+ * flakiness converge a la baja en vez de pelearse para siempre.
+ * Fichero `config/timing-profiles/<site_id>.json`, versionable como los aliases.
+ */
+export interface TimingProfile {
+  version: 1;
+  site_id: string;
+  /** clave '<flow>/<step>' → muestras de espera de settle en ms (las últimas N). */
+  steps: Record<string, { samples: number[]; screen?: string; updated: string }>;
 }
 
 export interface WalkFlow {
@@ -66,6 +162,8 @@ export interface WalkScript {
   entry: string;                 // path inicial relativo a la base URL (o URL absoluta)
   base_url?: string;             // opcional; si falta se pasa por CLI/env
   flows: WalkFlow[];
+  /** Settle por defecto del sitio. Precedencia: default < contract < script < paso. */
+  settle?: SettleProfile;
 }
 
 /** Elemento capturado (post-poda). */
@@ -149,11 +247,22 @@ export interface DomMap {
     rescues_used: number;
     rescue_budget: number;
     screens: number;
+    /** Pasos que solo pasaron al reintentar: ruido de entorno, NO drift (K0.13). */
+    flaky_timing: number;
+    /** Pasos que no se estabilizaron dentro del tope y siguieron adelante. */
+    settle_timeouts: number;
+    /** Postcondiciones no cumplidas con el estado ya cambiado: candidatos a drift. */
+    postcondition_unmet: number;
   };
   screens: DomScreen[];
   transitions: DomTransition[];
   open_questions: BlockedStep[];
   rescues: RescueRecord[];
+  /**
+   * Telemetría por paso: tiempos, ciclos de spinner observados y desenlace (K0.13).
+   * Opcional para poder leer dom-maps generados antes de K0.13 sin migrarlos.
+   */
+  step_reports?: StepReport[];
 }
 
 /** Petición de rescate LLM (handoff por archivo: el orquestador delega en Haiku). */
@@ -290,6 +399,8 @@ export interface WalkState {
   rescues: RescueRecord[];
   current_screen: string | null;
   testid_attr?: string;          // autodetección estable entre reanudaciones
+  /** Telemetría de sincronización acumulada (K0.13); tolerante a checkpoints viejos. */
+  step_reports?: StepReport[];
 }
 
 /**

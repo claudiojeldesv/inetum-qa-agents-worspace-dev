@@ -6,21 +6,28 @@ import {
   aliasKey,
   buildFallbackCandidates,
   buildLocatorCandidates,
+  BUSY_SELECTORS,
+  calibratedTimeout,
   dedupeAndPrune,
+  DEFAULT_SETTLE,
   hashScript,
   hintLocatorPlan,
+  isRetrySafe,
   locatorSource,
   looksGeneratedId,
+  mergeSettle,
   normalizedPlan,
   normalizeText,
   parseLocatorChain,
   parseJsonLoose,
+  percentile,
   pruneAriaSnapshot,
   resolveFixtureRef,
   slugFromUrl,
+  updateTimingProfile,
   validateWalkScript,
 } from '../src/walk-core.ts';
-import type { DomElement, PickedElement, WalkScript } from '../src/walk-types.ts';
+import type { DomElement, PickedElement, TimingProfile, WalkScript, WalkStep } from '../src/walk-types.ts';
 
 const FIXTURES = {
   credentials: [
@@ -523,6 +530,44 @@ describe('espacios alrededor de la puntuacion (K0.12 — caso real onesait)', ()
   it('hints que solo difieren en el espaciado del separador comparten alias', () => {
     expect(aliasKey({ role: 'link', name: 'Rescates/Reinversión' }))
       .toBe(aliasKey({ role: 'link', name: 'RESCATES / REINVERSIÓN' }));
+  });
+
+  it('sincronizacion: retry_safe sin oraculo es reintento ciego y no valida', () => {
+    const base = (step: Partial<WalkStep>): unknown => ({
+      version: 1,
+      site_id: 's',
+      entry: '/',
+      flows: [{ flow: 'f', steps: [{ id: 's1', action: 'click', hint: { role: 'button', name: 'X' }, ...step }] }],
+    });
+    const sinOraculo = validateWalkScript(base({ retry_safe: true }));
+    expect(sinOraculo.ok).toBe(false);
+    expect(sinOraculo.errors[0]).toContain('sin oráculo el reintento es ciego');
+    // con postcondicion inline si vale
+    expect(validateWalkScript(base({ retry_safe: true, expect_after: 'Guardado' }))).toEqual({ ok: true, errors: [] });
+    // y con transicion tambien
+    expect(validateWalkScript(base({ retry_safe: true, expect_transition: true }))).toEqual({ ok: true, errors: [] });
+  });
+
+  it('sincronizacion: expect_after no aplica a pasos que no ejecutan accion', () => {
+    const r = validateWalkScript({
+      version: 1,
+      site_id: 's',
+      entry: '/',
+      flows: [{ flow: 'f', steps: [{ id: 's1', action: 'expect_text', value: 'Hola', expect_after: 'Adios' }] }],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors[0]).toContain("'expect_after' no aplica");
+  });
+
+  it('sincronizacion: settle con numeros negativos no valida', () => {
+    const r = validateWalkScript({
+      version: 1,
+      site_id: 's',
+      entry: '/',
+      flows: [{ flow: 'f', steps: [{ id: 's1', action: 'capture', settle: { quiet_ms: -1 } }] }],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors[0]).toContain('settle.quiet_ms');
   });
 
   it('el guion de onesait valida y usa el camino de tres niveles', () => {

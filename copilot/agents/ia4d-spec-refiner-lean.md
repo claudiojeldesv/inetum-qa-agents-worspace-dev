@@ -87,7 +87,8 @@ de tus casos (dedupe: varios casos del mismo flujo comparten guion).
         { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Usuario" }, "value": "$fixtures.credentials[0].username" },
         { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Contraseña" }, "value": "$fixtures.credentials[0].password", "secret": true },
         { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Entrar" }, "expect_transition": true, "screen": "inicio" },
-        { "id": "s4", "action": "expect_text", "value": "Bienvenido" }
+        { "id": "s4", "action": "expect_text", "value": "Bienvenido" },
+        { "id": "s5", "action": "click", "hint": { "role": "link", "name": "Mis datos" }, "expect_after": "Datos personales", "retry_safe": true }
       ]
     }
   ]
@@ -118,6 +119,18 @@ Cómo derivar los pasos, **solo de lo que el FD dice**:
    (desplegar un menú que quizá ya está abierto), márcalo `"optional": true` — se anota y sigue,
    sin gastar rescate.
 6. **`id`** correlativo `s1..sN` dentro del flujo. Sin duplicados.
+7. **Postcondición inline → `expect_after`.** Cuando el FD dice qué aparece **inmediatamente
+   después** de una acción concreta ("pulsa Siguiente y se muestra 'Datos Tipo Prestación'"),
+   ponlo en el propio paso: `"expect_after": "Datos Tipo Prestación"`. No es lo mismo que un paso
+   `expect_text` suelto: `expect_after` ata la comprobación a la acción, y el walker lo usa además
+   como **oráculo de sincronización** — si el texto no aparece sabe que la acción no surtió efecto.
+   Misma regla dura: **si el FD no afirma el texto, no lo pongas.**
+8. **`retry_safe` solo en navegación.** El walker puede repetir una acción cuando su
+   `expect_after` no se cumple, pero por defecto **no repite clicks**: re-pulsar "Finalizar" crea
+   dos declaraciones. Marca `"retry_safe": true` únicamente en clicks que solo **mueven** al
+   usuario (menú, pestañas, "Anterior", "Siguiente" de un asistente que no persiste). Nunca en
+   los que crean, modifican, aceptan, firman, rechazan o lanzan un proceso. Ante duda: no lo
+   marques — el coste de no marcarlo es un hallazgo, el de marcarlo mal es ensuciar el entorno.
 
 ### El hint es una hipótesis falsable, no una invención
 
@@ -144,8 +157,10 @@ no dice cómo se llega a algo, el flujo llega hasta donde el FD llega.
 - Nunca amplíes alcance más allá de lo que el FD afirma.
 - Los `hint` del guion salen del **vocabulario literal del FD** (hipótesis falsable que el walker
   verifica). Nunca añadas pasos que el FD no describe para completar un flujo.
-- **Nunca emitas `expect_text` de un `then` `[AMBIGUO ...]`** — sin texto afirmado por el FD no hay
-  postcondición que verificar.
+- **Nunca emitas `expect_text` ni `expect_after` de un `then` `[AMBIGUO ...]`** — sin texto afirmado
+  por el FD no hay postcondición que verificar.
+- **Nunca marques `retry_safe: true` en una acción que crea, modifica o lanza algo.** El reintento
+  existe para clics perdidos por sincronización, no para operaciones de negocio.
 - Nunca escribas datos literales en el guion: siempre `$fixtures.*` (frontera PII).
 - Cada caso cita su `source_ref`.
 - Determinista: mismo FD → mismos casos y mismo guion, mismo orden (orden de aparición).
