@@ -72,13 +72,24 @@ export function parseJsonLoose<T = unknown>(text: string): T {
  * clase GESTIÓN-con-tilde sin tokens. NO se aplica a test_ids (atributos exactos).
  */
 export function normalizeText(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    s
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      // Espacios alrededor de la puntuación (K0.12): el FD escribe
+      // "Rescates/Reinversión" y el menú de la app muestra
+      // "RESCATES / REINVERSIÓN". Colapsar espacios repetidos no bastaba —
+      // aquí los espacios están AÑADIDOS, no duplicados. Patrón corporativo
+      // habitual en etiquetas con separador.
+      .replace(/\s*([/\-|·,;:])\s*/g, '$1')
+      .trim()
+  );
 }
+
+/** Puntuación que en las etiquetas aparece con o sin espacios alrededor. */
+const SPACED_PUNCT = new Set(['/', '-', '|', '·', ',', ';', ':']);
 
 /** Variantes con/sin diacrítico por letra base — cubre es/pt/fr/ca corporativo. */
 const ACCENT_CLASS: Record<string, string> = {
@@ -97,7 +108,10 @@ export function accentInsensitivePattern(text: string): string {
   for (const ch of normalized) {
     if (ACCENT_CLASS[ch]) out += ACCENT_CLASS[ch];
     else if (ch === ' ') out += '\\s+';
-    else out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    else if (SPACED_PUNCT.has(ch)) {
+      // el separador puede venir pegado o con espacios: "a/b" ≡ "a / b"
+      out += `\\s*${ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`;
+    } else out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
   return out;
 }

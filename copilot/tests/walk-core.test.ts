@@ -489,3 +489,52 @@ describe('parseLocatorChain', () => {
     expect(chain[1].nth).toBe(3);
   });
 });
+
+
+describe('espacios alrededor de la puntuacion (K0.12 — caso real onesait)', () => {
+  it('normalizeText pliega los espacios del separador', () => {
+    expect(normalizeText('RESCATES / REINVERSION')).toBe('rescates/reinversion');
+    expect(normalizeText('Rescates/Reinversion')).toBe('rescates/reinversion');
+    expect(normalizeText('SINIESTROS (Fallecim./Invalidez)')).toBe('siniestros (fallecim./invalidez)');
+  });
+
+  it('el patron matchea el menu de la app desde el texto del FD y al reves', () => {
+    // el FD escribe "Rescates/Reinversion", la app muestra "RESCATES / REINVERSION"
+    const desdeFD = new RegExp(accentInsensitivePattern('Rescates/Reinversión'), 'i');
+    expect(desdeFD.test('RESCATES / REINVERSIÓN')).toBe(true);
+    expect(desdeFD.test('RESCATES/REINVERSIÓN')).toBe(true);
+
+    const desdeApp = new RegExp(accentInsensitivePattern('RESCATES / REINVERSIÓN'), 'i');
+    expect(desdeApp.test('Rescates/Reinversión')).toBe(true);
+  });
+
+  it('el item de nivel 3 del FD matchea tal cual (no habia drift)', () => {
+    const re = new RegExp(accentInsensitivePattern('Simulación/Declaración Rescates'), 'i');
+    expect(re.test('Simulación/Declaración Rescates')).toBe(true);
+    expect(re.test('SIMULACIÓN / DECLARACIÓN RESCATES')).toBe(true);
+  });
+
+  it('no confunde ramas hermanas del menu', () => {
+    // "SIMULACION RESCATES" es OTRA entrada de nivel 2: no debe matchear el item de nivel 3
+    const re = new RegExp(accentInsensitivePattern('Simulación/Declaración Rescates'), 'i');
+    expect(re.test('SIMULACIÓN RESCATES')).toBe(false);
+  });
+
+  it('hints que solo difieren en el espaciado del separador comparten alias', () => {
+    expect(aliasKey({ role: 'link', name: 'Rescates/Reinversión' }))
+      .toBe(aliasKey({ role: 'link', name: 'RESCATES / REINVERSIÓN' }));
+  });
+
+  it('el guion de onesait valida y usa el camino de tres niveles', () => {
+    const raw = JSON.parse(readFileSync(resolve(__dirname, '../fixtures/onesait.lean.walk.json'), 'utf8'));
+    expect(validateWalkScript(raw)).toEqual({ ok: true, errors: [] });
+    const steps = raw.flows[0].steps;
+    expect(steps).toHaveLength(10);
+    // GESTION -> Rescates/Reinversion -> Simulacion/Declaracion Rescates
+    expect([steps[3].action, steps[3].hint.name]).toEqual(['hover', 'GESTIÓN']);
+    expect([steps[4].action, steps[4].hint.name]).toEqual(['hover', 'Rescates/Reinversión']);
+    expect([steps[5].action, steps[5].hint.name]).toEqual(['click', 'Simulación/Declaración Rescates']);
+    // el nivel 2 es OBLIGATORIO: sin abrirlo el nivel 3 no es clicable
+    expect(steps[4].optional).toBeUndefined();
+  });
+});
