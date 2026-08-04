@@ -9,12 +9,12 @@
         { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "username" }, "value": "$fixtures.credentials[0].username" },
         { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "password" }, "value": "$fixtures.credentials[0].password", "secret": true },
         { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "inicio" },
-        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "GESTIÓN" } },
-        { "id": "s5", "action": "click", "hint": { "text": "Rescates/Reinversión" }, "optional": true },
-        { "id": "s6", "action": "click", "hint": { "text": "Simulación/Declaración Rescates" }, "expect_transition": true, "screen": "simulacion-rescates" },
+        { "id": "s4", "action": "hover", "hint": { "role": "link", "name": "GESTIÓN" } },
+        { "id": "s5", "action": "hover", "hint": { "role": "link", "name": "RESCATES / REINVERSIÓN" }, "optional": true },
+        { "id": "s6", "action": "click", "hint": { "role": "link", "name": "SIMULACIÓN RESCATES" }, "expect_transition": true, "screen": "simulacion-rescates" },
         { "id": "s7", "action": "fill", "hint": { "label": "Número Póliza" }, "value": "$fixtures.polizas[0].numero" },
         { "id": "s8", "action": "press", "value": "Tab" },
-        { "id": "s9", "action": "wait_text", "value": "Tomador" },
+        { "id": "s9", "action": "expect_text", "value": "Tomador" },
         { "id": "s10", "action": "capture", "screen": "simulacion-rescates-con-datos" }
       ]
     }
