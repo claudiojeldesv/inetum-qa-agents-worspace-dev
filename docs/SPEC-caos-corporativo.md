@@ -1,0 +1,272 @@
+# SPEC — Red de caos corporativo (kernel v2)
+
+Endurecimiento del dom-walker frente a las clases de fallo que rompen la automatización
+contra aplicaciones Angular/CDK y JSF/PrimeFaces, más el vocabulario de aserciones de
+tabla y cardinalidad. Continuación de `docs/SPEC-kernel-v2.md` (fases K0.13–K0.17).
+
+**Origen**: dos investigaciones con fuentes (desplegables no nativos + tablas; caos
+Angular/SPA), sintetizadas en un catálogo de modos de fallo con su columna "cubierto /
+descubierto". Este documento convierte lo descubierto en fases con criterio de
+aceptación. No es greenfield: commands, estructura y estilo de código ya están fijados
+en `SPEC.md` y `CLAUDE.md`; aquí solo se especifica lo nuevo.
+
+---
+
+## 1. Objetivo
+
+Que el recorrido determinista sobreviva al DOM real de una app corporativa moderna sin
+perder sus dos invariantes: **$0 en el camino feliz** y **nunca adivinar**. Cada mejora
+tapa una clase concreta del catálogo, se prueba contra un fixture que la reproduce, y
+—si puede enmascarar un fallo real— deja rastro en el audit-log.
+
+**Usuario**: el mismo QA de siempre. El vocabulario del guion no debe crecer más de lo
+imprescindible; la mecánica la absorbe el código.
+
+**No-objetivo**: piercing de shadow DOM cerrado, manejo de `ExpressionChanged`/hidratación
+(dev/SSR, absorbidos por huella+quietud). La investigación los descartó por riesgo casi
+nulo en un run funcional contra producción. No se construyen.
+
+---
+
+## 2. Principio rector (no negociable)
+
+La frontera de todo el sistema, que estas fases deben respetar:
+
+> **El código no adivina y el LLM no inventa.**
+
+Corolarios que aplican aquí:
+- Toda desambiguación nueva sigue la regla dura: **una coincidencia visible = adelante;
+  dos o más = se planta** y sube a la asistencia. Nada elige "el primero".
+- El refiner emite `hint` y `scope` desde el vocabulario del FD. **Nunca** emite
+  `locator` (no ha visto el DOM) ni un `scope`/portal que el FD no nombre.
+- Cualquier mecanismo que pueda hacer pasar un test que debería fallar (auto-descarte de
+  estorbos) va **off por defecto** y **auditado** (familia de la regla #10).
+
+---
+
+## 3. El modelo `scope` vs portal (decisión cerrada)
+
+Resultado del análisis: **no hacen falta dos mecanismos.** El `scope` de K0.16 ya
+resuelve el contenedor **a nivel de página entera** (`resolveScope` recorre page + frames),
+así que encuentra un contenedor aunque viva en un portal colgado del `<body>`.
+
+Hay dos formas de "dentro de", y ambas son el mismo `scope` apuntado a contenedores
+distintos:
+
+- **Contiene-por-DOM** (modal, form-group): `scope: {role: 'dialog', name: '…'}`. El
+  diálogo envuelve al objetivo.
+- **Contiene-en-portal** (listbox/menú de un desplegable, menú CDK): `scope: {role:
+  'listbox'}` / `{role: 'menu'}`. El contenedor vive en el portal, pero `scope` lo
+  encuentra igual porque busca a nivel de página.
+
+**El único error posible** es apuntar el `scope` al disparador o al formulario en vez de
+al contenedor real. Eso es una **regla de redacción del refiner**, no código:
+
+> El `scope` es siempre la cosa que realmente contiene al objetivo (el diálogo, el menú,
+> la lista) — nunca el botón que lo abrió.
+
+Se descartó explícitamente un marcador `portal: true` (Opción B): no compra robustez
+—contra un widget sin ARIA un flag no inventa roles— y añade una forma de equivocarse.
+Para el widget patológico sin ARIA, el modo asistido ya captura un `locator` de cadena
+hacia el panel (vía K0.16), que se funde en el guion.
+
+Fuentes: CDK `OverlayContainer` (portal a `document.body`), PrimeFaces `…_panel`
+`role="listbox"`, W3C APG Combobox, Playwright locators (resolución page-level).
+
+---
+
+## 4. Fases
+
+Orden por payoff/riesgo. Cada fase se acepta de forma independiente contra fixtures
+deterministas (decisión: `corp-bench` + fixtures sintéticos, offline; onesait es
+validación de campo aparte, **no** gate).
+
+### Fase 1 — `select` inteligente + resolución en portal  ★ desbloqueo de onesait
+
+El único cambio de vocabulario es que **no hay cambio de vocabulario**: `select` sigue
+siendo un paso con `hint` (el disparador) + `value` (la opción). El driver ramifica:
+
+1. `tagName === 'SELECT'` (vía `evaluate`) → nativo → `selectOption(value)` (hoy).
+2. Si no → widget: clic en el disparador para abrir; esperar el `role="listbox"`
+   **visible a nivel de página** (oráculo: `aria-expanded=true` del disparador si lo
+   emite, con la ventana de quietud como respaldo); resolver la opción como
+   `getByRole('option', {name: value})` **dentro del único listbox visible**, con
+   `uniqueOrNull` y matching accent-insensitive (se reutiliza el normalizador K0.1).
+3. Sin `listbox`/`option` resoluble → cae a la asistencia (que puede capturar un
+   `locator` de cadena hacia el panel, K0.16). Nunca adivina.
+
+Matiz JSF/PrimeFaces: el panel es `…_panel role="listbox"` con `<li role="option">` en
+portal; la receta (2) lo cubre localizando por rol+texto. **Los ids `j_id…`/`…_N` no se
+usan jamás** (regla dura, ya en `looksGeneratedId`).
+
+- **Aceptación**: fixture `mat-select-portal.html` (desplegable cuyo panel se dibuja en
+  `document.body`) → el paso `select` elige la opción correcta sin `scope` explícito;
+  y un `<select>` nativo sigue pasando por la rama 1. Ambos en `corp-bench`.
+- **Tradeoff**: dos fases internas (abrir + elegir) en vez de una llamada; mata la clase
+  entera "selectOption lanzó sobre un div" y "clicó el texto y pegó en el chip
+  seleccionado".
+
+### Fase 2 — Auto-descarte de estorbos (backdrop / snackbar / consentimiento)
+
+Estorbos que la ventana de quietud **no puede ver** por diseño: el DOM está quieto, el
+overlay solo está *encima* interceptando el puntero (`cdk-overlay-backdrop`,
+`mat-snack-bar-container`, banners de cookies).
+
+- Mecanismo: `page.addLocatorHandler` sobre un conjunto **declarado por el client pack**
+  de selectores de estorbo; el handler los descarta (Escape / botón de cierre) antes de
+  que la accionabilidad se re-evalúe.
+- **Postura (decisión): opt-in por client pack.** Off por defecto. Nada se descarta
+  salvo que el pack lo autorice para ese sitio. Bloque nuevo en el Style Contract:
+  `obstructions: { dismiss: [ <selector>… ] }`.
+- **Auditoría obligatoria**: cada descarte es un evento de primera clase en el audit-log
+  (`action: 'skip'`, `phase: 'obstruction-dismiss'`, selector + paso). El informe de
+  reconciliación puede así decir "este run solo pasó porque se barrieron N estorbos" —
+  misma filosofía que `ok_after_retry` es ruido pero se cuenta.
+
+- **Aceptación**: fixtures `backdrop-fantasma.html` (backdrop que tarda en desvanecerse
+  sobre un botón) y `snackbar-intercept.html` (toast que auto-desaparece sobre un
+  control) → con el pack que declara el estorbo, el paso pasa y el audit-log registra el
+  descarte; **sin** declararlo, el paso se bloquea con motivo claro (no se barre en
+  silencio).
+- **Tradeoff**: puede enmascarar un bug real (barrer un overlay que no debía estar). Por
+  eso off por defecto y todo auditado; la decisión de encenderlo es del QA por sitio.
+
+### Fase 3 — Matar animaciones (knob del contract)
+
+Las animaciones de ruta/diálogo mantienen la caja del elemento en movimiento y retrasan
+la accionabilidad; alguna desplaza el objetivo a mitad del clic.
+
+- Mecanismo: `reducedMotion: 'reduce'` en el contexto + inyección de CSS
+  (`*{transition:none!important;animation:none!important}`) en cada navegación.
+- Knob del Style Contract: `settle: { disable_animations: bool }`. **Default on** para
+  runs funcionales; se apaga para regresión visual (donde la animación es el objeto de
+  prueba).
+- **Aceptación**: fixture `anim-lenta.html` (botón con transición de entrada larga) →
+  con el knob on el paso resuelve rápido y estable; con off, la ventana de quietud lo
+  absorbe igual pero más lento (comparativa medida en `step_reports`).
+- **Tradeoff**: cambia levemente el comportamiento de la app; podría ocultar un bug
+  dependiente de animación (raro en QA funcional). Por eso es knob, no imposición.
+
+### Fase 4 — `scroll_until` para virtual scroll  (menor probabilidad — ver §6)
+
+Listas virtualizadas (`cdk-virtual-scroll`) renderizan solo lo visible; la fila objetivo
+no existe en el DOM hasta hacer scroll.
+
+- Acción nueva del guion: `scroll_until` con `hint` (el objetivo) + `container` (el
+  viewport scrollable) + `max_steps`. Bucle acotado: scroll del viewport, re-resolver la
+  escalera cada iteración, parar en *encontrado* / *max_steps* / *sin filas nuevas*.
+- Regla dura: "no encontrado tras N scrolls" es **ambiguo** entre ausencia real y N
+  pequeño → se reporta como tal, no se afirma que el registro no existe.
+- **Aceptación**: fixture `virtual-scroll.html` (5000 filas, ~viewport renderizado) → el
+  objetivo off-screen se materializa y se resuelve; un objetivo inexistente agota
+  `max_steps` y se reporta sin afirmar ausencia.
+- **Tradeoff**: necesita condición de parada dura o bucla infinito. Probabilidad media en
+  apps corporativas; se construye por decisión del QA aun sabiendo que la investigación
+  lo diferiría.
+
+### Fase 5 — Settle consciente de debounce en inputs  (menor probabilidad — ver §6)
+
+Campos con `debounceTime`: tras teclear hay un hueco de calma **igual al debounce** antes
+de que salga la petición. La ventana de quietud muestreada en ese hueco ve calma falsa —
+es la clase K0.17 ("todavía no ha empezado") reubicada en inputs.
+
+- Mecanismo: un `fill`/`type` sobre un campo marcado como debounced no cierra la ventana
+  de quietud hasta que (a) transcurre el intervalo declarado **o** (b) aparece el oráculo
+  del resultado. Se prefiere exigir un `expect_after` tras el input (el resultado),
+  espejo de la capa 3 de K0.13.
+- Marca: `debounced: true` (o `debounce_ms`) en el paso, emitida por el refiner cuando el
+  FD describe un buscador/typeahead. Default conservador: en cualquier input de texto
+  seguido de un `expect_*`, esperar al resultado antes de asentar.
+- **Aceptación**: fixture `busqueda-debounce.html` (300 ms) → escribir y asertar el
+  resultado pasa; sin la espera consciente, el mismo guion asertaría contra la lista
+  vieja (par falsable, estilo K0.13).
+- **Tradeoff**: requiere el hint del refiner/contract para distinguir un campo debounced
+  de uno instantáneo; el default conservador es seguro pero algo más lento.
+
+### Fase 6 — Aserciones de tabla y cardinalidad  (capacidad aparte, comprometida)
+
+El dolor real del cliente: *"valida que trae más de X registros"*, *"cada cuadro tiene X
+opciones"*. Vocabulario nuevo, reparto de trabajo intacto (**el código captura, el LLM
+interpreta**).
+
+- Acciones/postcondiciones nuevas:
+  - `expect_count` con operador (`>`, `>=`, `=`, `<`) y `value` numérico, sobre un `hint`
+    de colección (filas, opciones). Usa `toHaveCount` cuando el operador es `=`
+    (reintenta), y `count()` **tras** una espera por visibilidad para los demás
+    (nunca leer `count()` sobre una tabla aún cargando → falso 0).
+  - `expect_each` sobre un contenedor: cada sub-elemento cumple una condición (p.ej.
+    "cada `listbox` tiene ≥ 1 `option`").
+- Captura de tabla como datos: el notario copia la tabla a estructura (`headers` + `rows`)
+  vía un único `evaluate`, **gateado detrás de una espera por visibilidad/`toHaveCount`**
+  (evaluate no auto-espera). Queda en el dom-map para que la fase de derivación (LLM)
+  compare contra lo que el plan esperaba. El LLM interpreta; **no** decide los hechos.
+- **Aceptación**: contra la tabla de `corp-bench` (la de Consulta Declaraciones) →
+  `expect_count rows > 0` pasa tras la búsqueda con resultados y se reporta incumplido
+  (no error) cuando no hay datos; la tabla capturada aparece como datos estructurados en
+  el dom-map con cabeceras y filas.
+- **Tradeoff**: `evaluate` no tiene resiliencia de locator, por eso va **después** de la
+  aserción que reintenta — dos pasos, no uno. Ordenar mal esto reintroduce el falso 0.
+
+---
+
+## 5. Cambios transversales
+
+- **corp-bench como red entrenada**: cada clase descubierta entra como fixture del banco
+  (`mat-select-portal`, `backdrop-fantasma`, `snackbar-intercept`, `anim-lenta`,
+  `virtual-scroll`, `busqueda-debounce`). El banco de regresión pasa a **contener las
+  trampas**; una regresión futura las pisa antes de llegar al cliente. (Ya demostró su
+  valor en K0.17: cazó una regresión el mismo día.)
+- **Refiner** (`ia4d-spec-refiner-lean` + espejo `.github`): regla de redacción del
+  `scope` (§3), y emisión de `expect_count`/`expect_each`/`debounced` desde el vocabulario
+  del FD. Prohibiciones intactas: nunca `locator`, nunca `scope` no nombrado por el FD.
+- **Style Contract** (schema + validador + `/config`): bloques nuevos `obstructions`,
+  `settle.disable_animations`; los campos de tabla no tocan el contract (viven en el
+  guion). Claves desconocidas siguen rechazadas por el validador.
+- **`step_reports[]`**: desenlaces nuevos donde apliquen; el descarte de estorbos y el
+  scroll acotado quedan como telemetría, no como "fallo".
+- **`template/`** propagado con `npm run build:template`. **SPEC-kernel-v2.md**
+  referenciado; este doc es su continuación, no lo reemplaza.
+
+---
+
+## 6. Riesgos y salvedades (honestas)
+
+- **Fases 4 y 5 van contra el consejo de la investigación** de diferirlas hasta tener un
+  target que las ejercite (probabilidad media, no alta). Se construyen por decisión
+  explícita del QA. Mitigación: aceptación por fixture sintético, coste acotado y visible;
+  si al llegar no se ven necesarias, se saltan sin afectar al resto.
+- **PrimeFaces**: los detalles finos (`…_panel`, bug del chevron PF13) vienen de doc, no
+  de onesait. **No se codifican.** La red que protege es localizar por rol+texto. La
+  verificación contra la versión real de onesait es validación de campo, fuera del gate.
+- **Auto-descarte**: riesgo de enmascarar bug → off por defecto + auditado (§4 Fase 2).
+- **Matar animaciones**: riesgo de ocultar bug de animación → knob, off en visual.
+- **dom-walker sin gate de compliance**: sigue vigente el apunte de K0.17 — el walker es
+  un componente; el gate vive en los commands. Runs manuales contra PRE no gatean. Es
+  decisión asumida, no accidente.
+
+---
+
+## 7. Estrategia de prueba
+
+Sin cambios de método respecto a K0.13–K0.17:
+- **Puro** (vitest, sin navegador): matching de nombre de opción, detección de operador de
+  `expect_count`, parsing de `scroll_until`, reglas de validación nuevas del walk-script.
+- **Integración** (vitest + Chromium real, patrón `spinner-sync.test.ts` con workDir
+  temporal): cada fixture nuevo, con **par falsable** donde aplique (política vieja falla,
+  nueva pasa — Fases 1, 5).
+- **Regresión**: `corp-bench` corre entero en cada `vitest run`; healthcheck 26/26;
+  `tsc --noEmit` limpio; template propagado.
+- **Gate de cada fase**: verde contra su fixture + banco entero sin regresión. Onesait
+  real = validación de campo posterior, registrada aparte.
+
+---
+
+## 8. Orden de entrega propuesto
+
+1. Fase 1 (select + portal) — desbloqueo onesait, cierra el hueco Angular nº 1.
+2. Fase 3 (animaciones) — casi gratis, recorta reloj en todo lo demás.
+3. Fase 2 (auto-descarte) — opt-in, auditado.
+4. Fase 6 (tablas/cardinalidad) — capacidad de aserción, dolor real del cliente.
+5. Fase 5 (debounce) y Fase 4 (virtual scroll) — las de menor probabilidad, al final.
+
+Cada fase es un commit propio, TDD, con su fixture y su entrada en `docs/STATUS.md`.

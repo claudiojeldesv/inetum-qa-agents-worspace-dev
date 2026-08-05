@@ -1,0 +1,88 @@
+<!doctype html>
+<!--
+  Fixture Fase 1 (SPEC-caos-corporativo §4): un <select> nativo de control MAS un
+  desplegable NO nativo cuyo panel se dibuja colgado de document.body (patrón
+  Angular Material / CDK OverlayContainer, y equivalente al `…_panel role=listbox`
+  de PrimeFaces). `selectOption()` a ciegas revienta contra el div del disparador:
+  no es un <select>, es la clase entera "selectOption lanzó sobre un div" que abre
+  el hueco Angular nº 1 (desbloqueo de onesait).
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture select portal</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; padding: 24px; }
+      .combo { border: 1px solid #888; padding: .4rem .6rem; width: 220px; cursor: pointer; background: #fff; }
+      .panel { position: fixed; border: 1px solid #888; background: #fff; min-width: 220px; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+      .panel div[role="option"] { padding: .4rem .6rem; cursor: pointer; }
+      .panel div[role="option"]:hover { background: #eef; }
+      #resultado { margin-top: 1rem; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <p>
+      <label for="tipo-nativo">Tipo Prestación (nativo)</label>
+      <select id="tipo-nativo">
+        <option value="">-- Seleccione --</option>
+        <option value="RT">Rescate Total</option>
+        <option value="RP">Rescate Parcial</option>
+      </select>
+    </p>
+
+    <p>
+      <span id="lbl-estado">Estado Declaración</span>
+      <div class="combo" role="combobox" aria-haspopup="listbox" aria-expanded="false"
+           aria-labelledby="lbl-estado" tabindex="0" id="combo-estado">-- Todos --</div>
+    </p>
+
+    <div id="resultado" role="status" hidden></div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      // "Rehusada" con tilde a propósito: ejercita también el normalizador K0.1
+      // dentro del listbox en portal.
+      const OPCIONES = ['En elaboración', 'Rehusada', 'Anulada'];
+
+      // El panel se cuelga de document.body: el contenedor real NO es un
+      // ancestro del disparador (patrón portal/OverlayContainer). Un scope
+      // implícito al padre del disparador no lo encontraría.
+      function abrirPanel() {
+        cerrarPanel();
+        const combo = $('combo-estado');
+        const r = combo.getBoundingClientRect();
+        const panel = document.createElement('div');
+        panel.className = 'panel';
+        panel.id = 'panel-estado';
+        panel.setAttribute('role', 'listbox');
+        panel.style.left = r.left + 'px';
+        panel.style.top = (r.bottom + 4) + 'px';
+        OPCIONES.forEach((op) => {
+          const o = document.createElement('div');
+          o.setAttribute('role', 'option');
+          o.textContent = op;
+          o.addEventListener('click', () => {
+            combo.textContent = op;
+            $('resultado').hidden = false;
+            $('resultado').textContent = 'Seleccionado: ' + op;
+            cerrarPanel();
+          });
+          panel.appendChild(o);
+        });
+        document.body.appendChild(panel);
+        combo.setAttribute('aria-expanded', 'true');
+      }
+      function cerrarPanel() {
+        const p = $('panel-estado');
+        if (p) p.remove();
+        $('combo-estado').setAttribute('aria-expanded', 'false');
+      }
+      $('combo-estado').addEventListener('click', () => {
+        $('panel-estado') ? cerrarPanel() : abrirPanel();
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#combo-estado, #panel-estado')) cerrarPanel();
+      });
+    </script>
+  </body>
+</html>

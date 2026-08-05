@@ -1145,6 +1145,58 @@ class DomWalker {
   }
 
   /**
+   * Fase 1 (SPEC-caos-corporativo §4) — `select` inteligente. `selectOption()` a
+   * ciegas revienta contra cualquier desplegable que no sea un `<select>` real
+   * (Angular Material, PrimeFaces): la clase "selectOption lanzó sobre un div" que
+   * bloqueaba onesait. El driver ramifica por tagName REAL del disparador, no por
+   * vocabulario del guion — `select` sigue siendo hint + value, sin campo nuevo.
+   */
+  private async selectSmart(trigger: Locator, value: string): Promise<void> {
+    const tag = await trigger.evaluate((el) => el.tagName).catch(() => '');
+    if (tag === 'SELECT') {
+      await trigger.selectOption(value, { timeout: STEP_TIMEOUT_MS });
+      return;
+    }
+    // Widget no nativo: abrir y resolver el panel a nivel de PÁGINA ENTERA (§3 del
+    // spec) — el panel de un CDK OverlayContainer o de un `…_panel` de PrimeFaces
+    // cuelga de document.body, no del disparador, y `resolveScope`/`scopes()` ya
+    // buscan así.
+    await trigger.click({ timeout: STEP_TIMEOUT_MS });
+    const listbox = await this.waitForVisibleListbox(STEP_TIMEOUT_MS);
+    if (!listbox) {
+      throw new Error(
+        'el disparador no es un <select> y no se encontró un único role="listbox" visible tras abrirlo',
+      );
+    }
+    const literal = listbox.getByRole('option', { name: value });
+    const normalized = listbox.getByRole('option', { name: new RegExp(accentInsensitivePattern(value), 'i') });
+    const option = (await this.uniqueOrNull(literal)) ?? (await this.uniqueOrNull(normalized));
+    if (!option) {
+      throw new Error(`la opción '${value}' no resuelve única dentro del listbox abierto (ambigua o ausente) — nunca se adivina`);
+    }
+    await option.click({ timeout: STEP_TIMEOUT_MS });
+  }
+
+  /**
+   * Espera a que un único `role="listbox"` esté visible en page o en algún frame
+   * (mismo alcance página-entera que `resolveScope`, K0.16 §3). Es el oráculo que
+   * abre paso a resolver la opción: si nunca se materializa, o si hay dos a la vez,
+   * no se adivina — se agota el tope y sube por la escalera (asistencia / rescate).
+   */
+  private async waitForVisibleListbox(timeoutMs: number): Promise<Locator | null> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const scopes = await this.scopes();
+      for (const { scope } of scopes) {
+        const unique = await this.uniqueOrNull(scope.getByRole('listbox'));
+        if (unique) return unique;
+      }
+      if (Date.now() >= deadline) return null;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+
+  /**
    * Escalera v2 (K0.1/K0.5): aliases del cliente → plan crudo del contract →
    * plan normalizado (accent-insensitive). Devuelve el locator único visible o
    * null (→ rescate / open_question). El walker nunca decide equivalencias:
@@ -2045,7 +2097,7 @@ class DomWalker {
               await loc.hover({ timeout: STEP_TIMEOUT_MS });
               break;
             case 'select':
-              await loc.selectOption(value!, { timeout: STEP_TIMEOUT_MS });
+              await this.selectSmart(loc, value!);
               break;
             case 'check':
               await loc.check({ timeout: STEP_TIMEOUT_MS });
