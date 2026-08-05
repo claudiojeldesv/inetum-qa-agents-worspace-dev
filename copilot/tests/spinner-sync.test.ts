@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { assertActionable, DomWalker, type StyleContract, type WalkerOptions } from '../src/dom-walker.ts';
+import { assertActionable, DomWalker, ensureReachable, type StyleContract, type WalkerOptions } from '../src/dom-walker.ts';
 import { chromium, type Browser } from '@playwright/test';
 import type { DomMap, SettleProfile, StepReport, WalkScript, WalkState, WalkStep } from '../src/walk-types.ts';
 
@@ -270,6 +270,91 @@ describe('K0.14 — accionable sin ejecutar', () => {
       // con el padre abierto, la misma comprobacion pasa
       await page.hover('#gestion');
       await assertActionable(item, 'click', 5_000);
+    } finally {
+      await browser.close();
+    }
+  }, 120_000);
+});
+
+/**
+ * K0.15 — el estado en el que el QA señaló el elemento no es nuestro: el panel vive
+ * en la página y pulsar sus botones cierra los menús off-canvas. El camino grabado
+ * ya está en el parche; usarlo para recuperar el estado es la diferencia entre un
+ * paso que pasa y un "Parche verificado" seguido de un timeout.
+ */
+describe('K0.15 — recuperar el estado con el camino grabado', () => {
+  it('el objetivo inalcanzable se recupera re-ejecutando los abridores', async () => {
+    const browser: Browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+      await page.goto(`${FIXTURES}/hover-menu.html`);
+      const target = page.getByText('Simulación/Declaración Rescates');
+      const resolve = async (src: string) => page.locator(src);
+
+      // punto de partida: existe pero NO es accionable (el menú está cerrado)
+      expect(await target.count()).toBe(1);
+      expect(await target.isVisible()).toBe(false);
+
+      const r = await ensureReachable(
+        target,
+        'click',
+        [{ action: 'hover', hint: {}, locator: '#gestion', role: 'opener' }],
+        resolve,
+        { reachTimeoutMs: 800 },
+      );
+
+      expect(r.ok).toBe(true);
+      expect(r.reopened).toBe(true);
+      expect(await target.isVisible()).toBe(true);
+    } finally {
+      await browser.close();
+    }
+  }, 120_000);
+
+  it('si el objetivo YA es accionable no toca los abridores (son toggles)', async () => {
+    const browser: Browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+      await page.goto(`${FIXTURES}/hover-menu.html`);
+      await page.hover('#gestion'); // el menú ya está abierto
+      const target = page.getByText('Simulación/Declaración Rescates');
+
+      let abridoresUsados = 0;
+      const r = await ensureReachable(
+        target,
+        'click',
+        [{ action: 'hover', hint: {}, locator: '#gestion', role: 'opener' }],
+        async (src) => {
+          abridoresUsados += 1;
+          return page.locator(src);
+        },
+        { reachTimeoutMs: 2_000 },
+      );
+
+      expect(r.ok).toBe(true);
+      // clave: NO se reabrió. Re-pulsar un toggle abierto lo cerraría.
+      expect(r.reopened).toBe(false);
+      expect(abridoresUsados).toBe(0);
+    } finally {
+      await browser.close();
+    }
+  }, 120_000);
+
+  it('sin abridores en el camino, lo dice en vez de fallar opaco', async () => {
+    const browser: Browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+      await page.goto(`${FIXTURES}/hover-menu.html`);
+      const r = await ensureReachable(
+        page.getByText('Simulación/Declaración Rescates'),
+        'click',
+        [],
+        async (src) => page.locator(src),
+        { reachTimeoutMs: 800 },
+      );
+      expect(r.ok).toBe(false);
+      expect(r.reopened).toBe(false);
+      expect(r.reason).toContain('no tiene abridores');
     } finally {
       await browser.close();
     }

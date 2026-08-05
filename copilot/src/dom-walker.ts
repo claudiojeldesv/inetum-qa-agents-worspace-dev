@@ -717,6 +717,56 @@ async function assertActionable(loc: Locator, action: WalkAction, timeoutMs = ST
   }
 }
 
+/**
+ * K0.15 — ¿el objetivo es alcanzable, y si no lo es, lo recupera el camino grabado?
+ *
+ * Existe porque el estado en el que el QA señaló el elemento NO es nuestro: **el
+ * panel de asistencia vive en la página**, así que pulsar `◎` o `Parar` es un clic
+ * sobre el documento y cierra cualquier menú off-canvas que escuche clics fuera
+ * (react-burger-menu, drawers de Material, paneles laterales de los DS
+ * corporativos). Medido en SauceDemo: el parche se verificaba y la acción real
+ * fallaba con el menú ya cerrado.
+ *
+ * Los abridores solo se re-ejecutan CUANDO hacen falta: un abridor suele ser un
+ * toggle, y pulsarlo con el menú ya abierto lo cerraría.
+ *
+ * `resolve` se inyecta para poder probar el mecanismo sin montar el walker entero.
+ */
+async function ensureReachable(
+  target: Locator,
+  action: WalkAction,
+  openers: AssistPatchStep[],
+  resolve: (source: string) => Promise<Locator | null>,
+  opts: { reachTimeoutMs?: number; stepTimeoutMs?: number } = {},
+): Promise<{ ok: boolean; reason?: string; reopened: boolean }> {
+  const reachTimeout = opts.reachTimeoutMs ?? 3_000;
+  const stepTimeout = opts.stepTimeoutMs ?? STEP_TIMEOUT_MS;
+  const reachable = (): Promise<boolean> =>
+    assertActionable(target, action, reachTimeout)
+      .then(() => true)
+      .catch(() => false);
+
+  if (await reachable()) return { ok: true, reopened: false };
+  if (openers.length === 0) {
+    return { ok: false, reopened: false, reason: 'el camino grabado no tiene abridores con los que recuperarlo' };
+  }
+
+  for (const [i, op] of openers.entries()) {
+    const unique = op.locator ? await resolve(op.locator) : null;
+    if (!unique) {
+      return { ok: false, reopened: true, reason: `el abridor ${i + 1} (${op.locator}) no resuelve en la pantalla actual` };
+    }
+    try {
+      if (op.action === 'hover') await unique.hover({ timeout: stepTimeout });
+      else await unique.click({ timeout: stepTimeout });
+    } catch (err) {
+      const m = err instanceof Error ? err.message.split('\n')[0] : String(err);
+      return { ok: false, reopened: true, reason: `el abridor ${i + 1} (${op.locator}) falló: ${m}` };
+    }
+  }
+  return { ok: await reachable(), reopened: true };
+}
+
 // -------------------------------------------------------------- el walker
 
 class DomWalker {
@@ -738,6 +788,8 @@ class DomWalker {
   private readonly assistPatch: AssistPatch;
   /** El flujo en curso se detiene (K0.14: capturar sin ejecutar). Se resetea por flujo. */
   private flowAborted = false;
+  /** URL en el momento de abrir el panel (K0.15): distingue "navegó" de "cambió de estado". */
+  private assistOpenUrl: string | null = null;
   /** Perfil de tiempos observados (K0.13 capas 4/6) y su ruta durable. */
   private timing: TimingProfile;
   private readonly timingPath: string;
@@ -1154,6 +1206,7 @@ class DomWalker {
     contextReason?: string,
   ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
     await this.ensureAssistBridge();
+    this.assistOpenUrl = this.page.url();
     console.error(`[dom-walker] ASISTENCIA ${flow.flow}/${step.id}: panel abierto en el navegador, esperando al QA...`);
     this.audit('llm_call', `asistencia solicitada: ${flow.flow}/${step.id}`, { phase: 'assist', source_hint: this.hintText(step) });
 
@@ -1299,6 +1352,56 @@ class DomWalker {
         `${target.candidate.fragile ? ' (FRÁGIL)' : ''}, parche ${verify.ok ? 'VERIFICADO' : 'SIN VERIFICAR'} → assist-patch.json`,
     );
     return { locator: target.locator, via: target.candidate.source, frame_path: [] };
+  }
+
+  /**
+   * K0.15 — el objetivo que el QA señaló puede haber dejado de ser alcanzable entre
+   * el señalamiento y el momento de actuar, y no por su culpa: **el panel vive en la
+   * página**, así que pulsar `◎` o `Parar` es un clic sobre el documento y cierra
+   * cualquier menú off-canvas que escuche clics fuera (react-burger-menu, drawers de
+   * Material, paneles laterales de los DS corporativos). Medido en SauceDemo.
+   *
+   * El parche recién construido YA contiene el camino. Antes se ignoraba y se
+   * ejecutaba solo el objetivo, confiando en el estado residual de la UI: un
+   * descuido, porque ese estado no es nuestro. Ahora, si el objetivo no es
+   * accionable, se re-ejecutan los abridores grabados y se vuelve a comprobar.
+   *
+   * Solo se re-ejecutan CUANDO hacen falta: un abridor suele ser un toggle, y
+   * pulsarlo con el menú ya abierto lo cerraría.
+   */
+  private async ensureAssistedTargetReachable(
+    flow: WalkFlow,
+    step: WalkStep,
+    target: { locator: Locator; via: string },
+  ): Promise<{ ok: boolean; reason?: string }> {
+    const entry = this.assistPatch.entries.find((e) => e.flow === flow.flow && e.replaces_step === step.id);
+    const openers = (entry?.steps ?? []).filter((s) => s.role === 'opener');
+    const navigated = this.assistOpenUrl !== null && this.page.url() !== this.assistOpenUrl;
+
+    const r = await ensureReachable(target.locator, step.action, openers, async (src) => {
+      const loc = this.locatorFromChain(this.page, src);
+      return loc ? await this.uniqueOrNull(loc).catch(() => null) : null;
+    });
+
+    if (r.reopened) {
+      console.error(
+        `[dom-walker] el objetivo de ${flow.flow}/${step.id} ya no era accionable; ` +
+          `re-ejecutados ${openers.length} abridor(es) del camino grabado → ${r.ok ? 'recuperado' : 'sigue inalcanzable'}`,
+      );
+      this.audit(r.ok ? 'allow' : 'block', `abridores del camino grabado re-ejecutados en ${flow.flow}/${step.id}`, {
+        phase: 'assist-reach',
+        openers: openers.length,
+        recovered: r.ok,
+        navigated,
+      });
+    }
+    if (r.ok) return { ok: true };
+
+    // la causa se ATRIBUYE, no se adivina: navegar y cerrarse un menú son cosas distintas
+    const causa = navigated
+      ? `la grabación navegó fuera de la pantalla (${this.assistOpenUrl} → ${this.page.url()})`
+      : `el estado de la pantalla cambió (un menú o panel se cerró) y ${target.via} dejó de ser accionable`;
+    return { ok: false, reason: `${causa}; ${r.reason}` };
   }
 
   /** Devuelve el resultado al panel para que el QA lo vea antes de que se cierre. */
@@ -1754,8 +1857,31 @@ class DomWalker {
           // K0.10: peldaño asistido ANTES del rescate LLM. Con el QA delante, resolver
           // visualmente cuesta $0 y captura además la coreografía (hover de menús).
           if (this.opts.assist) {
-            resolved = await this.assistResolve(flow, step);
-            if (!resolved) return; // drift, block o timeout: ya anotado
+            const assisted = await this.assistResolve(flow, step);
+            if (!assisted) return; // drift, block, timeout o captura-sin-ejecutar: ya anotado
+            /**
+             * K0.15 — misma guarda que en el disparador por acción fallida. Sin ella,
+             * un objetivo que dejó de ser alcanzable hacía fallar el `runAction` del
+             * bucle de abajo, cuyo catch vuelve a llamar a la asistencia: el panel se
+             * reabría para el MISMO paso y el QA lo grababa dos veces.
+             */
+            const reach = await this.ensureAssistedTargetReachable(flow, step, assisted);
+            if (!reach.ok) {
+              this.blockStep(
+                flow,
+                step,
+                `el parche se verificó pero no se pudo actuar sobre la pantalla actual: ${reach.reason}. ` +
+                  `El parche ES válido y está en assist-patch.json — fúndelo en el guion y relanza.`,
+                false,
+              );
+              this.audit('block', `objetivo asistido inalcanzable ${stepKey}: ${reach.reason}`, {
+                phase: 'assist-postaction',
+                matched: assisted.via,
+              });
+              this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, retried: false });
+              return;
+            }
+            resolved = assisted;
           }
         }
 
@@ -1839,12 +1965,31 @@ class DomWalker {
                 return; // drift/block/timeout/captura-sin-ejecutar: ya anotado
               }
               /**
-               * K0.14 — esta acción va envuelta porque falla por una causa MUY concreta:
-               * el QA acaba de mover el estado de la app grabando (pulsó el objetivo y
-               * la app navegó), y el locator recién verificado ya no está donde estaba.
-               * Sin envolver, subía al catch genérico del bucle y el paso salía como
-               * "fallo de ejecución: Timeout" justo después de que el panel dijera
-               * "Parche verificado" — el diagnóstico más desconcertante posible.
+               * K0.15 — el estado en el que el QA señaló el elemento NO se da por
+               * bueno: se comprueba y, si hace falta, se recupera re-ejecutando los
+               * abridores del camino que él acaba de grabar.
+               */
+              const reach = await this.ensureAssistedTargetReachable(flow, step, assisted);
+              if (!reach.ok) {
+                this.blockStep(
+                  flow,
+                  step,
+                  `el parche se verificó pero no se pudo actuar sobre la pantalla actual: ${reach.reason}. ` +
+                    `El parche ES válido y está en assist-patch.json — fúndelo en el guion y relanza.`,
+                  false,
+                );
+                this.audit('block', `objetivo asistido inalcanzable ${stepKey}: ${reach.reason}`, {
+                  phase: 'assist-postaction',
+                  matched: assisted.via,
+                });
+                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+                return;
+              }
+              /**
+               * K0.14 — envuelta porque un fallo aquí NO es un fallo de locator: el
+               * parche acaba de verificarse. Sin envolver subía al catch genérico del
+               * bucle como "fallo de ejecución: Timeout" justo después de que el panel
+               * dijera "Parche verificado" — el diagnóstico más desconcertante posible.
                */
               try {
                 await runAction(assisted.locator);
@@ -1853,12 +1998,11 @@ class DomWalker {
                 this.blockStep(
                   flow,
                   step,
-                  `el parche se verificó pero la acción no pudo ejecutarse sobre la pantalla actual: ${m2}. ` +
-                    `Causa habitual: la grabación movió el estado de la app (pulsaste el objetivo en vez de marcarlo con ◎). ` +
-                    `El parche es válido y está en assist-patch.json; fúndelo y relanza.`,
+                  `el objetivo era accionable pero la acción '${step.action}' falló sobre ${assisted.via}: ${m2}. ` +
+                    `El parche está en assist-patch.json; fúndelo y relanza.`,
                   false,
                 );
-                this.audit('block', `acción post-asistencia fallida ${stepKey}: estado alterado durante la grabación`, {
+                this.audit('block', `acción post-asistencia fallida ${stepKey}`, {
                   phase: 'assist-postaction',
                   matched: assisted.via,
                 });
@@ -2318,6 +2462,7 @@ export {
   loadState,
   assertActionable,
   assistOverlayScript,
+  ensureReachable,
   extractionHelpers,
   settleScript,
   TESTID_ATTR_CANDIDATES,
