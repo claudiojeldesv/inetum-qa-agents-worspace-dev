@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "site_id": "saucedemo",
+  "entry": "/",
+  "base_url": "https://www.saucedemo.com",
+  "flows": [
+    {
+      "flow": "demo-asistencia",
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "inventario" },
+
+        { "id": "s4", "action": "click", "hint": { "test_id": "add-to-cart-sauce-labs-backpack", "role": "button", "name": "Add to cart" }, "expect_after": "Remove" },
+
+        { "id": "s5", "action": "click", "hint": { "role": "button", "name": "Open Menu" } },
+        { "id": "s6", "action": "click", "hint": { "test_id": "logout-sidebar-link", "role": "link", "name": "Logout" }, "expect_transition": true, "screen": "login" }
+      ]
+    }
+  ]
+}
