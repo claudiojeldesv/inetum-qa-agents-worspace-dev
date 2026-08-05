@@ -87,6 +87,7 @@ import {
   type StepOutcome,
   type StepReport,
   type TimingProfile,
+  type WalkAction,
   type WalkFlow,
   type WalkScript,
   type WalkState,
@@ -321,8 +322,12 @@ function captureScript(testidAttrs: string[]): string {
  * lo anterior es el camino. Los hovers sostenidos (>400 ms) se registran porque el
  * abridor de un menú hover no genera click — el hueco que el recorder de Playwright
  * no cubre (issues microsoft/playwright#5177, #5481).
+ *
+ * `mutating` (K0.14): el paso NO es reintentable, o sea que su acción cambia estado
+ * de negocio. El panel lo dice y ofrece "Capturar sin ejecutar" como salida, porque
+ * capturar el locator de un "Finalizar" no puede costar una declaración real.
  */
-function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: string): string {
+function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: string, mutating = false): string {
   return `(() => {
     ${extractionHelpers(testidAttrs)}
     const prev = document.querySelector('[' + ASSIST_HOST + ']');
@@ -348,6 +353,9 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
         .rec{background:#065f46;border-color:#047857}
         .stop{background:#7f1d1d;border-color:#991b1b}
         .drift{background:#78350f;border-color:#92400e}
+        .safe{background:#1e3a8a;border-color:#2563eb}
+        .mut{margin-bottom:8px;padding:6px 8px;border-radius:5px;background:#78350f;color:#fed7aa;font-size:12px}
+        .mut code{background:rgba(0,0,0,.25);padding:0 3px;border-radius:3px}
         ul{list-style:none;margin:8px 0 0;padding:0;color:#d1d5db;max-height:190px;overflow:auto}
         li{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;margin:1px 0;cursor:default}
         li:hover{background:#1f2937}
@@ -366,6 +374,14 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
         <div class="h"><span>Asistencia QA</span><span id="s">esperando</span></div>
         <div class="b">
           <div class="ctx">Paso <b>\${'${step.id}'}</b> bloqueado.<br>El FD dice: <b>\${'${hintText.replace(/'/g, '&#39;').replace(/</g, '&lt;')}'}</b></div>
+          ${
+            mutating
+              ? `<div class="mut">Este paso CAMBIA estado de negocio (<code>${step.action}</code> sin
+                 <code>retry_safe</code>). No pulses el objetivo: pasa el ratón por encima
+                 (1 s) y márcalo con <b>&#9678;</b>. Para capturarlo sin dispararlo, usa
+                 <b>Capturar sin ejecutar</b>.</div>`
+              : ''
+          }
           <div class="st" id="hint">Explora libre con la grabación PARADA. Cuando sepas el camino, pulsa Grabar y hazlo del tirón.</div>
           <ul id="l"></ul>
           <div class="row">
@@ -373,6 +389,9 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
             <button id="p" disabled>Pausa</button>
             <button id="c" disabled>Limpiar</button>
             <button id="t" class="stop" disabled>Parar</button>
+          </div>
+          <div class="row">
+            <button id="x" class="${mutating ? 'safe' : ''}" disabled>Capturar sin ejecutar</button>
           </div>
           <div class="row">
             <button id="d" class="drift">No existe aquí</button>
@@ -463,7 +482,7 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
     document.addEventListener('click', onClick, true);
     document.addEventListener('mouseover', onOver, true);
 
-    const submit = (kind, reason) => {
+    const submit = (kind, reason, execute) => {
       recording = false;
       document.removeEventListener('click', onClick, true);
       document.removeEventListener('mouseover', onOver, true);
@@ -472,16 +491,20 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
       // el panel se queda: el walker informa del resultado de la verificación y lo
       // cierra él. Antes desaparecía al instante y el QA no veía qué había pasado.
       $('r').disabled = true; $('p').disabled = true; $('c').disabled = true; $('t').disabled = true;
+      $('x').disabled = true;
       setStatus('verificando...');
       hintBox.className = 'st';
-      hintBox.textContent = 'Verificando el camino grabado por replay en un contexto limpio...';
+      hintBox.textContent = execute === false
+        ? 'Capturando el locator sin ejecutar la acción. El flujo se detendrá aquí.'
+        : 'Verificando el camino grabado por replay en un contexto limpio...';
       const targetIndex = seq.findIndex((s) => s.as === 'target');
       const clean = seq.map(({ _q, ...rest }) => rest);
-      window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: clean, target_index: targetIndex, reason });
+      window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: clean, target_index: targetIndex, reason, execute });
     };
     const startRec = () => {
       recording = true;
       $('r').disabled = true; $('p').disabled = false; $('c').disabled = false; $('t').disabled = false;
+      $('x').disabled = false;
       hintBox.className = 'st';
       hintBox.textContent = 'Grabando. Navega y pulsa el elemento. ◎ marca objetivo, ✓ comprobación, × quita.';
       render();
@@ -495,6 +518,7 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
     $('p').onclick = pauseRec;
     $('c').onclick = () => { seq.length = 0; nodes.length = 0; render(); };
     $('t').onclick = () => submit('recorded');
+    $('x').onclick = () => submit('recorded', 'el QA pidió capturar sin ejecutar la acción', false);
     $('d').onclick = () => submit('drift', 'el QA confirma que el elemento no existe en esta pantalla');
     $('b').onclick = () => submit('block', 'el QA decidió bloquear el paso');
     // el walker llama a esto al terminar de verificar, y luego cierra
@@ -516,6 +540,7 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
       else if (cmd === 'pause') pauseRec();
       else if (cmd === 'clear') { seq.length = 0; nodes.length = 0; render(); }
       else if (cmd === 'stop') submit('recorded');
+      else if (cmd === 'capture-only') submit('recorded', 'comando: capturar sin ejecutar', false);
       else if (cmd === 'drift') submit('drift', 'comando: elemento no presente');
       else if (cmd === 'block') submit('block', 'comando: bloquear paso');
       else if (cmd && cmd.target !== undefined) {
@@ -661,6 +686,37 @@ function settleScript(args: SettleArgs): string {
 })()`;
 }
 
+// --------------------------------------- accionable sin ejecutar (K0.14)
+
+/**
+ * ¿Es accionable, SIN ejecutar la acción? `trial` de Playwright corre las mismas
+ * comprobaciones que la acción real (visible, estable, habilitado, recibe eventos
+ * de puntero) y se detiene ahí. Lanza si no lo es.
+ *
+ * Es lo que permite verificar el parche del modo asistido sin pagar la operación de
+ * negocio: antes, capturar el locator de un "Finalizar" lo disparaba 4 veces (clic
+ * del QA + verificación + minimización + ejecución real), y hasta 9 con un camino
+ * de varios abridores.
+ *
+ * `fill`/`select`/`press` no tienen `trial`, así que se usa el de `click`: es un
+ * envoltorio MÁS estricto que lo que un fill necesita (exige además recibir eventos
+ * de puntero). Un falso negativo deja el parche marcado sin verificar, que es el
+ * lado seguro del error.
+ */
+async function assertActionable(loc: Locator, action: WalkAction, timeoutMs = STEP_TIMEOUT_MS): Promise<void> {
+  const opts = { timeout: timeoutMs, trial: true };
+  switch (action) {
+    case 'hover':
+      return loc.hover(opts);
+    case 'check':
+      return loc.check(opts);
+    case 'uncheck':
+      return loc.uncheck(opts);
+    default:
+      return loc.click(opts);
+  }
+}
+
 // -------------------------------------------------------------- el walker
 
 class DomWalker {
@@ -680,6 +736,8 @@ class DomWalker {
   private assistPending: ((p: AssistSubmission) => void) | null = null;
   private assistBridgeReady = false;
   private readonly assistPatch: AssistPatch;
+  /** El flujo en curso se detiene (K0.14: capturar sin ejecutar). Se resetea por flujo. */
+  private flowAborted = false;
   /** Perfil de tiempos observados (K0.13 capas 4/6) y su ruta durable. */
   private timing: TimingProfile;
   private readonly timingPath: string;
@@ -1109,7 +1167,9 @@ class DomWalker {
         res(p);
       };
       void this.page
-        .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, contextReason ?? this.hintText(step)))
+        .evaluate(
+          assistOverlayScript(TESTID_ATTR_CANDIDATES, step, contextReason ?? this.hintText(step), !isRetrySafe(step)),
+        )
         .catch((err) => console.error(`[dom-walker] no se pudo inyectar el panel: ${String(err).split('\n')[0]}`));
     });
 
@@ -1190,6 +1250,36 @@ class DomWalker {
         : `El camino grabado NO reproduce en limpio: ${verify.reason ?? 'motivo desconocido'}`,
       verify.ok,
     );
+
+    /**
+     * K0.14 — "capturar sin ejecutar": el parche ya está escrito y verificado, pero
+     * la acción NO se ejecuta y el flujo se aborta. Seguir con los pasos siguientes
+     * sobre un estado que no corresponde produciría hallazgos de drift falsos, que
+     * es exactamente el veneno que el informe de reconciliación no puede permitirse.
+     * El locator TAMPOCO se promueve a alias: sin acción no hay postcondición que lo
+     * confirme, y la promoción es condicional por diseño.
+     */
+    if (submission.execute === false) {
+      this.flowAborted = true;
+      this.blockStep(
+        flow,
+        step,
+        `capturado sin ejecutar por decisión del QA (${step.action} cambia estado de negocio); ` +
+          `parche ${verify.ok ? 'verificado' : 'SIN verificar'} en assist-patch.json — el resto del flujo se detiene`,
+        false,
+      );
+      this.audit('skip', `capturado sin ejecutar ${flow.flow}/${step.id} → ${target.candidate.source}`, {
+        phase: 'assist',
+        source: 'human',
+        patch_verified: verify.ok,
+        flow_aborted: true,
+      });
+      console.error(
+        `[dom-walker] CAPTURADO SIN EJECUTAR ${flow.flow}/${step.id}: locator ${target.candidate.tier} en assist-patch.json. ` +
+          `El flujo se detiene aquí: el estado de la app no se ha alterado y los pasos siguientes no serían fiables.`,
+      );
+      return null;
+    }
 
     // el objetivo entra en la memoria del cliente igual que un rescate (promoción
     // condicional al cierre del flujo), pero con procedencia humana
@@ -1290,7 +1380,19 @@ class DomWalker {
           unique = byHint?.locator ?? null;
         }
         if (!unique) return { ok: false, reason: `el paso propuesto ${i + 1} (${ps.action}) no resuelve en un contexto limpio` };
-        if (ps.action === 'hover') await unique.hover({ timeout: STEP_TIMEOUT_MS });
+        /**
+         * K0.14 — el OBJETIVO nunca se ejecuta al verificar. La verificación solo
+         * necesita saber que es accionable, y ejecutarlo costaba una operación de
+         * negocio real por replay: capturar el locator de un "Finalizar" disparaba
+         * la acción 4 veces (clic del QA + verificación + minimización + ejecución
+         * real), y hasta 9 con un camino de varios abridores.
+         *
+         * Los ABRIDORES sí se ejecutan: sin ellos el objetivo no existe. Ese es el
+         * residuo que ningún mecanismo elimina — si el camino muta negocio, cada
+         * replay lo muta. Con --no-minimize se limita a uno.
+         */
+        if (ps.role === 'target') await assertActionable(unique, ps.action);
+        else if (ps.action === 'hover') await unique.hover({ timeout: STEP_TIMEOUT_MS });
         else await unique.click({ timeout: STEP_TIMEOUT_MS });
       }
       return { ok: true };
@@ -1734,9 +1836,35 @@ class DomWalker {
               const assisted = await this.assistResolve(flow, step, detail);
               if (!assisted) {
                 this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
-                return; // drift/block/timeout: ya anotado
+                return; // drift/block/timeout/captura-sin-ejecutar: ya anotado
               }
-              await runAction(assisted.locator);
+              /**
+               * K0.14 — esta acción va envuelta porque falla por una causa MUY concreta:
+               * el QA acaba de mover el estado de la app grabando (pulsó el objetivo y
+               * la app navegó), y el locator recién verificado ya no está donde estaba.
+               * Sin envolver, subía al catch genérico del bucle y el paso salía como
+               * "fallo de ejecución: Timeout" justo después de que el panel dijera
+               * "Parche verificado" — el diagnóstico más desconcertante posible.
+               */
+              try {
+                await runAction(assisted.locator);
+              } catch (err2) {
+                const m2 = err2 instanceof Error ? err2.message.split('\n')[0] : String(err2);
+                this.blockStep(
+                  flow,
+                  step,
+                  `el parche se verificó pero la acción no pudo ejecutarse sobre la pantalla actual: ${m2}. ` +
+                    `Causa habitual: la grabación movió el estado de la app (pulsaste el objetivo en vez de marcarlo con ◎). ` +
+                    `El parche es válido y está en assist-patch.json; fúndelo y relanza.`,
+                  false,
+                );
+                this.audit('block', `acción post-asistencia fallida ${stepKey}: estado alterado durante la grabación`, {
+                  phase: 'assist-postaction',
+                  matched: assisted.via,
+                });
+                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+                return;
+              }
               resolved = assisted;
             } else {
               this.blockStep(flow, step, detail, false);
@@ -1979,6 +2107,7 @@ class DomWalker {
         this.markCompleted(`${flow.flow}/__entry`);
         await this.persist();
 
+        this.flowAborted = false;
         for (const step of flow.steps) {
           if (blocked.has(step.id)) continue;
           try {
@@ -1989,6 +2118,11 @@ class DomWalker {
           }
           this.markCompleted(`${flow.flow}/${step.id}`);
           await this.persist();
+          // K0.14: el QA capturó sin ejecutar → el estado ya no corresponde al guion
+          if (this.flowAborted) {
+            console.error(`[dom-walker] flujo '${flow.flow}' detenido tras ${step.id} (captura sin ejecución)`);
+            break;
+          }
         }
 
         // flujo cerrado: los rescates con postcondición confirmada pasan a la memoria del cliente
@@ -2179,5 +2313,13 @@ if (isDirectRun) {
   });
 }
 
-export { DomWalker, loadState, assistOverlayScript, extractionHelpers, settleScript, TESTID_ATTR_CANDIDATES };
+export {
+  DomWalker,
+  loadState,
+  assertActionable,
+  assistOverlayScript,
+  extractionHelpers,
+  settleScript,
+  TESTID_ATTR_CANDIDATES,
+};
 export type { WalkerOptions, StyleContract };

@@ -343,6 +343,13 @@ export interface AssistSubmission {
   target_index?: number;
   /** true si el último click del QA ya ejecutó la acción del paso (la app navegó). */
   performed?: boolean;
+  /**
+   * false = "capturar sin ejecutar" (K0.14): se construye y verifica el parche pero
+   * NO se ejecuta la acción del paso, y el flujo se aborta. Existe porque capturar
+   * el locator de un "Finalizar" no puede costar una declaración de verdad.
+   * Ausente o true = comportamiento normal.
+   */
+  execute?: boolean;
   reason?: string;
 }
 

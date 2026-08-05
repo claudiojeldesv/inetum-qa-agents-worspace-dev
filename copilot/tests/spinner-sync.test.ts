@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { DomWalker, type StyleContract, type WalkerOptions } from '../src/dom-walker.ts';
+import { assertActionable, DomWalker, type StyleContract, type WalkerOptions } from '../src/dom-walker.ts';
+import { chromium, type Browser } from '@playwright/test';
 import type { DomMap, SettleProfile, StepReport, WalkScript, WalkState, WalkStep } from '../src/walk-types.ts';
 
 /**
@@ -215,6 +216,64 @@ describe('el CLI real (tsx), no solo el modulo importado', () => {
     expect((map.step_reports as StepReport[]).find((x) => x.step === 's1')!.outcome).toBe('ok');
     expect(map.open_questions).toHaveLength(0);
   }, 240_000);
+});
+
+/**
+ * K0.14 — la verificación del parche asistido comprueba que el objetivo es
+ * ACCIONABLE sin ejecutarlo. El fixture tiene un botón "Crear declaración" con un
+ * contador visible, así que la afirmación es medible: capturar no cuenta, actuar sí.
+ *
+ * Sin esto, capturar el locator de un "Finalizar" disparaba la acción 4 veces (clic
+ * del QA + verificación + minimización + ejecución real) y hasta 9 con varios
+ * abridores. En una app de pólizas con estado eso no es una molestia, es un daño.
+ */
+describe('K0.14 — accionable sin ejecutar', () => {
+  it('comprobar accionabilidad NO dispara la accion de negocio; actuar si', async () => {
+    const browser: Browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+      await page.goto(`${FIXTURES}/spinner-multi.html`);
+      const crear = page.getByRole('button', { name: 'Crear declaración' });
+      const contador = page.locator('#contador');
+
+      expect(await contador.textContent()).toBe('Creados: 0');
+
+      // tres comprobaciones seguidas: ninguna crea nada
+      await assertActionable(crear, 'click');
+      await assertActionable(crear, 'click');
+      await assertActionable(crear, 'click');
+      expect(await contador.textContent()).toBe('Creados: 0');
+
+      // y la accion real si cuenta: la comprobacion no es un no-op silencioso
+      await crear.click();
+      await page.waitForFunction(() => document.getElementById('contador')?.textContent === 'Creados: 1', undefined, {
+        timeout: 5_000,
+      });
+      expect(await contador.textContent()).toBe('Creados: 1');
+    } finally {
+      await browser.close();
+    }
+  }, 120_000);
+
+  it('un objetivo NO accionable hace fallar la comprobacion (no da falso verde)', async () => {
+    const browser: Browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+      // el fixture del menu hover: el item existe en el DOM pero no es accionable
+      // hasta que el padre se abre. Es el caso onesait s6.
+      await page.goto(`${FIXTURES}/hover-menu.html`);
+      const item = page.getByText('Simulación/Declaración Rescates');
+      expect(await item.count()).toBe(1);
+
+      await expect(assertActionable(item, 'click', 1_500)).rejects.toThrow();
+
+      // con el padre abierto, la misma comprobacion pasa
+      await page.hover('#gestion');
+      await assertActionable(item, 'click', 5_000);
+    } finally {
+      await browser.close();
+    }
+  }, 120_000);
 });
 
 describe('capa 3 — la postcondicion como oraculo, con reintento discriminado', () => {

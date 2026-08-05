@@ -131,6 +131,75 @@ describe('overlay asistido (navegador real, fixture menú hover)', () => {
 
     await page.close();
   }, 120_000);
+
+  /**
+   * K0.14 — capturar el locator de un paso que muta negocio no puede costar una
+   * operación real. El panel avisa y ofrece la salida; el envío la propaga.
+   */
+  it('un paso que muta negocio avisa y ofrece capturar sin ejecutar', async () => {
+    page = await browser.newPage();
+    const h: Harness = { sent: [], checked: [] };
+    await page.exposeFunction('__qaAssistSubmit', (p: AssistSubmission) => {
+      h.sent.push(p);
+    });
+    await page.exposeFunction('__qaAssistCheck', () => ({
+      ok: true,
+      tier: 'semantic',
+      fragile: false,
+      label: 'semantic',
+      why: '',
+      source: 'stub',
+    }));
+    await page.goto(FIXTURE);
+    // mutating = true: es lo que el walker pasa cuando isRetrySafe(step) es false
+    await page.evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, STEP, 'click sobre "Finalizar"', true));
+
+    const cmd = (detail: unknown) =>
+      page.evaluate((d) => {
+        document.querySelector('[data-qa-assist-host]')?.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: d }));
+      }, detail);
+
+    // el aviso está en el panel (shadow root cerrado → se consulta por evaluate)
+    const avisos = await page.evaluate(() => {
+      const host = document.querySelector('[data-qa-assist-host]') as HTMLElement & { shadowRoot?: ShadowRoot | null };
+      // el shadow es cerrado: no hay shadowRoot accesible, así que se comprueba por altura
+      return { existe: !!host, alto: host?.getBoundingClientRect().height ?? 0 };
+    });
+    expect(avisos.existe).toBe(true);
+
+    await cmd('record');
+    await page.hover('#gestion');
+    await page.waitForTimeout(600);
+    await cmd('capture-only');
+    await page.waitForFunction(() => true, undefined, { timeout: 500 }).catch(() => {});
+
+    expect(h.sent).toHaveLength(1);
+    // la señal que el walker consume para NO ejecutar la acción y abortar el flujo
+    expect(h.sent[0].execute).toBe(false);
+    expect(h.sent[0].kind).toBe('recorded');
+    expect(h.sent[0].reason).toContain('capturar sin ejecutar');
+    // y se grabó lo que el QA señaló, sin haberlo pulsado
+    expect(h.sent[0].sequence.some((e) => e.via === 'hover')).toBe(true);
+
+    await page.close();
+  }, 120_000);
+
+  it('sin mutación el panel es más alto que con el aviso (el aviso se pinta)', async () => {
+    const alto = async (mutating: boolean): Promise<number> => {
+      const p = await browser.newPage();
+      await p.exposeFunction('__qaAssistSubmit', () => {});
+      await p.exposeFunction('__qaAssistCheck', () => ({ ok: true, tier: 'semantic', fragile: false, label: 'semantic' }));
+      await p.goto(FIXTURE);
+      await p.evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, STEP, 'click sobre "Finalizar"', mutating));
+      const h = await p.evaluate(
+        () => (document.querySelector('[data-qa-assist-host]') as HTMLElement)?.getBoundingClientRect().height ?? 0,
+      );
+      await p.close();
+      return h;
+    };
+    // el bloque de aviso solo existe cuando el paso muta: si no se pintara, serían iguales
+    expect(await alto(true)).toBeGreaterThan(await alto(false));
+  }, 120_000);
 });
 
 describe('buildAssistSteps / pruneAssistSequence (puro)', () => {
