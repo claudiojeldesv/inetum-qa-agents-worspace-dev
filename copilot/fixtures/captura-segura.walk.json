@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "site_id": "spinner-multi",
+  "entry": "/spinner-multi.html",
+  "flows": [
+    {
+      "flow": "captura-segura",
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "role": "button", "name": "Crear declaración firmada" }, "expect_after": "Declaración guardada" },
+        { "id": "s2", "action": "capture", "screen": "solo-si-se-ejecuto" }
+      ]
+    }
+  ]
+}

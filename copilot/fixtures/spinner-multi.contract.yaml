@@ -1,0 +1,18 @@
+# Contract mínimo del fixture spinner-multi.html. Vive junto al fixture y NO en
+# config/style-contracts/, que es el directorio de contracts de cliente.
+version: 1
+project: spinner-multi
+
+locators:
+  priority: [getByTestId, getByRole, getByLabel, getByText]
+
+# Señales de ocupado propias del fixture, acumuladas sobre las heurísticas del kernel,
+# y el reloj de polling declarado como subárbol a ignorar (K0.13).
+settle:
+  quiet_ms: 400
+  busy_selectors:
+    - '.overlay'
+  ignore_selectors:
+    - '#reloj'
+
+synthetic_fixtures: {}
