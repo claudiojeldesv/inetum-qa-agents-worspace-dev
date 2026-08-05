@@ -306,6 +306,68 @@ como `ok_after_retry`, y la prueba dura de seguridad — un `retry_safe: true` s
 acción que ya mutó negocio **no** se reintenta y el contador de la app queda en
 `Creados: 1`, nunca en 2.
 
+### K0.16 — el guion aprende a decir "dónde"
+
+Hallazgo previo al código: intenté expresar el CP001 del cliente con el vocabulario
+del guion y **no se podía**. `hintLocatorPlan` solo produce locators *planos*
+(`getByTestId`, `getByRole`, `getByLabel`, `getByText`) y un `StepHint` no tiene forma
+de decir "dentro de". Consecuencias medidas:
+
+1. Los tres botones "X" de las ventanas flotantes del CP001 tienen la **misma** hint.
+   Indistinguibles por hint, e indistinguibles por alias — `aliasKey` se deriva de la
+   hint, así que **colisionan en la misma clave** y la memoria del cliente aprendería
+   una mentira.
+2. Peor: un parche del modo asistido cuyo locator esté por encima del tier plano
+   (`scoped`, `anchored`, `indexed`) **no se podía fundir**, porque `WalkStep` no
+   tenía dónde ponerlo. En la demo de SauceDemo los dos salieron `semantic` y el
+   merge funcionó por suerte; en un formulario tipo onesait vuelve `anchored` y el
+   modo asistido resolvía el paso en su run **sin dejar nada reutilizable**.
+
+Dos campos, con productores distintos y deliberadamente separados:
+
+- **`scope: StepHint`** — el contenedor. Lo emite el **refiner** desde el vocabulario
+  del FD ("el botón X *de Documento de Liquidación*", "Siguiente *en la botonera
+  inferior*"). La escalera completa corre **dentro** del contenedor, y el `via` que se
+  reporta es la cadena entera. Un contenedor ambiguo no se adivina: el paso queda sin
+  resolver y sube a la asistencia. **El scope entra en `aliasKey`**, así que cada "X"
+  tiene su propia memoria; sin scope la clave es idéntica a la de antes y los ficheros
+  de alias existentes siguen valiendo.
+- **`locator: string`** — la cadena autoritativa (`A >> B`, sufijo `.nth(N)`). Lo emite
+  el **parche del modo asistido**, que sí ha visto el DOM. Si deja de resolver no
+  bloquea: sigue la escalera, igual que un alias drifteado. El refiner tiene prohibido
+  emitirlo (no ha visto el DOM; sería una invención con forma de dato). Declarar
+  `locator` y `scope` en el mismo paso no valida: intención ambigua.
+
+Y el parche pasa a incluir `walk_steps: WalkStep[]` — los mismos pasos ya en forma de
+guion, listos para pegar. Traducirlos a mano era un paso manual con margen de error, y
+con locators por encima del tier plano era directamente imposible.
+
+**Banco de regresión corporativo** (`copilot/fixtures/corp-bench.html` + su guion de
+30 pasos, con la forma del CP001): menú de tres niveles por hover con etiquetas
+acentuadas y un señuelo hermano de nivel 2; campo con id estilo JSF, sin `label` y con
+la etiqueta en una celda hermana; doble ciclo de spinner con hueco de calma falsa; datos
+de negocio **dentro de un iframe**; dos botoneras con un "Siguiente" cada una; cadena de
+cuatro ventanas flotantes con dos "X" idénticos; tabla con selección de fila. Pasa
+**30/30 sin rescates, sin asistencia y sin bloqueos**, con `frame_path` correcto en el
+texto del iframe y 2 ciclos de ocupado observados en la transición.
+
+El banco no puede sorprendernos —reproduce solo las clases que ya conocemos— pero avisa
+si rompemos algo que funcionaba. El descubrimiento necesita una app de terceros, no un
+fixture propio. Aun así, en su primera pasada fiel encontró un defecto real: el texto de
+negocio "Rehusada" existe **también** como `<option>` del filtro de estado, esa opción va
+antes en el DOM y está invisible con el `select` cerrado, y `findVisibleText` hacía
+`.first()` y esperaba en vano a que se hiciera visible → la postcondición salía
+incumplida teniendo el resultado delante. Arreglado con `.filter({ visible: true })`.
+Clase real, no de fixture: en un formulario de consulta el valor y su filtro comparten
+literal.
+
+**No construido y consciente**: `expect_count` / `expect_each` (cardinalidad: "trae más
+de X registros"), y el `scope` por fila de tabla cuando el control no tiene nombre
+accesible (no he verificado cómo calcula Playwright el nombre de un `role=row`). Y una
+inexactitud de reporte preexistente que el banco deja a la vista: `recordBusinessText`
+atribuye el texto a la pantalla *actual*, así que las postcondiciones de la cadena de
+modales caen en el cubo de la pantalla anterior.
+
 ## 5. Escalera de resolución v2
 
 Orden estricto; cada peldaño o resuelve mecánicamente o pasa al siguiente. El walker no decide jamás

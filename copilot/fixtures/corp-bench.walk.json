@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "site_id": "corp-bench",
+  "entry": "/corp-bench.html",
+  "settle": { "quiet_ms": 400 },
+  "flows": [
+    {
+      "flow": "rescate-total",
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Usuario" }, "value": "USUARIO" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Contraseña" }, "value": "clave", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Acceder" }, "expect_after": "Sesión iniciada" },
+
+        { "id": "s4", "action": "hover", "hint": { "text": "GESTIÓN" } },
+        { "id": "s5", "action": "hover", "hint": { "text": "Rescates/Reinversión" } },
+        { "id": "s6", "action": "click", "hint": { "text": "Simulación/Declaración Rescates" }, "expect_after": "Número Póliza", "retry_safe": true },
+
+        { "id": "s7", "action": "fill", "locator": "css=[id=\"j_id0:frmPoliza:numPoliza\"]", "value": "0001234567" },
+        { "id": "s8", "action": "press", "value": "Tab" },
+        { "id": "s9", "action": "expect_text", "value": "Tomador: NOMBRE APELLIDO APELLIDO" },
+        { "id": "s10", "action": "capture", "screen": "simulacion-con-datos" },
+
+        { "id": "s11", "action": "select", "locator": "css=[id=\"j_id0:frmPoliza:tipoPrest\"]", "value": "Rescate Total" },
+        { "id": "s12", "action": "click", "locator": "css=.botonera:not(.sup) >> getByRole('button', { name: 'Siguiente' })", "expect_after": "es posible reinvertir el importe" },
+
+        { "id": "s13", "action": "click", "hint": { "role": "button", "name": "Finalizar" }, "expect_after": "Finalizar Declaración" },
+        { "id": "s14", "action": "click", "scope": { "role": "dialog", "name": "Finalizar Declaración" }, "hint": { "role": "button", "name": "Oficina" } },
+        { "id": "s15", "action": "click", "scope": { "role": "dialog", "name": "Finalizar Declaración" }, "hint": { "role": "button", "name": "Aceptar" }, "expect_after": "Confirma la selección de firma" },
+        { "id": "s16", "action": "click", "scope": { "role": "dialog", "name": "Confirmar firma" }, "hint": { "role": "button", "name": "Sí" }, "expect_after": "Documento de Liquidación" },
+
+        { "id": "s17", "action": "click", "scope": { "role": "dialog", "name": "Documento de Liquidación" }, "hint": { "role": "button", "name": "X" }, "expect_after": "Tarea GESTIONAR DOCUMENTACIÓN Y FIRMA creada" },
+        { "id": "s18", "action": "click", "scope": { "role": "dialog", "name": "Gestionar Documentación y Firma" }, "hint": { "role": "button", "name": "X" } },
+        { "id": "s19", "action": "capture", "screen": "tras-finalizar" },
+
+        { "id": "s20", "action": "hover", "hint": { "text": "CONSULTA E INFORMES" } },
+        { "id": "s21", "action": "hover", "hint": { "text": "PRESTACIONES CONSULTAS" } },
+        { "id": "s22", "action": "click", "hint": { "text": "Consulta Declaraciones" }, "expect_after": "Estado Declaración", "retry_safe": true },
+
+        { "id": "s23", "action": "fill", "locator": "css=[id=\"j_id0:frmCons:numPoliza\"]", "value": "0001234567" },
+        { "id": "s24", "action": "select", "locator": "css=[id=\"j_id0:frmCons:estado\"]", "value": "En elaboración" },
+        { "id": "s25", "action": "click", "hint": { "role": "button", "name": "Buscar" }, "expect_after": "DRT-1024" },
+
+        { "id": "s26", "action": "check", "hint": { "role": "radio", "name": "Seleccionar DRT-1024" } },
+        { "id": "s27", "action": "click", "hint": { "role": "button", "name": "Rehusar Declaración" }, "expect_after": "Motivo Rechazo" },
+        { "id": "s28", "action": "select", "scope": { "role": "dialog", "name": "Rehusar Declaración" }, "hint": { "role": "combobox" }, "value": "Rehuse del cliente" },
+        { "id": "s29", "action": "click", "scope": { "role": "dialog", "name": "Rehusar Declaración" }, "hint": { "role": "button", "name": "Aceptar" }, "expect_after": "Rehusada" },
+        { "id": "s30", "action": "capture", "screen": "declaracion-rehusada" }
+      ]
+    }
+  ]
+}

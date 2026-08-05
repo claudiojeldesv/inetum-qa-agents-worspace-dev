@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import {
   accentInsensitivePattern,
   aliasKey,
+  assistStepsToWalkSteps,
   buildFallbackCandidates,
   buildLocatorCandidates,
   BUSY_SELECTORS,
@@ -532,6 +533,36 @@ describe('espacios alrededor de la puntuacion (K0.12 — caso real onesait)', ()
       .toBe(aliasKey({ role: 'link', name: 'RESCATES / REINVERSIÓN' }));
   });
 
+  it('K0.16: el scope entra en la clave del alias — dos "X" no colisionan', () => {
+    const x = { role: 'button', name: 'X' };
+    const enDocumento = aliasKey(x, { role: 'dialog', name: 'Documento de Liquidación' });
+    const enTarea = aliasKey(x, { role: 'dialog', name: 'Gestionar Documentación y Firma' });
+    // sin esto, la memoria del cliente guardaria UN locator para los dos botones
+    expect(enDocumento).not.toBe(enTarea);
+    // el scope tambien se normaliza (acentos/case), como el hint
+    expect(enDocumento).toBe(aliasKey(x, { role: 'DIALOG', name: 'DOCUMENTO DE LIQUIDACION' }));
+    // y sin scope la clave es EXACTAMENTE la de antes: los ficheros existentes valen
+    expect(aliasKey(x)).toBe('|button|x||');
+  });
+
+  it('K0.16: assistStepsToWalkSteps deja el parche listo para pegar en el guion', () => {
+    const walk = assistStepsToWalkSteps(
+      [
+        { action: 'click', hint: { role: 'button', name: 'Open Menu' }, locator: "getByRole('button', { name: 'Open Menu' })", role: 'opener' },
+        { action: 'click', hint: { role: 'link', name: 'Logout' }, locator: "getByTestId('logout-sidebar-link')", role: 'target' },
+        { action: 'expect_text', hint: {}, locator: '', role: 'assertion', value: 'Bienvenido' },
+      ],
+      's5',
+    );
+    expect(walk.map((s) => s.id)).toEqual(['s5', 's5b', 's5c']);
+    // el locator VIAJA: es lo que hace fundible un parche por encima del tier plano
+    expect(walk[1].locator).toBe("getByTestId('logout-sidebar-link')");
+    expect(walk[2]).toEqual({ id: 's5c', action: 'expect_text', value: 'Bienvenido' });
+    // y el resultado es un guion valido
+    expect(validateWalkScript({ version: 1, site_id: 's', entry: '/', flows: [{ flow: 'f', steps: walk }] }))
+      .toEqual({ ok: true, errors: [] });
+  });
+
   it('sincronizacion: retry_safe sin oraculo es reintento ciego y no valida', () => {
     const base = (step: Partial<WalkStep>): unknown => ({
       version: 1,
@@ -568,6 +599,42 @@ describe('espacios alrededor de la puntuacion (K0.12 — caso real onesait)', ()
     });
     expect(r.ok).toBe(false);
     expect(r.errors[0]).toContain('settle.quiet_ms');
+  });
+
+  it('K0.16: un locator autoritativo sustituye a la hint', () => {
+    const r = validateWalkScript({
+      version: 1,
+      site_id: 's',
+      entry: '/',
+      flows: [{ flow: 'f', steps: [{ id: 's1', action: 'fill', locator: 'css=#x', value: 'v' }] }],
+    });
+    expect(r).toEqual({ ok: true, errors: [] });
+  });
+
+  it('K0.16: locator vacio, scope sin campos y ambos juntos no validan', () => {
+    const step = (extra: Record<string, unknown>): unknown => ({
+      version: 1,
+      site_id: 's',
+      entry: '/',
+      flows: [{ flow: 'f', steps: [{ id: 's1', action: 'click', hint: { role: 'button', name: 'X' }, ...extra }] }],
+    });
+    expect(validateWalkScript(step({ locator: '  ' })).errors[0]).toContain("'locator' debe ser una cadena no vacía");
+    expect(validateWalkScript(step({ scope: {} })).errors[0]).toContain("'scope' necesita al menos un campo");
+    expect(validateWalkScript(step({ locator: 'css=#a', scope: { role: 'dialog' } })).errors[0]).toContain(
+      "no declares 'locator' y 'scope'",
+    );
+  });
+
+  it('K0.16: el guion del banco corporativo valida y ejercita scope y locator', () => {
+    const raw = JSON.parse(readFileSync(resolve(__dirname, '../fixtures/corp-bench.walk.json'), 'utf8'));
+    expect(validateWalkScript(raw)).toEqual({ ok: true, errors: [] });
+    const steps = raw.flows[0].steps as Array<Record<string, unknown>>;
+    // los DOS botones "X" de la cadena de modales: misma hint, contenedor distinto
+    const equis = steps.filter((s) => (s.hint as { name?: string })?.name === 'X');
+    expect(equis).toHaveLength(2);
+    expect(new Set(equis.map((s) => (s.scope as { name?: string }).name)).size).toBe(2);
+    // el "Siguiente" de la botonera inferior, distinguido por cadena
+    expect(steps.find((s) => s.id === 's12')!.locator).toContain('.botonera:not(.sup)');
   });
 
   it('el guion de onesait valida y usa el camino de tres niveles', () => {

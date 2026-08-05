@@ -68,6 +68,28 @@ export interface WalkStep {
   retry_safe?: boolean;
   /** Válvula declarada para la pantalla patológica: settle propio de este paso. */
   settle?: SettleProfile;
+  /**
+   * K0.16 — CONTENEDOR dentro del cual resolver el `hint`. Lo emite el refiner
+   * desde el vocabulario del FD ("en la ventana 'Documento de Liquidación', pulsa
+   * el botón X").
+   *
+   * Sin esto, los tres botones "X" del CP001 de onesait tienen la MISMA hint y son
+   * indistinguibles: ni por hint, ni por alias (la clave se deriva de la hint, así
+   * que colisionan). El scope entra en la clave del alias, de modo que cada "X"
+   * tiene su propia memoria.
+   */
+  scope?: StepHint;
+  /**
+   * K0.16 — locator AUTORITATIVO del paso, en la gramática de cadena
+   * (`getByRole(...) >> getByRole(...)`, sufijo `.nth(N)`).
+   *
+   * Existe porque es lo que emite el parche del modo asistido: sin este campo, un
+   * parche cuyo locator esté por encima del tier plano (`scoped`, `anchored`,
+   * `indexed`) NO SE PUEDE FUNDIR en el guion — el modo asistido resolvía el paso
+   * en su run y no dejaba nada reutilizable. Si deja de resolver, la escalera
+   * normal sigue (drift del DOM no bloquea el paso).
+   */
+  locator?: string;
 }
 
 // -------------------------------------------- sincronización (K0.13, capa 2)
@@ -383,6 +405,13 @@ export interface AssistPatch {
     replaces_step: string;
     original_hint?: StepHint;
     steps: AssistPatchStep[];
+    /**
+     * K0.16 — los mismos pasos ya en forma de `WalkStep[]`, listos para pegar en el
+     * guion sustituyendo al paso bloqueado. Traducir a mano el parche era un paso
+     * manual con margen de error, y con locators por encima del tier plano era
+     * directamente imposible antes de que WalkStep tuviera `locator`.
+     */
+    walk_steps: WalkStep[];
     /** Replay en contexto fresco: ¿el parche reproduce de verdad? */
     verified: boolean;
     verify_reason?: string;

@@ -131,6 +131,22 @@ Cómo derivar los pasos, **solo de lo que el FD dice**:
    usuario (menú, pestañas, "Anterior", "Siguiente" de un asistente que no persiste). Nunca en
    los que crean, modifican, aceptan, firman, rechazan o lanzan un proceso. Ante duda: no lo
    marques — el coste de no marcarlo es un hallazgo, el de marcarlo mal es ensuciar el entorno.
+9. **`scope` cuando el FD dice DÓNDE.** Si el FD localiza la acción dentro de un contenedor
+   nombrado ("pulsar 'Aceptar' **en la ventana flotante**", "el botón 'X' **de Documento de
+   Liquidación**", "'Siguiente' **en la botonera inferior**"), emítelo:
+
+   ```json
+   { "id": "s9", "action": "click",
+     "scope": { "role": "dialog", "name": "Documento de Liquidación" },
+     "hint": { "role": "button", "name": "X" } }
+   ```
+
+   No es adorno: tres botones "X" en tres ventanas distintas tienen la **misma** hint y sin
+   `scope` son indistinguibles, también para la memoria de aliases. El contenedor sale del
+   vocabulario del FD igual que la hint; si el FD no dice dónde, **no inventes un scope**.
+10. **NUNCA emitas `locator`.** Ese campo existe para el parche del modo asistido, que sí ha
+    visto el DOM. Tú no lo has visto: un locator tuyo sería una invención con forma de dato.
+    Tu vocabulario es `hint` + `scope`.
 
 ### El hint es una hipótesis falsable, no una invención
 
@@ -161,6 +177,7 @@ no dice cómo se llega a algo, el flujo llega hasta donde el FD llega.
   por el FD no hay postcondición que verificar.
 - **Nunca marques `retry_safe: true` en una acción que crea, modifica o lanza algo.** El reintento
   existe para clics perdidos por sincronización, no para operaciones de negocio.
+- **Nunca emitas `locator`** (no has visto el DOM) ni un `scope` que el FD no nombre.
 - Nunca escribas datos literales en el guion: siempre `$fixtures.*` (frontera PII).
 - Cada caso cita su `source_ref`.
 - Determinista: mismo FD → mismos casos y mismo guion, mismo orden (orden de aparición).

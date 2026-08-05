@@ -486,15 +486,43 @@ export function pruneAssistSequence(sequence: PickedElement[]): PickedElement[] 
  * Clave estable de un hint para hint-aliases.json (K0.5): campos normalizados,
  * orden fijo. Dos hints que solo difieren en acentos/case/espacios comparten
  * alias. test_id se incluye sin normalizar (atributo exacto).
+ *
+ * K0.16 — el `scope` entra en la clave. Sin él, los tres botones "X" del CP001 de
+ * onesait (cada uno en una ventana flotante distinta) producen la MISMA clave: el
+ * segundo alias colisionaría con el primero y la memoria del cliente aprendería una
+ * mentira. Con scope ausente la clave es idéntica a la de antes — los ficheros de
+ * alias existentes siguen valiendo.
  */
-export function aliasKey(hint: StepHint): string {
-  return [
-    hint.test_id ?? '',
-    hint.role ? normalizeText(hint.role) : '',
-    hint.name ? normalizeText(hint.name) : '',
-    hint.label ? normalizeText(hint.label) : '',
-    hint.text ? normalizeText(hint.text) : '',
-  ].join('|');
+export function aliasKey(hint: StepHint, scope?: StepHint): string {
+  const fields = (h: StepHint): string =>
+    [
+      h.test_id ?? '',
+      h.role ? normalizeText(h.role) : '',
+      h.name ? normalizeText(h.name) : '',
+      h.label ? normalizeText(h.label) : '',
+      h.text ? normalizeText(h.text) : '',
+    ].join('|');
+  const base = fields(hint);
+  return scope ? `${base}@${fields(scope)}` : base;
+}
+
+/**
+ * Traduce los pasos del parche del modo asistido a `WalkStep[]` listos para pegar
+ * en el guion (K0.16). El locator viaja como campo autoritativo: es lo que hace
+ * fundible un parche cuyo tier está por encima del plano.
+ *
+ * Los ids se derivan del paso que sustituyen (`s6` → `s6`, `s6b`, `s6c`) para no
+ * chocar con los que ya existen en el flujo.
+ */
+export function assistStepsToWalkSteps(steps: AssistPatchStep[], replacesStep: string): WalkStep[] {
+  const suffix = (i: number): string => (i === 0 ? '' : String.fromCharCode(97 + i)); // '', 'b', 'c', ...
+  return steps.map((s, i) => ({
+    id: `${replacesStep}${suffix(i)}`,
+    action: s.action,
+    ...(Object.keys(s.hint).length ? { hint: s.hint } : {}),
+    ...(s.locator ? { locator: s.locator } : {}),
+    ...(s.value !== undefined ? { value: s.value } : {}),
+  }));
 }
 
 // ------------------------------------------------------------- validación
@@ -520,7 +548,9 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
       if (!step.id) errors.push(`${flow.flow}: paso sin id`);
       else if (seen.has(step.id)) errors.push(`${at}: id duplicado`);
       seen.add(step.id);
-      if (NEEDS_HINT.includes(step.action) && !step.hint) errors.push(`${at}: '${step.action}' requiere hint`);
+      // K0.16: un `locator` autoritativo sustituye a la hint (la escalera no se usa)
+      if (NEEDS_HINT.includes(step.action) && !step.hint && !step.locator)
+        errors.push(`${at}: '${step.action}' requiere hint o locator`);
       if (NEEDS_VALUE.includes(step.action) && step.value === undefined) errors.push(`${at}: '${step.action}' requiere value`);
       if (step.action === 'goto' && !step.target) errors.push(`${at}: 'goto' requiere target`);
       if (step.action === 'wait_url' && !step.target) errors.push(`${at}: 'wait_url' requiere target`);
@@ -539,6 +569,18 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
       ] as const) {
         if (v !== undefined && (!Number.isFinite(v) || v < 0)) errors.push(`${at}: settle.${k} debe ser un número >= 0`);
       }
+      // K0.16 — locator autoritativo y scope declarativo
+      if (step.locator !== undefined && (typeof step.locator !== 'string' || step.locator.trim() === ''))
+        errors.push(`${at}: 'locator' debe ser una cadena no vacía (gramática A >> B, sufijo .nth(N))`);
+      if (step.scope !== undefined) {
+        const hasField = ['test_id', 'role', 'name', 'label', 'text'].some(
+          (f) => (step.scope as Record<string, unknown>)[f] !== undefined,
+        );
+        if (!hasField) errors.push(`${at}: 'scope' necesita al menos un campo (test_id|role|name|label|text)`);
+      }
+      // declarar los dos es intención ambigua: el locator ya lleva su propio camino
+      if (step.locator !== undefined && step.scope !== undefined)
+        errors.push(`${at}: no declares 'locator' y 'scope' en el mismo paso (el locator ya es absoluto)`);
     }
     if (!flow.steps?.length) errors.push(`${flow.flow}: flujo sin pasos`);
   }

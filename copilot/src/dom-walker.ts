@@ -43,6 +43,7 @@ import { proxyFromEnv } from '../../src/proxy-env.ts';
 import {
   accentInsensitivePattern,
   aliasKey,
+  assistStepsToWalkSteps,
   buildAssistSteps,
   buildFallbackCandidates,
   buildLocatorCandidates,
@@ -84,6 +85,7 @@ import {
   type RescueResponse,
   type SettleObservation,
   type SettleProfile,
+  type StepHint,
   type StepOutcome,
   type StepReport,
   type TimingProfile,
@@ -1108,8 +1110,23 @@ class DomWalker {
   private async resolveHint(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
     const scopes = await this.scopes();
 
+    /**
+     * K0.16 — peldaño 0: el locator autoritativo del paso. Es lo que un parche del
+     * modo asistido deja fundido en el guion. Si deja de resolver NO bloquea: se
+     * sigue la escalera, igual que con un alias que drifteó.
+     */
+    if (step.locator) {
+      for (const { scope, path } of scopes) {
+        const loc = this.locatorFromChain(scope, step.locator);
+        if (!loc) break; // gramática ilegible: que decida la escalera normal
+        const unique = await this.uniqueOrNull(loc);
+        if (unique) return { locator: unique, via: step.locator, frame_path: path };
+      }
+      this.audit('skip', `locator declarado no resuelve en ${step.id}: ${step.locator}`, { phase: 'locator-declarado' });
+    }
+
     if (step.hint) {
-      const alias = this.aliases.aliases[aliasKey(step.hint)];
+      const alias = this.aliases.aliases[aliasKey(step.hint, step.scope)];
       if (alias) {
         for (const { scope, path } of scopes) {
           const loc = this.locatorFromChain(scope, alias.locator);
@@ -1124,17 +1141,56 @@ class DomWalker {
       }
     }
 
+    /**
+     * K0.16 — la escalera corre DENTRO del contenedor cuando el paso declara scope.
+     * Un contenedor ambiguo no se adivina: si hay dos diálogos que encajan, el paso
+     * queda sin resolver y sube a la asistencia. Es la misma regla dura de siempre.
+     */
+    const containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> = step.scope
+      ? await this.resolveScope(step.scope, scopes)
+      : scopes;
+    if (step.scope && containers.length === 0) {
+      this.audit('skip', `scope irresoluble en ${step.id}`, { phase: 'scope', scope: JSON.stringify(step.scope) });
+      return null;
+    }
+
     const rawPlan = hintLocatorPlan(step.hint ?? {}, this.priority);
     for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
       for (const attempt of plan) {
-        for (const { scope, path } of scopes) {
+        for (const { scope, path, via } of containers) {
           const unique = await this.uniqueOrNull(this.attemptToLocator(scope, attempt));
-          if (unique) return { locator: unique, via: locatorSource(attempt), frame_path: path };
+          if (unique) {
+            const source = via ? `${via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
+            return { locator: unique, via: source, frame_path: path };
+          }
           // ambiguo o ausente: siguiente intento — jamás adivinar
         }
       }
     }
     return null;
+  }
+
+  /**
+   * Contenedores donde buscar cuando el paso declara `scope` (K0.16). Devuelve el
+   * contenedor único por frame, con su `via` para que el locator reportado sea la
+   * cadena completa (`contenedor >> elemento`) y el dom-map/audit digan la verdad.
+   */
+  private async resolveScope(
+    scope: StepHint,
+    frames: Array<{ scope: Page | Frame; path: string[] }>,
+  ): Promise<Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }>> {
+    const out: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> = [];
+    const plan = hintLocatorPlan(scope, this.priority);
+    for (const p of [plan, normalizedPlan(plan)]) {
+      for (const attempt of p) {
+        for (const f of frames) {
+          const unique = await this.uniqueOrNull(this.attemptToLocator(f.scope, attempt));
+          if (unique) out.push({ scope: unique, path: f.path, via: locatorSource(attempt) });
+        }
+        if (out.length > 0) return out;
+      }
+    }
+    return out;
   }
 
   // -------------------------------------------------- modo asistido (K0.10d)
@@ -1291,6 +1347,8 @@ class DomWalker {
       replaces_step: step.id,
       ...(step.hint ? { original_hint: step.hint } : {}),
       steps,
+      // K0.16: los mismos pasos ya en forma de guion, listos para pegar
+      walk_steps: assistStepsToWalkSteps(steps, step.id),
       verified: verify.ok,
       ...(verify.reason ? { verify_reason: verify.reason } : {}),
     });
@@ -2115,8 +2173,18 @@ class DomWalker {
     ];
     for (const { needle, via } of attempts) {
       for (const { scope, path } of scopes) {
+        /**
+         * `.filter({ visible: true })` antes del `.first()` — K0.16, encontrado por el
+         * banco corporativo: el texto de negocio "Rehusada" existe TAMBIÉN como
+         * `<option>` del filtro de estado, y esa opción va antes en el DOM. Con
+         * `.first()` a secas se elegía la opción (invisible por estar el select
+         * cerrado) y se esperaba en vano a que se hiciera visible: la postcondición
+         * salía incumplida teniendo el resultado delante. Clase real, no de fixture:
+         * en un formulario de consulta el valor y su filtro comparten literal.
+         */
         const visible = await scope
           .getByText(needle)
+          .filter({ visible: true })
           .first()
           .waitFor({ state: 'visible', timeout: timeoutMs })
           .then(() => true)
@@ -2187,7 +2255,7 @@ class DomWalker {
       if (rescue.flow !== flow.flow || !rescue.resolved || !rescue.locator) continue;
       const step = flow.steps.find((s) => s.id === rescue.step);
       if (!step?.hint) continue;
-      const key = aliasKey(step.hint);
+      const key = aliasKey(step.hint, step.scope);
       if (this.aliases.aliases[key]) continue;
       const blocked = this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id);
       const transitionOk =
