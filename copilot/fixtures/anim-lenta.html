@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+  Fixture Fase 3 (SPEC-caos-corporativo §4): un panel con una transición CSS de
+  entrada LARGA (1,5 s). El botón objetivo viaja DENTRO del panel mientras se
+  desliza, así que la comprobación de estabilidad de Playwright (bounding box
+  sin cambios entre frames) no deja completar el clic hasta que la animación
+  termina — el objetivo se desplaza a mitad del clic. Con
+  `settle.disable_animations` la transición queda anulada (transform/top
+  saltan al valor final) y el mismo paso resuelve casi al instante.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture animación lenta</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; padding: 24px; }
+      #panel {
+        position: fixed; top: -400px; left: 40%; width: 260px; padding: 16px;
+        background: #fff; border: 1px solid #888; box-shadow: 0 2px 6px rgba(0,0,0,.2);
+        transition: top 1.5s ease;
+      }
+      #panel.visible { top: 80px; }
+      #resultado { margin-top: 1rem; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <button id="abrir">Mostrar panel</button>
+    <div id="panel">
+      <p>Panel con transición de entrada larga.</p>
+      <button id="aceptar">Aceptar</button>
+    </div>
+    <div id="resultado" role="status" hidden></div>
+    <script>
+      document.getElementById('abrir').addEventListener('click', () => {
+        document.getElementById('panel').classList.add('visible');
+      });
+      document.getElementById('aceptar').addEventListener('click', () => {
+        const r = document.getElementById('resultado');
+        r.hidden = false;
+        r.textContent = 'Confirmado';
+      });
+    </script>
+  </body>
+</html>

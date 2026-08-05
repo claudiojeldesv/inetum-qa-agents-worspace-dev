@@ -118,6 +118,15 @@ export interface SettleProfile {
   busy_selectors?: string[];
   /** Subárboles cuyas mutaciones no cuentan (relojes, contadores, chats). */
   ignore_selectors?: string[];
+  /**
+   * Fase 3 (SPEC-caos-corporativo §4) — matar animaciones de ruta/diálogo: las
+   * mantiene la caja del elemento en movimiento y retrasan la accionabilidad (o
+   * desplazan el objetivo a mitad del clic). Knob del Style Contract, no del
+   * paso: se aplica UNA VEZ al crear el contexto del navegador (reducedMotion +
+   * CSS `transition/animation:none`), no por step. Default ON en funcional; se
+   * apaga para regresión visual, donde la animación es el objeto de la prueba.
+   */
+  disable_animations?: boolean;
 }
 
 /** Lo OBSERVADO en un settle. Es telemetría, no veredicto. */

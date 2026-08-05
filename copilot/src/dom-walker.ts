@@ -717,6 +717,49 @@ function settleScript(args: SettleArgs): string {
 })()`;
 }
 
+// ------------------------------------------ matar animaciones (Fase 3)
+
+/**
+ * CSS que anula transición/animación/scroll suave. Se registra vía
+ * `context.addInitScript` (corre antes de que cargue cualquier script de la
+ * página, en CADA documento — incluidas recargas duras de apps JSF/PrimeFaces
+ * que no son SPA) y no vía `page.addStyleTag` tras cada `goto`, porque un
+ * style tag inyectado se pierde en la siguiente navegación dura y habría que
+ * reinyectarlo por cada paso `goto`.
+ *
+ * `document.documentElement` (y `document.head`) son NULL en el momento en
+ * que un init script corre — es "antes de que cargue cualquier script",
+ * literal: antes de que el parser haya insertado siquiera el `<html>`.
+ * Insertar el `<style>` a ciegas revienta con
+ * `Cannot read properties of null (reading 'appendChild')`, silenciosamente
+ * (el error queda en la consola de la página, no en Node): medido en vivo,
+ * la animación seguía corriendo entera con el knob "activado". Un
+ * `MutationObserver` sobre `document` detecta el instante en que el parser
+ * crea `<html>` y ahí sí hay dónde colgar el `<style>` — mucho antes de
+ * `DOMContentLoaded`, que llegaría a tiempo aquí pero no en general (una
+ * animación podría empezar apenas se pinta el primer frame).
+ *
+ * Emitido como STRING, no como referencia de función: mismo motivo que
+ * `settleScript` (comentario ahí). `addInitScript` acepta una cadena de
+ * fuente JS igual que `evaluate`, y así se evita el problema de raíz en vez
+ * de confiar en que esta función en particular no sea "named" para esbuild.
+ */
+function killAnimationsScript(): string {
+  return `(() => {
+    const inject = () => {
+      const style = document.createElement('style');
+      style.setAttribute('data-qa-kill-animations', '1');
+      style.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }';
+      (document.head || document.documentElement).appendChild(style);
+    };
+    if (document.documentElement) { inject(); return; }
+    const mo = new MutationObserver(() => {
+      if (document.documentElement) { mo.disconnect(); inject(); }
+    });
+    mo.observe(document, { childList: true });
+  })()`;
+}
+
 // --------------------------------------- accionable sin ejecutar (K0.14)
 
 /**
@@ -2444,7 +2487,20 @@ class DomWalker {
         : this.opts.storageState && existsSync(this.opts.storageState)
           ? this.opts.storageState
           : undefined;
-    this.context = await browser.newContext(storageState ? { storageState } : {});
+    // Fase 3 (SPEC-caos-corporativo §4) — matar animaciones. Knob del CONTRACT (no
+    // del paso: se decide una vez, al abrir el contexto), default ON en funcional.
+    // contract+script son las únicas capas que existen antes de tener flow/step.
+    const animProfile = mergeSettle(this.contract.settle, this.script.settle, this.opts.settleOverride);
+    this.context = await browser.newContext({
+      ...(storageState ? { storageState } : {}),
+      ...(animProfile.disable_animations ? { reducedMotion: 'reduce' as const } : {}),
+    });
+    if (animProfile.disable_animations) {
+      // string, no referencia de función — mismo motivo que settleScript: esbuild
+      // (tsx en producción) envuelve funciones con __name, inexistente en la
+      // página, y el transform de vitest no lo reproduce (ver K0.13).
+      await this.context.addInitScript(killAnimationsScript());
+    }
     this.page = await this.context.newPage();
     // diálogos no declarados por el paso: registrar y cerrar (determinista, no colgar)
     this.page.on('dialog', async (d) => {
@@ -2697,6 +2753,7 @@ export {
   assistOverlayScript,
   ensureReachable,
   extractionHelpers,
+  killAnimationsScript,
   settleScript,
   TESTID_ATTR_CANDIDATES,
 };

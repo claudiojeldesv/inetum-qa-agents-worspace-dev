@@ -595,10 +595,13 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
  * carga", porque el hueco entre ciclos (típicamente 100-200 ms en las SPA
  * corporativas medidas) no llega a contar como calma.
  */
-export const DEFAULT_SETTLE: Required<Pick<SettleProfile, 'quiet_ms' | 'timeout_ms' | 'max_mutations'>> = {
+export const DEFAULT_SETTLE: Required<Pick<SettleProfile, 'quiet_ms' | 'timeout_ms' | 'max_mutations' | 'disable_animations'>> = {
   quiet_ms: 400,
   timeout_ms: 10_000,
   max_mutations: 2,
+  // Fase 3: on por defecto en funcional (§4). Se apaga declarando
+  // `settle: { disable_animations: false }` en el contract, para regresión visual.
+  disable_animations: true,
 };
 
 /**
@@ -634,6 +637,7 @@ export function mergeSettle(...layers: Array<SettleProfile | undefined>): Requir
     if (typeof l.quiet_ms === 'number') out.quiet_ms = l.quiet_ms;
     if (typeof l.timeout_ms === 'number') out.timeout_ms = l.timeout_ms;
     if (typeof l.max_mutations === 'number') out.max_mutations = l.max_mutations;
+    if (typeof l.disable_animations === 'boolean') out.disable_animations = l.disable_animations;
     // los selectores se ACUMULAN: el pack del cliente añade sus señales, no
     // sustituye las heurísticas (perder una por descuido cuesta flakiness).
     if (l.busy_selectors?.length) out.busy_selectors = [...new Set([...out.busy_selectors, ...l.busy_selectors])];
