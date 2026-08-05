@@ -270,3 +270,37 @@ Sin cambios de método respecto a K0.13–K0.17:
 5. Fase 5 (debounce) y Fase 4 (virtual scroll) — las de menor probabilidad, al final.
 
 Cada fase es un commit propio, TDD, con su fixture y su entrada en `docs/STATUS.md`.
+
+---
+
+## 9. Cierre — estado real y hallazgos post-implementación
+
+Las **6 fases cerradas** (commits `18283d8`, `32b94ff`, `450ac5c`, `4c8a89e`,
+`c104b9e`, `27c04ac`, sobre `bf44ada`). Verificado de forma independiente: 169/169 unit
+copilot, healthcheck 26/26, `tsc` limpio, `template/` propagado. Tres hallazgos que no
+estaban en el plan:
+
+- **Bug `Locator.evaluate(string)` + `__name` de esbuild (Fase 6).** Pasar un string a
+  `.evaluate()` nunca invoca con el elemento resuelto (siempre `undefined`), y el bug de
+  `__name` reventaba dentro de `dom-walker.ts` bajo `tsx` aunque no en un script aislado.
+  Solución: subir al `<table>` ancestro por XPath `ancestor::` sobre el locator, **cero
+  código in-page**. Consolida la regla: *donde haya API nativa de Playwright, no metas
+  código en la página* (más fuerte que "emítelo como string").
+
+- **K0.18 — `started_empty` mide CONTENIDO, no interactivos.** La trampa de K0.17 volvió
+  a morder en fixtures sin elementos interactivos, y el primer arreglo fue un *botón
+  fantasma* en el fixture — que escondía un coste real: una pantalla estática rica en
+  contenido pero sin controles (informe, tabla de resultados, confirmación de solo texto)
+  arrancaba sin interactivos y, al no volver a mutar, pagaba el timeout completo en cada
+  paso. Corregido en el producto: `hayContenido = interactivos > 0 || innerText no vacío`.
+  Una tabla con filas cuenta como "la página arrancó"; solo el documento genuinamente en
+  blanco (SPA sin montar) espera la mutación. Botones fantasma retirados de
+  `tabla-simple.html` y `virtual-scroll.html`; el banco vuelve a ser fiel. Los tests de
+  `pantalla-vacia.html` (nunca monta → reportado) y `spa-lenta.html` (monta tarde →
+  espera) siguen verdes: la regla correcta se preserva.
+
+- **Debounce 300→1500 ms (Fase 5), salvedad de cobertura.** Se subió el debounce del par
+  falsable tras verlo fallar una vez bajo suite completa (jitter de IPC con 13 ficheros
+  en paralelo), y se retiró de ese fichero el test de `debounced:true` con default 300 ms
+  (queda a nivel unitario). Riesgo asumido: el par falsable ya no prueba la temporización
+  ajustada; verificar que el unitario cubre el caso 300 ms.

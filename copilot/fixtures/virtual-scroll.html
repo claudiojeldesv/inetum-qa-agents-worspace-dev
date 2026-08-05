@@ -18,11 +18,10 @@
     </style>
   </head>
   <body>
-    <!-- boton sin handler: solo para que la pagina no arranque con CERO
-         elementos interactivos (K0.17 exigiria entonces ver una mutacion
-         para dar la quietud por buena, y una mutacion de scroll ya
-         terminada antes de que el observador arranque nunca llega a verse) -->
-    <button>Actualizar</button>
+    <!-- Sin controles a proposito. Antes llevaba un boton fantasma para no
+         arrancar con CERO interactivos; K0.18 mide CONTENIDO, y el render()
+         inicial ya pinta la primera ventana de filas, asi que la pagina cuenta
+         como "arrancada" sin falsear nada. -->
     <div id="viewport" role="list" aria-label="Filas virtualizadas">
       <div id="spacer"></div>
     </div>

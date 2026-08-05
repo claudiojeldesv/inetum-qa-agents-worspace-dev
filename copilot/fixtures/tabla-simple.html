@@ -7,10 +7,10 @@
 <html lang="es">
   <head><meta charset="utf-8" /><title>Fixture tabla simple</title></head>
   <body>
-    <!-- boton sin handler: solo para que la pagina no arranque con CERO
-         elementos interactivos (K0.17 exigiria entonces ver una mutacion
-         para dar la quietud por buena, y esta pagina estatica nunca muta) -->
-    <button>Actualizar</button>
+    <!-- Pantalla estatica sin controles, a proposito: una tabla de resultados de
+         solo lectura. Antes llevaba un boton fantasma para no arrancar con CERO
+         interactivos; K0.18 mide CONTENIDO en vez de interactivos, asi que la
+         tabla ya cuenta como "la pagina arranco" y no hay que falsear nada. -->
     <table aria-label="Resultados">
       <thead><tr><th>Id</th><th>Nombre</th></tr></thead>
       <tbody>

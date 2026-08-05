@@ -650,12 +650,22 @@ function settleScript(args: SettleArgs): string {
    * declaraba estable en 400 ms y todos los pasos siguientes fallaban con "hint
    * irresoluble" sobre una pantalla en blanco.
    *
-   * Si al empezar a observar no hay NADA interactivo, la quietud exige además haber
-   * visto al menos una mutación. Si la página está vacía de verdad, se agota el tope
-   * y se reporta — que es la respuesta correcta, no un falso "estable".
+   * Si al empezar a observar no hay NADA, la quietud exige además haber visto al
+   * menos una mutación. Si la página está vacía de verdad, se agota el tope y se
+   * reporta — que es la respuesta correcta, no un falso "estable".
+   *
+   * "Nada" se mide como CONTENIDO, no como interactivos (K0.18). Medir solo
+   * interactivos tenía un coste real que los fixtures escondían con un botón
+   * fantasma: una pantalla estática rica en contenido pero SIN controles (un
+   * informe, una tabla de resultados, una confirmación de solo texto) arranca sin
+   * interactivos y ya no vuelve a mutar → exigir una mutación que no llega hacía
+   * pagar el timeout completo en cada paso. Una tabla con filas es contenido: la
+   * página ya arrancó. Solo el documento genuinamente en blanco (SPA sin montar)
+   * debe esperar la mutación.
    */
   const interactivos = () =>
     document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"],[role="textbox"]').length;
+  const hayContenido = () => interactivos() > 0 || (document.body?.innerText ?? '').trim().length > 0;
   /**
    * La regla SOLO aplica al documento principal. Aplicada a los frames hijos era una
    * regresión seria, y la cazó el banco corporativo: un \`<iframe hidden>\` sin
@@ -665,7 +675,7 @@ function settleScript(args: SettleArgs): string {
    * preocupación del top, no de un iframe oculto que legítimamente no tiene nada.
    */
   const esPrincipal = window.top === window;
-  const habiaContenido = interactivos() > 0;
+  const habiaContenido = hayContenido();
   let mutacionesTotal = 0;   // nunca se resetea: "¿ha pasado algo alguna vez?"
 
   const observer = new MutationObserver((records) => {
