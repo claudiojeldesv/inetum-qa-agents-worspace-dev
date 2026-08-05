@@ -134,6 +134,15 @@ interface StyleContract {
   synthetic_fixtures?: Record<string, unknown>;
   /** Señales de ocupado y ventana de quietud del sitio (K0.13) — home del client pack. */
   settle?: SettleProfile;
+  /**
+   * Fase 2 (SPEC-caos-corporativo §4) — estorbos que la ventana de quietud NO
+   * puede ver por diseño (el DOM está quieto, el overlay solo está ENCIMA
+   * interceptando el puntero: backdrop fantasma, snackbar, banner de cookies).
+   * OFF por defecto: sin selectores declarados aquí, un estorbo no descrito
+   * bloquea el paso con el motivo de Playwright — nunca se barre en silencio.
+   * Cada descarte es auditado (`phase: 'obstruction-dismiss'`).
+   */
+  obstructions?: { dismiss?: string[] };
 }
 
 // ------------------------------------------------- captura in-page (frame)
@@ -841,6 +850,24 @@ async function ensureReachable(
   return { ok: await reachable(), reopened: true };
 }
 
+/**
+ * Enriquece el mensaje corto de un fallo de acción con la línea de diagnóstico
+ * de Playwright que dice POR QUÉ, cuando la trae (p.ej. "intercepts pointer
+ * events" — Fase 2, SPEC-caos-corporativo). Esa línea vive en el call log
+ * MULTILÍNEA que el resto del código descarta con `.split('\n')[0]` a
+ * propósito, para no llenar el audit-log de ruido; sin ella, un backdrop
+ * fantasma no declarado bloqueaba el paso con un "timeout 10000ms exceeded"
+ * desnudo que no dice nada de por qué.
+ */
+function actionFailureDetail(err: unknown): string {
+  // el call log de Playwright viene con códigos ANSI de color (dim) por línea
+  const full = (err instanceof Error ? err.message : String(err)).replace(/\x1b\[[0-9;]*m/g, '');
+  const lines = full.split('\n');
+  const first = lines[0];
+  const cause = lines.find((l) => l.includes('intercepts pointer events'))?.replace(/^\s*-\s*/, '').trim();
+  return cause ? `${first} (${cause})` : first;
+}
+
 // -------------------------------------------------------------- el walker
 
 class DomWalker {
@@ -854,6 +881,8 @@ class DomWalker {
   private context!: BrowserContext;
   private testidAttr: string | undefined;
   private lastDialogs: string[] = [];
+  /** Paso en curso (Fase 2): el handler de estorbos lo usa para auditar "selector + paso". */
+  private currentStepKey: string | null = null;
   private aliases: HintAliasFile;
   private readonly aliasesPath: string;
   /** Resolver del envío del overlay (K0.10): lo rellena assistResolve por paso. */
@@ -1100,6 +1129,53 @@ class DomWalker {
       { source: 'command', action, target: 'dom-walker', reason, ...(metadata ? { metadata } : {}) },
       this.auditPath,
     );
+  }
+
+  // ---------------------------------------------- estorbos opt-in (Fase 2)
+
+  /**
+   * Fase 2 (SPEC-caos-corporativo §4) — auto-descarte de estorbos que la
+   * ventana de quietud NO PUEDE VER por diseño: el DOM está quieto, el overlay
+   * solo está ENCIMA interceptando el puntero. `page.addLocatorHandler` dispara
+   * cuando el selector declarado está visible, ANTES de que Playwright reintente
+   * la accionabilidad del paso real — es el único sitio donde puede vivir esto:
+   * una vez por página, no por paso.
+   *
+   * OFF por defecto: sin `contract.obstructions.dismiss`, este método no
+   * registra nada, y un estorbo no descrito bloquea el paso con el motivo de
+   * Playwright (pointer events interceptados) — nunca se barre en silencio.
+   * Declararlo puede enmascarar un bug real (barrer un overlay que no debía
+   * estar); por eso cada descarte es un evento de primera clase en el
+   * audit-log, no una decisión callada del código.
+   */
+  private async installObstructionHandlers(): Promise<void> {
+    const selectors = this.contract.obstructions?.dismiss ?? [];
+    for (const selector of selectors) {
+      const obstruction = this.page.locator(selector);
+      await this.page.addLocatorHandler(obstruction, async (locator) => {
+        const stepKey = this.currentStepKey ?? '(fuera de un paso)';
+        this.audit('skip', `estorbo descartado en ${stepKey}: ${selector}`, {
+          phase: 'obstruction-dismiss',
+          selector,
+          step: stepKey,
+        });
+        // Escape primero: cierra la mayoría de overlays/backdrops sin necesitar
+        // un control de cierre propio. Si el estorbo trae uno (banner de
+        // cookies, snackbar con acción "Cerrar"), es el respaldo cuando Escape
+        // no hizo nada; si no hay ninguno de los dos, el último recurso es
+        // clicar el estorbo mismo (backdrops que cierran al clicar fuera).
+        await this.page.keyboard.press('Escape').catch(() => {});
+        if (await locator.count().catch(() => 0)) {
+          const closeBtn = locator
+            .locator(
+              '[aria-label*="cerrar" i], [aria-label*="close" i], button:has-text("Cerrar"), button:has-text("Close"), .close, .cerrar, .dismiss',
+            )
+            .first();
+          if (await closeBtn.count().catch(() => 0)) await closeBtn.click({ timeout: 2_000 }).catch(() => {});
+          else await locator.click({ timeout: 2_000 }).catch(() => {});
+        }
+      });
+    }
   }
 
   // ------------------------------------------------------- resolución hints
@@ -1926,6 +2002,7 @@ class DomWalker {
 
   private async executeStep(flow: WalkFlow, step: WalkStep): Promise<void> {
     const stepKey = `${flow.flow}/${step.id}`;
+    this.currentStepKey = stepKey;
     const fixtures = this.contract.synthetic_fixtures ?? {};
 
     if (step.dialog) {
@@ -2182,7 +2259,7 @@ class DomWalker {
              * "no es clicable" de "matcheé el elemento equivocado" — un hint por texto
              * puede resolver único sobre un título o un div oculto.
              */
-            const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+            const msg = actionFailureDetail(err);
             const detail = `la acción '${step.action}' falló sobre ${resolved.via}: ${msg}`;
             if (this.opts.assist) {
               this.audit('block', `action_failed en ${flow.flow}/${step.id}: ${detail}`, {
@@ -2502,6 +2579,8 @@ class DomWalker {
       await this.context.addInitScript(killAnimationsScript());
     }
     this.page = await this.context.newPage();
+    // Fase 2: opt-in por client pack, sin efecto si el contract no declara nada
+    await this.installObstructionHandlers();
     // diálogos no declarados por el paso: registrar y cerrar (determinista, no colgar)
     this.page.on('dialog', async (d) => {
       this.lastDialogs.push(`${d.type()}: ${d.message()}`);

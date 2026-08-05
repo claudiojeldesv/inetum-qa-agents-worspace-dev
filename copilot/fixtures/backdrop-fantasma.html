@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+  Fixture Fase 2 (SPEC-caos-corporativo §4): un backdrop de overlay (patrón CDK
+  `cdk-overlay-backdrop`) que quedó atrás tras cerrar un diálogo — un bug real
+  de la app, no un `settle` legítimo. El DOM está QUIETO (no hay mutaciones que
+  la ventana de quietud pueda observar): el backdrop solo está ENCIMA,
+  interceptando el puntero del botón. Se desvanece solo tras 15 s (más que el
+  timeout de acción por defecto, 10 s) — sin dismiss declarado, el clic se
+  bloquea; con Escape, se va al instante.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture backdrop fantasma</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; padding: 24px; }
+      #fantasma { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.25); z-index: 999; }
+      #resultado { margin-top: 1rem; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <button id="continuar">Continuar</button>
+    <div id="fantasma" class="cdk-overlay-backdrop"></div>
+    <div id="resultado" role="status" hidden></div>
+    <script>
+      document.getElementById('continuar').addEventListener('click', () => {
+        const r = document.getElementById('resultado');
+        r.hidden = false;
+        r.textContent = 'Continuado';
+      });
+      function desvanecer() {
+        const f = document.getElementById('fantasma');
+        if (f) f.remove();
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') desvanecer();
+      });
+      setTimeout(desvanecer, 15000);
+    </script>
+  </body>
+</html>

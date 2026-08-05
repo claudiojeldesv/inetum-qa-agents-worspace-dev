@@ -1,0 +1,48 @@
+<!doctype html>
+<!--
+  Fixture Fase 2 (SPEC-caos-corporativo §4): un snackbar (patrón Material
+  `mat-snack-bar-container`) anclado al fondo de la pantalla que se solapa con
+  un control real. El DOM está QUIETO tras la carga inicial: el snackbar solo
+  está ENCIMA, interceptando el puntero. Se auto-oculta a los 15 s (más que el
+  timeout de acción por defecto, 10 s) — sin dismiss declarado, el clic se
+  bloquea; con su botón "Cerrar" propio, se va al instante. A diferencia del
+  backdrop fantasma (Escape), este ejercita el OTRO camino de descarte: clicar
+  un control de cierre dentro del propio estorbo.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture snackbar intercepta</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; padding: 24px 24px 120px; }
+      #objetivo { position: fixed; bottom: 24px; left: 24px; }
+      #snack {
+        position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #323232; color: #fff;
+        display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 999;
+      }
+      #snack button { background: transparent; color: #90caf9; border: none; font: inherit; cursor: pointer; }
+      #resultado { margin-top: 1rem; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <button id="objetivo">Guardar</button>
+    <div id="resultado" role="status" hidden></div>
+    <div id="snack" class="mat-snack-bar-container" role="status">
+      <span>Cambios sincronizados</span>
+      <button id="cerrar-snack">Cerrar</button>
+    </div>
+    <script>
+      document.getElementById('objetivo').addEventListener('click', () => {
+        const r = document.getElementById('resultado');
+        r.hidden = false;
+        r.textContent = 'Guardado';
+      });
+      function ocultar() {
+        const s = document.getElementById('snack');
+        if (s) s.remove();
+      }
+      document.getElementById('cerrar-snack').addEventListener('click', ocultar);
+      setTimeout(ocultar, 15000);
+    </script>
+  </body>
+</html>
