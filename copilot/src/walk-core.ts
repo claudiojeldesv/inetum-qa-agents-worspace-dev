@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import type {
   AssistPatchStep,
+  CountOperator,
   DomElement,
   LocatorCandidate,
   PickedElement,
@@ -525,6 +526,29 @@ export function assistStepsToWalkSteps(steps: AssistPatchStep[], replacesStep: s
   }));
 }
 
+// ---------------------------------------------- cardinalidad (Fase 6)
+
+/** Operadores válidos de `expect_count`/`expect_each.operator`. */
+export const COUNT_OPERATORS: ReadonlySet<CountOperator> = new Set(['>', '>=', '=', '<']);
+
+/**
+ * Compara un recuento observado contra un umbral con el operador declarado.
+ * Puro y determinístico: el código captura el número, el operador decide —
+ * el LLM no interviene en si "3 > 0" es cierto.
+ */
+export function compareCount(actual: number, operator: CountOperator, expected: number): boolean {
+  switch (operator) {
+    case '>':
+      return actual > expected;
+    case '>=':
+      return actual >= expected;
+    case '=':
+      return actual === expected;
+    case '<':
+      return actual < expected;
+  }
+}
+
 // ------------------------------------------------------------- validación
 
 const EXPECT_STATES = new Set(['visible', 'enabled', 'disabled', 'checked', 'unchecked']);
@@ -537,9 +561,13 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
   if (!s.site_id) errors.push('site_id requerido');
   if (!s.entry) errors.push('entry requerido');
   if (!Array.isArray(s.flows) || s.flows.length === 0) errors.push('flows[] requerido y no vacío');
-  const NEEDS_HINT: WalkStep['action'][] = ['fill', 'click', 'hover', 'select', 'check', 'uncheck', 'expect_state'];
-  const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state'];
-  const NO_POSTCONDITION: WalkStep['action'][] = ['capture', 'expect_text', 'expect_state', 'wait_url', 'wait_text'];
+  const NEEDS_HINT: WalkStep['action'][] = [
+    'fill', 'click', 'hover', 'select', 'check', 'uncheck', 'expect_state', 'expect_count', 'expect_each',
+  ];
+  const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state', 'expect_count'];
+  const NO_POSTCONDITION: WalkStep['action'][] = [
+    'capture', 'expect_text', 'expect_state', 'wait_url', 'wait_text', 'expect_count', 'expect_each',
+  ];
   for (const flow of s.flows ?? []) {
     if (!flow.flow) errors.push('flow sin id');
     const seen = new Set<string>();
@@ -556,6 +584,28 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
       if (step.action === 'wait_url' && !step.target) errors.push(`${at}: 'wait_url' requiere target`);
       if (step.action === 'expect_state' && step.value !== undefined && !EXPECT_STATES.has(step.value))
         errors.push(`${at}: 'expect_state' requiere value ∈ {visible|enabled|disabled|checked|unchecked}`);
+      // Fase 6 — expect_count: hint = COLECCIÓN, operator + value numérico
+      if (step.action === 'expect_count') {
+        if (!step.operator || !COUNT_OPERATORS.has(step.operator))
+          errors.push(`${at}: 'expect_count' requiere operator ∈ {>|>=|=|<}`);
+        if (step.value === undefined || step.value.trim() === '' || Number.isNaN(Number(step.value)))
+          errors.push(`${at}: 'expect_count' requiere value numérico`);
+      }
+      // Fase 6 — expect_each: hint = CONTENEDORES, each = condición dentro de cada uno
+      if (step.action === 'expect_each') {
+        if (!step.each) errors.push(`${at}: 'expect_each' requiere 'each' ({hint, operator, value})`);
+        else {
+          const each = step.each;
+          if (!each.operator || !COUNT_OPERATORS.has(each.operator))
+            errors.push(`${at}: 'expect_each.operator' requiere ∈ {>|>=|=|<}`);
+          if (each.value === undefined || String(each.value).trim() === '' || Number.isNaN(Number(each.value)))
+            errors.push(`${at}: 'expect_each.value' requiere numérico`);
+          const hasField = ['test_id', 'role', 'name', 'label', 'text'].some(
+            (f) => (each.hint as Record<string, unknown> | undefined)?.[f] !== undefined,
+          );
+          if (!hasField) errors.push(`${at}: 'expect_each.hint' necesita al menos un campo (test_id|role|name|label|text)`);
+        }
+      }
       // K0.13 capa 3: reintentar sin oráculo es reintentar a ciegas. Si el paso
       // se declara reintentable tiene que haber forma de saber si surtió efecto.
       if (step.retry_safe === true && !step.expect_after && !step.expect_transition)

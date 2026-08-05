@@ -39,7 +39,23 @@ export type WalkAction =
   | 'expect_text'   // POSTCONDICIÓN del FD: value = texto de negocio. Fallo → drift (open_question);
                     // éxito → el texto se registra como business_text de la pantalla con locator
   | 'expect_state'  // POSTCONDICIÓN del FD: hint + value ∈ visible|enabled|disabled|checked|unchecked
+  | 'expect_count'  // POSTCONDICIÓN de cardinalidad (Fase 6): hint = colección, operator + value numérico
+  | 'expect_each'   // POSTCONDICIÓN por-elemento (Fase 6): hint = contenedores, each = condición dentro de cada uno
   | 'capture';      // captura explícita de pantalla sin acción
+
+/** Operador de comparación de `expect_count`/`expect_each.operator` (Fase 6). */
+export type CountOperator = '>' | '>=' | '=' | '<';
+
+/**
+ * Condición por-elemento de `expect_each` (Fase 6): dentro de CADA contenedor
+ * que matchea el `hint` del paso, cuántos sub-elementos que matchean `hint`
+ * (aquí) deben cumplir `operator value`. P.ej. "cada listbox tiene ≥ 1 option".
+ */
+export interface EachCondition {
+  hint: StepHint;
+  operator: CountOperator;
+  value: string;
+}
 
 export interface WalkStep {
   id: string;                    // único dentro del flujo, p.ej. 's3'
@@ -90,6 +106,10 @@ export interface WalkStep {
    * normal sigue (drift del DOM no bloquea el paso).
    */
   locator?: string;
+  /** Fase 6 — operador de `expect_count` (el hint apunta a la COLECCIÓN: filas, opciones...). */
+  operator?: CountOperator;
+  /** Fase 6 — condición por-elemento de `expect_each` (el hint del paso apunta a los CONTENEDORES). */
+  each?: EachCondition;
 }
 
 // -------------------------------------------- sincronización (K0.13, capa 2)
@@ -242,6 +262,22 @@ export interface DomScreen {
   /** Elementos descartados por el cap por pantalla (transparencia de poda). */
   truncated?: number;
   dialogs?: string[];            // mensajes de diálogos nativos aparecidos
+  /** Tablas capturadas como datos estructurados (Fase 6). */
+  tables?: DomTable[];
+}
+
+/**
+ * Fase 6 (SPEC-caos-corporativo §4) — tabla capturada como DATOS: el notario
+ * copia headers+rows vía un único `evaluate` (nunca cuenta como "hecho
+ * interpretado" — eso es trabajo del LLM en la fase de derivación, que compara
+ * esto contra lo que el plan esperaba). Solo se captura cuando `expect_count`
+ * resolvió al menos una fila; una tabla sin filas no tiene de dónde subir al
+ * ancestro `<table>`, y "no hay datos" ya queda dicho por el propio outcome.
+ */
+export interface DomTable {
+  headers: string[];
+  rows: string[][];
+  frame_path?: string[];
 }
 
 export interface DomTransition {

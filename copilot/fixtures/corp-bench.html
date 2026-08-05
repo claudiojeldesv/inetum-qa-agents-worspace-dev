@@ -135,8 +135,10 @@
       </td></tr>
     </table>
     <button id="buscar">Buscar</button>
-    <!-- clase 7: hay que seleccionar la fila antes de rehusar -->
-    <table class="datos" id="tabla-dec" hidden>
+    <!-- clase 7: hay que seleccionar la fila antes de rehusar; aria-label la
+         distingue de la tabla de campos del formulario de arriba, ambas
+         role=table sin él (Fase 6, expect_count/cardinalidad) -->
+    <table class="datos" id="tabla-dec" aria-label="Declaraciones" hidden>
       <thead><tr><th></th><th>Declaración</th><th>Póliza</th><th>Estado</th></tr></thead>
       <tbody></tbody>
     </table>

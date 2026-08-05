@@ -9,6 +9,8 @@ import {
   buildLocatorCandidates,
   BUSY_SELECTORS,
   calibratedTimeout,
+  compareCount,
+  COUNT_OPERATORS,
   dedupeAndPrune,
   DEFAULT_SETTLE,
   hashScript,
@@ -354,6 +356,93 @@ describe('validateWalkScript — expect_* (K0.2)', () => {
   it('el fixture lean de SauceDemo (con expect_text) valida', () => {
     const raw = JSON.parse(readFileSync(resolve(__dirname, '../fixtures/saucedemo.lean.walk.json'), 'utf8'));
     expect(validateWalkScript(raw)).toEqual({ ok: true, errors: [] });
+  });
+});
+
+describe('compareCount (Fase 6 — cardinalidad)', () => {
+  it.each([
+    ['>', 3, 0, true], ['>', 0, 0, false],
+    ['>=', 3, 3, true], ['>=', 2, 3, false],
+    ['=', 3, 3, true], ['=', 2, 3, false],
+    ['<', 0, 3, true], ['<', 3, 3, false],
+  ] as const)('%s: %d %s %d -> %s', (operator, actual, expected, want) => {
+    expect(compareCount(actual, operator, expected)).toBe(want);
+  });
+
+  it('COUNT_OPERATORS contiene exactamente los cuatro operadores del vocabulario', () => {
+    expect([...COUNT_OPERATORS].sort()).toEqual(['<', '=', '>', '>='].sort());
+  });
+});
+
+describe('validateWalkScript — expect_count / expect_each (Fase 6)', () => {
+  const base = (): WalkScript => ({
+    version: 1,
+    site_id: 's',
+    entry: '/',
+    flows: [{ flow: 'f1', steps: [{ id: 's1', action: 'goto', target: '/' }] }],
+  });
+
+  it('acepta expect_count con hint+operator+value numerico', () => {
+    const s = base();
+    s.flows[0].steps.push({ id: 's2', action: 'expect_count', hint: { role: 'row' }, operator: '>', value: '0' });
+    expect(validateWalkScript(s)).toEqual({ ok: true, errors: [] });
+  });
+
+  it('rechaza expect_count sin hint, sin operator valido, o con value no numerico', () => {
+    const s = base();
+    s.flows[0].steps.push(
+      { id: 's2', action: 'expect_count', operator: '>', value: '0' },
+      { id: 's3', action: 'expect_count', hint: { role: 'row' }, operator: '??' as never, value: '0' },
+      { id: 's4', action: 'expect_count', hint: { role: 'row' }, operator: '>', value: 'muchas' },
+    );
+    const { ok, errors } = validateWalkScript(s);
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toMatch(/s2: 'expect_count' requiere hint o locator/);
+    expect(errors.join(' ')).toMatch(/s3: 'expect_count' requiere operator/);
+    expect(errors.join(' ')).toMatch(/s4: 'expect_count' requiere value numérico/);
+  });
+
+  it('acepta expect_each con hint+each completo', () => {
+    const s = base();
+    s.flows[0].steps.push({
+      id: 's2',
+      action: 'expect_each',
+      hint: { role: 'listbox' },
+      each: { hint: { role: 'option' }, operator: '>=', value: '1' },
+    });
+    expect(validateWalkScript(s)).toEqual({ ok: true, errors: [] });
+  });
+
+  it('rechaza expect_each sin each, o con each incompleto', () => {
+    const s = base();
+    s.flows[0].steps.push(
+      { id: 's2', action: 'expect_each', hint: { role: 'listbox' } },
+      {
+        id: 's3',
+        action: 'expect_each',
+        hint: { role: 'listbox' },
+        each: { hint: {}, operator: '>=', value: '1' },
+      },
+    );
+    const { ok, errors } = validateWalkScript(s);
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toMatch(/s2: 'expect_each' requiere 'each'/);
+    expect(errors.join(' ')).toMatch(/s3: 'expect_each.hint' necesita al menos un campo/);
+  });
+
+  it('expect_after no aplica a expect_count/expect_each (no ejecutan accion)', () => {
+    const s = base();
+    s.flows[0].steps.push({
+      id: 's2',
+      action: 'expect_count',
+      hint: { role: 'row' },
+      operator: '>',
+      value: '0',
+      expect_after: 'algo',
+    });
+    const { ok, errors } = validateWalkScript(s);
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toMatch(/'expect_after' no aplica a 'expect_count'/);
   });
 });
 

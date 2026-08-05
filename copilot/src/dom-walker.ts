@@ -37,7 +37,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { parse as parseYaml } from 'yaml';
-import { chromium, type BrowserContext, type Frame, type Locator, type Page } from '@playwright/test';
+import { chromium, expect, type BrowserContext, type Frame, type Locator, type Page } from '@playwright/test';
 import { appendAuditEntry } from '../../src/audit-log.ts';
 import { proxyFromEnv } from '../../src/proxy-env.ts';
 import {
@@ -48,6 +48,7 @@ import {
   buildFallbackCandidates,
   buildLocatorCandidates,
   calibratedTimeout,
+  compareCount,
   dedupeAndPrune,
   fingerprintHash,
   hashScript,
@@ -78,6 +79,7 @@ import {
   type DomForm,
   type DomMap,
   type DomScreen,
+  type DomTable,
   type HintAliasFile,
   type LocatorCandidate,
   type PickedElement,
@@ -1407,6 +1409,124 @@ class DomWalker {
     return out;
   }
 
+  // ----------------------------------------------- cardinalidad (Fase 6)
+
+  /**
+   * Resuelve la COLECCIÓN de `expect_count`/`expect_each` (el `hint` apunta a
+   * "las filas", "las opciones" — deliberadamente plural, a diferencia de
+   * `resolveHint`). La regla dura no cambia de forma: no es "cuántos hay" lo
+   * que se adivina, es "en cuál contenedor/frame contarlos" — si el hint
+   * matchea con >0 elementos en DOS contenedores a la vez, no hay forma de
+   * saber cuál es "la" colección y el paso se planta, igual que con un
+   * elemento singular ambiguo.
+   *
+   * Un hint que no matchea en NINGÚN contenedor no es ambiguo: es la
+   * colección vacía (0), y ESO es el dato — `expect_count rows > 0` debe
+   * poder reportar "incumplido" sobre una tabla sin resultados, no bloquear
+   * como si fuera un hint irresoluble.
+   *
+   * Cuenta solo lo VISIBLE: una tabla oculta (`[hidden]` tras una búsqueda sin
+   * resultados) puede conservar filas de la búsqueda anterior en el DOM —
+   * contarlas sería "trae 2 registros" sobre una pantalla que en realidad
+   * muestra "No hay datos". `count()`/`toHaveCount()` sin filtrar cuentan
+   * elementos ausentes de la vista igual que los presentes.
+   */
+  private async resolveCollection(
+    step: WalkStep,
+  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+    const scopes = await this.scopes();
+    const containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> = step.scope
+      ? await this.resolveScope(step.scope, scopes)
+      : scopes;
+    if (step.scope && containers.length === 0) return null; // scope irresoluble: no se adivina cuál contar
+
+    const visible = (scope: Page | Frame | Locator, attempt: LocatorAttempt): Locator =>
+      this.attemptToLocator(scope, attempt).filter({ visible: true });
+
+    const rawPlan = hintLocatorPlan(step.hint ?? {}, this.priority);
+    for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
+      for (const attempt of plan) {
+        const hits: Array<(typeof containers)[number]> = [];
+        for (const container of containers) {
+          const count = await visible(container.scope, attempt).count().catch(() => 0);
+          if (count > 0) hits.push(container);
+        }
+        if (hits.length > 1) return null; // ambiguo entre contenedores/frames: no se adivina cuál contar
+        if (hits.length === 1) {
+          const container = hits[0];
+          const source = container.via ? `${container.via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
+          return { locator: visible(container.scope, attempt), via: source, frame_path: container.path };
+        }
+      }
+    }
+    // ningún intento resolvió en ningún contenedor: colección VACÍA — es el dato, no un fallo de locator
+    const attempt = rawPlan[0];
+    const container = containers[0];
+    if (!attempt || !container) return null;
+    const source = container.via ? `${container.via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
+    return { locator: visible(container.scope, attempt), via: source, frame_path: container.path };
+  }
+
+  /**
+   * Cuenta elementos VISIBLES que matchean `hint` DENTRO de un `scope` ya
+   * resuelto (usado por `expect_each` para el sub-conteo de cada contenedor).
+   * Aquí no hay ambigüedad de "en cuál contenedor": `scope` ya es uno
+   * concreto — solo se prueba la escalera de intentos hasta que uno cuenta >0.
+   */
+  private async countMatches(scope: Page | Frame | Locator, hint: StepHint): Promise<number> {
+    const rawPlan = hintLocatorPlan(hint, this.priority);
+    for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
+      for (const attempt of plan) {
+        const n = await this.attemptToLocator(scope, attempt).filter({ visible: true }).count().catch(() => 0);
+        if (n > 0) return n;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Captura de tabla como DATOS (Fase 6) — sube desde la PRIMERA fila
+   * resuelta hasta su ancestro `<table>`/`role=table|grid` y copia
+   * headers+rows en un único `evaluate`. Nunca antes de que la colección haya
+   * pasado por una espera de visibilidad/`toHaveCount` (evaluate no
+   * auto-espera): llamar esto sobre una tabla a medio cargar es el falso 0 que
+   * la spec pide evitar — por eso el caller solo la invoca tras contar.
+   */
+  private async captureTable(rowsLocator: Locator, frame_path: string[]): Promise<void> {
+    const screen = this.state.screens.find((s) => s.name === this.state.current_screen);
+    if (!screen) return;
+    /**
+     * Sube desde la primera fila resuelta hasta su ancestro `<table>`/
+     * `role=table|grid` vía XPath `ancestor::` NATIVO, encadenado sobre el
+     * locator (sin `evaluate`, cero riesgo del bug `__name`/esbuild de K0.13:
+     * medido en vivo, hasta un arrow ANÓNIMO inline revienta bajo `tsx` real
+     * dentro de este fichero — el transform de vitest no lo reproduce, y por
+     * eso NINGUNA función de este fichero pasa una referencia a `evaluate`).
+     * `ancestor::` se evalúa respecto al nodo de CONTEXTO (la fila), que es
+     * justo lo que un `.locator()` encadenado le da.
+     */
+    const table = rowsLocator.first().locator('xpath=ancestor::*[self::table or @role="table" or @role="grid"][1]');
+    if ((await table.count().catch(() => 0)) !== 1) return; // sin tabla ancestro reconocible: nada que capturar
+
+    const headers = await table
+      .locator('thead th, thead [role="columnheader"], [role="columnheader"]')
+      .allTextContents()
+      .catch(() => []);
+    // filas de negocio = todas las role=row MENOS las de <thead> (que van
+    // primero en el orden del DOM en cualquier tabla nativa)
+    const allRows = await table.getByRole('row').all().catch(() => []);
+    const headerRowCount = await table.locator('thead').getByRole('row').count().catch(() => 0);
+    const rows: string[][] = [];
+    for (const r of allRows.slice(headerRowCount)) {
+      rows.push(await r.locator('td, th, [role="cell"], [role="gridcell"]').allTextContents().catch(() => []));
+    }
+    if (headers.length === 0 && rows.length === 0) return; // nada reconocible: no inventar estructura vacía
+
+    const dt: DomTable = { headers, rows, ...(frame_path.length ? { frame_path } : {}) };
+    screen.tables = screen.tables ?? [];
+    screen.tables.push(dt);
+  }
+
   // -------------------------------------------------- modo asistido (K0.10d)
 
   /** Descripción legible del hint, para que el QA sepa qué le pide el FD. */
@@ -2111,6 +2231,93 @@ class DomWalker {
         if (!ok) {
           this.blockStep(flow, step, `drift: postcondición del FD no cumplida — ${resolved.via} no está '${want}'`, false);
           this.audit('block', `expect_state fallido ${stepKey}: ${resolved.via} != ${want}`, { phase: 'expect', settle: obs });
+        }
+        this.pushReport(flow, step, { ...report, outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet' });
+        return;
+      }
+      case 'expect_count': {
+        // Fase 6 — el hint apunta a la COLECCIÓN (filas, opciones), no a un
+        // elemento singular. Se estabiliza primero: leer count() sobre una
+        // tabla a medio cargar es el falso 0 contra el que avisa la spec.
+        const obs = await this.waitForSettle(settle);
+        const report = { action_ms: Date.now() - startedAt, settle: obs, retried: false };
+        const operator = step.operator!;
+        const threshold = Number(step.value!);
+        const resolved = await this.resolveCollection(step);
+        if (!resolved) {
+          this.blockStep(flow, step, `drift: colección de expect_count ambigua entre contenedores/frames`, false);
+          this.audit('block', `expect_count ambiguo ${stepKey}`, { phase: 'expect-count', settle: obs });
+          this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
+          return;
+        }
+        let count: number;
+        if (operator === '=') {
+          // toHaveCount es la aserción web-first: reintenta sola hasta el número
+          // exacto, en vez de leer count() a ciegas contra una tabla que aún carga.
+          try {
+            await expect(resolved.locator).toHaveCount(threshold, { timeout: ORACLE_TIMEOUT_MS });
+            count = threshold;
+          } catch {
+            count = await resolved.locator.count().catch(() => 0);
+          }
+        } else {
+          // >, >=, < no tienen un número exacto que esperar con reintento: se
+          // espera por VISIBILIDAD (la colección ya renderizó algo, o de verdad
+          // no hay nada) y solo ENTONCES se lee count() — leerlo antes es el
+          // falso 0 sobre una tabla que aún está cargando (§4 Fase 6).
+          await resolved.locator.first().waitFor({ state: 'visible', timeout: ORACLE_TIMEOUT_MS }).catch(() => {});
+          count = await resolved.locator.count().catch(() => 0);
+        }
+        // captura de tabla como datos: SOLO si hay al menos una fila de donde
+        // subir al ancestro <table> — "no hay datos" ya lo dice el outcome.
+        if (count > 0) await this.captureTable(resolved.locator, resolved.frame_path);
+        const ok = compareCount(count, operator, threshold);
+        if (!ok) {
+          this.blockStep(
+            flow,
+            step,
+            `incumplido: ${resolved.via} cuenta ${count}, se esperaba ${operator} ${threshold}`,
+            false,
+          );
+          this.audit('block', `expect_count incumplido ${stepKey}: ${count} ${operator} ${threshold} = false`, {
+            phase: 'expect-count',
+            settle: obs,
+          });
+        }
+        this.pushReport(flow, step, { ...report, outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet' });
+        return;
+      }
+      case 'expect_each': {
+        // Fase 6 — el hint del paso apunta a los CONTENEDORES (p.ej. "cada
+        // listbox"); `each` es la condición que se comprueba DENTRO de cada uno.
+        const obs = await this.waitForSettle(settle);
+        const report = { action_ms: Date.now() - startedAt, settle: obs, retried: false };
+        const each = step.each!;
+        const operator = each.operator;
+        const threshold = Number(each.value);
+        const outer = await this.resolveCollection(step);
+        if (!outer) {
+          this.blockStep(flow, step, `drift: contenedores de expect_each ambiguos entre frames`, false);
+          this.audit('block', `expect_each ambiguo ${stepKey}`, { phase: 'expect-each', settle: obs });
+          this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
+          return;
+        }
+        const n = await outer.locator.count().catch(() => 0);
+        const failures: string[] = [];
+        for (let i = 0; i < n; i += 1) {
+          const item = outer.locator.nth(i);
+          await item.waitFor({ state: 'visible', timeout: ORACLE_TIMEOUT_MS }).catch(() => {});
+          const subCount = await this.countMatches(item, each.hint);
+          if (!compareCount(subCount, operator, threshold)) failures.push(`#${i} cuenta ${subCount}`);
+        }
+        const ok = n > 0 && failures.length === 0;
+        if (!ok) {
+          const why =
+            n === 0
+              ? `incumplido: ${outer.via} no resolvió ningún contenedor`
+              : `incumplido: ${failures.length}/${n} contenedor(es) no cumplen ${operator} ${threshold} — ${failures.join(', ')}`;
+          this.blockStep(flow, step, why, false);
+          this.audit('block', `expect_each incumplido ${stepKey}: ${failures.length}/${n}`, { phase: 'expect-each', settle: obs });
         }
         this.pushReport(flow, step, { ...report, outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet' });
         return;

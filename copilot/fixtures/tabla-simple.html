@@ -1,0 +1,22 @@
+<!doctype html>
+<!--
+  Fixture Fase 6 (SPEC-caos-corporativo §4): tabla mínima para el test del CLI
+  real de `expect_count` + captura de tabla (regresión K0.13-style: el
+  transform de vitest no reproduce el bug __name de esbuild bajo tsx).
+-->
+<html lang="es">
+  <head><meta charset="utf-8" /><title>Fixture tabla simple</title></head>
+  <body>
+    <!-- boton sin handler: solo para que la pagina no arranque con CERO
+         elementos interactivos (K0.17 exigiria entonces ver una mutacion
+         para dar la quietud por buena, y esta pagina estatica nunca muta) -->
+    <button>Actualizar</button>
+    <table aria-label="Resultados">
+      <thead><tr><th>Id</th><th>Nombre</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Uno</td></tr>
+        <tr><td>2</td><td>Dos</td></tr>
+      </tbody>
+    </table>
+  </body>
+</html>
