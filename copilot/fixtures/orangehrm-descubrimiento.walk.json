@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "site_id": "orangehrm",
+  "entry": "/web/index.php/auth/login",
+  "base_url": "https://opensource-demo.orangehrmlive.com",
+  "flows": [
+    {
+      "flow": "buscar-empleados-por-estado",
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard", "expect_after": "Dashboard" },
+
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "PIM" }, "expect_transition": true, "screen": "pim", "expect_after": "Employee List", "retry_safe": true },
+
+        { "id": "s5", "action": "select", "hint": { "label": "Employment Status" }, "value": "Full-Time Permanent" },
+        { "id": "s6", "action": "click", "hint": { "role": "button", "name": "Search" }, "expect_after": "Records Found" },
+        { "id": "s7", "action": "capture", "screen": "pim-resultados" },
+
+        { "id": "s8", "action": "click", "hint": { "role": "link", "name": "My Info" }, "expect_transition": true, "screen": "mi-info", "expect_after": "Personal Details", "retry_safe": true },
+        { "id": "s9", "action": "capture", "screen": "mi-info-detalle" }
+      ]
+    }
+  ]
+}

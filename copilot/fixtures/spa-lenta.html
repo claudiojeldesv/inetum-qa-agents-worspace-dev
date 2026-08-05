@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>SPA de montaje tardío</title>
+</head>
+<body>
+<!--
+  El caso que OrangeHRM enseñó y que ningún fixture propio reproducía: el documento
+  llega VACÍO y la aplicación monta segundos después. Sin spinner, sin mutaciones, sin
+  nada. Una página que todavía no ha empezado a renderizar es máximamente QUIETA, y la
+  ventana de quietud la declaraba estable en 400 ms: todos los pasos siguientes fallaban
+  con "hint irresoluble" sobre una pantalla en blanco.
+
+  Deliberadamente NO hay indicador de carga: si lo hubiera, la señal de "ocupado" ya
+  cubriría el caso y el fixture no probaría nada.
+-->
+<div id="app"></div>
+<script>
+  const MONTAJE_MS = 1500;
+  setTimeout(() => {
+    document.getElementById('app').innerHTML =
+      '<h1>Panel de control</h1>'
+      + '<div role="status">Aplicación montada</div>'
+      + '<label for="busq">Buscador</label><input id="busq" type="text">'
+      + '<button id="ir">Consultar</button>';
+    document.getElementById('ir').addEventListener('click', () => {
+      const d = document.createElement('div');
+      d.setAttribute('role', 'status');
+      d.textContent = 'Consulta realizada';
+      document.getElementById('app').appendChild(d);
+    });
+  }, MONTAJE_MS);
+</script>
+</body>
+</html>

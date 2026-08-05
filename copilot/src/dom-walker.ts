@@ -629,6 +629,31 @@ function settleScript(args: SettleArgs): string {
   let mutations = 0, resets = 0, busyCycles = 0, wasBusy = false, quietSince = start;
   const ignoreQuery = ignoreSel.join(',');
 
+  /**
+   * K0.17 — "todavía no ha empezado" NO es "ya terminó". Medido contra OrangeHRM:
+   * una SPA Vue tarda segundos en montar y hasta entonces el documento está vacío,
+   * sin spinner y sin mutaciones — o sea, máximamente quieto. La ventana lo
+   * declaraba estable en 400 ms y todos los pasos siguientes fallaban con "hint
+   * irresoluble" sobre una pantalla en blanco.
+   *
+   * Si al empezar a observar no hay NADA interactivo, la quietud exige además haber
+   * visto al menos una mutación. Si la página está vacía de verdad, se agota el tope
+   * y se reporta — que es la respuesta correcta, no un falso "estable".
+   */
+  const interactivos = () =>
+    document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"],[role="textbox"]').length;
+  /**
+   * La regla SOLO aplica al documento principal. Aplicada a los frames hijos era una
+   * regresión seria, y la cazó el banco corporativo: un \`<iframe hidden>\` sin
+   * contenido está vacío y NUNCA muta, así que no alcanzaba la quietud jamás, agotaba
+   * el tope, y como el agregado hace some(timed_out) envenenaba los 30 pasos del
+   * flujo (10 minutos de run y todo en settle_timeout). "La app no ha montado" es una
+   * preocupación del top, no de un iframe oculto que legítimamente no tiene nada.
+   */
+  const esPrincipal = window.top === window;
+  const habiaContenido = interactivos() > 0;
+  let mutacionesTotal = 0;   // nunca se resetea: "¿ha pasado algo alguna vez?"
+
   const observer = new MutationObserver((records) => {
     for (const rec of records) {
       const node = rec.target;
@@ -637,6 +662,7 @@ function settleScript(args: SettleArgs): string {
         try { if (el.closest(ignoreQuery)) continue; } catch (e) { /* selector del pack inválido */ }
       }
       mutations += 1;
+      mutacionesTotal += 1;
     }
   });
   observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
@@ -666,6 +692,7 @@ function settleScript(args: SettleArgs): string {
         resets,
         timed_out: timedOut,
         signals: Array.from(signals),
+        started_empty: esPrincipal && !habiaContenido,
       });
     };
     const tick = () => {
@@ -674,11 +701,13 @@ function settleScript(args: SettleArgs): string {
       const busy = busyNow();
       if (busy && !wasBusy) busyCycles += 1;   // un ciclo de spinner contado
       wasBusy = busy;
+      // K0.17: si el TOP arranca en blanco, no hay quietud válida hasta que algo ocurra
+      const arrancado = !esPrincipal || habiaContenido || mutacionesTotal > 0;
       if (busy || mutations > maxMut) {
         if (!busy) resets += 1;                // la ventana cayó por mutaciones, sin señal declarada
         mutations = 0;
         quietSince = now;
-      } else if (now - quietSince >= quietMs) {
+      } else if (arrancado && now - quietSince >= quietMs) {
         return done(false);
       }
       setTimeout(tick, 50);
@@ -917,6 +946,9 @@ class DomWalker {
       resets: results.reduce((n, r) => n + r.resets, 0),
       timed_out: results.some((r) => r.timed_out),
       signals: [...new Set(results.flatMap((r) => r.signals))],
+      // K0.17: se perdía al agregar los frames, y es justo el dato que explica
+      // por qué un paso falló sobre una pantalla que aún no había montado
+      ...(results.some((r) => r.started_empty) ? { started_empty: true } : {}),
     };
   }
 
@@ -953,7 +985,18 @@ class DomWalker {
     const report: StepReport = { flow: flow.flow, step: step.id, action: step.action, ...r };
     if (at >= 0) reports[at] = report;
     else reports.push(report);
-    if (r.settle && !r.settle.timed_out) {
+    /**
+     * K0.17 — la muestra se registra TAMBIÉN cuando se agotó el tope. Antes solo se
+     * guardaban los settles limpios, con el efecto perverso de que los pasos que más
+     * necesitan tiempo (los que agotan el tope) eran exactamente los que nunca lo
+     * aprendían: su timeout se quedaba clavado para siempre. Medido en OrangeHRM,
+     * donde "My Info" no se estabiliza en 10 s y jamás dejaba muestra.
+     *
+     * Un paso que cuelga de verdad hace subir su tope run a run hasta el techo de
+     * 60 s, y eso queda visible en `stats.settle_timeouts`: se paga en reloj, no en
+     * un diagnóstico falso.
+     */
+    if (r.settle) {
       updateTimingProfile(this.timing, `${flow.flow}/${step.id}`, r.settle.waited_ms, {
         screen: step.screen ?? this.state.current_screen ?? undefined,
       });
@@ -1753,6 +1796,39 @@ class DomWalker {
 
   // ------------------------------------------------------------- ejecución
 
+  /**
+   * K0.17 — `goto` con reintento y backoff. El SPEC §8 lo declaraba desde el
+   * principio y NO estaba implementado: un `goto` fallido lanzaba y, como el paso
+   * `__entry` se ejecuta fuera del try/catch del bucle, tumbaba el run entero con
+   * exit 1 y sin dejar dom-map. Encontrado en OrangeHRM al segundo run seguido
+   * (`page.goto: Timeout 30000ms exceeded`); en un PRE corporativo eso es rutina.
+   */
+  private async gotoWithRetry(url: string): Promise<void> {
+    const INTENTOS = 3; // el declarado en el SPEC: inicial + 2 reintentos
+    const BACKOFF_MS = [1_000, 3_000];
+    let ultimo: unknown = null;
+    for (let i = 0; i < INTENTOS; i += 1) {
+      try {
+        await this.page.goto(url, { timeout: GOTO_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+        if (i > 0) {
+          this.audit('allow', `goto recuperado al intento ${i + 1}: ${url}`, { phase: 'goto-retry', attempt: i + 1 });
+          console.error(`[dom-walker] goto recuperado al intento ${i + 1} de ${INTENTOS}`);
+        }
+        return;
+      } catch (err) {
+        ultimo = err;
+        const m = err instanceof Error ? err.message.split('\n')[0] : String(err);
+        if (i < INTENTOS - 1) {
+          const espera = BACKOFF_MS[i];
+          console.error(`[dom-walker] goto falló (${m}); reintento ${i + 2}/${INTENTOS} en ${espera} ms`);
+          await this.page.waitForTimeout(espera);
+        }
+      }
+    }
+    this.audit('block', `goto agotó ${INTENTOS} intentos: ${url}`, { phase: 'goto-retry' });
+    throw ultimo;
+  }
+
   private async executeStep(flow: WalkFlow, step: WalkStep): Promise<void> {
     const stepKey = `${flow.flow}/${step.id}`;
     const fixtures = this.contract.synthetic_fixtures ?? {};
@@ -1770,7 +1846,7 @@ class DomWalker {
 
     switch (step.action) {
       case 'goto': {
-        await this.page.goto(this.resolveTarget(step.target!), { timeout: GOTO_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+        await this.gotoWithRetry(this.resolveTarget(step.target!));
         /**
          * SIN `waitForLoadState('networkidle')` a propósito. La ventana de quietud lo
          * sustituye —networkidle no llega nunca en una app con polling, y cuando llega
@@ -1945,7 +2021,8 @@ class DomWalker {
 
         if (!resolved) {
           if (this.state.rescues_used >= this.opts.rescueBudget) {
-            this.blockStep(flow, step, `hint irresoluble y presupuesto de rescates agotado (${this.opts.rescueBudget})`, false);
+            const nota = await this.emptyScreenNote();
+            this.blockStep(flow, step, `hint irresoluble y presupuesto de rescates agotado (${this.opts.rescueBudget})${nota}`, false);
             this.audit('block', `presupuesto de rescates agotado en ${stepKey}`, { budget: this.opts.rescueBudget });
             return;
           }
@@ -2226,6 +2303,28 @@ class DomWalker {
     });
   }
 
+  /**
+   * K0.17 — nota de pantalla vacía. Cuando un hint no resuelve y la pantalla NO TIENE
+   * elementos interactivos, la causa no es el hint: es que ahí no hay aplicación.
+   * Medido contra OrangeHRM: el run reportó SIETE "hint irresoluble" cuando la verdad
+   * era una sola, y el informe culpaba al guion en vez de a la pantalla.
+   */
+  private async emptyScreenNote(): Promise<string> {
+    const n = await this.page
+      .evaluate(
+        () =>
+          document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"],[role="textbox"]')
+            .length,
+      )
+      .catch(() => -1);
+    if (n !== 0) return '';
+    return (
+      ' — ATENCIÓN: la pantalla no tiene NINGÚN elemento interactivo. El hint no es el problema: ' +
+      'la aplicación puede no haber montado (SPA lenta), la sesión pudo rebotar al login, ' +
+      'o el entorno está devolviendo una página en blanco'
+    );
+  }
+
   private blockStep(flow: WalkFlow, step: WalkStep, reason: string, rescueAttempted: boolean): void {
     if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id)) return;
     this.state.open_questions.push({
@@ -2315,7 +2414,21 @@ class DomWalker {
         // cada flujo parte de entry; en reanudación los pasos ya completados se REPLAYEAN
         // (proceso de navegador nuevo → hay que reconstruir el estado in-page)
         const entryStep: WalkStep = { id: '__entry', action: 'goto', target: this.script.entry };
-        await this.executeStep(flow, entryStep);
+        /**
+         * K0.17 — el entry va envuelto. Antes estaba fuera del try/catch y su fallo
+         * subía a main(): exit 1, sin dom-map y sin saber qué flujos habrían pasado.
+         * Un entorno que no responde es un HALLAZGO del entorno, no el fin del run:
+         * el flujo se anota y se sigue con el siguiente.
+         */
+        try {
+          await this.executeStep(flow, entryStep);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+          this.blockStep(flow, entryStep, `el entorno no respondió al abrir la entrada: ${msg}`, false);
+          this.audit('block', `entry inalcanzable en ${flow.flow}: ${msg}`, { phase: 'entry' });
+          console.error(`[dom-walker] flujo '${flow.flow}' saltado: la entrada no respondió`);
+          continue;
+        }
         this.markCompleted(`${flow.flow}/__entry`);
         await this.persist();
 

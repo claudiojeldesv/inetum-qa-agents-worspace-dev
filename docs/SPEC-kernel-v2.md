@@ -368,6 +368,83 @@ inexactitud de reporte preexistente que el banco deja a la vista: `recordBusines
 atribuye el texto a la pantalla *actual*, así que las postcondiciones de la cadena de
 modales caen en el cubo de la pantalla anterior.
 
+### K0.17 — descubrimiento contra una app de terceros (OrangeHRM)
+
+Primer ejercicio de **descubrimiento** deliberado: una app real (`opensource-demo.
+orangehrmlive.com`, SPA Vue, en `allowed-targets`), un guion escrito con el vocabulario
+que usaría un QA leyendo un plan de pruebas y **sin inspeccionar el DOM antes**, y las
+predicciones por escrito antes de ejecutar. Bendecir el guion hasta que pase habría
+convertido el ejercicio en teatro.
+
+Resultado del primer run: **2 de 9 pasos**. Y de las cuatro predicciones, tres
+irrelevantes: el fallo real no estaba en mi lista.
+
+**Hallazgo 1 (el gordo) — "todavía no ha empezado" no es "ya terminó".** El documento
+llega VACÍO: `domcontentloaded` con 0 elementos interactivos, y la app Vue monta
+segundos después. Sin spinner, sin mutaciones, sin nada — o sea, **máximamente quieta**.
+La ventana de quietud de K0.13 la declaraba estable en 422 ms y los siete pasos
+siguientes fallaban con "hint irresoluble" sobre una pantalla en blanco. Peor: en K0.13
+quité `networkidle` para empezar a observar antes, y esa decisión abrió este agujero.
+
+Arreglo: si al empezar a observar no hay NADA interactivo, la quietud exige además
+haber visto **al menos una mutación**. `started_empty` viaja en la observación. Si la
+página está vacía de verdad, se agota el tope y se reporta — respuesta correcta, no un
+falso "estable". Con el arreglo: **8 de 9**. Ningún fixture propio podía producir esto:
+todos los míos renderizan de forma síncrona.
+
+**Hallazgo 2 — el informe culpaba al guion.** Siete "hint irresoluble" cuando la verdad
+era una sola. Ahora, cuando un hint no resuelve y la pantalla no tiene ningún elemento
+interactivo, el motivo lo dice: *la aplicación puede no haber montado, la sesión pudo
+rebotar, o el entorno devuelve una página en blanco*.
+
+**Hallazgo 3 — la calibración era ciega justo donde hacía falta.** Solo se registraban
+muestras de los settles limpios, así que los pasos que agotan el tope —los que MÁS
+tiempo necesitan— eran exactamente los que nunca lo aprendían. "My Info" no se
+estabiliza en 10 s y jamás dejaba muestra. Ahora la muestra se registra también al
+agotar el tope. Verificado en vivo: `s8` pasó de `settle_timeout` (10 032 ms) en el
+primer run a **`ok` en 8 075 ms** en el segundo, porque la muestra del primero le subió
+el tope. La convergencia de la capa 6, demostrada contra una app de terceros.
+
+**Hallazgo 4 — el `goto` con reintento estaba declarado y no implementado.** §8 lo
+promete desde el principio. No existía: un `goto` fallido lanzaba y, como el paso
+`__entry` se ejecuta fuera del try/catch del bucle, tumbaba el run entero con exit 1 y
+sin dejar dom-map. Salió al segundo run seguido (`page.goto: Timeout 30000ms`). Ahora:
+3 intentos con backoff 1 s/3 s, y el entry envuelto — un entorno que no responde es un
+hallazgo del entorno, no el fin del run; el flujo se anota y se sigue con el siguiente.
+
+**Hallazgo 5 (sin arreglar, decisión del QA) — la escalera del guion es más pobre que la
+del modo asistido.** `{label: 'Employment Status'}` no resuelve: OrangeHRM usa `<label>`
+sin `for`. Cuando un humano señala ese mismo campo, `buildFallbackCandidates` lo resuelve
+por el tier `anchored` (etiqueta vecina). O sea: **el walker sabe resolver un elemento
+cuando alguien lo señala, y no sabe resolverlo cuando el guion lo nombra por su etiqueta
+visible.** Los tiers `scoped`/`anchored` existen solo en el camino asistido.
+
+**Hallazgo 6 (sin arreglar) — `getByPlaceholder` del contract se ignora en silencio.**
+`PRIORITY_TO_KIND` solo conoce testid/role/label/text. En una app sin labels el
+placeholder es lo primero que pondría un QA, y no hace nada.
+
+**Reality check de tiempos.** El default de 10 s era optimista: navegar en OrangeHRM
+cuesta 3–8 s por paso y "My Info" no se estabiliza en 10. Perfil medido en dos runs:
+`__entry` [3010, 1992], login [5501, 4172], PIM [3113, 4243], Search [1909, 2971],
+My Info [7501, 8075].
+
+**Y el banco de regresión hizo su trabajo el mismo día.** El arreglo del hallazgo 1,
+aplicado a *cada frame* en vez de solo al principal, era una regresión seria: un
+`<iframe hidden>` sin contenido está vacío y **nunca muta**, así que no alcanzaba la
+quietud jamás, agotaba el tope, y como la observación agregada hace `some(timed_out)`
+envenenaba los 30 pasos del banco — 10 minutos de run y todos los desenlaces en
+`settle_timeout`. Corregido acotando la regla al documento principal (`window.top ===
+window`): "la app no ha montado" es una preocupación del top, no de un iframe oculto que
+legítimamente no tiene nada.
+
+Eso es exactamente la justificación de tener **dos** targets: el de terceros descubre lo
+que no imaginamos, y el banco propio impide que arreglarlo rompa lo que ya funcionaba.
+Ninguno de los dos sustituye al otro.
+
+**Sigue sin construir**: `select` sobre combobox no nativo (el "Employment Status" de
+OrangeHRM es un div, no un `<select>`), y `expect_count`/`expect_each` para la
+cardinalidad ("trae N registros" solo se puede escribir como literal).
+
 ## 5. Escalera de resolución v2
 
 Orden estricto; cada peldaño o resuelve mecánicamente o pasa al siguiente. El walker no decide jamás

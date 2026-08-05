@@ -130,6 +130,13 @@ export interface SettleObservation {
   timed_out: boolean;
   /** Qué selectores de ocupado matchearon de verdad (los demás no se reportan). */
   signals: string[];
+  /**
+   * K0.17 — la pantalla no tenía NINGÚN elemento interactivo al empezar a observar.
+   * Medido contra OrangeHRM: una SPA que tarda segundos en montar es máximamente
+   * quieta antes de montar, y la ventana de quietud la declaraba estable. Cuando
+   * esto es true, la quietud exigió además haber visto al menos una mutación.
+   */
+  started_empty?: boolean;
 }
 
 /**

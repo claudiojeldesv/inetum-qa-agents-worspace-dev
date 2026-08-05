@@ -50,12 +50,12 @@ interface RunResult {
   report: (stepId: string) => StepReport | undefined;
 }
 
-async function walk(steps: WalkStep[], settle?: SettleProfile): Promise<RunResult> {
+async function walk(steps: WalkStep[], settle?: SettleProfile, entry = '/spinner-multi.html'): Promise<RunResult> {
   const workDir = mkdtempSync(resolve(tmpdir(), 'qa-settle-'));
   const script: WalkScript = {
     version: 1,
     site_id: 'spinner-multi',
-    entry: '/spinner-multi.html',
+    entry,
     flows: [{ flow: 'sync', steps }],
     ...(settle ? { settle } : {}),
   };
@@ -358,6 +358,59 @@ describe('K0.15 — recuperar el estado con el camino grabado', () => {
     } finally {
       await browser.close();
     }
+  }, 120_000);
+});
+
+/**
+ * K0.17 — encontrado contra OrangeHRM, no contra un fixture propio: una SPA que
+ * tarda segundos en montar llega con el documento VACÍO, sin spinner y sin
+ * mutaciones. O sea, máximamente quieta. La ventana la declaraba estable en 400 ms y
+ * todos los pasos siguientes fallaban con "hint irresoluble" sobre una pantalla en
+ * blanco. "Todavía no ha empezado" no es "ya terminó".
+ */
+describe('K0.17 — la pantalla que aun no ha montado no es una pantalla estable', () => {
+  it('espera al montaje tardio en vez de dar por quieto un DOM vacio', async () => {
+    const { map, report } = await walk(
+      [
+        { id: 's1', action: 'fill', hint: { label: 'Buscador' }, value: 'x' },
+        { id: 's2', action: 'click', hint: { role: 'button', name: 'Consultar' }, expect_after: 'Consulta realizada' },
+      ],
+      undefined,
+      '/spa-lenta.html',
+    );
+
+    const entry = report('__entry')!;
+    expect(entry.settle!.started_empty).toBe(true);
+    /**
+     * El fixture monta a los 1500 ms. El reloj del observador arranca cuando corre el
+     * `evaluate`, algo DESPUÉS de que el script de la página lance su temporizador, así
+     * que la espera medida es (1500 − δ) + 400 ≈ 1750, no 1900.
+     * Lo que importa es el discriminante: ANTES DEL ARREGLO esto valía ~420.
+     */
+    expect(entry.settle!.waited_ms).toBeGreaterThan(1_400);
+    expect(entry.settle!.waited_ms).toBeLessThan(5_000); // y no se cuelga esperando
+    expect(entry.settle!.timed_out).toBe(false);
+    // y la consecuencia observable: los pasos resuelven contra la app ya montada
+    expect(report('s1')!.outcome).toBe('ok');
+    expect(report('s2')!.outcome).toBe('ok');
+    expect(map.open_questions).toEqual([]);
+  }, 120_000);
+
+  it('una pantalla que nunca monta se REPORTA como tal, no como hint malo', async () => {
+    const { map } = await walk(
+      [{ id: 's1', action: 'click', hint: { role: 'button', name: 'Aceptar' } }],
+      { timeout_ms: 2_000 }, // sin acortar el tope el test tarda 10 s de más
+      '/pantalla-vacia.html',
+    );
+
+    const bloqueado = map.open_questions.find((q) => q.step === 's1')!;
+    // el diagnostico apunta a la pantalla, no al guion
+    expect(bloqueado.reason).toContain('no tiene NINGÚN elemento interactivo');
+    expect(bloqueado.reason).toContain('SPA lenta');
+    // y el settle lo dice tambien, en dato
+    const entry = (map.step_reports ?? []).find((r) => r.step === '__entry')!;
+    expect(entry.settle!.started_empty).toBe(true);
+    expect(entry.settle!.timed_out).toBe(true);
   }, 120_000);
 });
 
