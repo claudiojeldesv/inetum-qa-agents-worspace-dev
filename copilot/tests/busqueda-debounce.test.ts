@@ -10,15 +10,19 @@ import type { DomMap, SettleProfile, WalkScript, WalkState, WalkStep } from '../
 /**
  * Fase 5 (SPEC-caos-corporativo §4) — settle consciente de debounce. Es la
  * clase K0.17 ("todavía no ha empezado") reubicada en inputs: tras teclear
- * hay un hueco de calma IGUAL al debounce (300 ms en el fixture) antes de que
- * el resultado se pinte, y ese hueco es calma FALSA.
+ * hay un hueco de calma IGUAL al debounce (1500 ms en el fixture — holgado a
+ * propósito frente al jitter de IPC de un run con muchos Chromium en
+ * paralelo) antes de que el resultado se pinte, y ese hueco es calma FALSA.
  *
  * Par falsable, estilo K0.13: el MISMO guion (fill + click sobre el
  * resultado) sobre la MISMA página, y lo único que cambia es si el paso de
  * fill declara `debounce_ms`. Con un contract que NO está tuneado para este
  * campo (quiet_ms genérico, más corto que el debounce) la política vieja
  * PIERDE EL CLIC — el resultado aún no existe cuando se intenta clicarlo. Con
- * `debounce_ms` declarado, pasa a la primera.
+ * `debounce_ms` declarado, pasa a la primera. (El default conservador de
+ * `debounced: true` — 300 ms — se prueba aparte, a nivel unitario en
+ * `walk-core.test.ts`; no se ejercita aquí porque no coincide con los 1500 ms
+ * de este fixture.)
  */
 
 const FIXTURES = pathToFileURL(resolve(__dirname, '../fixtures')).href;
@@ -27,7 +31,7 @@ const contract: StyleContract = {
   locators: { priority: ['getByTestId', 'getByRole', 'getByLabel', 'getByText'] },
 };
 
-/** Un client pack que no conoce este campo: quiet_ms muy por debajo del debounce real (300 ms). */
+/** Un client pack que no conoce este campo: quiet_ms muy por debajo del debounce real (1500 ms). */
 const NAIVE_SETTLE: SettleProfile = { quiet_ms: 50, max_mutations: 999_999 };
 
 function freshState(): WalkState {
@@ -90,16 +94,7 @@ describe('Fase 5 — par falsable: settle ciego al debounce vs consciente', () =
   }, 60_000);
 
   it('CON debounce_ms declarado, el mismo guion sobre la misma pagina PASA', async () => {
-    const fill: WalkStep = { id: 's1', action: 'fill', hint: { label: 'Buscador' }, value: 'man', debounce_ms: 300 };
-    const map = await walk([fill, CLICK_RESULTADO], NAIVE_SETTLE);
-
-    expect(map.open_questions).toEqual([]);
-    const s2 = (map.step_reports ?? []).find((r) => r.step === 's2')!;
-    expect(s2.outcome).toBe('ok');
-  }, 60_000);
-
-  it('debounced: true (sin ms explicito) cae al default conservador (300 ms) y tambien pasa', async () => {
-    const fill: WalkStep = { id: 's1', action: 'fill', hint: { label: 'Buscador' }, value: 'man', debounced: true };
+    const fill: WalkStep = { id: 's1', action: 'fill', hint: { label: 'Buscador' }, value: 'man', debounce_ms: 1_500 };
     const map = await walk([fill, CLICK_RESULTADO], NAIVE_SETTLE);
 
     expect(map.open_questions).toEqual([]);

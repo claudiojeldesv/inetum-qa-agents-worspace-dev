@@ -1,0 +1,60 @@
+<!doctype html>
+<!--
+  Fixture Fase 4 (SPEC-caos-corporativo §4): lista virtualizada mínima (patrón
+  cdk-virtual-scroll) con 5000 filas. Solo se renderiza lo visible + un
+  colchón de filas alrededor del scroll actual — la fila objetivo NO existe en
+  el DOM hasta hacer scroll hasta ella.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture virtual scroll</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; padding: 24px; }
+      #viewport { height: 400px; width: 320px; overflow-y: auto; position: relative; border: 1px solid #888; }
+      #spacer { position: relative; }
+      #spacer > div { position: absolute; left: 0; right: 0; padding: 0 8px; box-sizing: border-box; line-height: 24px; }
+      #spacer > div:nth-child(odd) { background: #f3f3f3; }
+    </style>
+  </head>
+  <body>
+    <!-- boton sin handler: solo para que la pagina no arranque con CERO
+         elementos interactivos (K0.17 exigiria entonces ver una mutacion
+         para dar la quietud por buena, y una mutacion de scroll ya
+         terminada antes de que el observador arranque nunca llega a verse) -->
+    <button>Actualizar</button>
+    <div id="viewport" role="list" aria-label="Filas virtualizadas">
+      <div id="spacer"></div>
+    </div>
+
+    <script>
+      const ROWS = 5000;
+      const ROW_H = 24;
+      // colchón generoso: cubre de sobra el salto de mouse.wheel del walker
+      // (varios "viewports" por iteración) para que el recorrido nunca deje
+      // un hueco sin renderizar entre una posición de scroll y la siguiente.
+      const BUFFER = 40;
+      const viewport = document.getElementById('viewport');
+      const spacer = document.getElementById('spacer');
+      spacer.style.height = ROWS * ROW_H + 'px';
+
+      function render() {
+        const scrollTop = viewport.scrollTop;
+        const first = Math.max(0, Math.floor(scrollTop / ROW_H) - BUFFER);
+        const visibleCount = Math.ceil(viewport.clientHeight / ROW_H) + BUFFER * 2;
+        const last = Math.min(ROWS, first + visibleCount);
+        spacer.innerHTML = '';
+        for (let i = first; i < last; i++) {
+          const row = document.createElement('div');
+          row.setAttribute('role', 'listitem');
+          row.style.top = i * ROW_H + 'px';
+          row.style.height = ROW_H + 'px';
+          row.textContent = 'Fila ' + i;
+          spacer.appendChild(row);
+        }
+      }
+      viewport.addEventListener('scroll', render);
+      render();
+    </script>
+  </body>
+</html>

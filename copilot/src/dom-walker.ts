@@ -106,6 +106,8 @@ const STEP_TIMEOUT_MS = 10_000;
 const GOTO_TIMEOUT_MS = 30_000;
 /** Espera del oráculo de postcondición: la pantalla ya está estable (K0.13 capa 3). */
 const ORACLE_TIMEOUT_MS = 1_500;
+/** Fase 4 — tope por defecto de `scroll_until` cuando el paso no declara `max_steps`. */
+const DEFAULT_SCROLL_MAX_STEPS = 40;
 
 interface WalkerOptions {
   scriptPath: string;
@@ -1542,6 +1544,57 @@ class DomWalker {
     screen.tables.push(dt);
   }
 
+  // ----------------------------------------------- virtual scroll (Fase 4)
+
+  /**
+   * Resuelve `hint` DENTRO de un contenedor ya concreto (usado por
+   * `scroll_until` en cada iteración: la fila objetivo puede no existir aún
+   * en el DOM). Misma regla dura que siempre — una coincidencia visible =
+   * adelante, dos o más = se planta —, con un tercer estado explícito:
+   * `not_found` no es ambigüedad, es "todavía no renderizado" (o
+   * genuinamente ausente; `scroll_until` es quien decide cuándo darse por
+   * vencido, no esta función).
+   */
+  private async resolveWithinContainer(
+    container: Locator,
+    hint: StepHint,
+  ): Promise<{ status: 'found'; locator: Locator } | { status: 'ambiguous' } | { status: 'not_found' }> {
+    const rawPlan = hintLocatorPlan(hint, this.priority);
+    for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
+      for (const attempt of plan) {
+        const loc = this.attemptToLocator(container, attempt);
+        const count = await loc.count().catch(() => 0);
+        if (count === 1) return { status: 'found', locator: loc };
+        if (count > 1) {
+          const visible = loc.filter({ visible: true });
+          const vc = await visible.count().catch(() => 0);
+          if (vc === 1) return { status: 'found', locator: visible };
+          if (vc > 1) return { status: 'ambiguous' };
+          // count>1 pero 0 visibles: aún no renderizado de forma visible — not_found, sigue la escalera
+        }
+      }
+    }
+    return { status: 'not_found' };
+  }
+
+  /**
+   * Un "paso" de scroll dentro del viewport virtualizado. `mouse.wheel` (no
+   * `evaluate`, ni fijar `scrollTop` a mano): es la vía que Playwright
+   * documenta para listas virtualizadas, porque dispara los mismos handlers
+   * de `scroll`/`wheel` que un usuario real — fijar `scrollTop` por código a
+   * veces no dispara el recálculo del rango visible.
+   */
+  private async scrollContainer(container: Locator): Promise<void> {
+    await container.hover({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
+    const box = await container.boundingBox().catch(() => null);
+    // varios "viewports" por salto: a 20-30 filas visibles por pantalla, un
+    // objetivo a miles de filas de distancia con un salto de una pantalla
+    // por iteración agotaría max_steps sin necesidad — el bucle sigue
+    // acotado por max_steps, solo se cubre más terreno por vuelta.
+    const deltaY = Math.max((box?.height ?? 400) * 3, 800);
+    await this.page.mouse.wheel(0, deltaY);
+  }
+
   // -------------------------------------------------- modo asistido (K0.10d)
 
   /** Descripción legible del hint, para que el QA sepa qué le pide el FD. */
@@ -2335,6 +2388,56 @@ class DomWalker {
           this.audit('block', `expect_each incumplido ${stepKey}: ${failures.length}/${n}`, { phase: 'expect-each', settle: obs });
         }
         this.pushReport(flow, step, { ...report, outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet' });
+        return;
+      }
+      case 'scroll_until': {
+        // Fase 4 — listas virtualizadas (cdk-virtual-scroll): la fila objetivo
+        // no existe en el DOM hasta hacer scroll. Bucle ACOTADO por max_steps
+        // (regla dura del tradeoff: sin tope, un objetivo ausente cuelga el walk).
+        const maxSteps = step.max_steps ?? DEFAULT_SCROLL_MAX_STEPS;
+        const scopes = await this.scopes();
+        const containers = await this.resolveScope(step.container!, scopes);
+        if (containers.length !== 1) {
+          const why = containers.length === 0 ? 'irresoluble' : 'ambiguo entre contenedores/frames';
+          this.blockStep(flow, step, `drift: container de scroll_until ${why}`, false);
+          this.audit('block', `scroll_until container ${why} ${stepKey}`, { phase: 'scroll-until' });
+          this.pushReport(flow, step, { outcome: 'postcondition_unmet', action_ms: Date.now() - startedAt, retried: false });
+          return;
+        }
+        // resolveScope solo empuja entradas cuya `scope` es el Locator único que
+        // devolvió uniqueOrNull — nunca un Page/Frame crudo; el cast documenta esa
+        // garantía de la propia función, no una suposición nueva aquí.
+        const container = containers[0].scope as Locator;
+
+        let outcome: StepOutcome = 'postcondition_unmet';
+        let stepsUsed = 0;
+        let stopReason = '';
+        for (; stepsUsed < maxSteps; stepsUsed += 1) {
+          const found = await this.resolveWithinContainer(container, step.hint!);
+          if (found.status === 'found') {
+            outcome = 'ok';
+            break;
+          }
+          if (found.status === 'ambiguous') {
+            stopReason = 'ambiguo: más de un elemento visible matchea el hint dentro del contenedor — no se adivina cuál es';
+            break;
+          }
+          await this.scrollContainer(container);
+          await this.waitForSettle(settle);
+        }
+
+        if (outcome === 'ok') {
+          this.pushReport(flow, step, { outcome, action_ms: Date.now() - startedAt, retried: false });
+          return;
+        }
+        // "no encontrado tras N scrolls" es AMBIGUO entre ausencia real y N
+        // pequeño — se reporta como tal, nunca se afirma que el registro no existe.
+        const why =
+          stopReason ||
+          `ambiguo: no encontrado tras ${stepsUsed} scroll(s) (tope ${maxSteps}) — no se afirma que el registro no exista`;
+        this.blockStep(flow, step, `drift: ${why}`, false);
+        this.audit('block', `scroll_until sin resolver ${stepKey}: ${why}`, { phase: 'scroll-until', steps: stepsUsed });
+        this.pushReport(flow, step, { outcome, action_ms: Date.now() - startedAt, retried: false });
         return;
       }
       default: {

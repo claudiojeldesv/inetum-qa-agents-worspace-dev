@@ -566,7 +566,7 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
   ];
   const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state', 'expect_count'];
   const NO_POSTCONDITION: WalkStep['action'][] = [
-    'capture', 'expect_text', 'expect_state', 'wait_url', 'wait_text', 'expect_count', 'expect_each',
+    'capture', 'expect_text', 'expect_state', 'wait_url', 'wait_text', 'expect_count', 'expect_each', 'scroll_until',
   ];
   for (const flow of s.flows ?? []) {
     if (!flow.flow) errors.push('flow sin id');
@@ -634,6 +634,19 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
       // Fase 5 — debounce_ms debe ser un intervalo real
       if (step.debounce_ms !== undefined && (!Number.isFinite(step.debounce_ms) || step.debounce_ms <= 0))
         errors.push(`${at}: 'debounce_ms' debe ser un número > 0`);
+      // Fase 4 — scroll_until: hint = OBJETIVO, container = viewport scrollable
+      if (step.action === 'scroll_until') {
+        if (!step.hint) errors.push(`${at}: 'scroll_until' requiere hint (el objetivo)`);
+        if (!step.container) errors.push(`${at}: 'scroll_until' requiere container (el viewport scrollable)`);
+        else {
+          const hasField = ['test_id', 'role', 'name', 'label', 'text'].some(
+            (f) => (step.container as Record<string, unknown>)[f] !== undefined,
+          );
+          if (!hasField) errors.push(`${at}: 'container' necesita al menos un campo (test_id|role|name|label|text)`);
+        }
+        if (step.max_steps !== undefined && (!Number.isInteger(step.max_steps) || step.max_steps <= 0))
+          errors.push(`${at}: 'max_steps' debe ser un entero > 0`);
+      }
     }
     if (!flow.steps?.length) errors.push(`${flow.flow}: flujo sin pasos`);
   }

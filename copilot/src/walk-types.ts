@@ -41,6 +41,7 @@ export type WalkAction =
   | 'expect_state'  // POSTCONDICIÓN del FD: hint + value ∈ visible|enabled|disabled|checked|unchecked
   | 'expect_count'  // POSTCONDICIÓN de cardinalidad (Fase 6): hint = colección, operator + value numérico
   | 'expect_each'   // POSTCONDICIÓN por-elemento (Fase 6): hint = contenedores, each = condición dentro de cada uno
+  | 'scroll_until'  // Fase 4 (virtual scroll): hint = objetivo, container = viewport scrollable, max_steps = tope
   | 'capture';      // captura explícita de pantalla sin acción
 
 /** Operador de comparación de `expect_count`/`expect_each.operator` (Fase 6). */
@@ -123,6 +124,15 @@ export interface WalkStep {
   debounced?: boolean;
   /** Intervalo exacto del debounce en ms. Tiene prioridad sobre `debounced: true`. */
   debounce_ms?: number;
+  /**
+   * Fase 4 (SPEC-caos-corporativo §4) — viewport SCROLLABLE de `scroll_until`
+   * (listas virtualizadas tipo `cdk-virtual-scroll`: la fila objetivo no
+   * existe en el DOM hasta hacer scroll). Distinto de `scope`: `scope` acota
+   * DÓNDE buscar un hint ambiguo, `container` es el elemento que se scrollea.
+   */
+  container?: StepHint;
+  /** Tope de iteraciones de scroll de `scroll_until`. Bucle acotado: sin esto, un objetivo ausente cuelga el walk. */
+  max_steps?: number;
 }
 
 // -------------------------------------------- sincronización (K0.13, capa 2)

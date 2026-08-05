@@ -1,11 +1,13 @@
 <!doctype html>
 <!--
   Fixture Fase 5 (SPEC-caos-corporativo §4): un buscador con debounceTime real
-  (300 ms) — tras teclear hay un hueco de calma IGUAL al debounce antes de que
-  "salga la petición" (aquí, antes de que se pinte el resultado). Sin marcar el
-  paso como `debounced`, ese hueco es calma FALSA para la ventana de quietud:
-  el paso siguiente (clicar el resultado) actúa contra un `<ul>` que todavía
-  está vacío.
+  (1500 ms — deliberadamente holgado frente al jitter de IPC de un run con
+  muchos Chromium en paralelo, para que el par falsable no dependa de una
+  carrera de márgenes estrechos) — tras teclear hay un hueco de calma IGUAL al
+  debounce antes de que "salga la petición" (aquí, antes de que se pinte el
+  resultado). Sin marcar el paso como `debounced`, ese hueco es calma FALSA
+  para la ventana de quietud: el paso siguiente (clicar el resultado) actúa
+  contra un `<ul>` que todavía está vacío.
 -->
 <html lang="es">
   <head>
@@ -39,7 +41,7 @@
             li.appendChild(btn);
             ul.appendChild(li);
           });
-        }, 300);
+        }, 1500);
       });
     </script>
   </body>
