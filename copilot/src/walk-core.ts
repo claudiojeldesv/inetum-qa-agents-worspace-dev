@@ -631,6 +631,9 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
       // declarar los dos es intención ambigua: el locator ya lleva su propio camino
       if (step.locator !== undefined && step.scope !== undefined)
         errors.push(`${at}: no declares 'locator' y 'scope' en el mismo paso (el locator ya es absoluto)`);
+      // Fase 5 — debounce_ms debe ser un intervalo real
+      if (step.debounce_ms !== undefined && (!Number.isFinite(step.debounce_ms) || step.debounce_ms <= 0))
+        errors.push(`${at}: 'debounce_ms' debe ser un número > 0`);
     }
     if (!flow.steps?.length) errors.push(`${flow.flow}: flujo sin pasos`);
   }
@@ -645,6 +648,19 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
  * carga", porque el hueco entre ciclos (típicamente 100-200 ms en las SPA
  * corporativas medidas) no llega a contar como calma.
  */
+/**
+ * Fase 5 (SPEC-caos-corporativo §4) — default conservador de `debounced: true`
+ * sin `debounce_ms` explícito. 300 ms es el valor habitual de un
+ * buscador/typeahead (RxJS `debounceTime(300)` es el ejemplo de libro).
+ */
+export const DEFAULT_DEBOUNCE_MS = 300;
+
+/** `debounce_ms` explícito manda; `debounced: true` cae al default; ninguno = 0 (sin válvula). */
+export function effectiveDebounceMs(step: Pick<WalkStep, 'debounced' | 'debounce_ms'>): number {
+  if (typeof step.debounce_ms === 'number') return step.debounce_ms;
+  return step.debounced ? DEFAULT_DEBOUNCE_MS : 0;
+}
+
 export const DEFAULT_SETTLE: Required<Pick<SettleProfile, 'quiet_ms' | 'timeout_ms' | 'max_mutations' | 'disable_animations'>> = {
   quiet_ms: 400,
   timeout_ms: 10_000,

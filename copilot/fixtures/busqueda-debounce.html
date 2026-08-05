@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  Fixture Fase 5 (SPEC-caos-corporativo §4): un buscador con debounceTime real
+  (300 ms) — tras teclear hay un hueco de calma IGUAL al debounce antes de que
+  "salga la petición" (aquí, antes de que se pinte el resultado). Sin marcar el
+  paso como `debounced`, ese hueco es calma FALSA para la ventana de quietud:
+  el paso siguiente (clicar el resultado) actúa contra un `<ul>` que todavía
+  está vacío.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture búsqueda con debounce</title>
+  </head>
+  <body>
+    <label for="buscador">Buscador</label>
+    <input id="buscador" type="text" />
+    <ul id="resultados" aria-label="Resultados"></ul>
+    <div id="resultado" role="status" hidden></div>
+
+    <script>
+      const DATA = ['Manzana', 'Pera', 'Uva'];
+      let timer = null;
+      document.getElementById('buscador').addEventListener('input', (e) => {
+        clearTimeout(timer);
+        const q = e.target.value.trim().toLowerCase();
+        timer = setTimeout(() => {
+          const ul = document.getElementById('resultados');
+          ul.innerHTML = '';
+          DATA.filter((d) => d.toLowerCase().includes(q)).forEach((d) => {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.textContent = d;
+            btn.addEventListener('click', () => {
+              const r = document.getElementById('resultado');
+              r.hidden = false;
+              r.textContent = 'Seleccionado: ' + d;
+            });
+            li.appendChild(btn);
+            ul.appendChild(li);
+          });
+        }, 300);
+      });
+    </script>
+  </body>
+</html>

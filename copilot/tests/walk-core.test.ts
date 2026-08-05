@@ -12,7 +12,9 @@ import {
   compareCount,
   COUNT_OPERATORS,
   dedupeAndPrune,
+  DEFAULT_DEBOUNCE_MS,
   DEFAULT_SETTLE,
+  effectiveDebounceMs,
   hashScript,
   hintLocatorPlan,
   isRetrySafe,
@@ -446,6 +448,47 @@ describe('validateWalkScript — expect_count / expect_each (Fase 6)', () => {
   });
 });
 
+describe('effectiveDebounceMs (Fase 5)', () => {
+  it('debounce_ms explicito manda', () => {
+    expect(effectiveDebounceMs({ debounce_ms: 500 })).toBe(500);
+    expect(effectiveDebounceMs({ debounced: true, debounce_ms: 500 })).toBe(500);
+  });
+
+  it('debounced:true sin ms cae al default conservador', () => {
+    expect(effectiveDebounceMs({ debounced: true })).toBe(DEFAULT_DEBOUNCE_MS);
+  });
+
+  it('ninguno de los dos -> 0 (sin valvula)', () => {
+    expect(effectiveDebounceMs({})).toBe(0);
+    expect(effectiveDebounceMs({ debounced: false })).toBe(0);
+  });
+});
+
+describe('validateWalkScript — debounce_ms (Fase 5)', () => {
+  const base = (): WalkScript => ({
+    version: 1,
+    site_id: 's',
+    entry: '/',
+    flows: [{ flow: 'f1', steps: [{ id: 's1', action: 'goto', target: '/' }] }],
+  });
+
+  it('acepta fill con debounced o debounce_ms', () => {
+    const s = base();
+    s.flows[0].steps.push(
+      { id: 's2', action: 'fill', hint: { role: 'textbox' }, value: 'x', debounced: true },
+      { id: 's3', action: 'fill', hint: { role: 'textbox' }, value: 'x', debounce_ms: 300 },
+    );
+    expect(validateWalkScript(s)).toEqual({ ok: true, errors: [] });
+  });
+
+  it('rechaza debounce_ms no positivo', () => {
+    const s = base();
+    s.flows[0].steps.push({ id: 's2', action: 'fill', hint: { role: 'textbox' }, value: 'x', debounce_ms: 0 });
+    const { ok, errors } = validateWalkScript(s);
+    expect(ok).toBe(false);
+    expect(errors.join(' ')).toMatch(/'debounce_ms' debe ser un número > 0/);
+  });
+});
 
 describe('parseJsonLoose (robustez de contratos escritos por subagentes)', () => {
   const payload = { step: 's3', locator: "getByTestId('login-button')" };

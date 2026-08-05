@@ -50,6 +50,7 @@ import {
   calibratedTimeout,
   compareCount,
   dedupeAndPrune,
+  effectiveDebounceMs,
   fingerprintHash,
   hashScript,
   hintLocatorPlan,
@@ -946,9 +947,23 @@ class DomWalker {
    * Settle efectivo del paso. Precedencia: DEFAULT < contract < script < CLI < paso.
    * El timeout se CALIBRA con lo observado en runs anteriores (capa 4) salvo que el
    * paso declare el suyo: una declaración explícita del QA no se pisa con estadística.
+   *
+   * Fase 5 (SPEC-caos-corporativo §4) — `debounced`/`debounce_ms` ELEVAN el piso
+   * de `quiet_ms` al intervalo del debounce. Tras teclear hay un hueco de calma
+   * IGUAL al debounce antes de que salga la petición, y ese hueco es calma FALSA
+   * (la clase K0.17 "todavía no ha empezado" reubicada en inputs): con
+   * `quiet_ms` genérico (400 ms) más corto que el debounce, la ventana se cierra
+   * DENTRO del hueco y el paso siguiente actúa contra un resultado que aún no
+   * llegó. Elevar el piso no "espera el debounce y ya" — el algoritmo de la capa
+   * 2 hace el resto solo: si el resultado tarda más que el piso, su mutación
+   * REINICIA la cuenta de quietud igual que un ciclo de spinner, así que
+   * "aparece el oráculo del resultado" (b) queda cubierto por el mecanismo de
+   * siempre, no por código nuevo — esta es la única pieza que faltaba (a).
    */
   private settleProfileFor(flow: WalkFlow, step: WalkStep): Required<SettleProfile> {
     const profile = mergeSettle(this.contract.settle, this.script.settle, this.opts.settleOverride, step.settle);
+    const debounceMs = effectiveDebounceMs(step);
+    if (debounceMs > 0) profile.quiet_ms = Math.max(profile.quiet_ms, debounceMs);
     if (this.opts.calibrate && step.settle?.timeout_ms === undefined) {
       const samples = this.timing.steps[`${flow.flow}/${step.id}`]?.samples ?? [];
       const calibrated = calibratedTimeout(samples);

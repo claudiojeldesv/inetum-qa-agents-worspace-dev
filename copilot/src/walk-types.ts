@@ -110,6 +110,19 @@ export interface WalkStep {
   operator?: CountOperator;
   /** Fase 6 — condición por-elemento de `expect_each` (el hint del paso apunta a los CONTENEDORES). */
   each?: EachCondition;
+  /**
+   * Fase 5 (SPEC-caos-corporativo §4) — el campo tiene `debounceTime`: tras
+   * teclear hay un hueco de calma IGUAL al debounce antes de que salga la
+   * petición, y ese hueco es calma FALSA para la ventana de quietud (la clase
+   * K0.17 "todavía no ha empezado" reubicada en inputs). `true` usa un default
+   * conservador (300 ms, el habitual de un buscador/typeahead); `debounce_ms`
+   * declara el intervalo exacto cuando se conoce. El settle de ESTE paso no se
+   * cierra hasta que pase ese intervalo — no es un campo por-locator, es una
+   * válvula de sincronización, como `settle`.
+   */
+  debounced?: boolean;
+  /** Intervalo exacto del debounce en ms. Tiene prioridad sobre `debounced: true`. */
+  debounce_ms?: number;
 }
 
 // -------------------------------------------- sincronización (K0.13, capa 2)
