@@ -304,3 +304,44 @@ estaban en el plan:
   en paralelo), y se retiró de ese fichero el test de `debounced:true` con default 300 ms
   (queda a nivel unitario). Riesgo asumido: el par falsable ya no prueba la temporización
   ajustada; verificar que el unitario cubre el caso 300 ms.
+
+## 10. K0.19 — tier anclado en la escalera determinista (descubierto en onesait)
+
+Primer ciclo del loop de campo contra onesait real. El login fallaba con **cualquier**
+hint: el probe del DOM mostró la causa exacta — `id="username"`/`"password"`,
+`name="j_username"`, pero **sin `label for=`, sin `aria-label`, sin `placeholder`**. El
+nombre accesible es vacío (la app rompe el contrato de accesibilidad), así que
+role/name/label devuelven 0. La única seña que coincide con el vocabulario del FD
+("Usuario") es el **texto visible en la celda hermana** (`nearby`).
+
+Diagnóstico honesto: no es un bug del walker ni de onesait específicamente; es la clase
+**label-en-celda** (JSF/JSP/legacy), y nuestra escalera determinista no la cubría — el
+tier `anchored` existía solo en el camino asistido (`buildFallbackCandidates`), nunca en
+`resolveHint`. Es el hueco nº 5 anotado en K0.17.
+
+Arreglo genérico (`resolveAnchored`): último peldaño de `resolveHint`, tras fallar la
+escalera semántica. Con un hint `{label:'X'}` (o text/name), trepa desde el texto visible
+"X" a su contenedor (`row`/`listitem`/`group`) y coge el control único de dentro,
+**control-agnóstico** (input de texto, de contraseña —que NO tiene rol textbox—, select o
+textarea resuelven igual). Dos pasadas: literal y accent-insensitive. Regla dura intacta:
+≥2 controles en el contenedor → `uniqueOrNull` se planta, no adivina.
+
+Disciplina anti-sesgo: validado contra un fixture sintético de la CLASE
+(`login-sin-label.html`, no una copia de onesait), con par falsable — `getByLabel`/
+`getByRole({name})` crudos devuelven 0, la escalera del walker resuelve. Cero cadenas de
+onesait en el código. El re-run de onesait es confirmación de campo, no el gate. La clase
+ya era conocida genéricamente desde K0.11 (`form-sin-identidad.html`); esto **completa**
+una capacidad que solo vivía en el asistido, no inventa una para el cliente.
+
+Arquitectura reafirmada: **escalera genérica** (cubre lo bien construido + las roturas
+comunes de a11y como esta) **+ memoria por cliente** (el `#username` estable de onesait
+es material de alias, capturado una vez, no de código). Ninguna de las dos es específica
+de onesait.
+
+Guion CP001 actualizado: login a `{label:'Usuario'}`/`{label:'Contraseña'}` (vocabulario
+FD, resuelto por el tier anclado). Pendiente el `value` real del `<input type=submit>`
+para fijar la hint del botón (su nombre accesible ES el `value`).
+
+No construido, siguiente rung probable del mismo loop: soporte `getByPlaceholder` en la
+escalera (hoy el contract lo declara y `PRIORITY_TO_KIND` lo ignora) — para la clase
+"solo placeholder" de Material/React, cuando aparezca un target que la ejercite.

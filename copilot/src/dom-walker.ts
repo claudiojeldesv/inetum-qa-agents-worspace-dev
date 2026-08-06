@@ -1410,6 +1410,58 @@ class DomWalker {
         }
       }
     }
+
+    /**
+     * K0.19 — tier ANCLADO en la escalera determinista. Último peldaño antes de
+     * rendirse: la clase "campo con etiqueta visible NO asociada" (label-en-celda de
+     * JSF/JSP/legacy). El nombre accesible es vacío —la app rompe el contrato de
+     * accesibilidad—, así que role/name/label devuelven 0; pero la etiqueta visible
+     * ("Usuario") está en un contenedor vecino y COINCIDE con el vocabulario del FD.
+     *
+     * Se trepa desde el texto visible al contenedor (fila/item/grupo) y se coge el
+     * control único de dentro. Genérico: cualquier app con label-en-celda. NO
+     * adivina: si el contenedor tiene ≥2 controles, uniqueOrNull se planta. Existía
+     * solo en el camino asistido (buildFallbackCandidates); esto lo sube al guion.
+     */
+    if (step.hint) {
+      const anchored = await this.resolveAnchored(step.hint, containers);
+      if (anchored) return anchored;
+    }
+    return null;
+  }
+
+  /**
+   * Resuelve por etiqueta visible vecina cuando no hay asociación formal (K0.19).
+   * Control-agnóstico dentro del contenedor: un input de texto, uno de contraseña
+   * (que NO tiene rol textbox), un select o un textarea resuelven igual. Dos pasadas
+   * de texto: literal y accent-insensitive (misma tolerancia que el resto).
+   */
+  private async resolveAnchored(
+    hint: StepHint,
+    containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }>,
+  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+    const label = hint.label ?? hint.text ?? hint.name;
+    if (!label) return null;
+    const CONTROL = 'input:not([type="hidden"]), select, textarea, [role="textbox"], [role="combobox"], [contenteditable="true"]';
+    const needles: Array<string | RegExp> = [label, new RegExp(accentInsensitivePattern(label), 'i')];
+    for (const containerRole of ['row', 'listitem', 'group'] as const) {
+      for (const needle of needles) {
+        for (const { scope, path, via } of containers) {
+          const box = scope.getByRole(containerRole).filter({ hasText: needle });
+          // el control: si el hint trae rol lo intenta; si no (o falla), agnóstico
+          const candidates: Locator[] = [];
+          if (hint.role) candidates.push(box.getByRole(hint.role as Parameters<Page['getByRole']>[0]));
+          candidates.push(box.locator(CONTROL));
+          for (const cand of candidates) {
+            const unique = await this.uniqueOrNull(cand);
+            if (unique) {
+              const src = `${via ? via + ' >> ' : ''}anchored(${containerRole}:'${label}')`;
+              return { locator: unique, via: src, frame_path: path };
+            }
+          }
+        }
+      }
+    }
     return null;
   }
 

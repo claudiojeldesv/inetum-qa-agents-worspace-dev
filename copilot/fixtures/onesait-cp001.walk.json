@@ -9,8 +9,8 @@
       "flow": "rescate-total-cp001",
       "criteria": ["CP001"],
       "steps": [
-        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Usuario" }, "value": "$fixtures.credentials[0].username" },
-        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Contraseña" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s1", "action": "fill", "hint": { "label": "Usuario" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "label": "Contraseña" }, "value": "$fixtures.credentials[0].password", "secret": true },
         { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Acceder" }, "expect_transition": true, "screen": "inicio" },
 
         { "id": "s4", "action": "hover", "hint": { "text": "GESTIÓN" } },
