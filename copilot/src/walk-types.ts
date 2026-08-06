@@ -413,6 +413,13 @@ export interface PickedElement {
   id_stable?: boolean;
   /** Rol del elemento marcado por el QA como comprobación (K0.11c). */
   as?: 'opener' | 'target' | 'assertion';
+  /**
+   * K0.20 (A+B) — locator escrito/corregido a mano por el QA en el panel, que
+   * SUSTITUYE al que calcularía la escalera. La página es la fuente de la verdad:
+   * cuando el plan/DF está desactualizado o la escalera no acierta, el QA teclea el
+   * locator correcto y se valida en vivo contra el DOM antes de aceptarlo. Autoritativo.
+   */
+  manual_locator?: string;
 }
 
 /**
@@ -422,7 +429,7 @@ export interface PickedElement {
  */
 export interface LocatorCandidate {
   source: string;
-  tier: 'semantic' | 'scoped' | 'anchored' | 'indexed' | 'css';
+  tier: 'semantic' | 'scoped' | 'anchored' | 'indexed' | 'css' | 'manual';
   fragile: boolean;
   why?: string;
 }

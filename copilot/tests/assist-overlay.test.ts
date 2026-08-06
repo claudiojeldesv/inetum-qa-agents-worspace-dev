@@ -35,6 +35,7 @@ let page: Page;
 interface Harness {
   sent: AssistSubmission[];
   checked: PickedElement[];
+  resolved: string[];
 }
 
 /**
@@ -44,13 +45,20 @@ interface Harness {
  * que el panel lo consulta por cada elemento capturado.
  */
 async function openWithOverlay(): Promise<Harness> {
-  const h: Harness = { sent: [], checked: [] };
+  const h: Harness = { sent: [], checked: [], resolved: [] };
   await page.exposeFunction('__qaAssistSubmit', (p: AssistSubmission) => {
     h.sent.push(p);
   });
   await page.exposeFunction('__qaAssistCheck', (el: PickedElement) => {
     h.checked.push(el);
     return { ok: true, tier: 'semantic', fragile: false, label: 'semantic', why: '', source: 'stub' };
+  });
+  // K0.20-A: tercer puente — valida en vivo un locator tecleado a mano. El stub
+  // acepta cualquier locator no vacío como único (el test comprueba el flujo, no la
+  // resolución real, que ya cubre spinner-sync/anchored contra DOM vivo).
+  await page.exposeFunction('__qaAssistResolve', (src: string) => {
+    h.resolved.push(src);
+    return { ok: !!src && src.trim().length > 0, count: 1, unique: true };
   });
   await page.goto(FIXTURE);
   await page.evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, STEP, 'click sobre "Simulación/Declaración Rescates"'));
@@ -132,13 +140,75 @@ describe('overlay asistido (navegador real, fixture menú hover)', () => {
     await page.close();
   }, 120_000);
 
+  it('K0.20-A: el QA edita el locator a mano, se valida en vivo y viaja como manual_locator', async () => {
+    page = await browser.newPage();
+    const { sent, resolved } = await openWithOverlay();
+    const cmd = (detail: unknown) =>
+      page.evaluate((d) => {
+        document.querySelector('[data-qa-assist-host]')?.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: d }));
+      }, detail);
+
+    await cmd('record');
+    await page.hover('#gestion');
+    await page.waitForTimeout(600);
+    await page.click('#simulacion');
+
+    // el QA no se fía del locator calculado y teclea el suyo (la página es la verdad)
+    await cmd({ edit: { row: 0, locator: "getByRole('link', { name: 'GESTIÓN' })" } });
+    await page.waitForTimeout(100);
+    // se validó en vivo contra el DOM antes de aceptar
+    expect(resolved).toContain("getByRole('link', { name: 'GESTIÓN' })");
+
+    await cmd('stop');
+    await page.waitForTimeout(200);
+    expect(sent).toHaveLength(1);
+    // el override llega a Node en la fila editada, y NO en las demás
+    expect(sent[0].sequence[0].manual_locator).toBe("getByRole('link', { name: 'GESTIÓN' })");
+    expect(sent[0].sequence.slice(1).every((e) => !e.manual_locator)).toBe(true);
+
+    await page.evaluate(() =>
+      (window as unknown as { __qaAssistResult: (m: string, o: boolean) => void }).__qaAssistResult('ok', true),
+    );
+    await page.close();
+  }, 120_000);
+
+  it('K0.20-B: re-capturar una fila la sustituye en su sitio, sin añadir otra', async () => {
+    page = await browser.newPage();
+    const { sent } = await openWithOverlay();
+    const cmd = (detail: unknown) =>
+      page.evaluate((d) => {
+        document.querySelector('[data-qa-assist-host]')?.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: d }));
+      }, detail);
+
+    await cmd('record');
+    await page.hover('#gestion');
+    await page.waitForTimeout(600);
+    await page.click('#simulacion');
+
+    // re-capturar la fila 0: el siguiente señalamiento la reemplaza, no añade
+    await cmd({ recapture: 0 });
+    await page.click('#simulacion');
+    await page.waitForTimeout(100);
+
+    await cmd('stop');
+    await page.waitForTimeout(200);
+    // dos capturas (hover GESTIÓN + click) + una re-captura → siguen siendo 2 filas,
+    // no 3: la re-captura sustituyó en su sitio
+    expect(sent[0].sequence).toHaveLength(2);
+
+    await page.evaluate(() =>
+      (window as unknown as { __qaAssistResult: (m: string, o: boolean) => void }).__qaAssistResult('ok', true),
+    );
+    await page.close();
+  }, 120_000);
+
   /**
    * K0.14 — capturar el locator de un paso que muta negocio no puede costar una
    * operación real. El panel avisa y ofrece la salida; el envío la propaga.
    */
   it('un paso que muta negocio avisa y ofrece capturar sin ejecutar', async () => {
     page = await browser.newPage();
-    const h: Harness = { sent: [], checked: [] };
+    const h: Harness = { sent: [], checked: [], resolved: [] };
     await page.exposeFunction('__qaAssistSubmit', (p: AssistSubmission) => {
       h.sent.push(p);
     });
@@ -150,6 +220,7 @@ describe('overlay asistido (navegador real, fixture menú hover)', () => {
       why: '',
       source: 'stub',
     }));
+    await page.exposeFunction('__qaAssistResolve', (src: string) => ({ ok: !!src, count: 1, unique: true }));
     await page.goto(FIXTURE);
     // mutating = true: es lo que el walker pasa cuando isRetrySafe(step) es false
     await page.evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, STEP, 'click sobre "Finalizar"', true));

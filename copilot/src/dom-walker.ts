@@ -422,6 +422,22 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
     const nodes = [];     // el elemento real, para resaltar desde la lista
     let hoverTimer = null, hoverEl = null;
     let hl = null;        // caja de resaltado
+    let repick = null;    // K0.20-B: índice de la fila que se está re-capturando
+    let editing = -1;     // K0.20-A: índice de la fila cuyo locator se edita a mano
+
+    // K0.20-A: aplica un locator tecleado por el QA, validándolo en vivo contra el DOM
+    const applyManual = async (i, value) => {
+      let res;
+      try { res = await window.__qaAssistResolve(value); } catch (e) { res = { ok: false, count: 0 }; }
+      if (res && res.ok) {
+        seq[i].manual_locator = value;
+        seq[i]._q = { ok: true, tier: 'manual', fragile: false, label: 'manual', source: value };
+        delete seq[i]._editErr;
+        editing = -1; render(); return true;
+      }
+      seq[i]._editErr = 'ese locator no resuelve único (' + ((res && res.count) || 0) + ' coincidencias)';
+      render(); return false;
+    };
 
     const sameAsLast = (f) => {
       const p = seq[seq.length - 1];
@@ -436,18 +452,48 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
         const li = document.createElement('li');
         if (s.as === 'target') li.className = 'tgt';
         if (s.as === 'assertion') li.className = 'asr';
+        const mk = (txt, title, fn) => { const b = document.createElement('button'); b.textContent = txt; b.title = title; b.onclick = fn; return b; };
+
+        // K0.20-A: fila en modo edición → input para teclear el locator a mano
+        if (editing === i) {
+          const inp = document.createElement('input');
+          inp.value = s.manual_locator || (s._q && s._q.source) || '';
+          inp.style.cssText = 'flex:1;min-width:0;font:11px monospace;padding:2px 4px';
+          inp.setAttribute('spellcheck', 'false');
+          inp.onkeydown = (e) => { if (e.key === 'Enter') applyManual(i, inp.value); if (e.key === 'Escape') { editing = -1; render(); } };
+          li.appendChild(inp);
+          li.appendChild(mk('✔', 'validar y aceptar', () => applyManual(i, inp.value)));
+          li.appendChild(mk('⨯', 'cancelar edición', () => { editing = -1; render(); }));
+          if (s._editErr) { const e = document.createElement('span'); e.className = 'q bad'; e.textContent = s._editErr; li.appendChild(e); }
+          list.appendChild(li);
+          setTimeout(() => inp.focus(), 0);
+          return;
+        }
+
         const q = s._q || {};
         const cls = !q.ok ? 'q bad' : q.fragile ? 'q warn' : 'q';
+        const loc = s.manual_locator || (q.source || '');
         li.innerHTML = '<span class="via">' + s.via + '</span>'
           + '<span class="nm">' + (s.name || s.test_id || s.role) + '</span>'
           + '<span class="' + cls + '" title="' + (q.why || '') + '">' + (q.label || '?') + '</span>';
-        const mk = (txt, title, fn) => { const b = document.createElement('button'); b.textContent = txt; b.title = title; b.onclick = fn; return b; };
+        // K0.20-A: la CADENA del locator visible (antes solo se veía el badge)
+        if (loc) {
+          const lc = document.createElement('span');
+          lc.style.cssText = 'flex-basis:100%;font:10px monospace;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+          lc.textContent = (s.manual_locator ? '✎ ' : '') + loc;
+          lc.title = loc;
+          li.appendChild(lc);
+        }
         li.appendChild(mk('◎', 'marcar como objetivo del paso', () => {
           seq.forEach((x) => { if (x.as === 'target') delete x.as; });
           s.as = 'target'; render();
         }));
         li.appendChild(mk('✓', 'marcar como comprobación (expect_text)', () => {
           s.as = s.as === 'assertion' ? undefined : 'assertion'; render();
+        }));
+        li.appendChild(mk('✎', 'editar el locator a mano', () => { editing = i; render(); }));
+        li.appendChild(mk('⟳', 're-capturar: señala otra vez este elemento', () => {
+          repick = i; recording = true; setStatus('recapturando fila ' + (i + 1) + ': señala el elemento');
         }));
         li.appendChild(mk('×', 'quitar de la secuencia', () => { seq.splice(i, 1); nodes.splice(i, 1); render(); }));
         // resaltado del elemento real al pasar por la fila
@@ -477,12 +523,23 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
       const f = fieldsWithContext(el);
       if (!f.role || f.role === 'generic') return;
       f.via = via;
-      if (via === 'hover' && sameAsLast(f)) return;
-      seq.push(f); nodes.push(el);
+      // K0.20-B: re-captura — sustituye la fila en curso en vez de añadir, y
+      // conserva su marca (objetivo/comprobación). Un hover repetido igual al
+      // anterior se ignora, salvo que estemos re-capturando esa fila.
+      if (repick === null && via === 'hover' && sameAsLast(f)) return;
+      if (repick !== null) {
+        const old = seq[repick];
+        if (old && old.as) f.as = old.as;
+        seq[repick] = f; nodes[repick] = el;
+        setStatus('fila ' + (repick + 1) + ' recapturada');
+        repick = null;
+      } else {
+        seq.push(f); nodes.push(el);
+      }
       render();
       // calidad del locator EN VIVO: el walker responde tier + fragilidad
       try {
-        const { via: _v, as: _a, _q: _o, ...clean } = f;
+        const { via: _v, as: _a, _q: _o, manual_locator: _m, ...clean } = f;
         f._q = await window.__qaAssistCheck({ ...clean, role: f.role });
       } catch { f._q = { ok: false, label: 'sin verificar', fragile: true }; }
       render();
@@ -514,7 +571,8 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
         ? 'Capturando el locator sin ejecutar la acción. El flujo se detendrá aquí.'
         : 'Verificando el camino grabado por replay en un contexto limpio...';
       const targetIndex = seq.findIndex((s) => s.as === 'target');
-      const clean = seq.map(({ _q, ...rest }) => rest);
+      // se limpian los campos internos del panel (_q, _editErr); manual_locator viaja
+      const clean = seq.map(({ _q, _editErr, ...rest }) => rest);
       window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: clean, target_index: targetIndex, reason, execute });
     };
     const startRec = () => {
@@ -566,6 +624,9 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
       }
       else if (cmd && cmd.remove !== undefined) { seq.splice(cmd.remove, 1); nodes.splice(cmd.remove, 1); render(); }
       else if (cmd && cmd.assert !== undefined) { if (seq[cmd.assert]) seq[cmd.assert].as = 'assertion'; render(); }
+      // K0.20: editar el locator de una fila a mano (validado en vivo) y re-capturar
+      else if (cmd && cmd.edit !== undefined) { if (seq[cmd.edit.row]) applyManual(cmd.edit.row, cmd.edit.locator); }
+      else if (cmd && cmd.recapture !== undefined) { repick = cmd.recapture; recording = true; render(); }
     });
 
     // arrastre del panel por la cabecera
@@ -1694,6 +1755,19 @@ class DomWalker {
         source: candidate.source,
       };
     });
+    /**
+     * Tercer puente (K0.20 A) — el QA teclea un locator a mano en el panel y el
+     * walker lo valida EN VIVO contra el DOM antes de aceptarlo: cuántos elementos
+     * resuelve. La página es la fuente de la verdad, pero no se acepta un locator a
+     * ciegas — se comprueba que resuelve único aquí mismo.
+     */
+    await this.page.exposeFunction('__qaAssistResolve', async (src: string) => {
+      const loc = this.locatorFromChain(this.page, src);
+      if (!loc) return { ok: false, count: 0, reason: 'gramática de locator no reconocida' };
+      const count = await loc.count().catch(() => 0);
+      const unique = await this.uniqueOrNull(loc).catch(() => null);
+      return { ok: unique !== null, count, unique: unique !== null };
+    });
     this.assistBridgeReady = true;
   }
 
@@ -1705,6 +1779,23 @@ class DomWalker {
   private async locatorForPicked(
     el: PickedElement,
   ): Promise<{ locator: Locator; candidate: LocatorCandidate } | null> {
+    /**
+     * K0.20 (A) — si el QA tecleó un locator a mano, es AUTORITATIVO: se usa ese y
+     * solo ese. Si no resuelve único, se devuelve null (el badge lo dirá en rojo y
+     * el QA lo corrige) — no se cae de vuelta a la escalera a escondidas, porque el
+     * QA eligió explícitamente y merece saber si su elección resuelve o no.
+     */
+    if (el.manual_locator) {
+      const loc = this.locatorFromChain(this.page, el.manual_locator);
+      const unique = loc ? await this.uniqueOrNull(loc).catch(() => null) : null;
+      if (unique) {
+        return {
+          locator: unique,
+          candidate: { source: el.manual_locator, tier: 'manual', fragile: false, why: 'introducido por el QA' },
+        };
+      }
+      return null;
+    }
     for (const candidate of buildFallbackCandidates(el, this.priority)) {
       const loc = this.locatorFromChain(this.page, candidate.source);
       if (!loc) continue;

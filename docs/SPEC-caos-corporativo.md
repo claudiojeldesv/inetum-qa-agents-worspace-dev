@@ -345,3 +345,43 @@ para fijar la hint del botón (su nombre accesible ES el `value`).
 No construido, siguiente rung probable del mismo loop: soporte `getByPlaceholder` en la
 escalera (hoy el contract lo declara y `PRIORITY_TO_KIND` lo ignora) — para la clase
 "solo placeholder" de Material/React, cuando aparezca un target que la ejercite.
+
+## 11. K0.20 (A+B) — el panel deja ver, editar y re-capturar el locator
+
+Feedback de campo del QA: el panel resuelve el paso atascado y dice por qué no se
+encontró, pero no dejaba **corregir**. Rationale de fondo, y es la tesis de
+reconciliación: *la página es la fuente de la verdad; los planes y DF quedan
+desactualizados.* El panel debe dejar afinar contra la realidad.
+
+La trampa nombrada y evitada: "capturar todo a mano" es codegen. Lo que lo diferencia
+—y la línea que no se cruza— sigue siendo: (1) el walker intenta primero, solo lo que no
+resuelve cae a la mano; (2) captura al guion **estructurado** (roles/labels/aliases),
+no a selectores crudos; (3) **aprobación, no aplicación ciega** — el `assist-patch.json`
+nunca se aplica solo; (4) la salida final debe ser el informe de reconciliación (esto
+es D/R1, decisión aparte, no en A+B).
+
+Alcance elegido por el QA: **A+B** (no el pivote a grabador completo).
+
+- **A — ver y editar el locator.** El panel muestra ahora la CADENA del locator en cada
+  fila (antes solo el badge de calidad). Botón ✎: el QA teclea un locator y se **valida
+  en vivo** contra el DOM (tercer puente `__qaAssistResolve`: cuenta coincidencias, exige
+  único) antes de aceptarlo. Aceptado → `manual_locator` en el elemento, tier `manual`,
+  AUTORITATIVO: `locatorForPicked` lo usa y solo ese (si no resuelve único, badge en rojo
+  y el QA lo corrige — no se cae a la escalera a escondidas, porque el QA eligió).
+- **B — re-capturar una fila.** Botón ⟳: el siguiente señalamiento **sustituye** esa fila
+  en su sitio (conservando su marca objetivo/comprobación), en vez de añadir otra. Antes
+  solo se podía quitar (×) y volver a empezar.
+
+`manual_locator` viaja en el envío (`AssistSubmission.sequence`) y de ahí al parche, así
+que un locator corregido a mano se funde en el guion como cualquier otro paso — con la
+misma revisión humana. Conducible por el canal `qa-assist-cmd` (`{edit:{row,locator}}`,
+`{recapture:row}`), que es como lo prueban los tests contra el shadow-root cerrado.
+
+Par de tests (fixture menú hover, DOM vivo): editar vía cmd valida en vivo y el
+`manual_locator` llega a Node solo en la fila editada; re-capturar sustituye en su sitio
+(2 filas, no 3). 20/20 en `assist-overlay.test.ts`.
+
+No construido, y consciente: **C** (añadir un paso que el plan no tenía → inserción en el
+patch + aprobación) y **D/R1** (grabador de caso completo con la página como fuente de
+verdad, construido como reconciliación). Ambos son decisión deliberada aparte, con su
+propia spec — no se cuelan por la puerta de atrás en A+B.
