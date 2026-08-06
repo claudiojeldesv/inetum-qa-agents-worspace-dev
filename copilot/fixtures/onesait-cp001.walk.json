@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "site_id": "onesait",
+  "entry": "/npa-escritorio",
+  "base_url": "https://spv.pre.mapfre.net",
+  "settle": { "quiet_ms": 400 },
+  "flows": [
+    {
+      "flow": "rescate-total-cp001",
+      "criteria": ["CP001"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Usuario" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Contraseña" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Acceder" }, "expect_transition": true, "screen": "inicio" },
+
+        { "id": "s4", "action": "hover", "hint": { "text": "GESTIÓN" } },
+        { "id": "s5", "action": "hover", "hint": { "text": "Rescates/Reinversión" } },
+        { "id": "s6", "action": "click", "hint": { "text": "Simulación/Declaración Rescates" }, "retry_safe": true, "expect_after": "Número Póliza", "screen": "simulacion-rescates" },
+
+        { "id": "s7", "action": "fill", "hint": { "label": "Número Póliza" }, "value": "$fixtures.polizas[0].numero" },
+        { "id": "s8", "action": "press", "value": "Tab" },
+        { "id": "s9", "action": "expect_text", "value": "Tomador" },
+        { "id": "s10", "action": "capture", "screen": "simulacion-con-datos" },
+
+        { "id": "s11", "action": "select", "hint": { "label": "Tipo Prestación" }, "value": "Rescate Total" },
+        { "id": "s12", "action": "click", "hint": { "role": "button", "name": "Siguiente" }, "retry_safe": true, "expect_after": "Le informamos que es posible reinvertir el importe de la prestación en caso de que lo necesite", "screen": "datos-tipo-prestacion" },
+
+        { "id": "s13", "action": "click", "hint": { "role": "button", "name": "Finalizar" }, "expect_after": "Finalizar Declaración" },
+        { "id": "s14", "action": "click", "scope": { "role": "dialog", "name": "Finalizar Declaración" }, "hint": { "text": "Oficina" } },
+        { "id": "s15", "action": "click", "scope": { "role": "dialog", "name": "Finalizar Declaración" }, "hint": { "role": "button", "name": "Aceptar" } },
+        { "id": "s16", "action": "click", "scope": { "role": "dialog" }, "hint": { "role": "button", "name": "Sí" }, "expect_after": "Documento de Liquidación" },
+
+        { "id": "s17", "action": "click", "scope": { "role": "dialog", "name": "Documento de Liquidación" }, "hint": { "role": "button", "name": "X" }, "expect_after": "Gestionar Documentación y Firma" },
+        { "id": "s18", "action": "click", "scope": { "role": "dialog", "name": "Gestionar Documentación y Firma" }, "hint": { "role": "button", "name": "X" } },
+        { "id": "s19", "action": "capture", "screen": "tras-finalizar" },
+
+        { "id": "s20", "action": "hover", "hint": { "text": "CONSULTA E INFORMES" } },
+        { "id": "s21", "action": "hover", "hint": { "text": "PRESTACIONES CONSULTAS" } },
+        { "id": "s22", "action": "click", "hint": { "text": "Consulta Declaraciones" }, "retry_safe": true, "expect_after": "Consulta Declaraciones", "screen": "consulta-declaraciones" },
+
+        { "id": "s23", "action": "fill", "hint": { "label": "Número Póliza" }, "value": "$fixtures.polizas[0].numero" },
+        { "id": "s24", "action": "select", "hint": { "label": "Estado Declaración" }, "value": "En elaboración" },
+        { "id": "s25", "action": "click", "hint": { "role": "button", "name": "Buscar" } },
+        { "id": "s26", "action": "expect_count", "hint": { "role": "row" }, "operator": ">", "value": "0" },
+        { "id": "s27", "action": "capture", "screen": "consulta-resultados" },
+
+        { "id": "s28", "action": "click", "hint": { "role": "button", "name": "Rehusar Declaración" }, "expect_after": "Motivo Rechazo" },
+        { "id": "s29", "action": "select", "scope": { "role": "dialog" }, "hint": { "label": "Motivo Rechazo" }, "value": "Rehuse del cliente" },
+        { "id": "s30", "action": "click", "scope": { "role": "dialog" }, "hint": { "role": "button", "name": "Aceptar" }, "expect_after": "Rehusada" },
+        { "id": "s31", "action": "capture", "screen": "declaracion-rehusada" }
+      ]
+    }
+  ]
+}
