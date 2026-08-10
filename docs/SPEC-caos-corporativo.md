@@ -385,3 +385,31 @@ No construido, y consciente: **C** (añadir un paso que el plan no tenía → in
 patch + aprobación) y **D/R1** (grabador de caso completo con la página como fuente de
 verdad, construido como reconciliación). Ambos son decisión deliberada aparte, con su
 propia spec — no se cuelan por la puerta de atrás en A+B.
+
+## 12. K0.21 — el tier anclado, corregido contra el DOM real (mi fixture era infiel)
+
+Primer run del CP001 contra onesait con el tier anclado de K0.19: **s1/s2 (usuario,
+clave) NO resolvieron** ("hint irresoluble"). El probe del `outerHTML` dio la causa —y me
+delató—: onesait no usa tabla, usa `<form><div><h5>Usuario</h5><input title="username"
+...></div>`. Mi fixture de K0.19 (`login-sin-label.html`) era una `<table><tr><td>`, y el
+tier anclado trepaba a `role="row"`/`listitem`/`group`. Un `<div>` pelado no tiene rol →
+el anclaje no encontraba contenedor. **Fixture infiel: validé contra una estructura que
+no era la real** — justo el sesgo que el QA advirtió.
+
+Además, los campos tienen `title="username"`/`"password"`, que SÍ es nombre accesible:
+por eso el guion viejo con `name:'username'` funcionaba. Pero el FD dice "Usuario" (el
+`<h5>` visible), y el salto FD↔title es lo que hay que puentear por la etiqueta visible.
+
+Corrección (K0.21): el tier anclado **deja de depender de roles ARIA de contenedor**.
+Desde el elemento de texto más interno que coincide (`.last()` en orden de documento),
+coge el primer control que SIGUE a la etiqueta (`following::input|select|textarea`) —el
+patrón label-antes-de-control, universal, cubre div-hermano y celda-hermana igual— con
+fallback al control único del ancestro común. Control-agnóstico; `uniqueOrNull` se planta
+ante ≥2. Fixture reescrito **fiel al DOM real** (div>h5+input, con `title`); el test
+documenta la sutileza: `getByRole({name:'username'})` SÍ resuelve (por el title) pero
+`{name:'Usuario'}`/`getByLabel('Usuario')` dan 0 — el tier anclado puentea desde la
+etiqueta visible del plan. Botón del CP001 corregido a `value="Login"` (no "Acceder").
+
+Lección de método, cruda: un fixture que no reproduce fielmente la estructura del target
+da un verde que miente. El loop de campo lo cazó — por eso onesait es la fuente de
+descubrimiento y el fixture solo la red de regresión, nunca al revés.

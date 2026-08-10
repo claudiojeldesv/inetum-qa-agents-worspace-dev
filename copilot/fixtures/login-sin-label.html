@@ -2,27 +2,25 @@
 <html lang="es">
 <head><meta charset="utf-8"><title>Login sin label asociado</title></head>
 <!--
-  La CLASE, genérica: formulario de tabla donde la etiqueta visible vive en una
-  celda hermana y NO está asociada al input (sin `for=`, sin aria-label, sin
-  placeholder). Es el patrón label-en-celda de JSF/JSP/legacy — medio mundo
-  corporativo. Para el navegador y para un lector de pantalla, estos campos NO
-  tienen nombre accesible: getByLabel/getByRole({name}) devuelven 0. La única seña
-  que coincide con el vocabulario del plan ("Usuario") es el texto visible vecino.
+  La CLASE, reproducida FIEL a onesait (login.do real): la etiqueta visible es un
+  <h5> HERMANO del input dentro de un <div> pelado (sin role), NO una tabla. El input
+  tiene title="username" (que SÍ es nombre accesible) pero la etiqueta visible que
+  coincide con el vocabulario del plan es "Usuario" (el h5). getByLabel/getByRole por
+  "Usuario" devuelven 0; el texto visible vecino es la única seña que casa con el FD.
 
-  No imita onesait: reproduce la clase. Los ids username/password son comunes; el
-  botón lleva su rótulo en `value`, como cualquier <input type=submit>.
+  Estructura tomada del DOM real (form j_security_check, inputs j_username/j_password,
+  submit value=Login). No imita a onesait en identificadores: reproduce la disposición.
 -->
 <body>
   <h1>Acceso</h1>
-  <table>
-    <tr><td>Usuario</td><td><input id="username" type="text"></td></tr>
-    <tr><td>Contraseña</td><td><input id="password" type="password"></td></tr>
-  </table>
-  <input type="submit" value="Acceder" id="entrar">
+  <form id="login" onsubmit="return false">
+    <div><h5>Usuario</h5><input name="j_username" title="username" id="username" type="text"></div>
+    <div><h5>Contraseña</h5><input name="j_password" title="password" id="password" type="password"></div>
+    <div class="submit"><input type="submit" value="Login" class="btnLoginEntrar"></div>
+  </form>
   <div id="salida"></div>
   <script>
-    document.getElementById('entrar').addEventListener('click', (e) => {
-      e.preventDefault();
+    document.querySelector('.btnLoginEntrar').addEventListener('click', () => {
       const u = document.getElementById('username').value;
       const p = document.getElementById('password').value;
       if (u && p) document.getElementById('salida').innerHTML = '<div role="status">Sesión iniciada</div>';

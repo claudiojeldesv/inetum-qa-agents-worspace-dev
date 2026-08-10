@@ -1503,20 +1503,35 @@ class DomWalker {
   ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
     const label = hint.label ?? hint.text ?? hint.name;
     if (!label) return null;
+    // K0.21 — NO depende de roles ARIA de contenedor. Medido contra el login real de
+    // onesait: la etiqueta es un <h5> hermano del input dentro de un <div> pelado
+    // (sin role), no una fila de tabla. Se parte del elemento de texto MÁS INTERNO
+    // que coincide (.last() en orden de documento) y se coge:
+    //   (a) el primer control que SIGUE a la etiqueta (label-antes-de-control: el
+    //       patrón universal, cubre div-hermano y celda-hermana por igual), o
+    //   (b) el control único DENTRO del ancestro común (por si va antes o al lado).
+    // Control-agnóstico (la contraseña, sin rol textbox, resuelve igual). uniqueOrNull
+    // se planta ante ≥2: no adivina.
     const CONTROL = 'input:not([type="hidden"]), select, textarea, [role="textbox"], [role="combobox"], [contenteditable="true"]';
-    const needles: Array<string | RegExp> = [label, new RegExp(accentInsensitivePattern(label), 'i')];
-    for (const containerRole of ['row', 'listitem', 'group'] as const) {
-      for (const needle of needles) {
+    const FOLLOWING = 'xpath=following::*[self::input or self::select or self::textarea][1]';
+    const ANCESTOR = 'xpath=ancestor::*[.//input or .//select or .//textarea][1]';
+    const needles: Array<string | RegExp> = [
+      label, // se prueba primero exacto, luego substring (ver mk)
+      new RegExp(accentInsensitivePattern(label), 'i'),
+    ];
+    const mk = (scope: Page | Frame | Locator, needle: string | RegExp, exact: boolean): Locator =>
+      typeof needle === 'string' ? scope.getByText(needle, { exact }) : scope.getByText(needle);
+    for (const needle of needles) {
+      const exacts = typeof needle === 'string' ? [true, false] : [false];
+      for (const exact of exacts) {
         for (const { scope, path, via } of containers) {
-          const box = scope.getByRole(containerRole).filter({ hasText: needle });
-          // el control: si el hint trae rol lo intenta; si no (o falla), agnóstico
-          const candidates: Locator[] = [];
-          if (hint.role) candidates.push(box.getByRole(hint.role as Parameters<Page['getByRole']>[0]));
-          candidates.push(box.locator(CONTROL));
-          for (const cand of candidates) {
-            const unique = await this.uniqueOrNull(cand);
+          const lbl = mk(scope, needle, exact).last();
+          if ((await lbl.count().catch(() => 0)) === 0) continue;
+          for (const rel of [FOLLOWING, ANCESTOR]) {
+            const cand = rel === ANCESTOR ? lbl.locator(rel).locator(CONTROL) : lbl.locator(rel);
+            const unique = await this.uniqueOrNull(cand).catch(() => null);
             if (unique) {
-              const src = `${via ? via + ' >> ' : ''}anchored(${containerRole}:'${label}')`;
+              const src = `${via ? via + ' >> ' : ''}anchored(label:'${label}')`;
               return { locator: unique, via: src, frame_path: path };
             }
           }

@@ -44,10 +44,14 @@ describe('K0.19 — tier anclado por etiqueta visible vecina', () => {
     const page = await browser.newPage();
     try {
       await page.goto(`${FIX}/login-sin-label.html`);
-      // el par falsable: la vía semántica devuelve 0 — la app rompe el contrato a11y
+      // el par falsable: por la etiqueta visible del FD ("Usuario") la vía semántica
+      // devuelve 0 — no hay asociación label-for, y el title es "username", no "Usuario"
       expect(await page.getByLabel('Usuario').count()).toBe(0);
       expect(await page.getByRole('textbox', { name: 'Usuario' }).count()).toBe(0);
-      // pero el texto visible SÍ está, en una celda hermana
+      // el campo SÍ tiene nombre accesible, pero es el title ("username", inglés) — no
+      // el vocabulario del plan. Ese es justo el salto que el tier anclado puentea.
+      expect(await page.getByRole('textbox', { name: 'username' }).count()).toBe(1);
+      // y el texto visible que coincide con el FD está, como <h5> hermano del input
       expect(await page.getByText('Usuario').count()).toBeGreaterThan(0);
     } finally {
       await browser.close();
@@ -58,7 +62,7 @@ describe('K0.19 — tier anclado por etiqueta visible vecina', () => {
     const map = await walk([
       { id: 's1', action: 'fill', hint: { label: 'Usuario' }, value: 'usuario-demo' },
       { id: 's2', action: 'fill', hint: { label: 'Contraseña' }, value: 'clave-demo', secret: true },
-      { id: 's3', action: 'click', hint: { role: 'button', name: 'Acceder' }, expect_after: 'Sesión iniciada' },
+      { id: 's3', action: 'click', hint: { role: 'button', name: 'Login' }, expect_after: 'Sesión iniciada' },
     ]);
     // los tres pasos verdes: usuario y clave por el tier anclado, botón por su value
     expect(report(map, 's1')!.outcome).toBe('ok');
