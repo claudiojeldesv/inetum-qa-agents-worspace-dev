@@ -2864,6 +2864,69 @@ class DomWalker {
             continue;
           }
 
+          /**
+           * K0.22 — el QA tiene la última decisión. Si el paso RESOLVIÓ y se ejecutó
+           * pero la postcondición no apareció, con --assist se abre el panel ANTES de
+           * darlo por bloqueado (antes esto se marcaba como hallazgo sin ofrecer
+           * ayuda — el caso del menú de onesait: el click resolvió pero no navegó).
+           *
+           * Salvaguarda innegociable: la corrección del QA solo se RE-EJECUTA si es
+           * seguro — la acción no surtió efecto (huella intacta) o es reintentable.
+           * Una acción que ya mutó negocio (huella cambiada + no reintentable) NO se
+           * re-dispara: el panel se abre igual, la corrección se captura al parche
+           * para el próximo run, pero no se ejecuta ahora. Nunca dos "Finalizar".
+           */
+          if (this.opts.assist) {
+            /**
+             * Guarda conservadora: solo re-ejecuto lo DECLARADO seguro (isRetrySafe:
+             * navegación/idempotente). NO uso "huella intacta" para permitir
+             * re-ejecutar un paso de negocio, porque huella-intacta puede ser un falso
+             * negativo (la acción mutó el backend sin cambiar la UI) y re-disparar un
+             * "Finalizar" crearía una segunda declaración. Un paso que solo navega se
+             * declara retry_safe: true en el guion — y entonces sí se re-ejecuta.
+             */
+            const canReexec = safe;
+            const nota = unchanged
+              ? `el paso resolvió y se ejecutó pero '${wanted}' no apareció y la pantalla NO cambió — probablemente el camino o el elemento no eran los correctos; enséñame el bueno, o marca drift`
+              : `el paso resolvió y se ejecutó, la pantalla cambió pero '${wanted}' no apareció — posible drift del plan`;
+            const aviso = canReexec
+              ? ''
+              : ' — AVISO: este paso ya modificó estado de negocio; capturo tu corrección para el próximo run pero NO la re-ejecuto ahora';
+            const assisted = await this.assistResolve(flow, step, nota + aviso);
+            if (assisted && canReexec) {
+              try {
+                await runAction(assisted.locator);
+              } catch {
+                /* la corrección tampoco pudo ejecutarse: cae al bloqueo de abajo */
+              }
+              obs = await this.waitForSettle(settle);
+              const f2 = await this.findVisibleText(wanted, ORACLE_TIMEOUT_MS);
+              if (f2) {
+                this.recordBusinessText(wanted, f2.via, f2.frame_path);
+                resolved = assisted;
+                retried = true;
+                retryReason = 'corregido por el QA en el panel asistido (la página es la fuente de la verdad)';
+                outcome = 'ok_after_retry';
+                if (step.expect_transition) {
+                  this.state.current_screen = null;
+                  await this.captureScreen(flow, step);
+                  this.recordTransition(flow, step, assisted.via, from);
+                }
+                break;
+              }
+              // corregido pero aún no aparece: sigue al bloqueo de abajo
+            } else if (assisted && !canReexec) {
+              this.audit('skip', `corrección del QA capturada sin re-ejecutar (acción mutante ya disparada) ${stepKey}`, {
+                phase: 'assist-postcondition',
+              });
+            } else {
+              // assisted === null: el QA marcó drift/block o hubo timeout; assistResolve
+              // ya anotó el open_question. Reportamos y salimos sin re-bloquear.
+              this.pushReport(flow, step, { outcome: 'postcondition_unmet', action_ms: Date.now() - startedAt, settle: obs, retried });
+              return;
+            }
+          }
+
           outcome = 'postcondition_unmet';
           if (unchanged && !safe) {
             retryRefused =

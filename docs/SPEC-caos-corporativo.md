@@ -413,3 +413,36 @@ etiqueta visible del plan. Botón del CP001 corregido a `value="Login"` (no "Acc
 Lección de método, cruda: un fixture que no reproduce fielmente la estructura del target
 da un verde que miente. El loop de campo lo cazó — por eso onesait es la fuente de
 descubrimiento y el fixture solo la red de regresión, nunca al revés.
+
+## 13. K0.22 — el QA tiene la última decisión: el panel salta también en postcondición fallida
+
+Tras K0.21 el login resolvió solo (5/31 → 11/31). El nuevo bloqueo fue el menú de 3
+niveles: `s6` salió `postcondition_unmet` — resolvió y clicó, pero no navegó a "Número
+Póliza". Con `--assist` el panel **no** saltaba ahí: hasta ahora la asistencia solo se
+disparaba en fallo de resolución o `action_failed` (excepción), no cuando un paso
+"funcionaba mecánicamente" pero no surtía efecto.
+
+Decisión del QA: *el modal debe saltar siempre que un paso no logre lo esperado; el QA
+tiene la última palabra.* Implementado: `postcondition_unmet` en un paso de acción abre
+el panel con `--assist`, con nota explicativa ("resolvió y se ejecutó pero '<texto>' no
+apareció — ¿camino equivocado? enséñame, o marca drift"). Es la reconciliación contra la
+página: cuando el plan está desactualizado, el QA corrige contra lo que hay.
+
+**Salvaguarda innegociable (endurecida en el ciclo):** la corrección del QA solo se
+RE-EJECUTA si el paso es `isRetrySafe` (navegación/idempotente declarada). Al principio
+puse `canReexec = huella-intacta || safe` y lo corregí a `canReexec = safe`: "huella
+intacta" puede ser falso negativo (la acción mutó el backend sin cambiar la UI), y
+re-disparar un "Finalizar" crearía una segunda declaración. Una acción de negocio ya
+disparada NO se re-ejecuta ni con el panel abierto — su corrección se captura al parche
+para el próximo run. El menú (`s6`, `retry_safe: true`) sí se re-ejecuta en vivo; un
+"Finalizar" sin marcar, no.
+
+Límite honesto: `expect_text`/`expect_state` (aserciones puras) siguen siendo hallazgos de
+drift, no abren el panel — no hay elemento que señalar, el panel captura locators, no
+presencia de texto.
+
+Test de la guarda sin conducir el panel: con `--assist` y timeout corto, un paso de
+negocio con postcondición imposible abre el panel, expira, y el contador del fixture
+queda en `Creados: 1` — la mutación no se re-dispara pese a `--assist`. El flujo
+interactivo completo (señalar el camino y que re-ejecute) lo valida el run de campo; queda
+debido un test que conduzca el panel dentro de un run del walker.

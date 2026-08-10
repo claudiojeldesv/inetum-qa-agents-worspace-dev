@@ -50,7 +50,12 @@ interface RunResult {
   report: (stepId: string) => StepReport | undefined;
 }
 
-async function walk(steps: WalkStep[], settle?: SettleProfile, entry = '/spinner-multi.html'): Promise<RunResult> {
+async function walk(
+  steps: WalkStep[],
+  settle?: SettleProfile,
+  entry = '/spinner-multi.html',
+  assist = false,
+): Promise<RunResult> {
   const workDir = mkdtempSync(resolve(tmpdir(), 'qa-settle-'));
   const script: WalkScript = {
     version: 1,
@@ -67,8 +72,9 @@ async function walk(steps: WalkStep[], settle?: SettleProfile, entry = '/spinner
     rescueBudget: 0,
     screenCap: 60,
     headed: false,
-    assist: false,
-    assistTimeoutMs: 1_000,
+    assist,
+    // corto: sin nadie que conduzca el panel, expira rápido y el paso se bloquea
+    assistTimeoutMs: 2_000,
     assistMinimize: false,
     // fuera de config/: el test no puede tocar la memoria durable del proyecto
     aliasesPath: resolve(workDir, 'aliases.json'),
@@ -485,6 +491,41 @@ describe('capa 3 — la postcondicion como oraculo, con reintento discriminado',
     expect(r.retried).toBe(false);
     expect(r.retry_refused).toContain('duplicar estado de negocio');
     expect(map.open_questions.find((q) => q.step === 's1')!.reason).toContain('no surtió efecto');
+  }, 120_000);
+
+  /**
+   * K0.22 — con --assist, una postcondición fallida abre el panel para que el QA
+   * tenga la última decisión. Pero la GUARDA DE MUTACIÓN es innegociable: una acción
+   * de negocio ya disparada NO se re-ejecuta, ni siquiera con el panel abierto. Aquí
+   * el panel se abre y expira sin nadie que lo conduzca; lo que se prueba es que la
+   * declaración se creó UNA sola vez pese a --assist. No se puede conducir el panel
+   * desde el test sin harness pesado; el flujo interactivo lo valida el run de campo.
+   */
+  it('K0.22: con --assist la guarda de mutacion se mantiene — el panel abre pero la accion mutante no se re-ejecuta', async () => {
+    const { map, report } = await walk(
+      [
+        {
+          id: 's1',
+          action: 'click',
+          hint: { role: 'button', name: 'Crear declaración' },
+          expect_after: 'Declaración firmada', // nunca aparece: la app no lo produce
+          // NO retry_safe: es acción de negocio → canReexec=false aunque el panel abra
+        },
+        { id: 's2', action: 'capture', screen: 'final' },
+      ],
+      undefined,
+      '/spinner-multi.html',
+      true, // --assist ON
+    );
+
+    expect(report('s1')!.outcome).toBe('postcondition_unmet');
+    // el panel se abrió (assist solicitada) y expiró; el motivo del bloqueo lo dice
+    expect(map.open_questions.find((q) => q.step === 's1')!.reason.toLowerCase()).toContain('timeout');
+    // la prueba dura, ahora CON --assist: UNA declaración, no dos
+    const final = map.screens.find((s) => s.name === 'final')!;
+    const contador = (final.business_text ?? []).map((b) => b.name);
+    expect(contador).toContain('Creados: 1');
+    expect(contador).not.toContain('Creados: 2');
   }, 120_000);
 });
 
