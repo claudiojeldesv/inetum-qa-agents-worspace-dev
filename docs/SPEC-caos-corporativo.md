@@ -473,3 +473,33 @@ resuelto, ausente reportado, ambiguo plantado.
 Límite honesto (fuera de scope, sin evidencia todavía): un `<select>` nativo **oculto**
 tras una fachada seguiría dando timeout de accionabilidad con la opción ya resuelta — no lo
 tocamos porque no lo hemos visto; se abordará cuando aparezca con un probe que lo demuestre.
+
+## 15. K0.24 — ventana de pasos (`--from`/`--to`) y pausa entre pasos (`--step-delay`)
+
+Petición de campo: más versatilidad al iterar un guion largo — no ejecutar siempre de
+cabo a rabo, y poder ir con calma. Dos flags aditivos (los tres opcionales, sin campo
+nuevo en el guion):
+
+- `--to=<id>`: corre desde el principio y **para en ese paso**. Es la vía SEGURA de llegar
+  a una pantalla e iterar sin pasar de ella — `--to=s12` en CP001 nunca dispara `s13`
+  Finalizar. El `entry` siempre se ejecuta.
+- `--from=<id>`: salta los pasos previos y arranca ahí, **asumiendo que el estado ya está**
+  en esa pantalla. Límite honesto nombrado con el QA: el navegador nuevo arranca en `entry`
+  y en apps con sesión server-side sin deep-link (onesait) NO aterrizará solo en un paso
+  intermedio — para corporativo, la forma de llegar a una pantalla es `--to` (correr 1→N),
+  no teletransportar. Se descartaron por diseño la pausa-manual-Enter y el replay-saltando-
+  mutaciones (este último, además, es imposible tras un Finalizar server-side).
+- `--step-delay=<ms>`: pausa fija entre pasos, TRAS el settle. Ritmo y observabilidad en
+  `--headed`/demo, NO sincronización — el settle (K0.13) ya sincroniza de verdad.
+
+La ventana se resuelve por flujo antes de navegar a `entry`; un id inexistente falla claro
+en el arranque (no se saltan todos los flujos en silencio). Fixture `step-window.html` +
+`step-window.test.ts` (5 casos: sin ventana, `--to`, `--from`, rango de un paso, `--step-delay`
+no altera qué pasos corren).
+
+Hallazgo colateral (nombrado, no arreglado — fuera de scope): el "resume" existente
+(`walk-session.json` + replay) RE-EJECUTA los pasos completados para reconstruir el estado
+in-page, y NO salta las acciones de negocio ya disparadas → reanudar un flujo con `s13`
+Finalizar completado lo volvería a disparar (segunda declaración). Hoy no muerde porque el
+loop de campo borra `.work/` en cada run, pero roza la invariante de mutación; es otra razón
+por la que `--from` NO se construyó por la vía del replay.

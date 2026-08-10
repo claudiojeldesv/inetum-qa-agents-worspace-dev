@@ -18,7 +18,12 @@
  *     [--base-url=<url>] [--work-dir=<dir>] [--rescue-budget=N] [--testid-attr=data-test] \
  *     [--cap=60] [--headed] [--assist] [--assist-timeout=600] [--no-minimize] \
  *     [--quiet-ms=400] [--settle-timeout=10000] [--max-mutations=2] \
- *     [--busy-selector=<sel> ...] [--timing-profile=<file>] [--no-calibrate]
+ *     [--busy-selector=<sel> ...] [--timing-profile=<file>] [--no-calibrate] \
+ *     [--from=<stepId>] [--to=<stepId>] [--step-delay=<ms>]
+ *
+ *   --from/--to acotan la ventana de pasos ejecutados (entry siempre corre). --to=<id>
+ *   es la vía segura de llegar a una pantalla e iterar sin pasar de ella (p. ej. parar
+ *   antes de "Finalizar"). --step-delay pausa entre pasos, tras el settle.
  *
  * Escalera de resolución: determinístico → normalizador (acentos) → aliases del
  * cliente → ASISTIDO (--assist, $0, capta también la coreografía) → rescate LLM
@@ -133,6 +138,17 @@ interface WalkerOptions {
   timingProfilePath?: string;
   /** Calibrar timeouts con lo observado en runs anteriores. Off con --no-calibrate. */
   calibrate: boolean;
+  /**
+   * Ventana de pasos (K0.24): ejecuta solo el rango [fromStep..toStep] de cada flujo.
+   * `toStep` es la vía SEGURA de llegar a una pantalla e iterar sin pasar de ella
+   * (p. ej. parar antes de "Finalizar"). `fromStep` salta los previos ASUMIENDO que
+   * el estado ya está en esa pantalla (el navegador nuevo arranca en `entry`: en apps
+   * con sesión server-side sin deep-link no aterrizará solo, para eso está `toStep`).
+   */
+  fromStep?: string;
+  toStep?: string;
+  /** Pausa fija entre pasos, TRAS el settle (K0.24). Ritmo/observabilidad, no sync. Default 0. */
+  stepDelayMs?: number;
 }
 
 interface StyleContract {
@@ -3188,6 +3204,21 @@ class DomWalker {
           this.state.open_questions.filter((q) => q.flow === flow.flow).map((q) => q.step),
         );
 
+        // K0.24 — ventana de pasos [fromStep..toStep]. Se resuelve ANTES de navegar a
+        // entry: si el flujo no contiene la ventana, se salta sin gastar navegación.
+        let windowSteps = flow.steps;
+        if (this.opts.fromStep || this.opts.toStep) {
+          const fromIdx = this.opts.fromStep ? flow.steps.findIndex((s) => s.id === this.opts.fromStep) : 0;
+          const toIdx = this.opts.toStep ? flow.steps.findIndex((s) => s.id === this.opts.toStep) : flow.steps.length - 1;
+          if ((this.opts.fromStep && fromIdx === -1) || (this.opts.toStep && toIdx === -1)) continue;
+          if (fromIdx > toIdx) continue;
+          windowSteps = flow.steps.slice(fromIdx, toIdx + 1);
+          console.error(
+            `[dom-walker] ventana de pasos en '${flow.flow}': ${windowSteps[0].id}..${windowSteps[windowSteps.length - 1].id} ` +
+              `(${windowSteps.length} de ${flow.steps.length}; entry siempre se ejecuta)`,
+          );
+        }
+
         // cada flujo parte de entry; en reanudación los pasos ya completados se REPLAYEAN
         // (proceso de navegador nuevo → hay que reconstruir el estado in-page)
         const entryStep: WalkStep = { id: '__entry', action: 'goto', target: this.script.entry };
@@ -3210,7 +3241,7 @@ class DomWalker {
         await this.persist();
 
         this.flowAborted = false;
-        for (const step of flow.steps) {
+        for (const step of windowSteps) {
           if (blocked.has(step.id)) continue;
           try {
             await this.executeStep(flow, step);
@@ -3224,6 +3255,10 @@ class DomWalker {
           if (this.flowAborted) {
             console.error(`[dom-walker] flujo '${flow.flow}' detenido tras ${step.id} (captura sin ejecución)`);
             break;
+          }
+          // K0.24: pausa entre pasos, TRAS el settle (ritmo/observabilidad, no sync).
+          if (this.opts.stepDelayMs && this.opts.stepDelayMs > 0) {
+            await new Promise((r) => setTimeout(r, this.opts.stepDelayMs));
           }
         }
 
@@ -3335,6 +3370,9 @@ async function main(): Promise<void> {
       'busy-selector': { type: 'string', multiple: true },
       'timing-profile': { type: 'string' },
       'no-calibrate': { type: 'boolean', default: false },
+      from: { type: 'string' },
+      to: { type: 'string' },
+      'step-delay': { type: 'string' },
     },
   });
 
@@ -3378,7 +3416,20 @@ async function main(): Promise<void> {
     settleOverride: settleFromCli(values),
     timingProfilePath: values['timing-profile'] ?? process.env.QA_TIMING_PROFILE,
     calibrate: !(values['no-calibrate'] ?? false),
+    fromStep: values.from,
+    toStep: values.to,
+    stepDelayMs: values['step-delay'] !== undefined ? Number(values['step-delay']) : undefined,
   };
+
+  // K0.24 — si se pide una ventana, el id debe existir en algún flujo; si no, es un
+  // typo y todos los flujos se saltarían en silencio. Falla claro y temprano.
+  const allStepIds = new Set(rawScript.flows.flatMap((f) => f.steps.map((s) => s.id)));
+  for (const [flag, id] of [['--from', opts.fromStep], ['--to', opts.toStep]] as const) {
+    if (id !== undefined && !allStepIds.has(id)) {
+      console.error(`[dom-walker] ${flag}=${id} no existe en ningún flujo del guion (pasos: ${[...allStepIds].join(', ')})`);
+      process.exit(EXIT_ERROR);
+    }
+  }
 
   const state = loadState(workDir, rawScript);
   const walker = new DomWalker(opts, rawScript, contract, state);
