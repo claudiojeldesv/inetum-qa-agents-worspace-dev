@@ -23,10 +23,23 @@
   <body>
     <p>
       <label for="tipo-nativo">Tipo Prestación (nativo)</label>
+      <!-- La opción va en minúscula ("total") a propósito: reproduce el drift real
+           de mayúscula FD↔app que colgaba selectOption() a ciegas. El guion pide
+           "Rescate Total" y debe resolver por el normalizador, no reventar. -->
       <select id="tipo-nativo">
         <option value="">-- Seleccione --</option>
-        <option value="RT">Rescate Total</option>
+        <option value="RT">Rescate total</option>
         <option value="RP">Rescate Parcial</option>
+      </select>
+    </p>
+
+    <p>
+      <label for="tipo-ambiguo">Modo (ambiguo)</label>
+      <!-- Dos opciones que normalizan igual: el driver debe plantarse, no elegir. -->
+      <select id="tipo-ambiguo">
+        <option value="">--</option>
+        <option value="A">Anual</option>
+        <option value="B">ANUAL</option>
       </select>
     </p>
 

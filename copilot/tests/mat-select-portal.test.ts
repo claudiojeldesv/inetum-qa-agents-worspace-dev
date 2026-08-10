@@ -95,8 +95,10 @@ describe('Fase 1 — par falsable: selectOption ciego vs select inteligente', ()
   }, 60_000);
 });
 
-describe('Fase 1 — el <select> nativo sigue por la rama de siempre', () => {
-  it('un <select> real pasa por selectOption, no por la ramificacion de portal', async () => {
+describe('Fase 1 — <select> nativo: match contra las opciones REALES, sin adivinar', () => {
+  it('drift de mayúscula (guion "Rescate Total" vs opción real "Rescate total") resuelve por el normalizador', async () => {
+    // La causa del cuelgue en onesait: selectOption("Rescate Total") a ciegas no
+    // calzaba con "Rescate total" y agotaba el tope. Ahora resuelve único.
     const map = await walk([
       { id: 's1', action: 'select', hint: { label: 'Tipo Prestación (nativo)' }, value: 'Rescate Total' },
     ]);
@@ -104,6 +106,27 @@ describe('Fase 1 — el <select> nativo sigue por la rama de siempre', () => {
     const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
     expect(report.outcome).toBe('ok');
     expect(map.open_questions).toEqual([]);
+  }, 60_000);
+
+  it('una opción que no existe se reporta con las opciones reales como drift, no se adivina', async () => {
+    const map = await walk([
+      { id: 's1', action: 'select', hint: { label: 'Tipo Prestación (nativo)' }, value: 'Rescate Trimestral' },
+    ]);
+
+    const blocked = map.open_questions.find((q) => q.step === 's1');
+    expect(blocked).toBeDefined();
+    expect(blocked!.reason).toContain('no existe en el <select>');
+    expect(blocked!.reason).toContain('Rescate total'); // las opciones reales viajan en el motivo
+  }, 60_000);
+
+  it('dos opciones que normalizan igual → se planta, no elige una', async () => {
+    const map = await walk([
+      { id: 's1', action: 'select', hint: { label: 'Modo (ambiguo)' }, value: 'anual' },
+    ]);
+
+    const blocked = map.open_questions.find((q) => q.step === 's1');
+    expect(blocked).toBeDefined();
+    expect(blocked!.reason).toContain('ambigua');
   }, 60_000);
 });
 

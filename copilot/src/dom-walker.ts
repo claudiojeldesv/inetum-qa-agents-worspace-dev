@@ -59,6 +59,7 @@ import {
   locatorSource,
   mergeSettle,
   normalizedPlan,
+  normalizeText,
   parseJsonLoose,
   parseLocatorChain,
   pruneAriaSnapshot,
@@ -1363,7 +1364,40 @@ class DomWalker {
   private async selectSmart(trigger: Locator, value: string): Promise<void> {
     const tag = await trigger.evaluate((el) => el.tagName).catch(() => '');
     if (tag === 'SELECT') {
-      await trigger.selectOption(value, { timeout: STEP_TIMEOUT_MS });
+      // `selectOption(value)` a ciegas hace match EXACTO por value/label y se cuelga
+      // el tope entero si el guion trae "Rescate Total" y la página ofrece "Rescate
+      // total" (drift de mayúscula/acento FD↔app). Resolvemos contra las opciones
+      // REALES del <select>: exacto primero; si no, normalizado (accent+case+espacios,
+      // el mismo `normalizeText` de la escalera) a UNA única opción. Con dos que
+      // normalizan igual → planta; con ninguna → reporta las opciones reales como
+      // drift. Nunca se adivina. Genérico para cualquier <select>, no específico.
+      const opts = await trigger.evaluate((el) =>
+        Array.from((el as HTMLSelectElement).options).map((o) => ({ text: o.text, value: o.value })),
+      );
+      let match = opts.filter((o) => o.text === value || o.value === value);
+      let viaNormalizado = false;
+      if (match.length === 0) {
+        const nv = normalizeText(value);
+        match = opts.filter((o) => normalizeText(o.text) === nv || normalizeText(o.value) === nv);
+        viaNormalizado = true;
+      }
+      const visibles = opts.map((o) => o.text).filter((t) => t.trim().length > 0);
+      if (match.length === 0) {
+        throw new Error(
+          `la opción '${value}' no existe en el <select> (opciones reales: ${visibles.join(' | ') || '∅'}) — nunca se adivina`,
+        );
+      }
+      if (match.length > 1) {
+        throw new Error(
+          `la opción '${value}' calza con ${match.length} opciones del <select> tras normalizar (ambigua) — nunca se adivina`,
+        );
+      }
+      if (viaNormalizado && match[0].text !== value) {
+        this.audit('allow', `select drift tolerado: guion '${value}' → opción real '${match[0].text}'`, {
+          phase: 'select-normalizado',
+        });
+      }
+      await trigger.selectOption({ value: match[0].value }, { timeout: STEP_TIMEOUT_MS });
       return;
     }
     // Widget no nativo: abrir y resolver el panel a nivel de PÁGINA ENTERA (§3 del

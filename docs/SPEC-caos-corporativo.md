@@ -446,3 +446,30 @@ negocio con postcondición imposible abre el panel, expira, y el contador del fi
 queda en `Creados: 1` — la mutación no se re-dispara pese a `--assist`. El flujo
 interactivo completo (señalar el camino y que re-ejecute) lo valida el run de campo; queda
 debido un test que conduzca el panel dentro de un run del walker.
+
+## 14. K0.23 — el `<select>` nativo resuelve contra las opciones REALES (drift de mayúscula, descubierto en onesait)
+
+Run de campo de CP001: con el login ya autónomo y el menú atravesado, el walker se colgó
+en `s11` (`select` "Tipo Prestación" = "Rescate Total") con `locator.selectOption: Timeout
+10000ms exceeded`. Hipótesis inicial (mía): `<select>` oculto tras una fachada (patrón
+PrimeFaces/Material). **Falsa.** Un probe de solo-lectura en la consola sobre la pantalla
+parada lo desmintió: el control es un `<select>` nativo, visible y accionable, con
+`options: ["", "Rescate total"]`. El guion pedía "Rescate **T**otal" (mayúscula del FD) y
+la página ofrece "Rescate **t**otal". `selectOption()` hace match EXACTO por value/label;
+sin calzar, Playwright reintenta hasta agotar el tope → timeout opaco. Drift de mayúscula
+FD↔app, de libro. (El probe evitó arreglar a ciegas algo que no era — la disciplina de
+"verificar, no adivinar" pagó.)
+
+Fix (genérico, no onesait): la rama nativa de `selectSmart` deja de hacer `selectOption`
+a ciegas. Lee las opciones REALES del `<select>` y resuelve contra ellas — exacto primero;
+si no, normalizado (`normalizeText`: accent + case + espacios, el mismo de la escalera) a
+**una única** opción. Con dos que normalizan igual → se planta ("ambigua"); con ninguna →
+reporta las opciones reales en el motivo (el drift es evidencia auditable, no se fabrica).
+Cuando resuelve por el normalizador (no exacto), lo deja en el audit-log. Igual criterio
+que la rama no-nativa (portal). Fixture `mat-select-portal.html` hecha fiel (opción en
+minúscula + un `<select>` con dos opciones que normalizan igual); tres tests nuevos: drift
+resuelto, ausente reportado, ambiguo plantado.
+
+Límite honesto (fuera de scope, sin evidencia todavía): un `<select>` nativo **oculto**
+tras una fachada seguiría dando timeout de accionabilidad con la opción ya resuelta — no lo
+tocamos porque no lo hemos visto; se abordará cuando aparezca con un probe que lo demuestre.
