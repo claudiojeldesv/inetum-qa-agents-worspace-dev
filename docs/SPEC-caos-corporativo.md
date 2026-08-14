@@ -539,8 +539,24 @@ bloqueado" y el parche queda capturado con `verified: false` + motivo. Test
 a propósito: si la verificación dejara de ser muda, el panel se abriría en el replay y el
 timeout corto delataría la regresión.
 
-Pendiente de decisión del QA (no arreglado aquí): **D2** — el replay de verificación
-re-ejecuta pasos de negocio previos en contexto limpio (en onesait, verificar un parche
-tras Finalizar re-crearía la declaración); opciones: verificación solo-en-vivo, o replay
-limpio únicamente cuando el camino previo no muta. **D4** — anclado restringido a
-`hint.label` o guarda de ambigüedad del ancla.
+**D2 y D4, decididos por el QA ("decídelo tú" → recomendaciones aplicadas):**
+
+**D2 — replay-si-no-muta.** Si el camino previo al paso contiene acciones de negocio
+(`click`/`check`/`uncheck` sin `retry_safe`), NO hay replay en limpio (lo re-ejecutaría —
+en onesait, verificar un parche tras Finalizar re-crearía la declaración): la verificación
+degrada a EN VIVO — objetivo y comprobaciones resueltos contra la página actual, abridores
+sin tocar (ya los ejecutó el QA). Garantía más débil y declarada: `verified: true` +
+`verify_reason: "verificado SOLO EN VIVO: ..."` en el parche. La minimización (que también
+replayea) se desactiva en ese caso — la verificación en vivo pasaría con cualquier
+subconjunto y podaría de más.
+
+**D4 — guarda de ambigüedad del ancla.** Primer intento (filtro de nodos-hoja vía
+`filter({hasNot})`) FALSADO por probe: `has`/`hasNot` re-rootea incluyendo al propio
+elemento → toda coincidencia se excluía a sí misma (0 hojas, el tier muerto; 3 tests lo
+cazaron). El mismo probe reveló que el text engine NO matchea a los wrappers (solo al
+portador más profundo del texto), así que el anidamiento que justificaba `.last()` no
+produce matches múltiples — la guarda correcta es la regla dura de siempre:
+`uniqueOrNull(matches)` (visible único = ancla; ≥2 visibles = ambigua → se planta;
+duplicado invisible tipo `<option>` lo absorbe el filtro de visibilidad). Fixture
+`ancla-ambigua.html` (par falsable: el puente `following::select` EXISTE y la guarda lo
+corta) + 3 tests; los 3 de K0.19/K0.21 intactos.

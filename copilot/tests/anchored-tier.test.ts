@@ -79,3 +79,52 @@ describe('K0.19 — tier anclado por etiqueta visible vecina', () => {
     expect(report(map, 's1')!.outcome).toBe('ok');
   }, 120_000);
 });
+
+/**
+ * K0.25/D4 — guarda de ambigüedad del ancla. En el rodaje SauceDemo, un hint de
+ * texto con duplicados REALES ('Remove' ×2) se puenteaba en silencio al único
+ * control de la página (el <select> de ordenación) y se clicaba. La guarda: el
+ * ancla debe ser un nodo HOJA único; ≥2 hojas no anidadas → se planta.
+ */
+async function walkAmbigua(steps: WalkScript['flows'][0]['steps']): Promise<DomMap> {
+  const workDir = mkdtempSync(resolve(tmpdir(), 'qa-ancla-'));
+  const script: WalkScript = { version: 1, site_id: 'ancla', entry: '/ancla-ambigua.html', flows: [{ flow: 'f', steps }] };
+  const opts: WalkerOptions = {
+    scriptPath: 't', contractPath: 't', baseUrl: FIX, workDir, rescueBudget: 0, screenCap: 60,
+    headed: false, assist: false, assistTimeoutMs: 1_000, assistMinimize: false,
+    aliasesPath: resolve(workDir, 'a.json'), timingProfilePath: resolve(workDir, 't.json'), calibrate: false,
+  };
+  return new DomWalker(opts, script, contract, freshState()).run();
+}
+
+describe('K0.25/D4 — el ancla ambigua se planta, no puentea', () => {
+  it('el puente existiría sin la guarda: tras el último "Duplicado" hay un <select> solitario', async () => {
+    const browser: Browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+      await page.goto(`${FIX}/ancla-ambigua.html`);
+      // par falsable de la clase: el texto coincide en 2 nodos no anidados...
+      expect(await page.getByText('Duplicado').count()).toBe(2);
+      // ...y desde el último, following:: encontraría el select (el puente que la guarda corta)
+      const bridged = page.getByText('Duplicado').last()
+        .locator('xpath=following::*[self::input or self::select or self::textarea][1]');
+      expect(await bridged.count()).toBe(1);
+      expect(await bridged.evaluate((el) => el.tagName).catch(() => '')).toBe('SELECT');
+    } finally {
+      await browser.close();
+    }
+  }, 120_000);
+
+  it('hint de texto duplicado → el paso se bloquea (hint irresoluble), nunca clica el select', async () => {
+    const map = await walkAmbigua([{ id: 's1', action: 'click', hint: { text: 'Duplicado' } }]);
+    const blocked = map.open_questions.find((q) => q.step === 's1');
+    expect(blocked).toBeDefined();
+    expect(blocked!.reason).toContain('hint irresoluble');
+  }, 120_000);
+
+  it('control positivo: la etiqueta única sigue anclando al control como en K0.21', async () => {
+    const map = await walkAmbigua([{ id: 's1', action: 'fill', hint: { label: 'Nombre' }, value: 'x' }]);
+    expect(report(map, 's1')!.outcome).toBe('ok');
+    expect(map.open_questions).toEqual([]);
+  }, 120_000);
+});

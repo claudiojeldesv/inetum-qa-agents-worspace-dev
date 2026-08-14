@@ -1591,8 +1591,19 @@ class DomWalker {
       const exacts = typeof needle === 'string' ? [true, false] : [false];
       for (const exact of exacts) {
         for (const { scope, path, via } of containers) {
-          const lbl = mk(scope, needle, exact).last();
-          if ((await lbl.count().catch(() => 0)) === 0) continue;
+          /**
+           * K0.25/D4 — guarda de ambigüedad del ANCLA. `.last()` elegía por decreto
+           * ante duplicados REALES ('Remove' ×2, 'Add to cart' ×6) y puenteaba al
+           * único control "cercano" — en el rodaje clicó el <select> de ordenación
+           * en silencio. Medido (probe): el text engine NO matchea a los wrappers
+           * (solo al portador más profundo del texto), así que el anidamiento que
+           * justificaba `.last()` no produce matches múltiples — la guarda correcta
+           * es la regla dura de siempre: `uniqueOrNull` (visible único = ancla;
+           * ≥2 visibles = ambigua, se planta; duplicado invisible tipo <option> lo
+           * absorbe el filtro de visibilidad). No se adivina.
+           */
+          const lbl = await this.uniqueOrNull(mk(scope, needle, exact));
+          if (!lbl) continue;
           for (const rel of [FOLLOWING, ANCESTOR]) {
             const cand = rel === ANCESTOR ? lbl.locator(rel).locator(CONTROL) : lbl.locator(rel);
             const unique = await this.uniqueOrNull(cand).catch(() => null);
@@ -1970,7 +1981,9 @@ class DomWalker {
     // minimización por replay (K0.11e): quitar abridores de uno en uno mientras siga
     // verificando. El QA exploró antes de dar con el camino; no tiene por qué saber
     // cuáles de sus pasos eran necesarios — se PRUEBA, no se pregunta.
-    if (verify.ok && this.opts.assistMinimize) {
+    // K0.25/D2: sin replay limpio (camino previo con negocio) no hay minimización —
+    // la verificación en vivo pasaría con cualquier subconjunto y podaría de más.
+    if (verify.ok && this.opts.assistMinimize && !this.hasMutatingPrior(flow, step)) {
       const min = await this.minimizeAssistSteps(flow, step, steps);
       if (min.steps.length < steps.length) {
         steps = min.steps;
@@ -2139,11 +2152,63 @@ class DomWalker {
    * Sin esto, un parche que "funcionó porque el QA tenía el menú abierto" se
    * propondría como bueno y fallaría en el siguiente run automático.
    */
+  /**
+   * K0.25/D2 — ¿el camino previo al paso contiene acciones de NEGOCIO? (click/
+   * check/uncheck sin retry_safe). Si sí, el replay en limpio las re-ejecutaría —
+   * en onesait, verificar un parche tras Finalizar re-crearía la declaración.
+   */
+  private hasMutatingPrior(flow: WalkFlow, failed: WalkStep): boolean {
+    const MUTATING = new Set<WalkStep['action']>(['click', 'check', 'uncheck']);
+    for (const s of flow.steps) {
+      if (s.id === failed.id) break;
+      if (MUTATING.has(s.action) && !isRetrySafe(s)) return true;
+    }
+    return false;
+  }
+
   private async verifyAssistPatch(
     flow: WalkFlow,
     failed: WalkStep,
     steps: AssistPatchStep[],
   ): Promise<{ ok: boolean; reason?: string }> {
+    /**
+     * K0.25/D2 — replay-si-no-muta. Con negocio en el camino previo NO hay replay
+     * en limpio: la verificación degrada a EN VIVO — el objetivo (y las
+     * comprobaciones) se resuelven contra la página actual, donde el QA acaba de
+     * señalarlos; los abridores no se tocan (ya los ejecutó él). Garantía más
+     * débil que "reproduce desde cero", y se dice: el motivo viaja al parche como
+     * verify_reason. Nunca se re-ejecuta negocio para verificar.
+     */
+    if (this.hasMutatingPrior(flow, failed)) {
+      try {
+        for (const [i, ps] of steps.entries()) {
+          if (ps.role === 'opener') continue;
+          if (ps.action === 'expect_text') {
+            const found = ps.value ? await this.findVisibleText(ps.value) : null;
+            if (!found) return { ok: false, reason: `la comprobación propuesta ("${ps.value}") no se observa en la página actual` };
+            continue;
+          }
+          const loc = ps.locator ? this.locatorFromChain(this.page, ps.locator) : null;
+          let unique = loc ? await this.uniqueOrNull(loc) : null;
+          if (!unique) {
+            const probe: WalkStep = { id: `${failed.id}-assist${i}`, action: ps.action, hint: ps.hint };
+            const byHint = await this.resolveHint(probe);
+            unique = byHint?.locator ?? null;
+          }
+          if (!unique) return { ok: false, reason: `el paso propuesto ${i + 1} (${ps.action}) no resuelve en la página actual (verificación en vivo)` };
+          if (ps.role === 'target') await assertActionable(unique, ps.action);
+        }
+        return {
+          ok: true,
+          reason:
+            'verificado SOLO EN VIVO: el camino previo contiene pasos de negocio y el replay en limpio los re-ejecutaría — nunca se re-ejecuta negocio para verificar',
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+        return { ok: false, reason: `verificación en vivo falló: ${msg}` };
+      }
+    }
+
     const browser = this.page.context().browser();
     if (!browser) return { ok: false, reason: 'sin navegador para el replay de verificación' };
     const ctx = await browser.newContext(

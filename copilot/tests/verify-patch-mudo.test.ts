@@ -128,6 +128,36 @@ describe('K0.25 — verificación de parche muda', () => {
     expect(state.step_reports).toEqual([]);
   }, 120_000); // margen bajo suite completa (16 ficheros en paralelo) — jitter, no lógica
 
+  it('D2: camino previo con NEGOCIO → verificación EN VIVO, sin replay que re-ejecute', async () => {
+    const state = freshState();
+    const { walker, flow } = walkerWith(
+      [
+        // click sin retry_safe = acción de negocio: el replay en limpio la re-ejecutaría
+        { id: 's1', action: 'click', hint: { text: 'Campo A' } },
+        { id: 's2', action: 'click', hint: { text: 'NoExiste' } },
+      ],
+      state,
+    );
+    const verify = await verifyOf(walker)(flow, flow.steps[1], [targetStep('Campo B')]);
+    // verifica (el objetivo resuelve en la página viva) pero lo DICE: garantía más débil
+    expect(verify.ok).toBe(true);
+    expect(verify.reason).toContain('SOLO EN VIVO');
+  }, 120_000); // margen bajo suite completa (16 ficheros en paralelo) — jitter, no lógica
+
+  it('D2: en vivo, un objetivo que no resuelve en la página actual → verificación falla honesta', async () => {
+    const state = freshState();
+    const { walker, flow } = walkerWith(
+      [
+        { id: 's1', action: 'click', hint: { text: 'Campo A' } },
+        { id: 's2', action: 'click', hint: { text: 'NoExiste' } },
+      ],
+      state,
+    );
+    const verify = await verifyOf(walker)(flow, flow.steps[1], [targetStep('EtiquetaInexistente')]);
+    expect(verify.ok).toBe(false);
+    expect(verify.reason).toContain('no resuelve en la página actual');
+  }, 120_000); // margen bajo suite completa (16 ficheros en paralelo) — jitter, no lógica
+
   it('paso previo BLOQUEADO → no se salta: verificación honesta "no reproducible en limpio"', async () => {
     const state = freshState();
     state.open_questions.push({

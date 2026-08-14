@@ -1,0 +1,34 @@
+<!doctype html>
+<!--
+  Fixture K0.25/D4: la guarda de ambigüedad del ANCLA en el tier anclado.
+  - "Nombre" (único, patrón label-en-div de K0.21) debe seguir resolviendo al input.
+  - "Duplicado" aparece en DOS nodos NO anidados; el <select> solitario va DESPUÉS
+    en el orden del documento a propósito: sin la guarda, `.last()` + following::
+    puentearían "Duplicado" al <select> y lo clicarían en silencio (la clase que el
+    rodaje SauceDemo observó con 'Remove' ×2 → select de ordenación). Con la guarda,
+    ≥2 coincidencias visibles del ancla → se planta (regla dura de siempre).
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture ancla ambigua</title>
+  </head>
+  <body>
+    <div>
+      <h5>Nombre</h5>
+      <input id="nombre" name="nombre" />
+    </div>
+
+    <div class="lista">
+      <div><span>Duplicado</span></div>
+      <div><span>Duplicado</span></div>
+    </div>
+
+    <div class="filtros">
+      <select id="orden">
+        <option value="">--</option>
+        <option value="a">Opción A</option>
+      </select>
+    </div>
+  </body>
+</html>
