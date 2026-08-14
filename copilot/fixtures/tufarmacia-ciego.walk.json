@@ -1,0 +1,34 @@
+{
+  "$comment": "GUION CIEGO (des-sesgado). Regla de autoría: cada hint usa SOLO vocabulario visible para un usuario/analista funcional mirando la app (textos en pantalla, placeholder, nombres de producto del catálogo) — NUNCA nombres accesibles, roles ni estructura leídos del DOM. Escrito sin re-abrir el MCP. FD simulado: CP01 'busca crema y ordena por precio ascendente'; CP02 'en Medicamentos filtra por disponibilidad En stock'; CP03 'abre la ficha de Alcohol 96º Aposan 250 ml y comprueba que se puede añadir al carrito'. Los controles de CP01-s3 y CP02-s2 NO fueron explorados en el descubrimiento: terreno genuinamente desconocido.",
+  "version": 1,
+  "site_id": "tufarmacia",
+  "entry": "/",
+  "base_url": "https://tienda.tufarmaciaelche.es",
+  "flows": [
+    {
+      "flow": "busqueda-ordenada",
+      "criteria": ["FD-CP01"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "label": "Introduce tu búsqueda" }, "value": "crema" },
+        { "id": "s2", "action": "press", "value": "Enter", "expect_transition": true, "screen": "resultados", "expect_after": "Resultados de la búsqueda" },
+        { "id": "s3", "action": "select", "hint": { "text": "Ordenar por" }, "value": "Precio: de más bajo a más alto", "expect_after": "Precio: de más bajo a más alto" }
+      ]
+    },
+    {
+      "flow": "filtro-disponibilidad",
+      "criteria": ["FD-CP02"],
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "text": "Medicamentos" }, "expect_transition": true, "screen": "categoria-medicamentos", "expect_after": "Filtrar por" },
+        { "id": "s2", "action": "click", "hint": { "text": "En stock" }, "expect_after": "Filtros activos" }
+      ]
+    },
+    {
+      "flow": "ficha-producto",
+      "criteria": ["FD-CP03"],
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "text": "Alcohol 96º Aposan 250 ml" }, "expect_transition": true, "screen": "producto-alcohol", "expect_after": "Impuestos incluidos" },
+        { "id": "s2", "action": "expect_text", "value": "Añadir al carrito" }
+      ]
+    }
+  ]
+}

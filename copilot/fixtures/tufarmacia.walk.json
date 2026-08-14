@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "site_id": "tufarmacia",
+  "entry": "/",
+  "base_url": "https://tienda.tufarmaciaelche.es",
+  "flows": [
+    {
+      "flow": "buscar-y-carrito",
+      "criteria": ["RF-BUSCAR-CARRITO"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Introduce tu búsqueda" }, "value": "tiritas" },
+        { "id": "s2", "action": "press", "value": "Enter", "expect_transition": true, "screen": "resultados", "expect_after": "Resultados de la búsqueda" },
+        { "id": "s3", "action": "expect_count", "hint": { "role": "link", "name": "TIRITAS" }, "operator": ">", "value": "5" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "TIRITAS CLASSIC APOSITO ADHESIVO 19 X 72 20" }, "expect_transition": true, "screen": "producto", "expect_after": "Impuestos incluidos" },
+        { "id": "s5", "action": "click", "hint": { "role": "button", "name": "Añadir al carrito" }, "expect_after": "Producto añadido correctamente" },
+        { "id": "s6", "action": "click", "hint": { "role": "link", "name": "Proceder al pago" }, "expect_transition": true, "screen": "carrito", "expect_after": "Pasar por caja" },
+        { "id": "s7", "action": "expect_text", "value": "1 artículo" },
+        { "id": "s8", "action": "click", "hint": { "role": "link", "name": "delete" } },
+        { "id": "s9", "action": "goto", "target": "/carrito?action=show", "screen": "carrito-vacio", "expect_after": "No hay más artículos en su carrito" },
+        { "id": "s10", "action": "expect_text", "value": "0 artículos" }
+      ]
+    },
+    {
+      "flow": "categoria-salud",
+      "criteria": ["RF-CATEGORIA"],
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "role": "link", "name": "Salud" }, "expect_transition": true, "screen": "categoria-salud", "expect_after": "Filtrar por" },
+        { "id": "s2", "action": "expect_text", "value": "SALUD" }
+      ]
+    }
+  ]
+}
