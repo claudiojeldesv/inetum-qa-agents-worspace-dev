@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  Fixture K0.26: desplegable SIN rol (clase Bootstrap/PrestaShop, hallada en campo
+  en el "Ordenar por" de una tienda PrestaShop). El menú es un <ul> plano que se
+  muestra/oculta por clase CSS: NO hay role="listbox", NO hay role="option" — la
+  suposición de la Fase 1 (esperar un listbox tras abrir) falla aquí por diseño.
+  - Par falsable: la política vieja agota el tope esperando un listbox que nunca
+    existirá; la resolución por texto-visible-único (capa 2) selecciona.
+  - "Nombre, de A a Z" existe ADEMÁS como texto visible fuera del menú (la
+    leyenda): seleccionarlo da ≥2 visibles → la regla dura se planta, no elige.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture dropdown sin rol</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; padding: 24px; }
+      .menu { display: none; position: absolute; background: #fff; border: 1px solid #888; list-style: none; padding: 0; margin: 0; min-width: 240px; }
+      .menu.abierto { display: block; }
+      .menu li { padding: .35rem .6rem; cursor: pointer; }
+      .menu li:hover { background: #eef; }
+      #resultado { margin-top: 1.2rem; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <p>
+      Ordenar por:
+      <button id="orden-trigger" type="button">Relevancia ▾</button>
+    </p>
+    <ul class="menu" id="orden-menu">
+      <li>Relevancia</li>
+      <li>Precio: de más bajo a más alto</li>
+      <li>Precio: de más alto a más bajo</li>
+      <li>Nombre, de A a Z</li>
+    </ul>
+
+    <p>Orden recomendado para catálogos: <span>Nombre, de A a Z</span></p>
+
+    <div id="resultado" hidden></div>
+
+    <script>
+      const t = document.getElementById('orden-trigger');
+      const m = document.getElementById('orden-menu');
+      const r = document.getElementById('resultado');
+      t.addEventListener('click', () => { m.classList.toggle('abierto'); });
+      m.querySelectorAll('li').forEach((li) => li.addEventListener('click', () => {
+        t.textContent = li.textContent + ' ▾';
+        r.hidden = false;
+        r.textContent = 'Orden aplicado: ' + li.textContent;
+        m.classList.remove('abierto');
+      }));
+    </script>
+  </body>
+</html>

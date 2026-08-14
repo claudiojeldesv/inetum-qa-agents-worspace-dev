@@ -560,3 +560,40 @@ produce matches múltiples — la guarda correcta es la regla dura de siempre:
 duplicado invisible tipo `<option>` lo absorbe el filtro de visibilidad). Fixture
 `ancla-ambigua.html` (par falsable: el puente `following::select` EXISTE y la guarda lo
 corta) + 3 tests; los 3 de K0.19/K0.21 intactos.
+
+## 17. K0.26 — el `select` no nativo resuelve la OPCIÓN, no el contenedor (PrestaShop falsó el listbox)
+
+**Hallazgo de campo (gira de stacks, sitio 0: tienda PrestaShop).** Guion ciego, paso
+`select` sobre el "Ordenar por": el trigger resolvió por texto, pero la rama no-nativa
+de la Fase 1 exigía un único `role="listbox"` visible tras abrir — y el menú de
+PrestaShop/Bootstrap es un `<ul>` mostrado por clase CSS, sin rol ninguno. Sobreajuste
+retroactivo: la Fase 1 generalizó de una muestra de uno (Angular Material, que sí
+expone listbox). De propina, el panel asistido tampoco podía enseñar el camino: el
+grabador descartaba EN SILENCIO todo elemento de rol `generic` (el QA veía "no lo
+registra"), y aunque registrara, `targetAction: 'select'` haría que el parche
+re-lanzara selectSmart sobre la opción.
+
+**Fix (dos capas, cero suposición de contenedor).** `waitForVisibleOption` sustituye a
+`waitForVisibleListbox`: (1) si el widget SÍ declara un listbox único visible (página
+entera + frames), la opción se resuelve SOLO dentro de él — saltarse un contenedor
+declarado hacia texto suelto de la página sería adivinar; (2) sin listbox, la opción es
+el texto que se hizo visible al abrir, único a nivel de página, exacto primero y
+normalizado (accent+case) después, con el mismo audit `select drift tolerado` que la
+rama nativa de K0.23. La regla dura decide en ambas capas (único → clic; ≥2 → planta;
+0 → drift), y el diagnóstico al agotar el tope distingue `ausente` de `ambigua (N
+coincidencias visibles)` para que el informe no mienta. Límite documentado: si el
+trigger muestra la opción actualmente seleccionada y el guion pide ESA misma opción,
+hay 2 visibles → planta honesta (el panel lo recoge).
+
+**Fix menor del grabador.** El descarte de elementos sin identidad ya no es mudo: un
+CLIC deliberado sobre rol `generic` explica el porqué y sugiere contenedor o edición
+manual (✎). El hover sigue callado — avisaría en cada wrapper al mover el ratón.
+
+**Validación.** Fixture `dropdown-sin-rol.html` (par falsable: la política vieja agota
+el tope esperando un listbox que no existe; la capa 2 selecciona sobre la misma página)
+con leyenda-señuelo "Nombre, de A a Z" duplicada fuera del menú que la regla dura
+corta. 3 tests nuevos (drift de mayúscula resuelto / ausente reportado / duplicado
+plantado) + los 6 de `mat-select-portal` intactos (Material sin regresión). 193/193
+unit copilot, tsc limpio. Pendiente de campo: re-ejecutar el guion ciego de la tienda
+SIN tocarlo — si s3 resuelve solo, la generalización queda demostrada contra un sitio
+que el fix nunca miró por nombre.

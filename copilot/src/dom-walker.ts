@@ -538,7 +538,14 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
       if (!recording) return;
       if (el.closest && el.closest('[' + ASSIST_HOST + ']')) return;
       const f = fieldsWithContext(el);
-      if (!f.role || f.role === 'generic') return;
+      if (!f.role || f.role === 'generic') {
+        // K0.26: antes se descartaba EN SILENCIO y el QA veía "el grabador no
+        // registra" (campo, PrestaShop: opciones de menú sin rol). El hover
+        // sigue callado (avisaría en cada wrapper al mover el ratón); el CLIC
+        // deliberado sobre un elemento inanclable sí explica el porqué.
+        if (via === 'click') setStatus('ese elemento no tiene identidad anclable (rol genérico): señala su contenedor, o captura otra fila y edítala con ✎');
+        return;
+      }
       f.via = via;
       // K0.20-B: re-captura — sustituye la fila en curso en vez de añadir, y
       // conserva su marca (objetivo/comprobación). Un hover repetido igual al
@@ -1432,41 +1439,86 @@ class DomWalker {
       await trigger.selectOption({ value: match[0].value }, { timeout: STEP_TIMEOUT_MS });
       return;
     }
-    // Widget no nativo: abrir y resolver el panel a nivel de PÁGINA ENTERA (§3 del
-    // spec) — el panel de un CDK OverlayContainer o de un `…_panel` de PrimeFaces
-    // cuelga de document.body, no del disparador, y `resolveScope`/`scopes()` ya
-    // buscan así.
+    // Widget no nativo (K0.26, generaliza la Fase 1 §4): abrir y resolver la
+    // OPCIÓN, no el contenedor. La versión anterior exigía role="listbox" tras
+    // abrir — un sobreajuste a Angular Material/PrimeFaces que PrestaShop/
+    // Bootstrap falsó en campo (sus menús no exponen rol ninguno). Regla por
+    // capas: si el widget SÍ declara un listbox único, la opción se resuelve
+    // SOLO dentro de él (el contenedor declarado manda, nunca se puentea a
+    // texto suelto de la página); sin listbox, la opción es el texto que se
+    // hizo visible al abrir, único a nivel de página entera. En ambos casos
+    // decide la regla dura: único → clic; ≥2 → planta; 0 → drift.
     await trigger.click({ timeout: STEP_TIMEOUT_MS });
-    const listbox = await this.waitForVisibleListbox(STEP_TIMEOUT_MS);
-    if (!listbox) {
+    const found = await this.waitForVisibleOption(value, STEP_TIMEOUT_MS);
+    if (!found.locator) {
       throw new Error(
-        'el disparador no es un <select> y no se encontró un único role="listbox" visible tras abrirlo',
+        `la opción '${value}' no resuelve única tras abrir el desplegable: ${found.detail} — nunca se adivina`,
       );
     }
-    const literal = listbox.getByRole('option', { name: value });
-    const normalized = listbox.getByRole('option', { name: new RegExp(accentInsensitivePattern(value), 'i') });
-    const option = (await this.uniqueOrNull(literal)) ?? (await this.uniqueOrNull(normalized));
-    if (!option) {
-      throw new Error(`la opción '${value}' no resuelve única dentro del listbox abierto (ambigua o ausente) — nunca se adivina`);
+    if (found.viaNormalizado) {
+      const real = (await found.locator.innerText().catch(() => '')).trim();
+      this.audit('allow', `select drift tolerado: guion '${value}' → texto real '${real}'`, {
+        phase: 'select-normalizado',
+      });
     }
-    await option.click({ timeout: STEP_TIMEOUT_MS });
+    await found.locator.click({ timeout: STEP_TIMEOUT_MS });
   }
 
   /**
-   * Espera a que un único `role="listbox"` esté visible en page o en algún frame
-   * (mismo alcance página-entera que `resolveScope`, K0.16 §3). Es el oráculo que
-   * abre paso a resolver la opción: si nunca se materializa, o si hay dos a la vez,
-   * no se adivina — se agota el tope y sube por la escalera (asistencia / rescate).
+   * K0.26 — espera a que la opción pedida sea resoluble tras abrir un widget no
+   * nativo. Capa 1: con un único `role="listbox"` visible (Material, PrimeFaces;
+   * alcance página-entera + frames, §3 K0.16), la opción se busca SOLO dentro —
+   * saltarse un contenedor declarado hacia texto suelto sería adivinar. Capa 2:
+   * sin listbox (Bootstrap, PrestaShop: menús sin rol), texto visible único a
+   * nivel de página, exacto primero y normalizado (accent+case) después. El
+   * polling cubre la animación de apertura; al agotar el tope devuelve el
+   * diagnóstico (ausente vs ambigua) para que el informe no mienta.
    */
-  private async waitForVisibleListbox(timeoutMs: number): Promise<Locator | null> {
+  private async waitForVisibleOption(
+    value: string,
+    timeoutMs: number,
+  ): Promise<{ locator: Locator | null; viaNormalizado: boolean; detail: string }> {
     const deadline = Date.now() + timeoutMs;
+    const normRe = new RegExp(accentInsensitivePattern(value), 'i');
     for (;;) {
       const scopes = await this.scopes();
+      let listbox: Locator | null = null;
       for (const { scope } of scopes) {
-        const unique = await this.uniqueOrNull(scope.getByRole('listbox'));
-        if (unique) return unique;
+        listbox = await this.uniqueOrNull(scope.getByRole('listbox'));
+        if (listbox) break;
       }
-      if (Date.now() >= deadline) return null;
+      if (listbox) {
+        const literal = await this.uniqueOrNull(listbox.getByRole('option', { name: value }));
+        if (literal) return { locator: literal, viaNormalizado: false, detail: '' };
+        const norm = await this.uniqueOrNull(listbox.getByRole('option', { name: normRe }));
+        if (norm) return { locator: norm, viaNormalizado: true, detail: '' };
+        const textual = await this.uniqueOrNull(listbox.getByText(normRe));
+        if (textual) return { locator: textual, viaNormalizado: true, detail: '' };
+      } else {
+        for (const { scope } of scopes) {
+          const exact = await this.uniqueOrNull(scope.getByText(value, { exact: true }));
+          if (exact) return { locator: exact, viaNormalizado: false, detail: '' };
+        }
+        for (const { scope } of scopes) {
+          const norm = await this.uniqueOrNull(scope.getByText(normRe));
+          if (norm) return { locator: norm, viaNormalizado: true, detail: '' };
+        }
+      }
+      if (Date.now() >= deadline) {
+        let visibles = 0;
+        if (listbox) {
+          visibles = await listbox.getByText(normRe).filter({ visible: true }).count().catch(() => 0);
+        } else {
+          for (const { scope } of scopes) {
+            visibles += await scope.getByText(normRe).filter({ visible: true }).count().catch(() => 0);
+          }
+        }
+        const detail =
+          visibles >= 2
+            ? `ambigua (${visibles} coincidencias visibles${listbox ? ' en el listbox' : ' en la página'})`
+            : `no apareció como texto visible${listbox ? ' dentro del listbox' : ''}`;
+        return { locator: null, viaNormalizado: false, detail };
+      }
       await new Promise((r) => setTimeout(r, 50));
     }
   }
