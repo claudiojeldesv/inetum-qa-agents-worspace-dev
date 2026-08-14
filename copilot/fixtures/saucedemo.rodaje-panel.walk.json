@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "site_id": "saucedemo",
+  "entry": "/",
+  "base_url": "https://www.saucedemo.com",
+  "flows": [
+    {
+      "flow": "rodaje-panel",
+      "criteria": ["RODAJE-ASSIST"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "label": "Usuario" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "inventario" },
+
+        { "id": "s4", "action": "select", "hint": { "test_id": "product-sort-container" }, "value": "Price (Low to High)" },
+
+        { "id": "s5", "action": "click", "hint": { "test_id": "add-to-cart-sauce-labs-backpack" }, "expect_after": "Remove" },
+        { "id": "s6", "action": "click", "hint": { "test_id": "add-to-cart-sauce-labs-bike-light" } },
+
+        { "id": "s7", "action": "click", "hint": { "test_id": "shopping-cart-link" }, "retry_safe": true, "expect_transition": true, "screen": "carrito", "expect_after": "Your Cart Details" },
+
+        { "id": "s8", "action": "click", "hint": { "text": "Remove" } },
+
+        { "id": "s9", "action": "click", "hint": { "test_id": "checkout" }, "expect_transition": true, "screen": "checkout-datos" },
+        { "id": "s10", "action": "fill", "hint": { "role": "textbox", "name": "First Name" }, "value": "$fixtures.buyer_info[0].firstName" },
+        { "id": "s11", "action": "fill", "hint": { "role": "textbox", "name": "Last Name" }, "value": "$fixtures.buyer_info[0].lastName" },
+        { "id": "s12", "action": "fill", "hint": { "role": "textbox", "name": "Zip/Postal Code" }, "value": "$fixtures.buyer_info[0].postalCode" },
+        { "id": "s13", "action": "click", "hint": { "role": "button", "name": "Continue" }, "expect_transition": true, "screen": "checkout-resumen" },
+
+        { "id": "s14", "action": "click", "hint": { "role": "button", "name": "Finish" }, "expect_transition": true, "screen": "checkout-fin", "expect_after": "Su pedido ha sido registrado" },
+
+        { "id": "s15", "action": "expect_text", "value": "Thank you for your order!" }
+      ]
+    }
+  ]
+}

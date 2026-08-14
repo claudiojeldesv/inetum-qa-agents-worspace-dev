@@ -503,3 +503,44 @@ in-page, y NO salta las acciones de negocio ya disparadas → reanudar un flujo 
 Finalizar completado lo volvería a disparar (segunda declaración). Hoy no muerde porque el
 loop de campo borra `.work/` en cada run, pero roza la invariante de mutación; es otra razón
 por la que `--from` NO se construyó por la vía del replay.
+
+## 16. K0.25 — la verificación del parche es MUDA (rodaje del panel contra SauceDemo)
+
+Primer rodaje guiado del panel contra un target público (guion saboteado
+`saucedemo.rodaje-panel.walk.json`: hint irresoluble, drift de mayúscula en select,
+postcondición drifteada, hint ambiguo, guarda de mutación en Finish). Los cinco casos
+sembrados funcionaron — y el rodaje encontró un defecto arquitectónico real que onesait
+nunca habría dejado diagnosticar: **`verifyAssistPatch` re-ejecutaba los pasos previos del
+flujo con el `executeStep` COMPLETO**, con tres consecuencias encadenadas, todas con
+evidencia en `.work/rodaje-saucedemo`:
+
+1. **El replay abría paneles de asistencia dentro de la verificación.** Al verificar el
+   parche de `s14`, el replay (que había saltado `s7` por bloqueado y estaba en la pantalla
+   equivocada) no resolvía `s9` → panel "Paso s9 bloqueado" DESPUÉS del panel de s14. Para
+   el QA: incomprensible; y lo respondido ahí escribía estado desde un contexto fantasma.
+2. **El replay pisaba el estado del run principal.** `pushReport` sobrescribe por clave →
+   los tiempos reales quedaron sustituidos por los del replay (s1 asistido ~15 s → 563 ms);
+   `current_screen` quedó pisado → transición registrada con `from` falso (`inventario` en
+   vez de `carrito` para s9). El audit-log delató todo: `select drift tolerado` × 3 (una
+   ejecución real + dos replays sin marcar).
+3. **Saltarse los pasos bloqueados rompía el replay.** `s7` bloqueado era LA navegación al
+   carrito; el replay siguió en el inventario y la cascada culpó a pasos inocentes — y de
+   propina el tier anclado puenteó el hint ambiguo `Remove` (2 botones) al `<select>` de
+   ordenación y lo clicó en silencio (la clase D4, predicha antes del run, observada en él).
+
+Arreglo (flag `verifying`): durante el replay de verificación NO hay panel ni rescate (un
+paso que no resuelve = `replay falló: ...`, honesto), NO se toca estado del run principal
+(`pushReport`/`blockStep`/`captureScreen`/`recordTransition`/`recordBusinessText` con
+cinturón; `current_screen` intacto; respuestas de rescate no se consumen), el audit-log
+marca `verifying: true` en lo ocurrido dentro del replay, y un paso previo BLOQUEADO ya no
+se salta: la verificación devuelve "no reproducible en limpio: el paso previo sX está
+bloqueado" y el parche queda capturado con `verified: false` + motivo. Test
+`verify-patch-mudo.test.ts` (3 casos) llamando al método directamente — con `assist: true`
+a propósito: si la verificación dejara de ser muda, el panel se abriría en el replay y el
+timeout corto delataría la regresión.
+
+Pendiente de decisión del QA (no arreglado aquí): **D2** — el replay de verificación
+re-ejecuta pasos de negocio previos en contexto limpio (en onesait, verificar un parche
+tras Finalizar re-crearía la declaración); opciones: verificación solo-en-vivo, o replay
+limpio únicamente cuando el camino previo no muta. **D4** — anclado restringido a
+`hint.label` o guarda de ambigüedad del ancla.

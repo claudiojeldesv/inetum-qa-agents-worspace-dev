@@ -973,6 +973,15 @@ class DomWalker {
   private page!: Page;
   private context!: BrowserContext;
   private testidAttr: string | undefined;
+  /**
+   * K0.25 — true mientras corre el replay de verificación de un parche (contexto
+   * fantasma). Silencia panel/rescate y TODA mutación de estado: el rodaje contra
+   * SauceDemo demostró que el replay abría paneles de asistencia para OTROS pasos
+   * (s9 tras s14), pisaba step_reports/current_screen del run principal y
+   * re-ejecutaba el guion con el ejecutor completo. En verificación, un paso que
+   * no resuelve es "no reproducible en limpio", nunca una conversación con el QA.
+   */
+  private verifying = false;
   private lastDialogs: string[] = [];
   /** Paso en curso (Fase 2): el handler de estorbos lo usa para auditar "selector + paso". */
   private currentStepKey: string | null = null;
@@ -1159,6 +1168,9 @@ class DomWalker {
 
   /** Registra la telemetría del paso y alimenta el perfil de tiempos. */
   private pushReport(flow: WalkFlow, step: WalkStep, r: Omit<StepReport, 'flow' | 'step' | 'action'>): void {
+    // K0.25: el replay de verificación no reporta — sobrescribiría por clave los
+    // reports del run principal (el rodaje: s1 asistido ~15s quedó como 563 ms).
+    if (this.verifying) return;
     const reports = (this.state.step_reports ??= []);
     const at = reports.findIndex((x) => x.flow === flow.flow && x.step === step.id);
     const report: StepReport = { flow: flow.flow, step: step.id, action: step.action, ...r };
@@ -1232,8 +1244,12 @@ class DomWalker {
   }
 
   private audit(action: 'llm_call' | 'allow' | 'block' | 'skip', reason: string, metadata?: Record<string, unknown>): void {
+    // K0.25: lo ocurrido en el replay de verificación queda auditado (es evidencia)
+    // pero MARCADO — tres "select drift tolerado" idénticos sin marca costaron el
+    // diagnóstico del rodaje.
+    const meta = this.verifying ? { ...(metadata ?? {}), verifying: true } : metadata;
     appendAuditEntry(
-      { source: 'command', action, target: 'dom-walker', reason, ...(metadata ? { metadata } : {}) },
+      { source: 'command', action, target: 'dom-walker', reason, ...(meta ? { metadata: meta } : {}) },
       this.auditPath,
     );
   }
@@ -2137,11 +2153,24 @@ class DomWalker {
     const mainPage = this.page;
     try {
       this.page = page; // executeStep opera sobre this.page
+      this.verifying = true; // K0.25: replay mudo — sin panel, sin rescate, sin tocar estado
       await page.goto(this.resolveTarget(this.script.entry), { timeout: GOTO_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
       // pasos previos al fallido, tal cual estaban en el guion
       for (const s of flow.steps) {
         if (s.id === failed.id) break;
-        if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === s.id)) continue;
+        /**
+         * K0.25 — un paso previo BLOQUEADO no se salta: saltarlo deja el replay en
+         * la pantalla equivocada y la cascada culpa a pasos inocentes (el rodaje:
+         * s7 bloqueado era LA navegación al carrito; saltarlo dejó el replay en el
+         * inventario y s9 "no resolvía"). Sin camino previo íntegro no hay replay
+         * fiable: se reporta honesto y el parche queda capturado SIN verificar.
+         */
+        if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === s.id)) {
+          return {
+            ok: false,
+            reason: `no reproducible en limpio: el paso previo ${s.id} está bloqueado — el parche queda capturado sin verificar; fúndelo con revisión`,
+          };
+        }
         await this.executeStep(flow, s);
       }
       // y ahora los pasos propuestos por la asistencia
@@ -2181,6 +2210,7 @@ class DomWalker {
       const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
       return { ok: false, reason: `replay falló: ${msg}` };
     } finally {
+      this.verifying = false;
       this.page = mainPage;
       await ctx.close().catch(() => {});
     }
@@ -2254,6 +2284,7 @@ class DomWalker {
   // ---------------------------------------------------------------- captura
 
   private async captureScreen(flow: WalkFlow, step: WalkStep): Promise<void> {
+    if (this.verifying) return; // K0.25: cinturón — el replay no captura pantallas
     const url = this.page.url();
     const name = step.screen ?? slugFromUrl(url);
     if (this.state.current_screen === name) return; // misma pantalla, sin recaptura
@@ -2364,6 +2395,7 @@ class DomWalker {
   }
 
   private recordTransition(flow: WalkFlow, step: WalkStep, via: string, from: string | null): void {
+    if (this.verifying) return; // K0.25: cinturón — el replay no registra transiciones
     const to = step.screen ?? slugFromUrl(this.page.url());
     const exists = this.state.transitions.some((t) => t.flow === flow.flow && t.step === step.id);
     if (from && from !== to && !exists) {
@@ -2674,8 +2706,9 @@ class DomWalker {
         if (!resolved) resolved = await this.resolveHint(step);
 
         if (!resolved) {
-          // ¿hay respuesta de rescate esperando para este paso?
-          const rescue = this.consumeRescueResponse(step);
+          // ¿hay respuesta de rescate esperando para este paso? (nunca durante el
+          // replay de verificación: consumirla ahí la robaría al run principal)
+          const rescue = this.verifying ? null : this.consumeRescueResponse(step);
           if (rescue) {
             if (rescue.locator === null) {
               this.blockStep(flow, step, `rescate LLM respondió locator=null: ${rescue.reason ?? 'elemento no presente en el snapshot'}`, true);
@@ -2702,6 +2735,11 @@ class DomWalker {
           if (step.optional) {
             this.blockStep(flow, step, 'hint irresoluble; paso marcado optional → anotado sin rescate', false);
             return;
+          }
+          // K0.25: en el replay de verificación no hay QA que consultar ni rescate
+          // que pedir — un hint que no resuelve ahí es "no reproducible en limpio".
+          if (this.verifying) {
+            throw new Error(`hint irresoluble en ${step.id} durante el replay de verificación`);
           }
           // K0.10: peldaño asistido ANTES del rescate LLM. Con el QA delante, resolver
           // visualmente cuesta $0 y captura además la coreografía (hover de menús).
@@ -2802,6 +2840,9 @@ class DomWalker {
              * "no es clicable" de "matcheé el elemento equivocado" — un hint por texto
              * puede resolver único sobre un título o un div oculto.
              */
+            // K0.25: en verificación el fallo sube tal cual — el catch de
+            // verifyAssistPatch lo convierte en "replay falló: ...".
+            if (this.verifying) throw err;
             const msg = actionFailureDetail(err);
             const detail = `la acción '${step.action}' falló sobre ${resolved.via}: ${msg}`;
             if (this.opts.assist) {
@@ -2877,9 +2918,14 @@ class DomWalker {
             // networkidle fuera por lo mismo que en 'goto': retrasa el inicio de la
             // observación, que es justo lo que no podemos permitirnos.
             obs = await this.waitForSettle(settle);
-            this.state.current_screen = null;
-            await this.captureScreen(flow, step);
-            this.recordTransition(flow, step, resolved.via, from);
+            // K0.25: el replay de verificación NO toca current_screen/screens/transitions
+            // (el rodaje: el replay fantasma pisó current_screen y el run principal
+            // registró una transición con `from` falso).
+            if (!this.verifying) {
+              this.state.current_screen = null;
+              await this.captureScreen(flow, step);
+              this.recordTransition(flow, step, resolved.via, from);
+            }
           } else {
             obs = await this.waitForSettle(settle);
           }
@@ -2912,6 +2958,11 @@ class DomWalker {
               settle: obs,
             });
             continue;
+          }
+
+          // K0.25: en verificación, una postcondición que no aparece = replay divergente.
+          if (this.verifying) {
+            throw new Error(`postcondición '${wanted}' no observada en ${step.id} durante el replay de verificación`);
           }
 
           /**
@@ -3069,6 +3120,7 @@ class DomWalker {
 
   /** Upsert de un texto de negocio verificado en la pantalla actual (K0.2/K0.3). */
   private recordBusinessText(value: string, via: string, frame_path: string[]): void {
+    if (this.verifying) return; // K0.25: cinturón — el replay no anota business_text
     const screen = this.state.screens.find((s) => s.name === this.state.current_screen);
     if (!screen) return;
     screen.business_text = screen.business_text ?? [];
@@ -3104,6 +3156,7 @@ class DomWalker {
   }
 
   private blockStep(flow: WalkFlow, step: WalkStep, reason: string, rescueAttempted: boolean): void {
+    if (this.verifying) return; // K0.25: cinturón — el replay no bloquea pasos del run
     if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id)) return;
     this.state.open_questions.push({
       flow: flow.flow,
