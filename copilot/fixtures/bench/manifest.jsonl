@@ -3,11 +3,15 @@
 # un caso preparado a propósito para que salga (harness-check). El corpus de
 # verdad —Mind2Web, o el corporativo propio— se engancha con este mismo formato:
 # es un trabajo de DATOS, no de código.
+# Los casos con "expect" son CONTROLES del arnés: termómetro, no medida. No
+# puntúan al walker (si contaran, este corpus dejaría una alarma roja permanente
+# y un exit 1 que en CI se lee como avería), pero si dejan de dar su desenlace el
+# informe grita BANCO ROTO y el CLI sale con error.
 {"id":"acierto-role","site":"fixture","task":"guardar el alta","html_path":"formulario.html","action":"click","hint":{"role":"button","name":"Guardar"},"target":"#guardar"}
 {"id":"acierto-label","site":"fixture","task":"escribir el nombre","html_path":"formulario.html","action":"fill","hint":{"label":"Nombre"},"target":"#nombre"}
 {"id":"acierto-texto-exacto","site":"fixture","task":"abrir la seccion de medicamentos","html_path":"menu.html","action":"click","hint":{"text":"Medicamentos"},"target":"#nav-med"}
 {"id":"planta-ambiguo","site":"fixture","task":"eliminar una fila","html_path":"formulario.html","action":"click","hint":{"role":"button","name":"Eliminar"},"target":".del"}
 {"id":"planta-inexistente","site":"fixture","task":"pulsar un boton que no esta","html_path":"formulario.html","action":"click","hint":{"role":"button","name":"Exportar a PDF"},"target":"#guardar"}
-{"id":"harness-check","site":"fixture","task":"CASO DE CONTROL: la verdad anotada NO es lo que pide el hint; el banco debe cantar EQUIVOCADO","html_path":"formulario.html","action":"click","hint":{"role":"button","name":"Guardar"},"target":"#cancelar"}
+{"id":"harness-check","site":"fixture","task":"CASO DE CONTROL: la verdad anotada NO es lo que pide el hint; el banco debe cantar EQUIVOCADO","html_path":"formulario.html","action":"click","hint":{"role":"button","name":"Guardar"},"target":"#cancelar","expect":"EQUIVOCADO"}
 {"id":"sin-verdad","site":"fixture","task":"la verdad anotada no existe en la foto: no puntua para nadie","html_path":"formulario.html","action":"click","hint":{"role":"button","name":"Guardar"},"target":"#no-existe"}
 {"id":"acierto-html-inline","site":"fixture","task":"el html puede venir en la propia linea","html":"<html><body><button id=\"b\">Continuar</button></body></html>","action":"click","hint":{"role":"button","name":"Continuar"},"target":"#b"}

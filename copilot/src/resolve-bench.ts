@@ -50,6 +50,14 @@ export interface BenchCase {
   hint: WalkStep['hint'];
   scope?: WalkStep['scope'];
   target: string;
+  /**
+   * CASO DE CONTROL: desenlace que este caso DEBE producir. Sirve para
+   * autocomprobar el arnés — un banco incapaz de detectar un fallo mudo daría
+   * 100% de acierto siempre. Los casos de control NO puntúan al walker (no son
+   * medida, son termómetro), pero si dejan de cumplirse el banco está roto y
+   * eso sí es un fallo: se avisa y el CLI sale con error.
+   */
+  expect?: BenchOutcome;
 }
 
 export type BenchOutcome = 'acierto' | 'EQUIVOCADO' | 'planta';
@@ -63,6 +71,8 @@ export interface BenchResult {
   got?: string;
   /** Por qué no hay veredicto posible (target inexistente en la foto, HTML ilegible). */
   invalid?: string;
+  /** Caso de control: qué se esperaba y si el arnés lo cumplió. No puntúa al walker. */
+  control?: { expected: BenchOutcome; ok: boolean };
 }
 
 /** Atributo con el que se marca la verdad anotada dentro de la foto. */
@@ -113,6 +123,11 @@ export async function prepareBenchPage(page: Page): Promise<void> {
  * identidad de nodo y no de selectores parecidos.
  */
 export async function runCase(page: Page, walker: DomWalker, c: BenchCase, html: string): Promise<BenchResult> {
+  const r = await evaluarCaso(page, walker, c, html);
+  return c.expect ? { ...r, control: { expected: c.expect, ok: r.outcome === c.expect } } : r;
+}
+
+async function evaluarCaso(page: Page, walker: DomWalker, c: BenchCase, html: string): Promise<BenchResult> {
   const site = c.site ?? '(sin sitio)';
   await page.setContent(html, { waitUntil: 'domcontentloaded' });
   const marcados = await page
@@ -145,10 +160,19 @@ export async function runCase(page: Page, walker: DomWalker, c: BenchCase, html:
   return { id: c.id, site, outcome: 'EQUIVOCADO', via: resolved.via, got };
 }
 
+/** ¿Falló alguna autocomprobación? Si el termómetro miente, la medida no vale. */
+export function controlRoto(results: BenchResult[]): BenchResult[] {
+  return results.filter((r) => r.control && !r.control.ok);
+}
+
 export function renderBench(results: BenchResult[]): string {
-  const n = results.length;
-  const by = (o: BenchOutcome): BenchResult[] => results.filter((r) => r.outcome === o);
-  const invalid = results.filter((r) => r.invalid).length;
+  // Los casos de control son termómetro, no medida: se apartan del recuento
+  // para que no ensucien la cifra del walker con un rojo que es deliberado.
+  const controles = results.filter((r) => r.control);
+  const medidos = results.filter((r) => !r.control);
+  const n = medidos.length;
+  const by = (o: BenchOutcome): BenchResult[] => medidos.filter((r) => r.outcome === o);
+  const invalid = medidos.filter((r) => r.invalid).length;
   const pct = (x: number): string => (n === 0 ? '0%' : `${((x / n) * 100).toFixed(1)}%`);
   const lines = [
     `casos          ${n}${invalid ? `  (${invalid} sin verdad anotada: no puntúan a favor de nadie)` : ''}`,
@@ -156,6 +180,16 @@ export function renderBench(results: BenchResult[]): string {
     `planta         ${by('planta').length}  (${pct(by('planta').length)})   ← honesto: panel o rescate`,
     `EQUIVOCADO     ${by('EQUIVOCADO').length}  (${pct(by('EQUIVOCADO').length)})   ← el que tiene que ser CERO`,
   ];
+  if (controles.length > 0) {
+    const rotos = controlRoto(results);
+    lines.push(
+      '',
+      rotos.length === 0
+        ? `autocomprobación del banco: ${controles.length}/${controles.length} OK (casos de control, no puntúan)`
+        : `BANCO ROTO: ${rotos.length} caso(s) de control no dieron su desenlace — la medida de arriba NO es fiable`,
+    );
+    for (const r of rotos) lines.push(`  ${r.id}: esperaba ${r.control!.expected}, salió ${r.outcome}`);
+  }
   const malos = by('EQUIVOCADO');
   if (malos.length > 0) {
     lines.push('', 'elementos equivocados (cada uno es un fallo mudo — la clase que hay que matar):');
@@ -204,8 +238,12 @@ async function main(): Promise<void> {
 
   if (asJson) console.log(JSON.stringify(results, null, 2));
   else console.log(renderBench(results));
-  // el banco no falla por plantarse; falla por equivocarse
-  process.exit(results.some((r) => r.outcome === 'EQUIVOCADO') ? 1 : 0);
+  // El banco no falla por plantarse: falla por equivocarse (fallo mudo del
+  // walker) o porque su propia autocomprobación no se cumpla (termómetro roto).
+  // Un caso de control que SÍ da su desenlace no es un fallo — es la prueba de
+  // que la medida significa algo.
+  const equivocados = results.filter((r) => !r.control && r.outcome === 'EQUIVOCADO');
+  process.exit(equivocados.length > 0 || controlRoto(results).length > 0 ? 1 : 0);
 }
 
 const invoked = (process.argv[1] ?? '').replace(/\\/g, '/');

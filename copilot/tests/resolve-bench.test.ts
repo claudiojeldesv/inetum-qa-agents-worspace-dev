@@ -5,7 +5,15 @@ import { dirname, resolve } from 'node:path';
 import { chromium, type Browser } from '@playwright/test';
 
 import { DomWalker, type StyleContract } from '../src/dom-walker.ts';
-import { loadHtml, parseManifest, prepareBenchPage, renderBench, runCase, type BenchResult } from '../src/resolve-bench.ts';
+import {
+  controlRoto,
+  loadHtml,
+  parseManifest,
+  prepareBenchPage,
+  renderBench,
+  runCase,
+  type BenchResult,
+} from '../src/resolve-bench.ts';
 
 /**
  * K0.31 — el banco de resolución, la pieza que faltaba para medir la escalera
@@ -80,6 +88,28 @@ describe('K0.31 — banco de resolución', () => {
     expect(sin.invalid).toContain('no existe en la foto');
     expect(sin.outcome).not.toBe('acierto'); // jamás se cuenta como éxito
   }, 120_000);
+
+  it('el caso de control se declara en los datos: no puntúa, pero si deja de cumplirse el banco está roto', async () => {
+    const r = await correrCorpus();
+    const ctrl = r.get('harness-check')!;
+    expect(ctrl.control).toEqual({ expected: 'EQUIVOCADO', ok: true });
+    // y el informe lo aparta del recuento del walker: 0 equivocados REALES
+    const txt = renderBench([...r.values()]);
+    expect(txt).toContain('EQUIVOCADO     0');
+    expect(txt).toContain('autocomprobación del banco: 1/1 OK');
+  }, 120_000);
+
+  it('si el control deja de detectar el fallo mudo, el informe grita BANCO ROTO', () => {
+    // el fallo que de verdad importa de esta pieza: que el termómetro mienta
+    const txt = renderBench([
+      { id: 'a', site: 's', outcome: 'acierto' },
+      { id: 'ctrl', site: 's', outcome: 'acierto', control: { expected: 'EQUIVOCADO', ok: false } },
+    ]);
+    expect(txt).toContain('BANCO ROTO');
+    expect(txt).toContain('NO es fiable');
+    expect(controlRoto([{ id: 'ctrl', site: 's', outcome: 'acierto', control: { expected: 'EQUIVOCADO', ok: false } }]))
+      .toHaveLength(1);
+  });
 
   it('el informe pone el EQUIVOCADO en primer plano, no diluido en un porcentaje', () => {
     const txt = renderBench([

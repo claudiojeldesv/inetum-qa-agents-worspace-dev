@@ -870,6 +870,13 @@ resolvió, para poder depurarla, y el CLI sale con código 1 solo por EQUIVOCADO
 Formato de entrada JSONL deliberadamente agnóstico del dataset (`id`, `site`, `task`,
 `html`/`html_path`, `action`, `hint`, `scope?`, `target`), para que enganchar Mind2Web —o
 un corpus corporativo propio de showcases— sea un trabajo de DATOS y no de código; las
-líneas rotas se descartan con aviso en vez de tumbar un corpus de miles. El corpus mínimo
-de validación incluye a propósito un caso de control que DEBE salir `EQUIVOCADO`: un banco
-incapaz de detectar un fallo mudo daría 100% siempre y sería peor que no tener banco.
+líneas rotas se descartan con aviso en vez de tumbar un corpus de miles.
+
+El corpus mínimo de validación incluye a propósito un caso que DEBE salir `EQUIVOCADO`: un
+banco incapaz de detectar un fallo mudo daría 100% siempre y sería peor que no tener banco.
+Ese caso se declara **en los datos** (`"expect": "EQUIVOCADO"`), y esa distinción importa:
+un control no es una medida, es un termómetro. No puntúa al walker —si contara, el corpus
+de autovalidación dejaría una alarma roja permanente y un exit 1 que en CI se lee como
+avería—, pero si algún día deja de dar su desenlace, el informe grita **BANCO ROTO** y
+declara que la cifra de arriba no es fiable. El CLI sale con error por dos motivos, no por
+uno: un `EQUIVOCADO` real del walker, o un control incumplido.
