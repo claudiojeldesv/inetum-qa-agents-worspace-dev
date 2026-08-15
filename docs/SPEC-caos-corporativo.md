@@ -656,3 +656,58 @@ puro (`classifyVia`: testid/role/label/placeholder/texto/texto-normalizado/ancho
 manual/css), inmune al prefijo de frame; audit cruzado para alias/asistencias/drift;
 JSONL tolerante a líneas corruptas. 5 tests unitarios con artefactos sintéticos.
 Primera tabla real sobre los 3 runs de tufarmacia emitida el mismo día.
+
+## 19. K0.28 — el peldaño de texto prueba EXACTO primero, y el anclado no es para clicks
+
+Las dos clases que el guion ciego de tufarmacia dejó nombradas con evidencia (§18),
+arregladas en el mismo paso que las produjo: **CP02-s1**, un `click` con hint de texto
+`'Medicamentos'`.
+
+**A. texto-exacto-antes-que-substring.** `getByText('X')` es substring, así que la
+palabra del menú también matcheaba la prosa del pie ("Venta de *medicamentos* con
+receta…"): dos visibles → el peldaño se plantaba, cuando el match EXACTO era único y
+era justo el objetivo. El plan de intentos emite ahora **dos** intentos de texto en vez
+de uno: exacto y, detrás, substring (y su equivalente en la pasada normalizada: regex
+**anclada** `^\s*…\s*$`, porque si no la segunda pasada reintroduce la ambigüedad que la
+primera acaba de esquivar). Substring sigue siendo la red — el drift de sufijos ("Total:
+12 €" cuando el FD dice "Total") es real y frecuente; lo que cambia es el orden.
+
+No puede cambiar una resolución existente por otra: si el exacto es único, el substring
+lo incluye, así que un substring que hoy resuelve único resuelve al MISMO elemento. Solo
+convierte plantas en resoluciones. La gramática de locators gana la forma
+`getByText('X', { exact: true })` en emisión y en lectura (aliases, `step.locator` y
+replay leen lo que la escalera escribe; sin el parser, el peldaño 0 caería en silencio).
+
+**B. el-anclado-no-es-para-clicks.** Al plantarse el texto, el tier anclado (K0.19)
+cogía esa misma palabra como ANCLA y saltaba al primer control que la seguía —un campo
+sin parentesco con el enlace— y lo clicaba; lo cazó la postcondición, no la resolución.
+Es la variante VISIBLE de K0.26b: allí el puente iba a un control oculto, aquí a uno
+visible y ajeno. La causa es estructural, no un fallo de guarda: el tier responde a
+"¿qué CONTROL etiqueta este texto visible?", y esa pregunta solo tiene sentido cuando el
+paso opera sobre un control. `ANCHORED_ACTIONS = {fill, select, check, uncheck, press}`;
+`click`/`hover` fuera (su objetivo puede ser un enlace, un botón o una fila) y las
+aserciones (`expect_state`) también, porque ahí un puente equivocado no falla: **miente**,
+devuelve un veredicto sobre otro elemento. Sin el tier, el paso se planta y sube al
+panel — honesto.
+
+Nota de diseño: con (A) dentro, (B) es casi inalcanzable por hints de texto —el ancla
+exacta que usaba el tier ahora la consume el peldaño de texto antes— pero sigue siendo
+alcanzable con un contract cuya prioridad no incluya `getByText`, y es ahí donde el test
+lo demuestra. Las dos capas se sostienen solas.
+
+**Fixture y par falsable** (`texto-ambiguo.html`, reproduce la disposición, no el sitio):
+enlace de menú + la misma palabra dentro de la prosa del pie + un buscador DESPUÉS del
+enlace en orden de documento (es lo que hace falsable el puente). Siete tests: substring
+ve dos / exacto ve uno; el walker resuelve y la postcondición lo confirma con
+`resolved_via = getByText('Medicamentos', { exact: true })`; substring sigue funcionando
+como red; el puente existe (`following::` llega al buscador); con contract sin `getByText`
+el `click` se planta; y **el par falsable de la guarda**: mismo hint, misma página,
+cambiando solo la acción a `fill`, el puente SÍ actúa. El test D4 de `anchored-tier`
+pasa a `fill` a propósito: con `click` habría quedado un verde que no discrimina.
+
+**Verificación de campo, mismo día, contra la página que produjo la clase**: el guion
+ciego de tufarmacia pasa de **4/7 a 6/7** sin tocar el guion. `Medicamentos` resuelve por
+el peldaño exacto, CP02 entero en verde (s2 'En stock' nunca había llegado a ejecutarse),
+y el único rojo que queda es el CENTINELA documentado de §18 (trigger sin identidad
+accesible), fallando exactamente como se predijo. 469/469 tests en verde en la suite
+completa —sin flakiness en este run—, tsc limpio.

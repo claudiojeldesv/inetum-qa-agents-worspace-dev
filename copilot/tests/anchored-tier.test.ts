@@ -115,8 +115,12 @@ describe('K0.25/D4 — el ancla ambigua se planta, no puentea', () => {
     }
   }, 120_000);
 
-  it('hint de texto duplicado → el paso se bloquea (hint irresoluble), nunca clica el select', async () => {
-    const map = await walkAmbigua([{ id: 's1', action: 'click', hint: { text: 'Duplicado' } }]);
+  it('hint de texto duplicado → el paso se bloquea (hint irresoluble), nunca toca el select', async () => {
+    // K0.28: la acción es `fill` a propósito. Con `click` este test ya no probaría
+    // la guarda del ancla — el tier ni siquiera correría (K0.28-B lo cubre aparte),
+    // y quedaría un verde que no discrimina. Sobre un control el tier SÍ corre, así
+    // que aquí sigue midiéndose lo que D4 arregló: ancla ambigua = plantarse.
+    const map = await walkAmbigua([{ id: 's1', action: 'fill', hint: { text: 'Duplicado' }, value: 'x' }]);
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('hint irresoluble');

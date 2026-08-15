@@ -121,11 +121,23 @@ export function accentInsensitivePattern(text: string): string {
 
 // ---------------------------------------------------------- locator plans
 
+/**
+ * K0.28 — patrón normalizado ANCLADO (whole-string). Mismo pattern
+ * accent/case-insensible de siempre, pero exigiendo que sea TODO el texto del
+ * elemento. Es el equivalente normalizado de `{ exact: true }`: sin él, la
+ * pasada normalizada volvería a ser substring y reintroduciría la ambigüedad
+ * que la pasada literal acaba de esquivar.
+ */
+export function accentInsensitiveExactPattern(value: string): string {
+  return `^\\s*${accentInsensitivePattern(value)}\\s*$`;
+}
+
 export type LocatorAttempt =
   | { kind: 'test_id'; value: string }
   | { kind: 'role'; role: string; name?: string; normalized?: boolean }
   | { kind: 'label'; value: string; normalized?: boolean }
-  | { kind: 'text'; value: string; normalized?: boolean };
+  /** `exact` (K0.28): texto COMPLETO del elemento, no substring. Ver hintLocatorPlan. */
+  | { kind: 'text'; value: string; normalized?: boolean; exact?: boolean };
 
 const PRIORITY_TO_KIND: Record<string, LocatorAttempt['kind']> = {
   getByTestId: 'test_id',
@@ -146,7 +158,23 @@ export function hintLocatorPlan(hint: StepHint, priority: string[]): LocatorAtte
     if (kind === 'test_id' && hint.test_id) attempts.push({ kind, value: hint.test_id });
     if (kind === 'role' && hint.role) attempts.push({ kind, role: hint.role, name: hint.name });
     if (kind === 'label' && hint.label) attempts.push({ kind, value: hint.label });
-    if (kind === 'text' && (hint.text ?? hint.name)) attempts.push({ kind, value: (hint.text ?? hint.name) as string });
+    /**
+     * K0.28 — el peldaño de TEXTO prueba EXACTO antes que substring. Medido en
+     * campo (tufarmacia, CP02-s1): el hint 'Medicamentos' murió por ambigüedad
+     * porque `getByText` es substring y el footer decía "Venta de medicamentos
+     * con receta…", cuando el enlace del menú era el ÚNICO texto exactamente
+     * igual. Substring es la red de seguridad (drift de sufijos, "Total: 12 €"),
+     * no la primera opción.
+     *
+     * Nunca cambia una resolución existente por otra: si el exacto es único, el
+     * substring lo incluye, así que un substring que hoy resuelve único resuelve
+     * al MISMO elemento. Solo convierte plantas en resoluciones.
+     */
+    if (kind === 'text' && (hint.text ?? hint.name)) {
+      const value = (hint.text ?? hint.name) as string;
+      attempts.push({ kind, value, exact: true });
+      attempts.push({ kind, value });
+    }
   }
   return attempts;
 }
@@ -180,8 +208,10 @@ export function locatorSource(a: LocatorAttempt): string {
       if (a.normalized) return `getByLabel(${norm(a.value)})`;
       return `getByLabel('${a.value.replace(/'/g, "\\'")}')`;
     case 'text':
-      if (a.normalized) return `getByText(${norm(a.value)})`;
-      return `getByText('${a.value.replace(/'/g, "\\'")}')`;
+      if (a.normalized) return `getByText(/${a.exact ? accentInsensitiveExactPattern(a.value) : accentInsensitivePattern(a.value)}/i)`;
+      return a.exact
+        ? `getByText('${a.value.replace(/'/g, "\\'")}', { exact: true })`
+        : `getByText('${a.value.replace(/'/g, "\\'")}')`;
   }
 }
 

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Menu con texto repetido en prosa</title></head>
+<!--
+  Las DOS clases medidas en campo el mismo paso (tufarmacia, tienda PrestaShop,
+  CP02-s1 del guion ciego), reproducidas de forma GENÉRICA — el fixture no imita
+  a la farmacia, reproduce la disposición que hace fallar la escalera:
+
+   1. texto-exacto-antes-que-substring — la palabra del menú ('Medicamentos')
+      aparece TAMBIÉN dentro de una frase del pie ("Venta de medicamentos con
+      receta…"). `getByText` es substring → 2 coincidencias visibles → el
+      peldaño de texto se plantaba, cuando el enlace era el ÚNICO texto
+      exactamente igual.
+
+   2. el-anclado-no-es-para-clicks — al plantarse el texto, el tier anclado
+      (K0.19) cogía esa misma palabra como ANCLA y saltaba al primer control que
+      la seguía (aquí, el buscador de la cabecera: ningún parentesco con el
+      enlace) y lo clicaba. En el run real lo cazó la postcondición, no la
+      resolución.
+
+  El orden del documento importa: el buscador va DESPUÉS del enlace para que
+  `following::input` lo encuentre — es lo que hace falsable el puente.
+-->
+<body>
+  <nav>
+    <a href="#" id="enlace-menu">Medicamentos</a>
+    <a href="#" id="enlace-para">Parafarmacia</a>
+  </nav>
+
+  <form id="buscador" onsubmit="return false">
+    <div><h5>Buscar</h5><input type="search" id="q" title="buscar-cabecera"></div>
+  </form>
+
+  <main>
+    <h1>Inicio</h1>
+    <div id="salida"></div>
+  </main>
+
+  <footer>
+    <p>Venta de medicamentos con receta y parafarmacia desde 1998.</p>
+  </footer>
+
+  <script>
+    document.getElementById('enlace-menu').addEventListener('click', () => {
+      document.getElementById('salida').innerHTML = '<div role="status">Seccion abierta</div>';
+    });
+    // el buscador delata el clic equivocado: si el paso acaba aquí, se ve
+    document.getElementById('q').addEventListener('click', () => {
+      document.getElementById('salida').innerHTML = '<div role="status">Buscador enfocado</div>';
+    });
+  </script>
+</body>
+</html>

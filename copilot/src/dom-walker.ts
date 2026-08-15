@@ -46,6 +46,7 @@ import { chromium, expect, type BrowserContext, type Frame, type Locator, type P
 import { appendAuditEntry } from '../../src/audit-log.ts';
 import { proxyFromEnv } from '../../src/proxy-env.ts';
 import {
+  accentInsensitiveExactPattern,
   accentInsensitivePattern,
   aliasKey,
   assistStepsToWalkSteps,
@@ -114,6 +115,16 @@ const GOTO_TIMEOUT_MS = 30_000;
 const ORACLE_TIMEOUT_MS = 1_500;
 /** Fase 4 — tope por defecto de `scroll_until` cuando el paso no declara `max_steps`. */
 const DEFAULT_SCROLL_MAX_STEPS = 40;
+/**
+ * K0.28 — acciones a las que se les aplica el tier ANCLADO (K0.19). El tier
+ * trepa de una etiqueta visible al control que etiqueta, así que solo tiene
+ * sentido cuando el paso opera sobre un CONTROL. `click`/`hover` quedan fuera:
+ * su objetivo puede ser un enlace, un botón o una fila, y saltar de la palabra
+ * al siguiente input es adivinar (medido: en tufarmacia clicó un campo ajeno).
+ * Las aserciones (`expect_state`) también fuera: un puente equivocado no falla,
+ * MIENTE — devuelve un veredicto sobre otro elemento.
+ */
+const ANCHORED_ACTIONS = new Set<WalkAction>(['fill', 'select', 'check', 'uncheck', 'press']);
 
 interface WalkerOptions {
   scriptPath: string;
@@ -1324,7 +1335,12 @@ class DomWalker {
       case 'label':
         return scope.getByLabel(val(a.value));
       case 'text':
-        return scope.getByText(val(a.value));
+        // K0.28: `exact` = texto completo. Normalizado + exacto = regex anclada.
+        if (a.normalized) {
+          const pattern = a.exact ? accentInsensitiveExactPattern(a.value) : accentInsensitivePattern(a.value);
+          return scope.getByText(new RegExp(pattern, 'i'));
+        }
+        return a.exact ? scope.getByText(a.value, { exact: true }) : scope.getByText(a.value);
     }
   }
 
@@ -1368,6 +1384,13 @@ class DomWalker {
     if (label) return this.attemptToLocator(scope, { kind: 'label', value: label[1].replace(/\\'/g, "'") });
     const textRe = src.match(/^getByText\(\/(.+)\/i\)$/);
     if (textRe) return scope.getByText(new RegExp(textRe[1], 'i'));
+    // K0.28 — la forma exacta debe parsearse ANTES que la plana (y existir: sin
+    // esto, un alias o un `step.locator` emitido por la escalera nueva no se
+    // podría releer y el peldaño 0 caería en silencio).
+    const textExact = src.match(/^getByText\('((?:[^'\\]|\\.)*)',\s*\{\s*exact:\s*true\s*\}\)$/);
+    if (textExact) {
+      return this.attemptToLocator(scope, { kind: 'text', value: textExact[1].replace(/\\'/g, "'"), exact: true });
+    }
     const text = src.match(/^getByText\('((?:[^'\\]|\\.)*)'\)$/);
     if (text) return this.attemptToLocator(scope, { kind: 'text', value: text[1].replace(/\\'/g, "'") });
     return null;
@@ -1606,8 +1629,18 @@ class DomWalker {
      * control único de dentro. Genérico: cualquier app con label-en-celda. NO
      * adivina: si el contenedor tiene ≥2 controles, uniqueOrNull se planta. Existía
      * solo en el camino asistido (buildFallbackCandidates); esto lo sube al guion.
+     *
+     * K0.28 — y NO se aplica a acciones de puntero. Medido en campo (tufarmacia,
+     * CP02-s1): un `click` sobre el hint de texto 'Medicamentos' se puenteó al
+     * primer `input` que seguía a la palabra —un campo sin relación con el enlace
+     * del menú— y se clicó; lo cazó la postcondición, no la resolución. La razón
+     * es estructural: este tier responde a "¿qué CONTROL etiqueta este texto
+     * visible?", y esa pregunta solo tiene sentido cuando el paso opera sobre un
+     * control (fill/select/check/uncheck/press). Un `click` puede ir a un enlace,
+     * un botón o una fila; trepar de su texto al siguiente input es adivinar. Sin
+     * el tier, el paso se planta y sube al panel: honesto.
      */
-    if (step.hint) {
+    if (step.hint && ANCHORED_ACTIONS.has(step.action)) {
       const anchored = await this.resolveAnchored(step.hint, containers);
       if (anchored) return anchored;
     }

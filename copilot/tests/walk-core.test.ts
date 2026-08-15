@@ -68,17 +68,41 @@ describe('hintLocatorPlan', () => {
 
   it('respeta el orden del priority del contract', () => {
     const plan = hintLocatorPlan({ test_id: 'login-button', role: 'button', name: 'Login' }, PRIORITY);
-    expect(plan.map((a) => a.kind)).toEqual(['test_id', 'role', 'text']);
+    // el peldaño de texto son DOS intentos desde K0.28: exacto y, detrás, substring
+    expect(plan.map((a) => a.kind)).toEqual(['test_id', 'role', 'text', 'text']);
   });
 
   it('omite intentos sin datos en el hint', () => {
     const plan = hintLocatorPlan({ role: 'textbox', name: 'Username' }, PRIORITY);
-    expect(plan.map((a) => a.kind)).toEqual(['role', 'text']);
+    expect(plan.map((a) => a.kind)).toEqual(['role', 'text', 'text']);
   });
 
   it('usa hint.text para getByText y cae a name si no hay text', () => {
     const withText = hintLocatorPlan({ text: 'Thank you' }, PRIORITY);
-    expect(withText).toEqual([{ kind: 'text', value: 'Thank you' }]);
+    expect(withText).toEqual([
+      { kind: 'text', value: 'Thank you', exact: true },
+      { kind: 'text', value: 'Thank you' },
+    ]);
+  });
+
+  it('K0.28: el intento EXACTO va delante del substring (y así lo dice su source)', () => {
+    // la clase de campo: 'Medicamentos' (enlace del menú) vs "Venta de medicamentos
+    // con receta" (footer). Substring ve dos; exacto ve uno. El orden es el arreglo.
+    const plan = hintLocatorPlan({ text: 'Medicamentos' }, PRIORITY);
+    expect(plan.map(locatorSource)).toEqual([
+      "getByText('Medicamentos', { exact: true })",
+      "getByText('Medicamentos')",
+    ]);
+  });
+
+  it('K0.28: la pasada normalizada conserva el exacto como regex ANCLADA', () => {
+    const norm = normalizedPlan(hintLocatorPlan({ text: 'Medicamentos' }, PRIORITY));
+    const [exacta, substring] = norm.map(locatorSource);
+    const re = (src: string): RegExp => new RegExp(src.match(/\/(.+)\/i/)![1], 'i');
+    // la anclada tolera el acento/caja pero NO el texto que solo contiene la palabra
+    expect(re(exacta).test('MEDICAMENTOS')).toBe(true);
+    expect(re(exacta).test('Venta de medicamentos con receta')).toBe(false);
+    expect(re(substring).test('Venta de medicamentos con receta')).toBe(true);
   });
 
   it('con priority invertida cambia el orden de intentos', () => {
@@ -301,7 +325,7 @@ describe('normalizedPlan (K0.1)', () => {
   it('excluye test_id y conserva el orden del contract', () => {
     const raw = hintLocatorPlan({ test_id: 'x', role: 'link', name: 'GESTION' }, PRIORITY);
     const norm = normalizedPlan(raw);
-    expect(norm.map((a) => a.kind)).toEqual(['role', 'text']);
+    expect(norm.map((a) => a.kind)).toEqual(['role', 'text', 'text']);
     expect(norm.every((a) => 'normalized' in a && a.normalized)).toBe(true);
   });
 
