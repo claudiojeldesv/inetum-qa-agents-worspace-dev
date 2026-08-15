@@ -137,10 +137,11 @@ describe('Fase 2 — snackbar que intercepta (dismiss por boton de cierre)', () 
 
 /**
  * K0.29 (gira de stacks, sitio 1) — el estorbo DECLARADO que no se deja
- * descartar. Medido contra el banner de `cookieconsent` del showcase de
- * BootsFaces: la estrategia genérica no puede quitarlo (Escape no hace nada, no
- * hay botón de cierre, clicar el banner tampoco) y NO debe — el único botón es
- * "Aceptar cookies", y el consentimiento no lo decide el walker.
+ * descartar. Medido contra el banner del showcase de BootsFaces
+ * (los banners de consentimiento tienen desde K0.30 su propio camino por diseño;
+ * este fixture cubre el resto de overlays: promociones, encuestas, avisos). La
+ * estrategia genérica no puede quitarlo: Escape no hace nada, no hay botón de
+ * cierre y clicar el overlay tampoco.
  *
  * Antes del arreglo, declararlo era PEOR que no declararlo: tras correr el
  * manejador, Playwright espera a que el estorbo se oculte, no se oculta nunca y
@@ -155,7 +156,7 @@ describe('K0.29 — estorbo declarado que resiste el descarte', () => {
       [{ id: 's1', action: 'click', hint: { role: 'button', name: 'Continuar' }, expect_after: 'Accion libre hecha' }],
       {
         locators: { priority: ['getByTestId', 'getByRole', 'getByLabel', 'getByText'] },
-        obstructions: { dismiss: ['.cc-window'] },
+        obstructions: { dismiss: ['.promo-overlay'] },
       },
     );
     const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
@@ -169,7 +170,7 @@ describe('K0.29 — estorbo declarado que resiste el descarte', () => {
       [{ id: 's1', action: 'click', hint: { role: 'button', name: 'Continuar' }, expect_after: 'Accion libre hecha' }],
       {
         locators: { priority: ['getByTestId', 'getByRole', 'getByLabel', 'getByText'] },
-        obstructions: { dismiss: ['.cc-window'] },
+        obstructions: { dismiss: ['.promo-overlay'] },
       },
     );
     const dismiss = auditEntries.filter(
@@ -189,7 +190,7 @@ describe('K0.29 — estorbo declarado que resiste el descarte', () => {
       [{ id: 's1', action: 'click', hint: { role: 'button', name: 'Enviar formulario' } }],
       {
         locators: { priority: ['getByTestId', 'getByRole', 'getByLabel', 'getByText'] },
-        obstructions: { dismiss: ['.cc-window'] },
+        obstructions: { dismiss: ['.promo-overlay'] },
       },
     );
     const blocked = map.open_questions.find((q) => q.step === 's1');

@@ -55,6 +55,10 @@ import {
   buildLocatorCandidates,
   calibratedTimeout,
   compareCount,
+  consentSelector,
+  CONSENT_ACCEPT,
+  CONSENT_CLOSE,
+  CONSENT_REJECT,
   dedupeAndPrune,
   effectiveDebounceMs,
   fingerprintHash,
@@ -122,10 +126,12 @@ const DEFAULT_SCROLL_MAX_STEPS = 40;
  * sentido cuando el paso opera sobre un CONTROL. `click`/`hover` quedan fuera:
  * su objetivo puede ser un enlace, un botón o una fila, y saltar de la palabra
  * al siguiente input es adivinar (medido: en tufarmacia clicó un campo ajeno).
- * Las aserciones (`expect_state`) también fuera: un puente equivocado no falla,
- * MIENTE — devuelve un veredicto sobre otro elemento.
+ * `expect_state` fuera: su hint puede apuntar a cualquier cosa (un botón, una
+ * fila), y ahí un puente equivocado no falla, MIENTE — da un veredicto sobre
+ * otro elemento. `expect_value` sí entra (K0.30): su objetivo es por definición
+ * un control con valor, exactamente la pregunta que el tier sabe contestar.
  */
-const ANCHORED_ACTIONS = new Set<WalkAction>(['fill', 'select', 'check', 'uncheck', 'press']);
+const ANCHORED_ACTIONS = new Set<WalkAction>(['fill', 'select', 'check', 'uncheck', 'press', 'expect_value']);
 
 interface WalkerOptions {
   scriptPath: string;
@@ -177,6 +183,14 @@ interface StyleContract {
    * Cada descarte es auditado (`phase: 'obstruction-dismiss'`).
    */
   obstructions?: { dismiss?: string[] };
+  /**
+   * K0.30 — consentimiento. ON por diseño: el banner de cookies sale en la
+   * mayoría de los portales corporativos y no tiene sentido que cada client pack
+   * lo redescubra. `enabled: false` lo apaga (p. ej. cuando el propio banner ES
+   * el objeto de la prueba); `extra_selectors` añade el CMP casero que no esté
+   * en el catálogo de familias. El walker NUNCA pulsa "aceptar", con knob o sin él.
+   */
+  consent?: { enabled?: boolean; extra_selectors?: string[] };
 }
 
 // ------------------------------------------------- captura in-page (frame)
@@ -1006,6 +1020,8 @@ class DomWalker {
   private currentStepKey: string | null = null;
   /** Estorbos declarados que resistieron el descarte (K0.29): su manejador queda inerte. */
   private readonly undismissable = new Set<string>();
+  /** Banners de consentimiento ya resueltos (K0.30): no se re-intentan ni se re-auditan. */
+  private readonly consentHandled = new Set<string>();
   private aliases: HintAliasFile;
   private readonly aliasesPath: string;
   /** Resolver del envío del overlay (K0.10): lo rellena assistResolve por paso. */
@@ -1034,6 +1050,42 @@ class DomWalker {
     this.assistPatch = { version: 1, site_id: script.site_id, generated_at: '', entries: [] };
     this.timingPath = resolve(opts.timingProfilePath ?? `config/timing-profiles/${script.site_id}.json`);
     this.timing = this.loadTiming();
+  }
+
+  // ------------------------------------------------- banco de resolución
+
+  /**
+   * K0.31 — punto de entrada del BANCO (Mind2Web y cualquier corpus de páginas
+   * estáticas). Corre la escalera REAL sobre una página ya cargada y devuelve
+   * qué resolvió, sin ejecutar nada.
+   *
+   * Que sea un método del propio walker y no una reimplementación es la única
+   * forma de que la medida signifique algo: un banco que evalúa una copia de la
+   * escalera mide la copia. Y sin ejecutar la acción porque el corpus son
+   * FOTOGRAFÍAS del DOM — clicar en una página muerta no prueba nada y puede
+   * navegar. La acción del paso sí importa, porque desde K0.28 decide qué
+   * peldaños entran (el anclado no corre para un click).
+   */
+  static forBench(page: Page, contract: StyleContract, workDir: string, aliasesPath: string): DomWalker {
+    const script: WalkScript = { version: 1, site_id: 'bench', entry: '/', flows: [] };
+    const state: WalkState = {
+      script_hash: 'bench', completed: [], rescues_used: 0, screens: [], transitions: [],
+      open_questions: [], rescues: [], current_screen: null, step_reports: [],
+    };
+    const opts: WalkerOptions = {
+      scriptPath: 'bench', contractPath: 'bench', workDir, rescueBudget: 0, screenCap: 0,
+      headed: false, assist: false, assistTimeoutMs: 0, assistMinimize: false,
+      aliasesPath, timingProfilePath: resolve(workDir, 'timing.json'), calibrate: false,
+    };
+    const walker = new DomWalker(opts, script, contract, state);
+    walker.page = page;
+    return walker;
+  }
+
+  /** Resuelve un paso contra la página del banco. Devuelve la cadena y el locator. */
+  async benchResolve(step: WalkStep): Promise<{ locator: Locator; via: string } | null> {
+    const r = await this.resolveHint(step);
+    return r ? { locator: r.locator, via: r.via } : null;
   }
 
   // ------------------------------------------- sincronización (K0.13)
@@ -1292,6 +1344,171 @@ class DomWalker {
    * estar); por eso cada descarte es un evento de primera clase en el
    * audit-log, no una decisión callada del código.
    */
+  /**
+   * K0.30 — CONSENTIMIENTO POR DISEÑO. El banner de cookies no es una rareza de
+   * un sitio: sale en la mayoría de los portales corporativos, y hasta ahora
+   * cada cliente tenía que redescubrirlo y declararlo a mano en su pack (con el
+   * riesgo, medido en §20, de envenenar el run si el selector no se podía
+   * descartar). El walker lo trata como trata las fachadas de los desplegables:
+   * conociendo la FAMILIA (el CMP) y comprobando el DOM.
+   *
+   * Reglas duras, en este orden:
+   *  1. Solo actúa sobre algo que ESTÁ SUPERPUESTO (position fixed/sticky, o
+   *     absolute con z-index alto). Un `<section>` estático que hable de cookies
+   *     —la política de la propia web— no es un estorbo y no se toca. Esta es la
+   *     guarda que evita que la detección por familia se coma contenido legítimo.
+   *  2. RECHAZAR antes que cerrar: ante un consentimiento, la opción correcta es
+   *     la que menos datos cede.
+   *  3. Cerrar / Escape.
+   *  4. Si lo único que queda es ACEPTAR, no se pulsa NUNCA — el consentimiento
+   *     lo da el usuario, no el walker. El banner se neutraliza localmente
+   *     (ocultándolo y devolviendo el scroll al documento), lo cual no envía
+   *     ninguna señal al sitio, y queda AUDITADO diciendo exactamente eso.
+   */
+  private async dismissConsent(): Promise<void> {
+    if (this.contract.consent?.enabled === false) return;
+    const selector = consentSelector(this.contract.consent?.extra_selectors ?? []);
+    const stepKey = this.currentStepKey ?? '(fuera de un paso)';
+    for (const { scope } of await this.scopes()) {
+      const banners = scope.locator(selector);
+      const total = Math.min(await banners.count().catch(() => 0), 8);
+      /**
+       * Solo los contenedores MÁS EXTERNOS (K0.30). Los patrones genéricos por
+       * `aria-label*="cookie"` matchean también los enlaces de DENTRO del banner
+       * ("learn more about cookies", "dismiss cookie message"): medido en vivo,
+       * un solo banner producía tres apuntes y tres barridos. El banner es el
+       * contenedor; sus hijos no son banners distintos.
+       */
+      const outer: number[] = [];
+      for (let i = 0; i < total; i += 1) {
+        const anidado = await banners
+          .nth(i)
+          .evaluate((el, sel: string) => {
+            for (let p = el.parentElement; p; p = p.parentElement) if (p.matches(sel)) return true;
+            return false;
+          }, selector)
+          .catch(() => false);
+        if (!anidado) outer.push(i);
+      }
+      for (const i of outer) {
+        const banner = banners.nth(i);
+        if (!(await banner.isVisible().catch(() => false))) continue;
+        if (!(await this.isOverlaying(banner))) continue; // contenido estático: no es un estorbo
+        const key = await banner.evaluate((el) => `${el.tagName}#${el.id}.${el.className}`).catch(() => selector);
+        if (this.consentHandled.has(key)) continue;
+
+        const botones = banner.getByRole('button').or(banner.getByRole('link'));
+        const rechazo = botones.filter({ hasText: CONSENT_REJECT }).first();
+        let via = '';
+        if ((await rechazo.count().catch(() => 0)) > 0) {
+          await rechazo.click({ timeout: 3_000 }).catch(() => {});
+          via = 'rechazo';
+        }
+        if (await banner.isVisible().catch(() => false)) {
+          const cerrar = botones
+            .filter({ hasText: CONSENT_CLOSE })
+            .or(banner.locator('[aria-label*="cerrar" i], [aria-label*="close" i], .close'))
+            .first();
+          /**
+           * Guarda innegociable (K0.30): pase lo que pase, no se pulsa algo que
+           * LEE como aceptación. Hay CMP que etiquetan su botón de aceptar como
+           * "dismiss cookie message" (medido en vivo en la gira) — sin esta
+           * comprobación, la estrategia de "cerrar" otorgaría el consentimiento
+           * creyendo que solo cierra. El texto manda sobre el aria-label.
+           *
+           * El `count()` va PRIMERO y el `textContent` con tope corto: leer el
+           * texto de un locator que matchea CERO elementos no devuelve vacío, se
+           * queda esperando a que aparezca el tope entero (30 s por defecto) — y
+           * como este barrido corre dentro de la espera de accionabilidad del
+           * paso, se comía su presupuesto. Cazado en el primer run de campo tras
+           * escribirlo: una postcondición que sí estaba en pantalla se declaró
+           * incumplida por culpa del reloj, no del DOM.
+           */
+          if ((await cerrar.count().catch(() => 0)) > 0) {
+            const texto = ((await cerrar.textContent({ timeout: 1_000 }).catch(() => '')) ?? '').trim();
+            if (!CONSENT_ACCEPT.test(texto)) {
+              await cerrar.click({ timeout: 3_000 }).catch(() => {});
+              via = via || 'cierre';
+            }
+          }
+        }
+        if (await banner.isVisible().catch(() => false)) {
+          await this.page.keyboard.press('Escape').catch(() => {});
+          via = via || 'escape';
+        }
+        if (await banner.isVisible().catch(() => false)) {
+          // Solo queda aceptar — y eso no lo hace el walker.
+          const soloAceptar = (await botones.filter({ hasText: CONSENT_ACCEPT }).count().catch(() => 0)) > 0;
+          await banner
+            .evaluate((el) => {
+              (el as HTMLElement).style.setProperty('display', 'none', 'important');
+              // los CMP suelen bloquear el scroll del documento mientras deciden
+              for (const node of [document.documentElement, document.body]) {
+                node.style.removeProperty('overflow');
+                node.style.setProperty('overflow', 'auto');
+              }
+            })
+            .catch(() => {});
+          this.consentHandled.add(key);
+          this.audit(
+            'skip',
+            `consentimiento NO otorgado en ${stepKey}: el banner (${key}) solo ofrecía ` +
+              `${soloAceptar ? 'aceptar' : 'opciones no reconocidas'}; aceptar es decisión del usuario, ` +
+              'así que se ha neutralizado localmente (ocultado, sin enviar ninguna señal al sitio)',
+            { phase: 'consent', outcome: 'neutralizado-sin-consentir', cmp: key, step: stepKey },
+          );
+          continue;
+        }
+        this.consentHandled.add(key);
+        this.audit('skip', `banner de consentimiento descartado en ${stepKey} por ${via}: ${key}`, {
+          phase: 'consent',
+          outcome: via,
+          cmp: key,
+          step: stepKey,
+        });
+      }
+    }
+  }
+
+  /**
+   * ¿Está SUPERPUESTO al contenido? Es la diferencia entre un banner de cookies
+   * y la sección de la política de cookies: el primero flota encima (fixed /
+   * sticky / absolute con z-index), la segunda fluye con el documento. Sin esta
+   * comprobación, la detección por familia se comería contenido legítimo — y un
+   * walker que borra contenido de la página bajo prueba no vale nada.
+   */
+  private async isOverlaying(locator: Locator): Promise<boolean> {
+    return locator
+      .evaluate((el) => {
+        for (let node: Element | null = el; node; node = node.parentElement) {
+          const cs = getComputedStyle(node);
+          if (cs.position === 'fixed' || cs.position === 'sticky') return true;
+          if (cs.position === 'absolute' && Number(cs.zIndex) >= 100) return true;
+        }
+        return false;
+      })
+      .catch(() => false);
+  }
+
+  /**
+   * K0.30 — red de seguridad del consentimiento: el banner que aparece TARDE
+   * (los CMP se cargan asíncronos y muchos entran segundos después del load, ya
+   * en mitad del flujo). Un único manejador para todas las familias, con
+   * `noWaitAfter` por la lección de K0.29: si el barrido no lo quita, la acción
+   * no se cuelga esperando a que se oculte.
+   */
+  private async installConsentHandler(): Promise<void> {
+    if (this.contract.consent?.enabled === false) return;
+    const selector = consentSelector(this.contract.consent?.extra_selectors ?? []);
+    await this.page.addLocatorHandler(
+      this.page.locator(selector).first(),
+      async () => {
+        await this.dismissConsent();
+      },
+      { noWaitAfter: true },
+    );
+  }
+
   private async installObstructionHandlers(): Promise<void> {
     const selectors = this.contract.obstructions?.dismiss ?? [];
     for (const selector of selectors) {
@@ -2646,6 +2863,13 @@ class DomWalker {
     for (let i = 0; i < INTENTOS; i += 1) {
       try {
         await this.page.goto(url, { timeout: GOTO_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+        /**
+         * K0.30 — el barrido de consentimiento va PEGADO a la navegación, no solo
+         * colgado del manejador de accionabilidad: la captura de pantalla del
+         * dom-map no ejecuta ninguna acción, así que sin esto el banner entraría
+         * en el mapa como si fuera contenido de la aplicación.
+         */
+        await this.dismissConsent();
         if (i > 0) {
           this.audit('allow', `goto recuperado al intento ${i + 1}: ${url}`, { phase: 'goto-retry', attempt: i + 1 });
           console.error(`[dom-walker] goto recuperado al intento ${i + 1} de ${INTENTOS}`);
@@ -2745,7 +2969,30 @@ class DomWalker {
         // medio pintar es la forma más rápida de mentir en el informe.
         const obs = await this.waitForSettle(settle);
         const value = resolveFixtureRef(step.value!, fixtures);
-        const found = await this.findVisibleText(value);
+        /**
+         * K0.30 (F4) — el ÁMBITO de la aserción. `expect_text` es una búsqueda en
+         * TODA la página, y eso se cobró un verde falso en la gira (§20): el texto
+         * esperado ya estaba visible en el bloque de código con que la propia web
+         * documentaba su ejemplo, así que la postcondición se habría cumplido
+         * aunque la acción no hubiera hecho nada. Con `scope` —el mismo campo que
+         * el refiner ya emite desde el FD ("en el panel Resumen, aparece…")— el
+         * texto tiene que estar DONDE dice el negocio. Sin `scope`, comportamiento
+         * de siempre; el ámbito no se inventa.
+         */
+        let containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> | undefined;
+        if (step.scope) {
+          containers = await this.resolveScope(step.scope, await this.scopes());
+          if (containers.length === 0) {
+            // distinción que importa: el ámbito irresoluble NO es drift del texto.
+            // Decir "el texto no aparece" cuando no se encontró dónde mirar sería
+            // culpar al negocio de un problema del locator.
+            this.blockStep(flow, step, `ámbito de la postcondición irresoluble: no se encontró el contenedor declarado`, false);
+            this.audit('block', `expect_text sin ámbito ${stepKey}`, { phase: 'expect', settle: obs });
+            this.pushReport(flow, step, { outcome: 'postcondition_unmet', action_ms: Date.now() - startedAt, settle: obs, retried: false });
+            return;
+          }
+        }
+        const found = await this.findVisibleText(value, STEP_TIMEOUT_MS, containers);
         const report = { action_ms: Date.now() - startedAt, settle: obs, retried: false };
         if (!found) {
           const suffix = obs.timed_out
@@ -2758,7 +3005,62 @@ class DomWalker {
         }
         // éxito → el texto queda como business_text de la pantalla con locator verificado en vivo
         this.recordBusinessText(value, found.via, found.frame_path);
-        this.pushReport(flow, step, { ...report, outcome: obs.timed_out ? 'settle_timeout' : 'ok' });
+        // K0.30 — y DÓNDE se cumplió viaja al informe: una aserción que pasa sin
+        // decir dónde pasó es la que esconde los verdes falsos (§20).
+        this.pushReport(flow, step, {
+          ...report,
+          outcome: obs.timed_out ? 'settle_timeout' : 'ok',
+          resolved_via: found.via,
+        });
+        return;
+      }
+      case 'expect_value': {
+        /**
+         * K0.30 (F5) — el resultado que vive en el `value` de un control. En JSF/
+         * ADF/UI5 corporativo el importe calculado, el número de expediente o la
+         * prima aterrizan en un campo deshabilitado; `expect_text` no los ve.
+         * Mismo criterio de comparación que el resto de la escalera: exacto
+         * primero, normalizado (acentos/caja/espacios) después y AUDITADO, nunca
+         * "parecido". Fallo = drift del FD, no problema de locator → sin rescate.
+         */
+        const obs = await this.waitForSettle(settle);
+        const want = resolveFixtureRef(step.value!, fixtures);
+        const report = { action_ms: Date.now() - startedAt, settle: obs, retried: false };
+        const resolved = await this.resolveHint(step);
+        if (!resolved) {
+          this.blockStep(flow, step, `drift: campo de la postcondición no resuelto en el DOM`, false);
+          this.audit('block', `expect_value fallido ${stepKey}: hint irresoluble`, { phase: 'expect-value', settle: obs });
+          this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
+          return;
+        }
+        const actual = await this.readValue(resolved.locator);
+        if (actual === null) {
+          // el elemento resuelto no tiene valor que leer: decirlo tal cual, no
+          // convertirlo en "el valor no coincide" (sería culpar al negocio).
+          this.blockStep(flow, step, `el elemento resuelto (${resolved.via}) no es un control con valor legible`, false);
+          this.audit('block', `expect_value sin valor ${stepKey}: ${resolved.via}`, { phase: 'expect-value', settle: obs });
+          this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet', resolved_via: resolved.via });
+          return;
+        }
+        let ok = actual === want;
+        if (!ok && normalizeText(actual) === normalizeText(want)) {
+          ok = true;
+          this.audit('allow', `valor normalizado tolerado ${stepKey}: '${actual}' ≈ '${want}'`, { phase: 'value-normalizado' });
+        }
+        if (!ok) {
+          this.blockStep(
+            flow,
+            step,
+            `drift: postcondición del FD no cumplida — ${resolved.via} vale '${actual}', el FD espera '${want}'`,
+            false,
+          );
+          this.audit('block', `expect_value fallido ${stepKey}: '${actual}' != '${want}'`, { phase: 'expect-value', settle: obs });
+        }
+        this.pushReport(flow, step, {
+          ...report,
+          outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet',
+          resolved_via: resolved.via,
+        });
         return;
       }
       case 'expect_state': {
@@ -3296,17 +3598,42 @@ class DomWalker {
    * ya se estabilizó, así que si el texto no está no va a llegar — y 10 s por intento
    * y por scope convertían el reintento en algo inasumible.
    */
+  /**
+   * K0.30 — lee el VALOR de un control. `inputValue()` cubre input/textarea/
+   * select (incluido el `<select>` que hay detrás de una fachada). Si el
+   * elemento no es ninguno de ésos, se intenta `contenteditable` y el atributo
+   * `value`; si tampoco, devuelve null — "no tiene valor legible" es un
+   * diagnóstico distinto de "el valor no coincide", y confundirlos es culpar al
+   * negocio de un problema de locator.
+   */
+  private async readValue(locator: Locator): Promise<string | null> {
+    const direct = await locator.inputValue({ timeout: ORACLE_TIMEOUT_MS }).catch(() => null);
+    if (direct !== null) return direct;
+    return locator
+      .evaluate((el) => {
+        if (el instanceof HTMLElement && el.isContentEditable) return el.textContent ?? '';
+        const attr = el.getAttribute('value');
+        return attr === null ? null : attr;
+      })
+      .catch(() => null);
+  }
+
   private async findVisibleText(
     value: string,
     timeoutMs = STEP_TIMEOUT_MS,
+    containers?: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }>,
   ): Promise<{ via: string; frame_path: string[] } | null> {
-    const scopes = await this.scopes();
+    // K0.30 (F4): con ámbito declarado se busca SOLO dentro de él; sin ámbito,
+    // toda la página como siempre.
+    const scopes = containers ?? (await this.scopes());
     const attempts: Array<{ needle: string | RegExp; via: string }> = [
       { needle: value, via: `getByText('${value.replace(/'/g, "\\'")}')` },
       { needle: new RegExp(accentInsensitivePattern(value), 'i'), via: `getByText(/${accentInsensitivePattern(value)}/i)` },
     ];
-    for (const { needle, via } of attempts) {
-      for (const { scope, path } of scopes) {
+    for (const { needle, via: rawVia } of attempts) {
+      for (const container of scopes) {
+        const { scope, path } = container;
+        const via = 'via' in container && container.via ? `${container.via} >> ${rawVia}` : rawVia;
         /**
          * `.filter({ visible: true })` antes del `.first()` — K0.16, encontrado por el
          * banco corporativo: el texto de negocio "Rehusada" existe TAMBIÉN como
@@ -3468,6 +3795,7 @@ class DomWalker {
     this.page = await this.context.newPage();
     // Fase 2: opt-in por client pack, sin efecto si el contract no declara nada
     await this.installObstructionHandlers();
+    await this.installConsentHandler();
     // diálogos no declarados por el paso: registrar y cerrar (determinista, no colgar)
     this.page.on('dialog', async (d) => {
       this.lastDialogs.push(`${d.type()}: ${d.message()}`);

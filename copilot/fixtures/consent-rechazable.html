@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><title>Banner con opcion de rechazo</title>
+  <style>
+    #onetrust-banner-sdk {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483645;
+      background: #222; color: #fff; padding: 24px; display: flex; gap: 12px; align-items: center;
+    }
+    .accion { position: fixed; left: 24px; bottom: 34px; z-index: 1; }
+  </style>
+</head>
+<!--
+  Familia OneTrust (el CMP mas extendido en banca y seguros): contenedor
+  #onetrust-banner-sdk y tres botones. El walker debe elegir RECHAZAR — no
+  cerrar, no aceptar: ante un consentimiento, la opcion correcta es la que menos
+  datos cede. El boton de accion va DEBAJO del banner para que, si el banner no
+  se fuera, el paso fallara por intercepcion (par falsable).
+-->
+<body>
+  <h1>Portal</h1>
+  <div id="salida"></div>
+  <button class="accion" id="continuar">Continuar</button>
+
+  <div id="onetrust-banner-sdk" role="dialog" aria-label="Preferencias de cookies">
+    <span>Usamos cookies propias y de terceros.</span>
+    <button id="ot-pc-btn">Configurar</button>
+    <button id="onetrust-reject-all-handler">Rechazar todas</button>
+    <button id="onetrust-accept-btn-handler">Aceptar todas</button>
+  </div>
+
+  <script>
+    const banner = document.getElementById('onetrust-banner-sdk');
+    const marca = (via) => { banner.remove(); window.__consent = via; };
+    document.getElementById('onetrust-reject-all-handler').addEventListener('click', () => marca('rechazo'));
+    document.getElementById('onetrust-accept-btn-handler').addEventListener('click', () => marca('aceptado'));
+    document.getElementById('continuar').addEventListener('click', () => {
+      // delata QUE via se uso: si el walker hubiera aceptado, se veria aqui
+      document.getElementById('salida').innerHTML =
+        '<div role="status">Continuado con consentimiento: ' + (window.__consent || 'ninguno') + '</div>';
+    });
+  </script>
+</body>
+</html>

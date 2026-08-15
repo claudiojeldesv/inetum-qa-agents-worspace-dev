@@ -59,13 +59,10 @@ evidence:
   level: full
   screenshots: on
 
-# Estorbo declarado a nivel de STACK, no de sitio: el banner es la librería
-# `cookieconsent` (el "Learn more / Accept Cookies" clásico), cuyo contenedor es
-# `.cc-window`. Es una predicción del pack: si el selector no es ese, el run lo
-# dirá (un paso quedará interceptado) y se corrige con evidencia.
-obstructions:
-  dismiss:
-    - '.cc-window'
+# Sin `obstructions`: el banner de este showcase es la librería `cookieconsent`
+# y la cubre el consentimiento POR DISEÑO del walker (K0.30). Historia de cómo
+# se llegó aquí, en docs/SPEC-caos-corporativo.md §20-21: declararlo a mano fue
+# lo que destapó que un estorbo indescartable envenena el run entero.
 
 synthetic_fixtures:
   credentials: []

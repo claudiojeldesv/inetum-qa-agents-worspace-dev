@@ -784,3 +784,92 @@ el equivalente es el valor que aparece a la vez en el filtro y en la rejilla.
 corporativo el resultado calculado vive justo ahí (`brandOutputID2` medido): candidato a
 acción `expect_value`. Las dos son de la familia más peligrosa para un producto de QA —
 equivocarse **en verde**— y por eso van nombradas con su evidencia en vez de estiradas hoy.
+
+## 21. K0.30/K0.31 — aserciones que no mienten, consentimiento por diseño, y el banco
+
+### F4/F5 — las dos formas de equivocarse EN VERDE
+
+`expect_text` era una búsqueda de texto en TODA la página. En la gira eso se cobró un
+verde falso (§20) y la clase es general: en una app corporativa el mismo literal aparece
+en el filtro que acabas de rellenar y en la rejilla de resultados. Ahora el paso admite
+**`scope`** —el mismo campo que el refiner ya emite desde el FD— y el texto tiene que
+estar DONDE dice el negocio. Distinción que se cuida: un ámbito irresoluble se reporta
+como tal, **no** como "el texto no aparece"; son dos hallazgos distintos y confundirlos
+envenena el informe de reconciliación. Además, cuando la aserción pasa, **dónde** pasó
+viaja al informe (`resolved_via`): una aserción que se cumple sin decir dónde es
+justamente la que esconde los verdes falsos.
+
+**`expect_value`** (acción nueva): el resultado calculado de las apps corporativas no es
+texto, es el `value` de un campo deshabilitado — importe, prima, número de expediente
+(medido: `brandOutputID2`). Compara exacto primero y normalizado después **con apunte en
+el audit**, como el resto de la escalera; si el elemento resuelto no tiene valor legible
+lo dice tal cual en vez de convertirlo en "no coincide". Entra en `ANCHORED_ACTIONS`
+porque su objetivo es por definición un control: es exactamente la pregunta que el tier
+anclado sabe responder. `expect_state` sigue fuera, porque su hint puede apuntar a
+cualquier cosa.
+
+### Consentimiento POR DISEÑO
+
+El banner de cookies no es una rareza de un sitio: sale en la mayoría de los portales
+corporativos. Tratarlo como "estorbo que el client pack declara si acaso" obligaba a
+redescubrirlo cliente a cliente y, peor, un selector mal declarado envenenaba el run
+entero (§20 D1). El walker ahora lo conoce como conoce las fachadas de los desplegables:
+**por FAMILIA de CMP** (OneTrust, Cookiebot, cookieconsent, CookieYes, Quantcast, Didomi,
+Usercentrics, TrustArc, Complianz, Borlabs, Iubenda, Termly, Klaro + patrones genéricos
+para los CMP caseros, tan comunes en banca). Detección por familia, confirmación por DOM.
+
+Reglas duras, en orden:
+
+1. **Solo se actúa sobre algo SUPERPUESTO** (fixed/sticky, o absolute con z-index alto).
+   La sección "Política de cookies" de la propia aplicación fluye con el documento y NO
+   se toca. Sin esta guarda, la detección por familia se comería contenido legítimo — y
+   un walker que borra contenido de la app bajo prueba no vale nada. Tiene fixture propio
+   (`consent-falso-positivo.html`) y es el test que decide si esto es mejora o degradación.
+2. **Rechazar antes que cerrar.** Ante un consentimiento, la opción correcta es la que
+   menos datos cede. Reconocimiento multilingüe (es/en/de/fr/pt), y el test fija que el
+   patrón de rechazo NO matchea "Aceptar" — confundirlos sería el peor fallo de la pieza.
+3. **Cerrar / Escape**, con una guarda innegociable: no se pulsa nada que LEA como
+   aceptación, aunque su `aria-label` diga "dismiss" (medido en vivo: hay CMP que
+   etiquetan así su botón de aceptar; fiarse del aria-label habría otorgado el
+   consentimiento creyendo que solo cerraba).
+4. **Si lo único que queda es aceptar, NO se acepta jamás.** El consentimiento lo da el
+   usuario. El banner se neutraliza localmente (ocultar + devolver el scroll al
+   documento), lo que no envía ninguna señal al sitio, y el audit lo dice con esas
+   palabras. El flujo sigue; la decisión no se falsifica.
+
+Solo el contenedor más EXTERNO se procesa: los patrones genéricos por `aria-label*=cookie`
+matchean también los enlaces de dentro del banner, y en vivo un solo banner producía tres
+barridos y tres apuntes. `consent.enabled: false` lo apaga por completo (cuando el banner
+ES el objeto de la prueba); `extra_selectors` añade el CMP casero del cliente. Los
+contracts de tufarmacia y bootsfaces han perdido su declaración manual: ya no hace falta.
+
+**Evidencia empírica (la regla del trade: mejor en 9, no peor en 1).** Fixtures: banner con
+rechazo → rechaza; banner solo-aceptar → neutraliza sin consentir y el flujo sigue;
+contenido estático que habla de cookies → intacto. En vivo: tufarmacia mantiene 6/7 con la
+declaración manual retirada, y BootsFaces neutraliza su banner real sin consentir. Y una
+regresión propia, cazada por el primer run de campo tras escribir la pieza: leer el texto
+de un botón de cierre que no existe **no devuelve vacío, espera el tope por defecto (30 s)**;
+como el barrido corre dentro de la espera de accionabilidad, una postcondición que sí
+estaba en pantalla se declaró incumplida por el reloj (4/4 → 3/4). Arreglado (contar
+primero, leer con tope corto) y con test de regresión determinista.
+
+### K0.31 — el banco de resolución (listo para Mind2Web)
+
+`copilot/src/resolve-bench.ts`: corre la escalera **real** del producto
+(`DomWalker.forBench`, no una copia — un banco que evalúa una reimplementación mide la
+reimplementación) sobre fotografías del DOM (`page.setContent`), offline y a $0, sin
+ejecutar la acción (en una página muerta un clic no prueba nada y puede navegar). La
+acción del caso sí se declara, porque desde K0.28 decide qué peldaños entran.
+
+Tres desenlaces que **nunca se suman**: `acierto`, `planta` (no resolvió: honesto, va al
+panel o al rescate) y **`EQUIVOCADO`** (resolvió otro elemento). La métrica que manda es la
+tercera: un walker que se planta mucho es lento, uno que acierta el 95% y falla mudo el 5%
+es inservible para QA regulado. El informe la pone en primer plano con el elemento que
+resolvió, para poder depurarla, y el CLI sale con código 1 solo por EQUIVOCADO.
+
+Formato de entrada JSONL deliberadamente agnóstico del dataset (`id`, `site`, `task`,
+`html`/`html_path`, `action`, `hint`, `scope?`, `target`), para que enganchar Mind2Web —o
+un corpus corporativo propio de showcases— sea un trabajo de DATOS y no de código; las
+líneas rotas se descartan con aviso en vez de tumbar un corpus de miles. El corpus mínimo
+de validación incluye a propósito un caso de control que DEBE salir `EQUIVOCADO`: un banco
+incapaz de detectar un fallo mudo daría 100% siempre y sería peor que no tener banco.

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><title>Banner que solo deja aceptar</title>
+  <style>
+    html, body { overflow: hidden; } /* el CMP bloquea el scroll mientras decides */
+    .cky-consent-container {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+      background: #148f77; color: #fff; padding: 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .accion { position: fixed; left: 24px; bottom: 34px; z-index: 1; }
+  </style>
+</head>
+<!--
+  El caso incomodo, y el mas comun en portales pequenos: el banner NO ofrece
+  rechazar ni cerrar. Solo aceptar. El walker no puede pulsarlo (el
+  consentimiento lo da el usuario) y tampoco puede quedarse bloqueado, porque el
+  banner tapa el flujo. Lo que hace: neutralizarlo LOCALMENTE (ocultar + devolver
+  el scroll), sin enviar ninguna senal al sitio, y decirlo en el audit.
+-->
+<body>
+  <h1>Tienda</h1>
+  <div id="salida"></div>
+  <button class="accion" id="continuar">Continuar</button>
+
+  <div class="cky-consent-container" role="dialog" aria-label="cookieconsent">
+    <span>Este sitio usa cookies.</span>
+    <!-- la trampa medida en vivo: el CMP etiqueta su boton de ACEPTAR con un
+         aria-label de cierre. Si el walker se fiara del aria-label, otorgaria el
+         consentimiento creyendo que solo cierra el banner. -->
+    <button id="aceptar" aria-label="dismiss cookie message">Aceptar cookies</button>
+  </div>
+
+  <script>
+    document.getElementById('aceptar').addEventListener('click', () => {
+      document.querySelector('.cky-consent-container').remove();
+      window.__consent = 'aceptado';
+    });
+    document.getElementById('continuar').addEventListener('click', () => {
+      document.getElementById('salida').innerHTML =
+        '<div role="status">Continuado con consentimiento: ' + (window.__consent || 'ninguno') + '</div>';
+    });
+  </script>
+</body>
+</html>

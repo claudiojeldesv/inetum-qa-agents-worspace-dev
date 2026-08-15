@@ -52,12 +52,11 @@ evidence:
   level: full
   screenshots: on
 
-# Estorbos (Fase 2, opt-in): banner CookieYes del dominio raíz. En la sesión de
-# descubrimiento la tienda no lo mostró (solo el WP de tufarmaciaelche.es), pero
-# un perfil de navegador en frío podría recibirlo — declarado por si acaso.
-obstructions:
-  dismiss:
-    - '.cky-consent-container'
+# Sin `obstructions`: el banner CookieYes de este dominio lo cubre el
+# consentimiento POR DISEÑO del walker (K0.30) — la familia CookieYes está en el
+# catálogo del kernel. Declararlo aquí era redescubrir en cada cliente algo que
+# pasa en la mayoría de los portales. `obstructions` queda para estorbos que NO
+# son de consentimiento (backdrops fantasma, snackbars).
 
 # Sin credenciales: los dos flujos del guion operan como invitado, cero secretos.
 synthetic_fixtures:

@@ -6,12 +6,11 @@
   <style>
     body { margin: 0; font-family: sans-serif; }
     .contenido { padding: 20px; }
-    /* El banner ocupa la franja inferior y TAPA lo que haya debajo (z-index alto),
-       igual que el banner de cookieconsent medido en la gira. */
-    /* El boton de aceptar va al EXTREMO derecho a proposito: asi el ultimo
-       recurso del descarte generico (clicar el propio estorbo, que apunta a su
-       centro) no puede pulsarlo por accidente. Aceptar no es una via valida. */
-    .cc-window {
+    /* El overlay ocupa la franja inferior y TAPA lo que haya debajo (z-index
+       alto). Su boton va al EXTREMO derecho a proposito: asi el ultimo recurso
+       del descarte generico (clicar el propio estorbo, que apunta a su centro)
+       no puede pulsarlo por accidente. */
+    .promo-overlay {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
       background: #148f77; color: white; padding: 24px;
       display: flex; justify-content: space-between; align-items: center;
@@ -20,13 +19,14 @@
   </style>
 </head>
 <!--
-  La CLASE medida en la gira (sitio 1, BootsFaces / librería cookieconsent): un
-  estorbo DECLARADO en el contract que la estrategia genérica NO puede descartar.
+  La CLASE medida en la gira (sitio 1): un estorbo DECLARADO en el contract que
+  la estrategia genérica NO puede descartar. Aquí es un modal de captación
+  (boletín), NO un banner de cookies: el consentimiento tiene su propio camino
+  por diseño desde K0.30 (ver consent.test.ts), y este fixture cubre el resto de
+  overlays — promociones, encuestas, avisos de sesión.
   - Escape no hace nada (sin listener de teclado).
-  - No hay botón de cierre: el único botón es "Aceptar cookies", y aceptar el
-    consentimiento no es decisión del walker (por eso el descarte genérico jamás
-    lo pulsa: busca cerrar/close/dismiss, no aceptar).
-  - Clicar el propio banner tampoco lo cierra.
+  - No hay botón de cierre: el único botón es la propia acción del modal.
+  - Clicar el propio overlay tampoco lo cierra.
   Sin el arreglo K0.29, declararlo era PEOR que no declararlo: Playwright espera
   tras el manejador a que el estorbo se oculte, no se oculta nunca, y toda accion
   y toda espera de accionabilidad del run agotan su tope.
@@ -40,14 +40,14 @@
 
   <button class="tapado" id="debajo" onclick="document.getElementById('salida').textContent='NO deberia poder pulsarse'">Enviar formulario</button>
 
-  <div class="cc-window" role="dialog" aria-label="cookieconsent">
-    Este sitio usa cookies. <button id="aceptar">Aceptar cookies</button>
+  <div class="promo-overlay" role="dialog" aria-label="Boletin">
+    Suscribete a nuestro boletin. <button id="aceptar">Suscribirme</button>
   </div>
 
   <script>
-    // el banner solo desaparece ACEPTANDO: la via que el walker tiene prohibida
+    // el overlay solo desaparece completando su accion: nada que el walker deba pulsar
     document.getElementById('aceptar').addEventListener('click', () => {
-      document.querySelector('.cc-window').remove();
+      document.querySelector('.promo-overlay').remove();
     });
   </script>
 </body>

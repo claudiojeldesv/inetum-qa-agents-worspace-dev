@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Resultado en campo de solo lectura</title></head>
+<!--
+  La CLASE medida en la gira (sitio 1, JSF/BootsFaces) y omnipresente en banca y
+  seguros: el resultado de la operación NO es texto de la página, es el `value` de
+  un campo deshabilitado (importe calculado, número de expediente, prima).
+
+  Y con ella su trampa: la misma pantalla contiene el literal esperado en OTRO
+  sitio —aquí el bloque de documentación, en una app real el filtro que se acaba
+  de rellenar o una leyenda—, así que `expect_text` a nivel de página se cumple
+  aunque el envío no haya hecho absolutamente nada. Verde falso.
+-->
+<body>
+  <h1>Alta de vehículo</h1>
+
+  <form id="alta" onsubmit="return false">
+    <label for="marca">Marca</label>
+    <select id="marca">
+      <option value="">(Seleccione)</option>
+      <option>Honda</option>
+      <option>Opel</option>
+    </select>
+    <button id="enviar" type="button">Enviar</button>
+  </form>
+
+  <section aria-label="Resultado del envio">
+    <label for="ultimo">Ultimo valor enviado</label>
+    <input id="ultimo" disabled value="">
+  </section>
+
+  <!-- la fuente del verde falso: el literal ya está visible ANTES de enviar -->
+  <section aria-label="Documentacion del ejemplo">
+    <pre><code>&lt;option&gt;Honda&lt;/option&gt;</code></pre>
+  </section>
+
+  <script>
+    document.getElementById('enviar').addEventListener('click', () => {
+      const sel = document.getElementById('marca');
+      document.getElementById('ultimo').value = sel.value || '';
+    });
+  </script>
+</body>
+</html>

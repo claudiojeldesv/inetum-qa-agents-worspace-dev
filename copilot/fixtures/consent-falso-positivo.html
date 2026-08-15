@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><title>Politica de cookies (contenido, no estorbo)</title>
+  <style>
+    .cookie-banner-info { background: #eee; padding: 16px; border: 1px solid #ccc; }
+  </style>
+</head>
+<!--
+  La guarda de la deteccion por familia. Esta pagina NO tiene ningun estorbo: es
+  la pantalla de "Politica de cookies" de la propia aplicacion, con una seccion
+  cuya clase encaja con los patrones genericos (`cookie-banner`) y un dialogo de
+  preferencias que forma parte del contenido.
+
+  Si el walker la tocara, estaria borrando contenido de la aplicacion bajo prueba
+  — degradar 1 sitio para arreglar 9 no vale cuando lo que se degrada es la
+  fidelidad de la prueba. La regla que lo impide: solo se actua sobre algo
+  SUPERPUESTO (fixed/sticky/absolute con z-index), y esto fluye con el documento.
+-->
+<body>
+  <h1>Politica de cookies</h1>
+
+  <section class="cookie-banner-info" role="dialog" aria-label="cookie preferences">
+    <h2>Tus preferencias</h2>
+    <p>Puedes rechazar las cookies no esenciales cuando quieras.</p>
+    <button id="rechazar-contenido">Rechazar todas</button>
+  </section>
+
+  <p id="texto">Texto legal de la politica.</p>
+  <button id="continuar" onclick="document.getElementById('salida').innerHTML='<div role=&quot;status&quot;>Continuado</div>'">Continuar</button>
+  <div id="salida"></div>
+
+  <script>
+    document.getElementById('rechazar-contenido').addEventListener('click', () => {
+      document.getElementById('texto').textContent = 'EL WALKER TOCO EL CONTENIDO';
+    });
+  </script>
+</body>
+</html>

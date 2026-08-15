@@ -592,11 +592,14 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
   if (!s.entry) errors.push('entry requerido');
   if (!Array.isArray(s.flows) || s.flows.length === 0) errors.push('flows[] requerido y no vacío');
   const NEEDS_HINT: WalkStep['action'][] = [
-    'fill', 'click', 'hover', 'select', 'check', 'uncheck', 'expect_state', 'expect_count', 'expect_each',
+    'fill', 'click', 'hover', 'select', 'check', 'uncheck', 'expect_state', 'expect_value', 'expect_count', 'expect_each',
   ];
-  const NEEDS_VALUE: WalkStep['action'][] = ['fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state', 'expect_count'];
+  const NEEDS_VALUE: WalkStep['action'][] = [
+    'fill', 'select', 'press', 'wait_text', 'expect_text', 'expect_state', 'expect_value', 'expect_count',
+  ];
   const NO_POSTCONDITION: WalkStep['action'][] = [
-    'capture', 'expect_text', 'expect_state', 'wait_url', 'wait_text', 'expect_count', 'expect_each', 'scroll_until',
+    'capture', 'expect_text', 'expect_state', 'expect_value', 'wait_url', 'wait_text', 'expect_count', 'expect_each',
+    'scroll_until',
   ];
   for (const flow of s.flows ?? []) {
     if (!flow.flow) errors.push('flow sin id');
@@ -767,6 +770,7 @@ const RETRY_SAFE_BY_DEFAULT: ReadonlySet<WalkAction> = new Set<WalkAction>([
   'wait_text',
   'expect_text',
   'expect_state',
+  'expect_value',
 ]);
 
 /**
@@ -839,6 +843,86 @@ export function fingerprintHash(raw: string): string {
 export function hashScript(script: WalkScript): string {
   return createHash('sha256').update(JSON.stringify(script)).digest('hex').slice(0, 16);
 }
+
+// -------------------------------------------- consentimiento (K0.30, familias)
+
+/**
+ * Banners de consentimiento: NO son una excepción declarable por sitio, son el
+ * día a día — salen en la mayoría de los portales corporativos. Tratarlos como
+ * "estorbo que el client pack declara si acaso" obligaba a redescubrir el mismo
+ * problema en cada cliente, y en la gira demostró algo peor: un estorbo mal
+ * declarado envenena el run entero (§20). Por eso el walker los conoce POR
+ * DISEÑO, por FAMILIA de gestor de consentimiento (CMP), igual que conoce las
+ * fachadas de los desplegables.
+ *
+ * Esto es detección de familia, no una lista de sitios: cada entrada es el
+ * contenedor que ese CMP renderiza en CUALQUIER web donde esté instalado.
+ */
+export const CONSENT_FAMILIES: ReadonlyArray<{ cmp: string; selector: string }> = [
+  { cmp: 'OneTrust', selector: '#onetrust-banner-sdk' },
+  { cmp: 'OneTrust', selector: '#onetrust-pc-sdk' },
+  { cmp: 'Cookiebot', selector: '#CybotCookiebotDialog' },
+  { cmp: 'cookieconsent (Osano/Insites)', selector: '.cc-window' },
+  { cmp: 'CookieYes', selector: '.cky-consent-container' },
+  { cmp: 'CookieYes', selector: '.cky-modal' },
+  { cmp: 'Quantcast', selector: '.qc-cmp2-container' },
+  { cmp: 'Didomi', selector: '#didomi-popup' },
+  { cmp: 'Didomi', selector: '.didomi-popup-container' },
+  { cmp: 'Usercentrics', selector: '#usercentrics-root' },
+  { cmp: 'TrustArc', selector: '#truste-consent-track' },
+  { cmp: 'Complianz', selector: '#cmplz-cookiebanner-container' },
+  { cmp: 'Borlabs', selector: '#BorlabsCookieBox' },
+  { cmp: 'Iubenda', selector: '#iubenda-cs-banner' },
+  { cmp: 'Termly', selector: '#termly-code-snippet-support' },
+  { cmp: 'Klaro', selector: '.klaro .cookie-notice' },
+  { cmp: 'Klaro', selector: '.klaro .cookie-modal' },
+  // Genéricos: cubren los CMP caseros (muy comunes en banca, donde el banner lo
+  // hace el propio equipo). Deliberadamente exigen forma de diálogo o nombre de
+  // cookie/consentimiento en la identidad del contenedor — y, además, la regla
+  // de SUPERPOSICIÓN del walker (ver isOverlaying) los descarta si resultan ser
+  // contenido estático de la página, como la sección de una política de cookies.
+  { cmp: 'genérico', selector: '[role="dialog"][id*="cookie" i]' },
+  { cmp: 'genérico', selector: '[role="dialog"][class*="cookie" i]' },
+  { cmp: 'genérico', selector: '[role="dialog"][id*="consent" i]' },
+  { cmp: 'genérico', selector: '[role="dialog"][class*="consent" i]' },
+  { cmp: 'genérico', selector: '[aria-label*="cookie" i]' },
+  { cmp: 'genérico', selector: '[class*="cookie-banner" i]' },
+  { cmp: 'genérico', selector: '[class*="cookie-consent" i]' },
+  { cmp: 'genérico', selector: '[id*="cookie-banner" i]' },
+  { cmp: 'genérico', selector: '[class*="gdpr" i][class*="banner" i]' },
+];
+
+/** Selector único con todas las familias (un solo manejador, no N). */
+export function consentSelector(extra: string[] = []): string {
+  return [...CONSENT_FAMILIES.map((f) => f.selector), ...extra].join(', ');
+}
+
+/**
+ * Botón de RECHAZO. Va primero por política, no por comodidad: ante un banner
+ * de consentimiento la opción correcta es la que menos datos cede. Multilingüe
+ * porque los portales corporativos españoles mezclan es/en/ca/pt.
+ */
+export const CONSENT_REJECT = new RegExp(
+  [
+    'rechazar', 'rechazo', 'denegar', 'no acepto', 'no, gracias',
+    'solo( las)? (necesarias|esenciales|t[eé]cnicas)', '[uú]nicamente( las)? (necesarias|esenciales)',
+    'continuar sin aceptar', 'seguir sin aceptar',
+    'reject', 'decline', 'refuse', 'deny', 'opt.?out',
+    'necessary only', 'only (necessary|essential)', 'essential only', 'continue without accepting',
+    'recusar', 'refuser', 'tout refuser', 'ablehnen', 'rifiuta',
+  ].join('|'),
+  'i',
+);
+
+/** Botón de CIERRE (segunda opción): cerrar no otorga consentimiento. */
+export const CONSENT_CLOSE = /cerrar|close|dismiss|descartar|×|✕|✖/i;
+
+/**
+ * Botón de ACEPTACIÓN. Existe para RECONOCERLO Y NO PULSARLO: aceptar el
+ * consentimiento es una decisión del usuario, no del walker. Se usa para
+ * explicar en el audit por qué el banner se neutralizó de otra forma.
+ */
+export const CONSENT_ACCEPT = /aceptar|acepto|accept|allow|permitir|consent|de acuerdo|entendido|got it|ok/i;
 
 // ----------------------------------------------------- rescate (poda ARIA)
 

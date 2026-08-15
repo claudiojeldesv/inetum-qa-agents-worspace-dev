@@ -39,6 +39,15 @@ export type WalkAction =
   | 'expect_text'   // POSTCONDICIÓN del FD: value = texto de negocio. Fallo → drift (open_question);
                     // éxito → el texto se registra como business_text de la pantalla con locator
   | 'expect_state'  // POSTCONDICIÓN del FD: hint + value ∈ visible|enabled|disabled|checked|unchecked
+  /**
+   * K0.30 (F5) — POSTCONDICIÓN sobre el VALOR de un control: hint + value.
+   * Existe porque en las apps corporativas (JSF/ADF/UI5, banca y seguros) el
+   * resultado calculado no es texto de la página: es el `value` de un campo de
+   * solo lectura o deshabilitado — importe, número de expediente, prima
+   * calculada. `expect_text` no lo ve, y asertar "aparece en algún sitio de la
+   * pantalla" es justo lo que produce verdes falsos (medido en la gira, §20).
+   */
+  | 'expect_value'
   | 'expect_count'  // POSTCONDICIÓN de cardinalidad (Fase 6): hint = colección, operator + value numérico
   | 'expect_each'   // POSTCONDICIÓN por-elemento (Fase 6): hint = contenedores, each = condición dentro de cada uno
   | 'scroll_until'  // Fase 4 (virtual scroll): hint = objetivo, container = viewport scrollable, max_steps = tope
