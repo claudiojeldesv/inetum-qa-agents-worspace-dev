@@ -51,8 +51,10 @@ async function walk(steps: WalkScript['flows'][0]['steps']): Promise<DomMap> {
 }
 
 const razon = (m: DomMap, id: string): string => m.open_questions.find((q) => q.step === id)?.reason ?? '';
-const via = (m: DomMap, id: string): string => m.step_reports.find((r) => r.step === id)?.resolved_via ?? '';
-const desenlace = (m: DomMap, id: string): string => m.step_reports.find((r) => r.step === id)?.outcome ?? '(sin reporte)';
+const via = (m: DomMap, id: string): string =>
+  (m.step_reports ?? []).find((r) => r.step === id)?.resolved_via ?? '';
+const desenlace = (m: DomMap, id: string): string =>
+  (m.step_reports ?? []).find((r) => r.step === id)?.outcome ?? '(sin reporte)';
 
 describe('K0.36-A — la etiqueta apunta al componente y el peldaño honra el `for` declarado', () => {
   it('envoltorio con UN control dentro: se resuelve al control, no al envoltorio', async () => {

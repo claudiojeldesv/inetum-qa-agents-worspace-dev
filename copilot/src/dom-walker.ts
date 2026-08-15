@@ -1073,6 +1073,24 @@ class DomWalker {
     frame_path: string[];
     tienePostcondicion: boolean;
   }> = [];
+  /**
+   * Pasos que la escalera NO resolvió, fotografiados para el BANCO DE RESCATES.
+   * Van aparte del corpus de resolución y sin `target`: aquí la verdad no puede
+   * salir del walker —si supiera cuál es el elemento no se habría plantado—, así
+   * que la marca la pone una persona después. Es la misma disciplina de K0.32:
+   * un banco que anota como verdad lo que decidió el propio walker se estaría
+   * midiendo a sí mismo.
+   */
+  private readonly bloqueadosPendiente: Array<{
+    id: string;
+    flow: string;
+    step: string;
+    archivo: string;
+    action: WalkAction;
+    hint?: StepHint;
+    scope?: StepHint;
+    motivo: string;
+  }> = [];
   private aliases: HintAliasFile;
   private readonly aliasesPath: string;
   /** Resolver del envío del overlay (K0.10): lo rellena assistResolve por paso. */
@@ -1153,6 +1171,36 @@ class DomWalker {
   }
 
   /**
+   * Fotografía el DOM de un paso que la escalera NO resolvió, para el banco de
+   * rescates. Sin marca de objetivo: el walker no sabe cuál era, y esa es
+   * exactamente la razón por la que el paso está aquí.
+   */
+  private async captureBlockedForRescue(flow: WalkFlow, step: WalkStep, motivo: string): Promise<void> {
+    if (!this.opts.corpusDir || this.verifying) return;
+    const id = `${this.script.site_id}-${flow.flow}-${step.id}`;
+    try {
+      await this.freezeVisibility(true);
+      const html = await this.page.content();
+      await this.freezeVisibility(false);
+      const archivo = `bloqueado-${id}.html`;
+      mkdirSync(this.opts.corpusDir, { recursive: true });
+      writeFileSync(resolve(this.opts.corpusDir, archivo), html, 'utf8');
+      this.bloqueadosPendiente.push({
+        id,
+        flow: flow.flow,
+        step: step.id,
+        archivo,
+        action: step.action,
+        hint: step.hint,
+        scope: step.scope,
+        motivo,
+      });
+    } catch {
+      // telemetría, no producto: capturar jamás puede tumbar un run
+    }
+  }
+
+  /**
    * K0.32 — CONGELA la visibilidad dentro de la foto. Medido con el primer
    * corpus real (tufarmacia): dos de tres casos que resolvían EN VIVO se
    * plantaban sobre su propia fotografía, y la causa era la misma en los dos —
@@ -1180,12 +1228,34 @@ class DomWalker {
             for (const el of Array.from(document.querySelectorAll(`[${attr}]`))) el.removeAttribute(attr);
             return;
           }
-          for (const el of Array.from(document.body.querySelectorAll('*'))) {
+          /**
+           * CAJA CERO NO ES OCULTO. Medido montando el banco de rescates: el
+           * `<p-dialog>` de PrimeNG es un elemento anfitrión de caja 0×0 cuyo
+           * contenido va posicionado — la regla vieja lo marcaba oculto y, al
+           * inyectar `display:none`, hundía el diálogo ENTERO dentro de la foto.
+           * El caso quedaba inservible para el banco: el objetivo aparecía
+           * invisible en una pantalla donde estaba a la vista.
+           *
+           * Es la misma trampa que el envoltorio de altura cero de TrustArc
+           * (K0.33/D4). La condición correcta no es "este elemento no se ve",
+           * es "no se ve Y no contiene nada que se vea": ocultar un envoltorio
+           * cambia la visibilidad de sus hijos, y la foto existe justo para
+           * conservarla.
+           */
+          const VIS = 'data-corpus-vis-tmp';
+          const todos = Array.from(document.body.querySelectorAll('*'));
+          for (const el of todos) {
             const cs = getComputedStyle(el);
             const r = el.getBoundingClientRect();
-            const oculto = cs.display === 'none' || cs.visibility === 'hidden' || (r.width === 0 && r.height === 0);
-            if (oculto) el.setAttribute(attr, '1');
+            const seVe = cs.display !== 'none' && cs.visibility !== 'hidden' && (r.width > 0 || r.height > 0);
+            if (seVe) el.setAttribute(VIS, '1');
           }
+          for (const el of todos) {
+            if (el.hasAttribute(VIS)) continue;
+            if (el.querySelector(`[${VIS}]`)) continue; // envoltorio de algo que sí se ve
+            el.setAttribute(attr, '1');
+          }
+          for (const el of todos) el.removeAttribute(VIS);
           const style = document.createElement('style');
           style.id = styleId;
           style.textContent = `[${attr}]{display:none !important}`;
@@ -1231,6 +1301,23 @@ class DomWalker {
     const dir = this.opts.corpusDir;
     if (casos.length > 0) writeFileSync(resolve(dir, 'manifest.jsonl'), `${casos.join('\n')}\n`, 'utf8');
     if (pendientes.length > 0) writeFileSync(resolve(dir, 'pendientes.jsonl'), `${pendientes.join('\n')}\n`, 'utf8');
+    if (this.bloqueadosPendiente.length > 0) {
+      const bl = this.bloqueadosPendiente.map((b) =>
+        JSON.stringify({
+          id: b.id,
+          site: this.script.site_id,
+          task: `${b.flow}/${b.step}`,
+          html_path: b.archivo,
+          action: b.action,
+          hint: b.hint ?? {},
+          ...(b.scope ? { scope: b.scope } : {}),
+          motivo: b.motivo,
+          target: null, // lo marca una persona: el walker no sabe cuál era
+        }),
+      );
+      writeFileSync(resolve(dir, 'bloqueados.jsonl'), `${bl.join('\n')}\n`, 'utf8');
+      console.error(`[dom-walker] banco de rescates: ${bl.length} paso(s) bloqueado(s) fotografiado(s) → ${dir}`);
+    }
     this.audit('allow', `corpus del banco: ${casos.length} casos con verdad, ${pendientes.length} pendientes de revisión`, {
       phase: 'corpus',
       casos: casos.length,
@@ -3830,6 +3917,10 @@ class DomWalker {
           // K0.34 — ambiguo NO es irresoluble: son dos hallazgos con dos remedios
           // distintos, y hasta aquí llegaban con la misma frase.
           const causa = this.ultimaAmbiguedad ?? this.ultimoAmbitoFallido ?? 'hint irresoluble';
+          // El DOM del paso que no resolvió es la materia prima del banco de
+          // rescates: sin la foto solo se puede medir si el LLM responde algo, no
+          // si responde LO CORRECTO, y esa es la única cifra que decide.
+          await this.captureBlockedForRescue(flow, step, causa);
           if (this.state.rescues_used >= this.opts.rescueBudget) {
             // K0.35 — un hint ambiguo resolvió DE MÁS, así que la pantalla es la
             // que se esperaba; las notas de "aquí no hay aplicación" solo tienen

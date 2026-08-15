@@ -234,3 +234,113 @@ si el rescate declina (H3), el fallback real es un QA señalando en pantalla, y 
 medido cuánto tarda**. **Montaje**: cronometrar a un QA resolviendo N pasos bloqueados con
 `--assist`. Requiere al QA, no se puede hacer solo. **Decide**: si el modelo de coste del
 producto está completo o le falta el sumando principal.
+
+---
+
+## Experimento E2+E3 — Banco de rescates (ejecutado)
+
+`copilot/src/rescue-bench.ts`. Corpus de **7 pasos bloqueados reales** cosechados de cuatro
+sitios y cuatro stacks: OrangeHRM (SPA con sesión), Sakai (Angular+PrimeNG), OpenUI5 y
+BootsFaces (JSF 2.x). Las fotos del DOM salen del capturador con `--capture-corpus`; el
+corpus vive en `.work/` y NO se versiona (regla #6: una foto es HTML crudo). La verdad la
+marca una persona en `copilot/bench/rescates/verdad.jsonl`, con el porqué de cada caso.
+
+### La taxonomía, que es lo único importante del diseño
+
+Iba a medirse "tasa de acierto del rescate". Con el corpus real delante se ve por qué eso no
+sirve: **cuatro de los siete casos que el walker bloquea no tienen respuesta única** — tres
+etiquetas "Select your car's brand" idénticas en la misma página del showcase, tres botones
+"Submit AJAX", tres campos "Email" en tres tarjetas. Ahí **declinar es acertar**.
+
+| desenlace | qué significa |
+|---|---|
+| `acierto` | resolvió, y al elemento que marcó una persona |
+| `EQUIVOCADO` | resolvió a otro, **o** eligió donde no había a quién elegir |
+| `planta-correcta` | declinó, y el caso no tenía respuesta única |
+| `planta-cobarde` | declinó, y sí la había |
+
+El CLI sale con error solo por `EQUIVOCADO`, igual que el banco de resolución: plantarse es
+lento, equivocarse en silencio es inservible.
+
+### Resultado — los dos brazos, idénticos
+
+| brazo | evidencia total | tokens | reloj | acierto | EQUIVOCADO | planta-correcta | planta-cobarde |
+|---|---|---|---|---|---|---|---|
+| podado (el de producción) | 32.297 car. | 127.260 | 2 min 27 s | 1 | **0** | 4 | 2 |
+| completo | 296.220 car. | 132.850 | 4 min 44 s | 1 | **0** | 4 | 2 |
+
+**H4 respondida, y en contra de mi sospecha: la poda no cuesta nada.** Nueve veces más
+evidencia produce exactamente la misma clasificación en los siete casos. La hipótesis de que
+podar era una falsa economía queda falsada con este corpus.
+
+**Y el coste tampoco escala con la evidencia**: 9× de payload → +4% de tokens. Confirma por
+segunda vez que la factura del rescate es el sobre, no la carta. Los ~127k tokens de siete
+rescates son ~18k por rescate *amortizando* el prompt de sistema entre los siete; medido
+antes de uno en uno, un solo rescate costaba ~94k. Servirlo como llamada directa con su
+payload (4,3 KB) sigue siendo la optimización pendiente.
+
+**H3 queda matizada, no confirmada.** El rescate declina mucho (6 de 7), pero **cuatro de esas
+seis son correctas**: no se inventó ni uno de los cuatro controles. No es incompetencia, es
+que la mayoría de lo que el walker bloquea es ambigüedad de verdad. Lo que hay que perseguir
+son las **dos plantas cobardes**.
+
+**Cero EQUIVOCADO en ambos brazos.** Con n=7 no es una tasa, pero es la métrica que decide y
+de momento está limpia.
+
+### Las dos plantas cobardes, y por qué se explican solas
+
+- **OrangeHRM**: hay UNA sola etiqueta "Employee Name" y su grupo de campo contiene UN solo
+  input. Hay respuesta. Lo que no hay es forma de escribirla: ese input no tiene id ni nombre
+  accesible propio, y la gramática ofrecida no permite decir "el control que sigue a esa
+  etiqueta". Las dos pasadas (podado y completo) lo razonaron igual.
+- **OpenUI5**: declinó entre "Show Shopping Cart" y "Add to Cart". Este caso está marcado como
+  resoluble por criterio propio y **declarado DEBATIBLE en `verdad.jsonl`**: si un evaluador
+  humano lo lee distinto, se reclasifica, no se defiende.
+
+Las dos apuntan al mismo sitio: **la gramática del rescate es más pobre que el parser del
+walker**. `>>` encadenado y `.nth(N)` funcionan (comprobado) y no se ofrecen.
+
+### Defectos encontrados montando el banco
+
+1. **El congelado de visibilidad de K0.32 hundía diálogos enteros. ARREGLADO.** El
+   `<p-dialog>` de PrimeNG es un elemento anfitrión de caja 0×0 cuyo contenido va posicionado;
+   la regla lo marcaba oculto e inyectaba `display:none` sobre el diálogo completo. El
+   objetivo aparecía invisible en una pantalla donde estaba a la vista y el caso quedaba
+   inservible. Misma trampa que el envoltorio de altura cero de TrustArc (§23/D4): **caja cero
+   no es oculto**. La condición correcta es "no se ve Y no contiene nada que se vea" — ocultar
+   un envoltorio cambia la visibilidad de sus hijos, y la foto existe justo para conservarla.
+   Verificado: el objetivo pasa de 0×0 a 413×32. Afecta también al futuro corpus de Mind2Web.
+2. **La gramática del rescate no puede expresar un valor con apóstrofo. NO arreglado.** El
+   brazo podado contestó `getByLabel("Select your car's type")` con comillas dobles porque el
+   valor lleva apóstrofo; `locatorFromSource` acepta `getByLabel\('([^']*)'\)` — comillas
+   simples y sin escape. La respuesta era legible para un humano y no para el walker. Afecta a
+   cualquier app en inglés con posesivos, y a francés e italiano. En ESTE corpus no cambió
+   ningún desenlace (el caso era un control), y por eso se documenta en vez de parchearse a
+   ciegas.
+3. **Un bug del propio banco, contado porque es el más instructivo.** El comparador usaba
+   `Locator.evaluate(<cadena>)` para preguntar si el elemento resuelto llevaba la marca de
+   verdad. Ese método **nunca recibe el elemento como argumento** — hallazgo de la Fase 6, ya
+   documentado en este mismo SPEC y vuelto a pisar. Devolvía `undefined`, y el banco marcó
+   **EQUIVOCADO un acierto**: el instrumento estuvo a punto de reportar exactamente el fallo
+   que existe para detectar. Corregido con `getAttribute`, y ahora además verifica que la
+   marca de verdad se llegó a poner (si la expresión no resuelve, el caso sale `sin-verdad` en
+   vez de contaminar la cifra).
+
+### Cómo reproducirlo
+
+```
+tsx copilot/src/dom-walker.ts --script=<guion> --contract=<contract> \
+  --work-dir=.work/banco-rescates/w-<sitio> --rescue-budget=0 \
+  --capture-corpus=.work/banco-rescates/c-<sitio>
+tsx copilot/src/rescue-bench.ts emitir  --corpus=.work/banco-rescates --out=<dir> [--completo]
+tsx copilot/src/rescue-bench.ts puntuar --corpus=.work/banco-rescates --respuestas=<dir>
+```
+
+Un corpus por sitio: `bloqueados.jsonl` se sobrescribe por run, igual que el manifest del
+corpus de resolución.
+
+### Qué NO decide este experimento
+
+n=7. Sirve para matar hipótesis (H4 muerta) y para orientar, no para publicar tasas. Antes de
+usar estas cifras fuera, el corpus tiene que crecer — y crece solo: cada walk con
+`--capture-corpus` deja sus bloqueos fotografiados.
