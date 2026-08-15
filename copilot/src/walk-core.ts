@@ -989,6 +989,32 @@ export const CONSENT_FAMILIES: ReadonlyArray<{ cmp: string; selector: string }> 
   { cmp: 'genérico', selector: '[class*="gdpr" i][class*="banner" i]' },
 ];
 
+/**
+ * K0.35 — URL sin el testigo de sesión, para lo que se GUARDA y se compara.
+ *
+ * Los contenedores Java reescriben la URL cuando todavía no saben si el
+ * navegador acepta cookies: `…/validate.jsf;jsessionid=9DAC003E21C2…`. Medido en
+ * el banco JSF — la primera visita de una sesión lo lleva y la segunda no, y el
+ * valor cambia en cada run. Eso entra tal cual en el `url_pattern` del dom-map y
+ * rompe una invariante declarada: el mapa debe ser determinista salvo marcas de
+ * tiempo. Dos runs del mismo guion darían pantallas "distintas" y el informe de
+ * reconciliación reportaría un cambio que no existe.
+ *
+ * Se limpia solo lo que se ANOTA; la navegación sigue usando la URL real, que es
+ * la que el servidor necesita. Y se limpian testigos conocidos por nombre, no
+ * cualquier parámetro de ruta: inventar que un `;algo=` es de sesión sería
+ * adivinar, y hay aplicaciones que los usan para negocio.
+ */
+const TESTIGOS_DE_SESION = ['jsessionid', 'phpsessid', 'sid', 'aspsessionid', 'cfid', 'cftoken'];
+
+export function urlEstable(url: string): string {
+  let out = url;
+  for (const t of TESTIGOS_DE_SESION) {
+    out = out.replace(new RegExp(`;${t}=[^;/?#]*`, 'ig'), '');
+  }
+  return out;
+}
+
 /** Selector único con todas las familias (un solo manejador, no N). */
 export function consentSelector(extra: string[] = []): string {
   return [...CONSENT_FAMILIES.map((f) => f.selector), ...extra].join(', ');

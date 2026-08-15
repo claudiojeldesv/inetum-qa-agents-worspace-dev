@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Catálogo de excepciones del sistema</title>
+<!--
+  K0.35 — la MITAD FALSABLE del aviso de página de error. Una pantalla legítima
+  de la aplicación que habla de excepciones y errores todo el rato: si el aviso
+  saltara aquí, sería ruido en cada glosario, cada log viewer y cada pantalla de
+  administración de un portal corporativo.
+
+  Tiene la palabra "Error" por todas partes, pero ni volcado de pila, ni título
+  con forma de error de contenedor, ni código HTTP de fallo. El aviso debe callarse.
+-->
+<style>body { font: 14px system-ui, sans-serif; padding: 16px; }</style>
+
+<h1>Cat&aacute;logo de excepciones del sistema</h1>
+<p>Consulta de los c&oacute;digos de error registrados por la plataforma.</p>
+<table border="1">
+  <tr><th>C&oacute;digo</th><th>Descripci&oacute;n</th></tr>
+  <tr><td>ERR-001</td><td>Error de validaci&oacute;n de la p&oacute;liza</td></tr>
+  <tr><td>ERR-002</td><td>Excepci&oacute;n al calcular la prima</td></tr>
+  <tr><td>ERR-003</td><td>Error de comunicaci&oacute;n con el servicio de firma</td></tr>
+</table>
+<button id="exportar">Exportar</button>
+<p id="pie">3 errores catalogados</p>
+</html>

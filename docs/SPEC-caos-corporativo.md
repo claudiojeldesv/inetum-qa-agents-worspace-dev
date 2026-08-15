@@ -1193,3 +1193,87 @@ lo que yo no había escrito.
 correctos: una postcondición con el literal equivocado (mío) y un hint genuinamente ambiguo.
 Tras los arreglos, mismo 12/14 con el guion intocado y ~20 segundos menos de reloj en 14
 pasos.
+
+## 25. K0.35 — sitio 3b: la vista caducada, la página de error y el testigo de sesión
+
+Continuación del sitio 3 sobre el mismo banco (MyFaces 1.2 + Tomcat 7), esta vez provocando
+a mano los estados que definen la era y que un guion feliz no toca nunca.
+
+### La vista caducada no dio lo que yo esperaba, y eso también es dato
+
+Tres provocaciones, ninguna produjo la `ViewExpiredException` de manual:
+
+1. **Borrar la cookie de sesión** con el estado guardado en cliente: HTTP 200 y formulario
+   redibujado. El árbol de la vista viaja dentro del HTML, así que no hay nada que caducar.
+   Los ejemplos de MyFaces vienen con `STATE_SAVING_METHOD=client`.
+2. **Forzar el estado a servidor** (`context-estado-servidor.xml`, declarado en la
+   configuración del CONTENEDOR para no tocar el WAR oficial) y volver a borrar la cookie:
+   HTTP 200 otra vez, y la URL pasa a llevar `;jsessionid=…`.
+3. **Desalojo del árbol** (`NUMBER_OF_VIEWS_IN_SESSION=2`) más botón atrás: MyFaces
+   reconstruye la vista y devuelve **el formulario en blanco**, con la acción perdida en
+   silencio.
+
+El tercero es el hallazgo real: en esta implementación la vista caducada no grita, **se
+traga la acción**. Para un QA eso es una postcondición incumplida sin nada a lo que señalar,
+que es peor que una excepción. No se ha construido detección para ello — no hay forma
+honesta de distinguirlo de "el negocio no ocurrió" sin adivinar, y adivinar es justo lo que
+este componente no hace. Queda **nombrado, no arreglado**.
+
+### D1 — la página de error del servidor pasaba por drift del negocio
+
+La aplicación trae su propia demo de excepción, así que el error es del stack de verdad y no
+un montaje. Al pulsar, MyFaces sirve su página de error: título `Error - Error calling action
+method of component with id _idJsp0:_idJsp4` y un volcado de `java.lang.NullPointerException`.
+
+Lo que el walker reportaba, medido antes de tocar nada:
+
+- el paso de postcondición → `drift: postcondición del FD no observada — texto '…' no visible`
+- el paso siguiente → `hint irresoluble`
+
+Los dos diagnósticos mandan al QA a revisar el plan y los locators. La verdad es que **la
+aplicación se cayó**, y estaba escrita en el título de la pantalla.
+
+**El código HTTP no basta, y está medido: esa página llega con 200**, porque los errores de
+servlet se sirven por forward y no por redirección. Un detector que mirase solo el estado no
+la vería. Así que se miran tres señales y se exige una **específica** — nunca la palabra
+"error" suelta, que sale en pantallas legítimas: (a) documento con estado ≥ 400, (b) firma
+de volcado de pila (`java.lang.…Exception`, `at Clase(Fichero.java:NN)`, `System.…Exception`,
+`Traceback (most recent call last)` — literales del runtime, no del idioma de la app), o
+(c) título con forma de error de contenedor (`HTTP Status 500`, `Error - …`).
+
+El aviso **no sustituye el veredicto: lo acompaña**, y cita lo que encontró en vez de
+afirmar la causa. El walker no sabe que la app falló; sabe que la pantalla tiene esa pinta, y
+esa diferencia es la que le permite decirlo sin mentir. Es el mismo patrón que la nota de
+"pantalla sin elementos interactivos" de K0.17.
+
+La mitad falsable estaba en el propio sitio: `testExceptions.jsf` **antes** de pulsar es una
+pantalla legítima que habla de excepciones todo el rato, y el aviso se calla. En el banco de
+regresión eso es `catalogo-excepciones.html`, un glosario de códigos de error de una
+aseguradora: si el aviso saltara ahí, cada visor de logs y cada pantalla de administración
+lo llevaría pegado y el aviso dejaría de significar nada.
+
+### D2 — el testigo de sesión rompía el determinismo del dom-map
+
+Los contenedores Java reescriben la URL mientras no saben si el navegador acepta cookies:
+`…/validate.jsf;jsessionid=9DAC003E21C2798133C2539CB1422283`. Medido en el banco: la primera
+visita de una sesión lo lleva, la segunda no, y el valor cambia en cada run. Eso entraba tal
+cual en el `url_pattern` del dom-map y rompe una invariante declarada del artefacto — dos
+runs del mismo guion producirían pantallas "distintas" y el informe de reconciliación
+reportaría un cambio que no existe.
+
+`urlEstable()` limpia lo que se ANOTA; la navegación sigue usando la URL real, que es la que
+el servidor necesita. Y limpia testigos **conocidos por nombre**, no cualquier parámetro de
+ruta: hay aplicaciones que usan parámetros de matriz para negocio (`/poliza;ramo=hogar`) y
+decidir que un `;algo=` es de sesión sería adivinar.
+
+Honestidad sobre la evidencia: el testigo se midió dos veces en probes, pero **no se llegó a
+capturar dentro de un dom-map** — depende de si el contenedor decide reescribir en esa
+navegación concreta. Se arregla igualmente porque el cambio es una normalización de tres
+líneas que no puede degradar nada (un identificador de sesión nunca es información que
+queramos en un patrón de URL) y porque protege una invariante que el SPEC declara.
+
+### Resultado
+
+6 tests nuevos (3 sobre la clase de error con su par falsable, 3 puros sobre `urlEstable`).
+531/531 en suite completa. El banco queda además reproducible con estado en servidor:
+`levantar.ps1` copia ya el contexto de Tomcat.

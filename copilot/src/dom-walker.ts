@@ -83,6 +83,7 @@ import {
   updateTimingProfile,
   validateWalkScript,
   type LocatorAttempt,
+  urlEstable,
 } from './walk-core.ts';
 import {
   EXIT_ERROR,
@@ -1037,6 +1038,13 @@ class DomWalker {
    * (capturar un locator vs. acotar con `scope`), y el informe las contaba igual.
    */
   private ultimaAmbiguedad: string | null = null;
+  /**
+   * K0.35 — código HTTP del último documento navegado. Es la señal OBJETIVA de
+   * "página de error"... cuando el contenedor la da: medido en el banco JSF, la
+   * página de error de MyFaces llega con 200 porque se sirve por forward. Por eso
+   * es una señal más, no la única.
+   */
+  private ultimoEstadoDoc: number | null = null;
   /** Estorbos declarados que resistieron el descarte (K0.29): su manejador queda inerte. */
   private readonly undismissable = new Set<string>();
   /** Banners de consentimiento ya resueltos (K0.30): no se re-intentan ni se re-auditan. */
@@ -3025,7 +3033,9 @@ class DomWalker {
 
   private async captureScreen(flow: WalkFlow, step: WalkStep): Promise<void> {
     if (this.verifying) return; // K0.25: cinturón — el replay no captura pantallas
-    const url = this.page.url();
+    // K0.35 — sin el testigo de sesión: lo que se anota tiene que poder compararse
+    // entre runs. La navegación sigue usando la URL real.
+    const url = urlEstable(this.page.url());
     const name = step.screen ?? slugFromUrl(url);
     if (this.state.current_screen === name) return; // misma pantalla, sin recaptura
 
@@ -3294,7 +3304,10 @@ class DomWalker {
           const suffix = obs.timed_out
             ? ` (la pantalla NO se estabilizó en ${settle.timeout_ms} ms, ${obs.busy_cycles} ciclos de ocupado: el hallazgo puede ser de sincronización)`
             : '';
-          this.blockStep(flow, step, `drift: postcondición del FD no observada — texto '${value}' no visible${suffix}`, false);
+          // K0.35 — y si la pantalla es un volcado de excepción, decirlo: "el
+          // negocio no ocurrió" y "la aplicación se cayó" no son el mismo hallazgo.
+          const error = await this.notaPaginaError();
+          this.blockStep(flow, step, `drift: postcondición del FD no observada — texto '${value}' no visible${suffix}${error}`, false);
           this.audit('block', `expect_text fallido ${stepKey}: '${value}'`, { phase: 'expect', settle: obs });
           this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
           return;
@@ -3610,7 +3623,12 @@ class DomWalker {
           // distintos, y hasta aquí llegaban con la misma frase.
           const causa = this.ultimaAmbiguedad ?? 'hint irresoluble';
           if (this.state.rescues_used >= this.opts.rescueBudget) {
-            const nota = this.ultimaAmbiguedad ? '' : await this.emptyScreenNote();
+            // K0.35 — un hint ambiguo resolvió DE MÁS, así que la pantalla es la
+            // que se esperaba; las notas de "aquí no hay aplicación" solo tienen
+            // sentido cuando no resolvió nada.
+            const nota = this.ultimaAmbiguedad
+              ? ''
+              : (await this.emptyScreenNote()) + (await this.notaPaginaError());
             this.blockStep(flow, step, `${causa} y presupuesto de rescates agotado (${this.opts.rescueBudget})${nota}`, false);
             this.audit('block', `presupuesto de rescates agotado en ${stepKey}`, { budget: this.opts.rescueBudget });
             return;
@@ -4051,6 +4069,56 @@ class DomWalker {
     );
   }
 
+  /**
+   * K0.35 — ¿la pantalla es una página de ERROR del servidor? Hermana de
+   * `emptyScreenNote`: no cambia el veredicto, añade la evidencia que impide leer
+   * mal el que ya hay.
+   *
+   * Medido en el banco JSF 1.2: al reventar una acción, MyFaces sirve su página
+   * de error con título "Error - Error calling action method…" y un volcado de
+   * `java.lang.NullPointerException`. El walker reportaba "drift: postcondición
+   * del FD no observada" y, en el paso siguiente, "hint irresoluble" — dos
+   * diagnósticos que mandan al QA a revisar el plan y los locators cuando lo que
+   * pasó es que la aplicación se cayó.
+   *
+   * El código HTTP NO basta y está medido: esa página llega con **200**, porque
+   * los errores de servlet se sirven por forward, no por redirección. Así que se
+   * miran tres señales, y se EXIGE una específica — nunca la simple palabra
+   * "error", que aparece en pantallas legítimas:
+   *   (a) el documento respondió >= 400 (objetivo, cuando el contenedor lo hace),
+   *   (b) hay firma de volcado de pila (Java/.NET/Python: son literales del
+   *       runtime, no del idioma de la aplicación),
+   *   (c) el título tiene forma de página de error de contenedor.
+   *
+   * Y se cita lo encontrado en vez de afirmar la causa: el walker no sabe que la
+   * app falló, sabe que la pantalla tiene esta pinta. La diferencia importa.
+   */
+  private async notaPaginaError(): Promise<string> {
+    const señales: string[] = [];
+    if (this.ultimoEstadoDoc !== null && this.ultimoEstadoDoc >= 400) {
+      señales.push(`el documento respondió HTTP ${this.ultimoEstadoDoc}`);
+    }
+    const visto = await this.page
+      .evaluate(`(function () {
+        var t = document.title || '';
+        var b = (document.body && document.body.innerText) || '';
+        var pila = b.match(/\\b(?:java|javax|jakarta)\\.[a-z0-9.]+\\.[A-Za-z0-9_$]*(?:Exception|Error)\\b/)
+          || b.match(/\\bat\\s+[\\w.$]+\\([\\w$]+\\.(?:java|kt|scala):\\d+\\)/)
+          || b.match(/\\bSystem\\.[A-Za-z]+Exception\\b/)
+          || b.match(/Traceback \\(most recent call last\\)/);
+        var tituloError = /^\\s*(?:HTTP Status\\s+\\d{3}|Error\\s*[-–:])/.test(t);
+        return { titulo: t.slice(0, 90), pila: pila ? pila[0] : null, tituloError: tituloError };
+      })()`)
+      .catch(() => null) as { titulo: string; pila: string | null; tituloError: boolean } | null;
+    if (visto?.pila) señales.push(`el cuerpo contiene '${visto.pila}'`);
+    if (visto?.tituloError) señales.push(`el título es '${visto.titulo}'`);
+    if (señales.length === 0) return '';
+    return (
+      ` — AVISO: la pantalla tiene forma de PÁGINA DE ERROR del servidor (${señales.join('; ')}). ` +
+      'Si es así, el fallo no está en el guion ni en el locator: la aplicación no llegó a responder lo que se le pedía'
+    );
+  }
+
   private blockStep(flow: WalkFlow, step: WalkStep, reason: string, rescueAttempted: boolean): void {
     if (this.verifying) return; // K0.25: cinturón — el replay no bloquea pasos del run
     if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id)) return;
@@ -4134,6 +4202,14 @@ class DomWalker {
       await this.context.addInitScript(killAnimationsScript());
     }
     this.page = await this.context.newPage();
+    // K0.35 — el código del documento navegado, apuntado según llega: cuando el
+    // contenedor SÍ devuelve 5xx es la señal objetiva de página de error, y en el
+    // momento del fallo ya no se puede consultar.
+    this.page.on('response', (r) => {
+      if (r.request().isNavigationRequest() && r.frame() === this.page.mainFrame()) {
+        this.ultimoEstadoDoc = r.status();
+      }
+    });
     // Fase 2: opt-in por client pack, sin efecto si el contract no declara nada
     await this.installObstructionHandlers();
     await this.installConsentHandler();

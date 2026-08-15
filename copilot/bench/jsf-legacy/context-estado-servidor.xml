@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  K0.35 — fuerza el guardado de estado en SERVIDOR para el banco JSF.
+
+  Los ejemplos de MyFaces vienen con `STATE_SAVING_METHOD=client`, que mete el
+  árbol de la vista dentro del propio HTML: con eso la vista nunca caduca, porque
+  el cliente se la lleva puesta. En banca y seguros el reparto es el contrario —
+  el estado va en la sesión del servidor, para no engordar cada petición— y por
+  eso la vista caducada es allí un suceso cotidiano: expira la sesión, se
+  reinicia un nodo, o el balanceador te manda a otra instancia.
+
+  Se declara aquí, en la configuración del CONTENEDOR, y no editando el WAR: el
+  banco tiene que seguir siendo el artefacto oficial de Apache sin tocar. Con
+  `override="false"` este valor gana al del web.xml de la aplicación.
+
+  Se copia a tomcat/conf/Catalina/localhost/jsf.xml (lo hace levantar.ps1).
+-->
+<Context>
+  <Parameter name="javax.faces.STATE_SAVING_METHOD" value="server" override="false"/>
+  <Parameter name="org.apache.myfaces.NUMBER_OF_VIEWS_IN_SESSION" value="2" override="false"/>
+</Context>

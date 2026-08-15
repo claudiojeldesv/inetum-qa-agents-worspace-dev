@@ -42,6 +42,14 @@ if (-not (Test-Path "$d\jdk")) {
 Get-ChildItem "$d\tomcat\webapps" -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 Copy-Item "$d\jsf.war" "$d\tomcat\webapps\jsf.war" -Force
 
+# Estado de la vista en SERVIDOR (K0.35): los ejemplos vienen con `client`, que se
+# lleva el árbol dentro del HTML y hace que la vista no caduque nunca. En banca es
+# al revés, y por eso allí la vista caducada es cotidiana. Se declara en la
+# configuración del contenedor para no tocar el WAR oficial.
+$ctx = "$d\tomcat\conf\Catalina\localhost"
+New-Item -ItemType Directory -Force -Path $ctx | Out-Null
+Copy-Item 'copilot\bench\jsf-legacy\context-estado-servidor.xml' "$ctx\jsf.xml" -Force
+
 $root = (Resolve-Path $d).Path
 $env:JAVA_HOME = "$root\jdk"
 $env:CATALINA_HOME = "$root\tomcat"
