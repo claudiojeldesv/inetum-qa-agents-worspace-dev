@@ -1039,6 +1039,13 @@ class DomWalker {
    */
   private ultimaAmbiguedad: string | null = null;
   /**
+   * K0.36 — motivo de bloqueo cuando el ÁMBITO resolvió pero no contenía el hint.
+   * Campo aparte y no reutilizando `ultimaAmbiguedad`: son dos hallazgos distintos
+   * con dos remedios distintos, y meterlos en la misma variable acabaría poniendo
+   * la palabra "ambiguo" en un informe donde no hay ninguna ambigüedad.
+   */
+  private ultimoAmbitoFallido: string | null = null;
+  /**
    * K0.35 — código HTTP del último documento navegado. Es la señal OBJETIVA de
    * "página de error"... cuando el contenedor la da: medido en el banco JSF, la
    * página de error de MyFaces llega con 200 porque se sirve por forward. Por eso
@@ -2075,6 +2082,7 @@ class DomWalker {
    */
   private async resolveHint(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
     this.ultimaAmbiguedad = null; // por-llamada: nunca arrastrar el motivo de otro paso
+    this.ultimoAmbitoFallido = null;
     const scopes = await this.scopes();
 
     /**
@@ -2196,11 +2204,165 @@ class DomWalker {
      * un botón o una fila; trepar de su texto al siguiente input es adivinar. Sin
      * el tier, el paso se planta y sube al panel: honesto.
      */
+    /**
+     * K0.36 — LA ETIQUETA APUNTA A UN COMPONENTE, NO A UN CONTROL. Medido en campo
+     * (Sakai, la plantilla de back-office oficial de PrimeNG): el diálogo declara
+     * `<label for="price">Price</label>` y el `id="price"` lo lleva el componente
+     * `<p-inputnumber>`, no el `<input>` que hay dentro. `getByLabel` devuelve CERO
+     * — y con razón, porque el HTML solo reconoce la asociación cuando apunta a un
+     * control etiquetable —, así que la escalera se plantaba en cuatro campos de
+     * una pantalla en la que la aplicación SÍ había declarado a qué se refiere cada
+     * etiqueta. La misma forma sale en Angular Material, Vuetify o Ant: el
+     * envoltorio se queda el id.
+     *
+     * Esto NO es una heurística como el anclado: el autor escribió `for="price"`,
+     * o sea que la asociación texto→cosa es un dato de la aplicación, tan
+     * autoritativo como un `aria-label`. Por eso va ANTES del anclado y sin
+     * restricción de acción — pulsar la etiqueta es lo que hace un usuario.
+     *
+     * Y no se adivina en ningún tramo: la etiqueta debe ser única visible, el
+     * destino único, y dentro del destino el control nativo también único (≥2 → se
+     * planta). Si el destino no tiene control nativo dentro —el caso del `p-select`,
+     * que es un `<span role="combobox">— se devuelve el componente, que es
+     * exactamente el elemento que hay que pulsar para desplegarlo.
+     */
+    if (step.hint) {
+      const porEtiqueta = await this.resolveLabelFor(step.hint, containers);
+      /**
+       * Y si la asociación declarada existe pero no dice a CUÁL de los controles
+       * del componente se refiere, la escalera PARA. Es el principio de K0.33
+       * aplicado aquí: la ambigüedad no se repara descendiendo de peldaño. Sin
+       * esto el tier anclado la "resolvía" cogiendo el primero que seguía a la
+       * etiqueta — deshaciendo en el peldaño de abajo la regla dura que este
+       * acababa de aplicar. Cazado por su propio test, no en campo.
+       */
+      if (porEtiqueta === 'ambiguo') {
+        const texto = step.hint.label ?? step.hint.text ?? step.hint.name;
+        this.ultimaAmbiguedad =
+          `la etiqueta '${texto}' apunta con 'for' a un componente que contiene VARIOS controles: ` +
+          `la asociación declarada no dice a cuál (acótalo con 'scope' o captura el locator)`;
+        this.audit('block', `etiqueta a componente ambiguo en ${step.id}: '${texto}'`, {
+          phase: 'label-for',
+          hint: JSON.stringify(step.hint),
+        });
+        return null;
+      }
+      if (porEtiqueta) return porEtiqueta;
+    }
+
     if (step.hint && ANCHORED_ACTIONS.has(step.action)) {
       const anchored = await this.resolveAnchored(step.hint, containers);
       if (anchored) return anchored;
     }
+
+    /**
+     * K0.36 — EL ÁMBITO QUE RESUELVE PERO NO CONTIENE. Medido en el mismo diálogo:
+     * `scope:{text:'Product Details'}` resuelve a UNA cosa (el título del diálogo)
+     * y dentro de un título no hay campos, así que el paso se bloqueaba con "hint
+     * irresoluble" — el diagnóstico que manda al QA a arreglar el hint cuando el
+     * hint era correcto y lo que sobraba era el ámbito.
+     *
+     * No se trepa del título a su contenedor: elegir qué ancestro es "el diálogo"
+     * sería adivinar. Lo que sí se puede hacer sin adivinar es CONTAR fuera y
+     * decir lo que se ha medido, igual que la nota de página de error de K0.35:
+     * el walker no afirma que el ámbito esté mal, dice dónde está y dónde no.
+     */
+    if (step.scope && !this.ultimaAmbiguedad) {
+      const fuera = await this.cuentaFueraDelAmbito(rawPlan, scopes);
+      if (fuera > 0) {
+        this.ultimoAmbitoFallido =
+          `el hint NO está dentro del ámbito ${JSON.stringify(step.scope)}, pero sí aparece ` +
+          `${fuera} ${fuera === 1 ? 'vez' : 'veces'} fuera de él — ¿el ámbito señala al CONTENEDOR o solo a su título?`;
+        this.audit('block', `ámbito sin el hint dentro en ${step.id}: ${fuera} coincidencia(s) fuera`, {
+          phase: 'scope',
+          scope: JSON.stringify(step.scope),
+        });
+      }
+    }
     return null;
+  }
+
+  /**
+   * K0.36 — cuenta las coincidencias VISIBLES del hint a nivel de frame, es decir
+   * fuera del ámbito declarado. Solo se llama cuando el paso ya está perdido, así
+   * que su coste no entra en el camino feliz.
+   */
+  private async cuentaFueraDelAmbito(
+    rawPlan: LocatorAttempt[],
+    scopes: Array<{ scope: Page | Frame; path: string[] }>,
+  ): Promise<number> {
+    for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
+      for (const attempt of plan) {
+        // por INTENTO, no acumulando el plan entero: los intentos exacto y substring
+        // de K0.33 encuentran el MISMO elemento, y sumarlos diría "aparece 2 veces"
+        // de algo que aparece una. Un número inflado en el informe es otra mentira.
+        let n = 0;
+        for (const f of scopes) {
+          n += await this.attemptToLocator(f.scope, attempt)
+            .filter({ visible: true })
+            .count()
+            .catch(() => 0);
+        }
+        if (n > 0) return n;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * K0.36 — resuelve por la asociación DECLARADA `<label for>` cuando el destino
+   * no es un control etiquetable (el patrón de las librerías de componentes: el
+   * envoltorio se queda el id). Ver el razonamiento largo en `resolveHint`.
+   */
+  private async resolveLabelFor(
+    hint: StepHint,
+    containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }>,
+  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | 'ambiguo' | null> {
+    const texto = hint.label ?? hint.text ?? hint.name;
+    if (!texto) return null;
+    const needles: Array<string | RegExp> = [texto, new RegExp(accentInsensitivePattern(texto), 'i')];
+    for (const needle of needles) {
+      const exacts = typeof needle === 'string' ? [true, false] : [false];
+      for (const exact of exacts) {
+        for (const { scope, path, via } of containers) {
+          const txt = typeof needle === 'string' ? scope.getByText(needle, { exact }) : scope.getByText(needle);
+          const etiqueta = await this.uniqueOrNull(txt.locator('xpath=ancestor-or-self::label[1]'));
+          if (!etiqueta) continue;
+          const id = await etiqueta.getAttribute('for').catch(() => null);
+          if (!id) continue;
+          const destino = await this.uniqueOrNull(scope.locator(`[id="${id.replace(/["\\]/g, '\\$&')}"]`));
+          if (!destino) continue;
+          const elegido = await this.controlDelDestino(destino);
+          if (elegido === 'ambiguo') return 'ambiguo';
+          if (!elegido) continue;
+          const src = `${via ? via + ' >> ' : ''}labelFor('${texto}')`;
+          return { locator: elegido, via: src, frame_path: path };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Del destino de un `for`, el elemento sobre el que hay que actuar: él mismo si
+   * ya es un control nativo, el control nativo ÚNICO que contenga si es un
+   * envoltorio, o el propio envoltorio si no contiene ninguno (el `p-select`, que
+   * se despliega pulsándolo). Dos o más controles dentro → null: se planta.
+   */
+  private async controlDelDestino(destino: Locator): Promise<Locator | 'ambiguo' | null> {
+    const propio = await this.uniqueOrNull(destino.locator('xpath=self::input|self::select|self::textarea'));
+    if (propio) return propio;
+    const dentro = destino.locator('input:not([type="hidden"]), select, textarea');
+    if ((await dentro.count().catch(() => 0)) > 0) {
+      const unico = await this.uniqueOrNull(dentro);
+      if (unico) return unico;
+      // 'ambiguo' SOLO si de verdad hay dos o más a la vista. Uno solo y oculto no
+      // es ambigüedad: es un control que no se ve, y decir "ambiguo" ahí mandaría
+      // al QA a desambiguar algo que tiene una sola respuesta.
+      const visibles = await dentro.filter({ visible: true }).count().catch(() => 0);
+      return visibles >= 2 ? 'ambiguo' : null;
+    }
+    return this.uniqueOrNull(destino);
   }
 
   /**
@@ -2253,6 +2415,24 @@ class DomWalker {
           for (const rel of [FOLLOWING, ANCESTOR]) {
             const cand = rel === ANCESTOR ? lbl.locator(rel).locator(CONTROL) : lbl.locator(rel);
             const unique = await this.uniqueOrNull(cand).catch(() => null);
+            /**
+             * K0.36 — EL PUENTE NO CRUZA A OTRO CAMPO. Medido en campo (Sakai): el
+             * ancla "Inventory Status" es única, su widget es un `<p-select>` que
+             * este tier no reconoce como control, y `following::` saltó por encima
+             * hasta el primer `<input>` que había después — un radio del grupo
+             * "Category", que es de OTRO campo. El paso lo pulsó, marcó una
+             * categoría y luego reportó `action_failed`: un fallo que además dejó
+             * estado de negocio cambiado, que es lo peor que puede hacer esto.
+             *
+             * La guarda es un hecho estructural, no un umbral: si el control al
+             * que se ha llegado vive dentro de algo a lo que apunta OTRA etiqueta,
+             * ese control ya tiene dueño y el puente se ha metido en campo ajeno.
+             * La premisa del tier ("la etiqueta precede a SU control") queda
+             * falsada, así que se planta. No toca el caso para el que existe
+             * (onesait, JSF): allí los controles no son destino de ninguna
+             * etiqueta, precisamente porque la app no las asocia.
+             */
+            if (unique && rel === FOLLOWING && (await this.puenteCruzaOtroCampo(unique, lbl, scope))) continue;
             if (unique) {
               const src = `${via ? via + ' >> ' : ''}anchored(label:'${label}')`;
               return { locator: unique, via: src, frame_path: path };
@@ -2262,6 +2442,34 @@ class DomWalker {
       }
     }
     return null;
+  }
+
+  /**
+   * K0.36 — ¿el control al que ha llegado el puente pertenece ya a otra etiqueta?
+   * Se mira si él o alguno de sus ancestros con `id` es destino de un `<label for>`
+   * distinto del de la propia ancla. Solo corre en el camino anclado, que ya es el
+   * último peldaño.
+   */
+  private async puenteCruzaOtroCampo(
+    candidato: Locator,
+    ancla: Locator,
+    scope: Page | Frame | Locator,
+  ): Promise<boolean> {
+    const propio = await ancla
+      .locator('xpath=ancestor-or-self::label[1]')
+      .getAttribute('for')
+      .catch(() => null);
+    const conId = await candidato.locator('xpath=ancestor-or-self::*[@id]').all().catch(() => []);
+    for (const nodo of conId) {
+      const id = await nodo.getAttribute('id').catch(() => null);
+      if (!id || id === propio) continue;
+      const n = await scope
+        .locator(`label[for="${id.replace(/["\\]/g, '\\$&')}"]`)
+        .count()
+        .catch(() => 0);
+      if (n > 0) return true;
+    }
+    return false;
   }
 
   /**
@@ -3621,14 +3829,15 @@ class DomWalker {
         if (!resolved) {
           // K0.34 — ambiguo NO es irresoluble: son dos hallazgos con dos remedios
           // distintos, y hasta aquí llegaban con la misma frase.
-          const causa = this.ultimaAmbiguedad ?? 'hint irresoluble';
+          const causa = this.ultimaAmbiguedad ?? this.ultimoAmbitoFallido ?? 'hint irresoluble';
           if (this.state.rescues_used >= this.opts.rescueBudget) {
             // K0.35 — un hint ambiguo resolvió DE MÁS, así que la pantalla es la
             // que se esperaba; las notas de "aquí no hay aplicación" solo tienen
             // sentido cuando no resolvió nada.
-            const nota = this.ultimaAmbiguedad
-              ? ''
-              : (await this.emptyScreenNote()) + (await this.notaPaginaError());
+            const nota =
+              this.ultimaAmbiguedad || this.ultimoAmbitoFallido
+                ? ''
+                : (await this.emptyScreenNote()) + (await this.notaPaginaError());
             this.blockStep(flow, step, `${causa} y presupuesto de rescates agotado (${this.opts.rescueBudget})${nota}`, false);
             this.audit('block', `presupuesto de rescates agotado en ${stepKey}`, { budget: this.opts.rescueBudget });
             return;

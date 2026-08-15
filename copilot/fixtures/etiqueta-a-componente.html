@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Alta de expediente</title>
+<!--
+  K0.36 — la clase medida en Sakai (PrimeNG), reproducida FIEL: la aplicación
+  declara `<label for="X">` y el `id="X"` lo lleva el COMPONENTE, no el control.
+  `getByLabel` devuelve cero y con razón: el HTML solo reconoce la asociación
+  cuando apunta a un elemento etiquetable. Pero el autor escribió el `for`, así
+  que a qué se refiere la etiqueta es un dato de la aplicación, no una conjetura.
+
+  Cuatro casos a propósito:
+   (a) IMPORTE  — envoltorio con UN control nativo dentro  → se resuelve al control.
+   (b) ESTADO   — envoltorio SIN control nativo (el desplegable propio de la
+                  librería) → se resuelve al componente, que es lo que hay que pulsar.
+   (c) PERIODO  — envoltorio con DOS controles dentro → SE PLANTA. Es la mitad
+                  falsable del peldaño: sin esta, "honrar el for" sería una excusa
+                  para elegir uno de los dos por su cuenta.
+   (d) el bloque de abajo es para la GUARDA del puente anclado.
+-->
+<style>
+  body { font: 14px system-ui, sans-serif; padding: 16px; max-width: 640px; }
+  .campo { margin-bottom: 18px; }
+  label, .rotulo { display: block; font-weight: 600; margin-bottom: 4px; }
+  .caja-num, .caja-sel, .caja-rango { display: block; }
+  input, select { padding: 4px; }
+  .desplegable { border: 1px solid #999; padding: 6px; display: inline-block; cursor: pointer; }
+</style>
+
+<h1>Alta de expediente</h1>
+
+<div class="campo">
+  <label for="importe">Importe</label>
+  <!-- el envoltorio se queda el id; el input real no lo tiene -->
+  <ui-numero class="caja-num" id="importe"><input type="text" data-papel="importe"></ui-numero>
+</div>
+
+<div class="campo">
+  <label for="estado">Estado</label>
+  <!-- desplegable de librería: no hay control nativo por debajo -->
+  <ui-select class="caja-sel" id="estado"><span class="desplegable" role="combobox">Selecciona un estado</span></ui-select>
+</div>
+
+<div class="campo">
+  <label for="periodo">Periodo</label>
+  <!-- DOS controles dentro: no hay forma de saber a cuál se refiere la etiqueta -->
+  <ui-rango class="caja-rango" id="periodo"><input type="text" data-papel="desde"><input type="text" data-papel="hasta"></ui-rango>
+</div>
+
+<hr>
+
+<!--
+  GUARDA DEL PUENTE ANCLADO. Dos bloques con la MISMA forma: rótulo visible sin
+  asociación formal (el caso para el que existe el tier anclado, tipo onesait) y,
+  justo detrás, un control que NO es suyo.
+   - "Ramo asegurado": el control que sigue vive dentro de algo a lo que apunta
+     OTRA etiqueta → el puente se planta.
+   - "Oficina emisora": el control que sigue no tiene dueño → el puente actúa.
+  Sin el segundo bloque, un test verde no probaría que discrimina la guarda: solo
+  que el tier dejó de funcionar.
+-->
+<div class="campo">
+  <span class="rotulo">Ramo asegurado</span>
+  <ui-select class="caja-sel" id="ramo"><span class="desplegable" role="combobox">Elige ramo</span></ui-select>
+</div>
+<div class="campo">
+  <ui-radio id="cobertura1"><input type="radio" name="cob" data-papel="cobertura-basica"></ui-radio>
+  <label for="cobertura1">Cobertura basica</label>
+</div>
+
+<div class="campo">
+  <span class="rotulo">Oficina emisora</span>
+  <input type="text" data-papel="oficina">
+</div>
+
+<hr>
+
+<!--
+  EL ÁMBITO QUE RESUELVE PERO NO CONTIENE. La tarjeta tiene un título y dentro un
+  campo bien asociado. Un FD dice "en el bloque 'Datos del tomador', rellena
+  Nombre", y eso se escribe como scope:{text:'Datos del tomador'} — que resuelve
+  a UNA cosa, el <h2>, dentro del cual no hay ningún campo. Antes el paso moría
+  con "hint irresoluble" y mandaba al QA a arreglar un hint que estaba bien.
+-->
+<section>
+  <h2>Datos del tomador</h2>
+  <div class="campo">
+    <label for="nombre">Nombre</label>
+    <input type="text" id="nombre">
+  </div>
+</section>
+</html>

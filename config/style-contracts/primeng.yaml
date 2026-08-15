@@ -1,0 +1,90 @@
+# Style Contract — Sakai (Angular 19 + PrimeNG 19)
+# Schema docs: docs/references/style-contract-schema.md
+#
+# Sitio 4 de la GIRA DE STACKS del kernel v2. Familia de stack: Angular + PrimeNG
+# — la de los back-office que las consultoras montan sobre Angular cuando el
+# cliente no quiere Material. Sakai es la plantilla de administración OFICIAL de
+# PrimeNG: mantenimiento con tabla, diálogo modal, dropdown no nativo y radios.
+# Showcase público: sin cuentas, sin datos personales. Autorizado QA 2026-08-15.
+#
+# Patologías esperadas de la familia (declaradas, no medidas todavía): controles
+# compuestos donde el elemento clicable no es el que lleva la etiqueta (p-select,
+# p-radiobutton), overlays montados en el <body> fuera del diálogo que los abre,
+# ids generados por Angular, y avisos efímeros como única postcondición.
+
+version: 1
+project: primeng
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByRole
+    - getByLabel
+    - getByText
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/primeng.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false
+  severity_threshold:
+    - serious
+    - critical
+
+evidence:
+  level: full
+  screenshots: on
+
+# SIN bloque `settle` a propósito, igual que UI5 (§23) y JSF (§24), y por la misma
+# razón: Angular tiene señales de ocupado propias, y declararlas ANTES de medir
+# haría imposible saber si el walker se sincroniza solo o si lo hizo la pista que
+# le di. Primero se mide con el settle genérico; si aparecen `settle_timeout`,
+# entonces se declara y se vuelve a medir.
+
+# Sin `obstructions` y sin `consent`: este sitio no sirvió banner en el
+# reconocimiento. Si aparece, lo cubre el consentimiento POR DISEÑO del kernel
+# (K0.30); si no lo cubriera, el hallazgo es "falta una familia CMP" y no se
+# parchea aquí.
+
+synthetic_fixtures:
+  credentials: []
+  buyer_info: []
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

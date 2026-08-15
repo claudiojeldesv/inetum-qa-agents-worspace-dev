@@ -1,0 +1,157 @@
+{
+  "$comment": "GUION RECONCILIADO del sitio 4 — es el ciego con las correcciones que un QA aplica DESPUES de leer el informe, y existe para probar que los diagnosticos del walker llevan a la accion correcta. Tres cambios y nada mas: (1) el ambito del diagnostico C pasa de {text:'Product Details'} (el titulo) a {role:'dialog'} (el contenedor); (2) el conteo de filas pasa de 2 a 3 porque la fila de cabecera tambien tiene rol row; (3) el {label:'Email'} del formulario se DEJA ROJO a proposito: en esa pantalla no hay ningun vocabulario que exprese 'el Email de la tarjeta Horizontal' —las tarjetas no tienen rol ni nombre—, asi que el remedio honesto es el panel asistido con un locator capturado, no inventarse un ambito que no existe. (4) el ciego asertaba un aviso 'Successful' y que el producto saldria en la tabla: medido, esta version de Sakai NO emite aviso y el alta manda el producto al final de 31 (pagina 4), asi que la postcondicion real se comprueba buscandolo. Los dos rojos del ciego eran errores del guion y el walker los reporto como drift, que es justo lo que tenia que hacer.",
+  "version": 1,
+  "site_id": "primeng",
+  "entry": "/pages/crud",
+  "base_url": "https://sakai.primeng.org",
+  "flows": [
+    {
+      "flow": "mantenimiento-productos",
+      "criteria": [
+        "FD-P401"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "expect_text",
+          "value": "Manage Products"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Search"
+          },
+          "value": "Blue"
+        },
+        {
+          "id": "s3",
+          "action": "expect_count",
+          "hint": {
+            "role": "row"
+          },
+          "operator": "=",
+          "value": "3"
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Showing 1 to 2 of 2 products"
+        }
+      ]
+    },
+    {
+      "flow": "alta-de-producto",
+      "criteria": [
+        "FD-P402"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "New"
+          },
+          "expect_after": "Product Details",
+          "retry_safe": true
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Name"
+          },
+          "scope": {
+            "role": "dialog"
+          },
+          "value": "Poliza Hogar Basica"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "label": "Price"
+          },
+          "value": "250"
+        },
+        {
+          "id": "s4",
+          "action": "select",
+          "hint": {
+            "label": "Inventory Status"
+          },
+          "value": "INSTOCK"
+        },
+        {
+          "id": "s5",
+          "action": "check",
+          "hint": {
+            "label": "Electronics"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Save"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Search"
+          },
+          "value": "Poliza"
+        },
+        {
+          "id": "s8",
+          "action": "expect_text",
+          "value": "Poliza Hogar Basica"
+        }
+      ]
+    },
+    {
+      "flow": "formulario",
+      "criteria": [
+        "FD-P403"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/uikit/formlayout",
+          "screen": "formulario"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Email"
+          },
+          "value": "qa@example.org"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "label": "Username"
+          },
+          "value": "qa.inetum"
+        },
+        {
+          "id": "s4",
+          "action": "expect_value",
+          "hint": {
+            "label": "Username"
+          },
+          "value": "qa.inetum"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "$comment": "GUION CIEGO — sitio 4 de la gira de stacks (Angular 19 + PrimeNG 19). Objetivo: Sakai, la plantilla de back-office OFICIAL de PrimeNG, no la documentación de componentes: un mantenimiento con tabla, diálogo modal, dropdown no nativo y radios, que es la forma exacta de una pantalla de gestión de banca/seguros. PROTOCOLO (K0.17): hints con SOLO vocabulario visible en pantalla; predicciones por escrito ANTES de correr; el guion no se toca entre la escritura y el run.",
+  "$mire": "DECLARACIÓN DE SESGO — qué miré: capturas de pantalla de la home/dashboard, el mantenimiento de productos, el formulario de ejemplo, la pantalla de tabla, el diálogo 'Product Details' abierto y la tabla filtrada por 'Blue'. Y las URLs de la barra de direcciones. NO leí el HTML, NO leí el árbol de accesibilidad, NO abrí herramientas de desarrollo. CONTAMINACIÓN ACCIDENTAL, declarada: en el reconocimiento abrí el diálogo con getByText('New') y rellené el buscador con getByPlaceholder('Search...'), así que sé que el buscador TIENE ese marcador de posición — lo que hace de P1 una apuesta sobre si el nombre accesible cae de ahí, no sobre si el marcador existe. Conozco Angular, y eso sesga mis predicciones sobre el select y el radio.",
+  "$predicciones": [
+    "P1 BUSCADOR — su única identidad visible es el marcador 'Search...'. {role:'textbox', name:'Search'} resuelve por el intento SUBSTRING y no por el exacto, si Playwright toma el placeholder como nombre accesible de último recurso. Si no lo toma, el paso se planta y sería la PRIMERA INSTANCIA MEDIDA EN CAMPO del hueco de getByPlaceholder: declarado en el contract desde K0.19, ignorado por PRIORITY_TO_KIND, nombrado tres veces, nunca visto fallar de verdad. Las dos salidas informan; la que no vale es un timeout opaco.",
+    "P2 CONTAR FILAS — expect_count {role:'row'} = 2 FALLA con 3, porque la fila de cabecera también tiene rol row. No es defecto del walker sino de la traducción FD→guion, pero muerde en toda tabla corporativa y quiero la medida antes de decidir si el producto debe hacer algo al respecto.",
+    "P3 FILTRO — es filtrado en cliente sin petición; el settle genérico aguanta y la aserción sobre 'Showing 1 to 2 of 2 products' pasa.",
+    "P4 ABRIR DIÁLOGO — click {role:'button', name:'New'} limpio y expect_after 'Product Details' cumplido.",
+    "P5 LA QUE MÁS ME INTERESA — EL ÁMBITO NOMBRADO POR SU TÍTULO. fill {label:'Name', scope:{text:'Product Details'}} FALLA. Sin ámbito se plantaría por ambigüedad ('Name' está en la cabecera de la tabla y en el diálogo); con ámbito falla igual pero por otra razón: el hint del scope resuelve al TÍTULO del diálogo, que es un elemento de texto, no el diálogo — y buscar dentro de un título da cero. Misma raíz que el verde falso de §20 y que el s32 del banco. Si sale, es el hallazgo de este sitio.",
+    "P6 SELECT DE PRIMENG — select {label:'Inventory Status'} sobre el p-select: la rama NO nativa de K0.26 resuelve, y por la capa de 'listbox único visible' (espero que PrimeNG sí ponga role=listbox en su overlay, a diferencia del <ul> pelado de PrestaShop). Sería la TERCERA familia distinta resuelta por el mismo código.",
+    "P7 RADIO DE PRIMENG, Y DOS FORMAS DE OCULTAR — check {label:'Electronics'} FUNCIONA. PrestaShop escondía su <select> con display:none y por eso K0.26b se planta; PrimeNG superpone un input radio con opacity:0 que SÍ tiene caja, y para Playwright eso es visible. Si me equivoco, el desenlace honesto es 'único oculto → hint irresoluble'.",
+    "P8 TOAST — expect_text 'Successful' pasa, pero es el paso más frágil: el aviso de PrimeNG vive unos 3 s. Si el settle se los come, el rojo será de TEMPORIZACIÓN y no de resolución, y el informe tiene que dejar distinguirlo.",
+    "P9 ERROR MÍO DEJADO A PROPÓSITO — la aserción del producto recién creado FALLA, porque el buscador sigue filtrado por 'Blue' y el producto nuevo no lo contiene. Quiero ver si el walker lo reporta como drift del negocio (correcto) o si dice algo que mande al QA a revisar locators, que sería el defecto de K0.35 con otra cara.",
+    "P10 AMBIGÜEDAD HONESTA — fill {label:'Email'} en el formulario sin ámbito SE PLANTA POR AMBIGÜEDAD (hay tres 'Email' en pantalla) con el mensaje de K0.33, no con 'hint irresoluble'. Validación en campo de esa distinción en una cuarta familia.",
+    "P11 LA SPA — el goto a otra ruta de Angular es navegación dura; no espero sorpresas de K0.34 (aquello era para POST). El riesgo es el arranque vacío de K0.17, que la regla de '≥1 mutación si el top arranca sin nada' debería cubrir."
+  ],
+  "version": 1,
+  "site_id": "primeng",
+  "entry": "/pages/crud",
+  "base_url": "https://sakai.primeng.org",
+  "flows": [
+    {
+      "flow": "mantenimiento-productos",
+      "criteria": ["FD-P401"],
+      "steps": [
+        { "id": "s1", "action": "expect_text", "value": "Manage Products" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Blue" },
+        { "id": "s3", "action": "expect_count", "hint": { "role": "row" }, "operator": "=", "value": "2" },
+        { "id": "s4", "action": "expect_text", "value": "Showing 1 to 2 of 2 products" }
+      ]
+    },
+    {
+      "flow": "alta-de-producto",
+      "criteria": ["FD-P402"],
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "role": "button", "name": "New" }, "expect_after": "Product Details", "retry_safe": true },
+        { "id": "s2", "action": "fill", "hint": { "label": "Name" }, "scope": { "text": "Product Details" }, "value": "Poliza Hogar Basica" },
+        { "id": "s3", "action": "fill", "hint": { "label": "Price" }, "value": "250" },
+        { "id": "s4", "action": "select", "hint": { "label": "Inventory Status" }, "value": "INSTOCK" },
+        { "id": "s5", "action": "check", "hint": { "label": "Electronics" } },
+        { "id": "s6", "action": "click", "hint": { "role": "button", "name": "Save" } },
+        { "id": "s7", "action": "expect_text", "value": "Successful" },
+        { "id": "s8", "action": "expect_text", "value": "Poliza Hogar Basica" }
+      ]
+    },
+    {
+      "flow": "formulario",
+      "criteria": ["FD-P403"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/uikit/formlayout", "screen": "formulario" },
+        { "id": "s2", "action": "fill", "hint": { "label": "Email" }, "value": "qa@example.org" },
+        { "id": "s3", "action": "fill", "hint": { "label": "Username" }, "value": "qa.inetum" },
+        { "id": "s4", "action": "expect_value", "hint": { "label": "Username" }, "value": "qa.inetum" }
+      ]
+    }
+  ]
+}

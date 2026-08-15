@@ -34,6 +34,7 @@ patterns:
   # - 'https://primefaces.org/showcase*'
   - 'https://showcase.bootsfaces.net/*'    # sitio 1: JSF 2.x + Bootstrap (familia de onesait), autorizado QA 2026-08-15
   - 'https://sdk.openui5.org/*'    # sitio 2 previsto: SAP UI5 (back-office de seguros)
+  - 'https://sakai.primeng.org/*'    # sitio 4: Angular 19 + PrimeNG 19 (Sakai, plantilla de back-office oficial), autorizado QA 2026-08-15
   - 'https://www.primefaces.org/showcase-v14*'    # reserva por si el mirror sin muro sigue en pie
 
   # Entornos no productivos (cualquier subdominio)

@@ -1277,3 +1277,136 @@ queramos en un patrón de URL) y porque protege una invariante que el SPEC decla
 6 tests nuevos (3 sobre la clase de error con su par falsable, 3 puros sobre `urlEstable`).
 531/531 en suite completa. El banco queda además reproducible con estado en servidor:
 `levantar.ps1` copia ya el contexto de Tomcat.
+
+## 26. K0.36 — sitio 4 (Angular + PrimeNG): la etiqueta que apunta a un componente
+
+Cuarto sitio de la gira. Objetivo: **Sakai**, la plantilla de back-office oficial de PrimeNG
+(Angular 19 + PrimeNG 19). Se elige sobre la documentación de componentes por la misma razón
+que en UI5 se eligió Shopping Cart: es una APLICACIÓN — mantenimiento con tabla, diálogo
+modal, desplegable no nativo, radios y paginación—, no una página de ejemplos.
+
+Guion ciego con once predicciones por escrito (protocolo K0.17). Primer run: **8/16**.
+Con los tres arreglos y **sin tocar el guion: 11/16**. Reconciliado por un QA que lee el
+informe: **15/16**, y el único rojo que queda está documentado abajo como límite honesto.
+
+### D1 — la etiqueta apunta a un COMPONENTE, no a un control
+
+El diálogo declara `<label for="price">Price</label>` y el `id="price"` lo lleva el
+`<p-inputnumber>`, no el `<input>` que hay dentro. Lo mismo con `for="inventoryStatus"` →
+`<p-select>` y con `for="category3"` → `<p-radiobutton>`. Medido:
+
+```
+Name              getByLabel exact=1   ← pInputText pelado: funciona
+Description       getByLabel exact=1
+Price             getByLabel exact=0   ← el id lo tiene el envoltorio
+Quantity          getByLabel exact=0
+Inventory Status  getByLabel exact=0
+Electronics       getByLabel exact=0
+```
+
+`getByLabel` devuelve cero **y hace bien**: el HTML solo reconoce la asociación cuando apunta
+a un elemento etiquetable. Pero el autor escribió el `for`, así que **a qué se refiere la
+etiqueta es un dato de la aplicación, no una conjetura**. Por eso el peldaño nuevo
+(`labelFor`) va antes del anclado y sin restricción de acción: pulsar la etiqueta es lo que
+hace un usuario. Del destino se coge (a) él mismo si ya es control nativo, (b) el control
+nativo ÚNICO que contenga, o (c) el propio componente si no contiene ninguno — el caso del
+`p-select`, que se despliega pulsándolo.
+
+Esta forma no es de PrimeNG: es de **toda librería de componentes** que envuelve el control
+(Angular Material, Vuetify, Ant). Y corrige la lección de K0.34 en la otra dirección: allí
+descubrimos que MyFaces sí emite `label for` correcto y la patología era de la app; aquí la
+asociación existe y la rompe la librería.
+
+### D2 — el puente anclado cruzando a un campo que ya tiene dueño
+
+El ancla "Inventory Status" es única, su widget no es un control nativo, y el
+`following::input` del tier anclado saltó por encima hasta **el primer radio del grupo
+"Category"**. El paso lo pulsó, dejó una categoría marcada y luego reportó `action_failed`.
+
+Medido con un probe que reproduce el mismo xpath del producto:
+
+```
+radios ANTES  : false,false,false,false
+radios DESPUÉS: true,false,false,false   → MUTÓ EL FORMULARIO
+```
+
+Un paso que dice que no hizo nada y deja estado de negocio cambiado es lo peor que puede
+hacer este componente — peor que plantarse y peor que fallar. Es la cuarta instancia de la
+familia "el anclado puentea al control equivocado" (K0.25/D4, K0.26b, K0.27a→K0.28), y aquí
+la guarda es estructural, no un umbral: **si el control al que se ha llegado vive dentro de
+algo a lo que apunta OTRA etiqueta, ese control ya tiene dueño**. La premisa del tier ("la
+etiqueta precede a SU control") queda falsada y se planta. No toca el caso para el que el
+tier existe (onesait, JSF): allí los controles no son destino de ninguna etiqueta,
+precisamente porque la app no las asocia — y esa es la mitad falsable del fixture.
+
+### D3 — el ámbito que resuelve pero no contiene
+
+`scope:{text:'Product Details'}` resuelve a UNA cosa: el título del diálogo. Dentro de un
+título no hay campos, así que el paso moría con `hint irresoluble` — el diagnóstico que manda
+al QA a arreglar un hint que estaba bien.
+
+No se trepa del título a su contenedor: elegir qué ancestro es "el diálogo" sería adivinar.
+Lo que sí se puede hacer sin adivinar es **contar fuera y decir lo medido**, mismo patrón que
+la nota de página de error de K0.35 — el walker no afirma que el ámbito esté mal, dice dónde
+está el hint y dónde no:
+
+> el hint NO está dentro del ámbito {"text":"Product Details"}, pero sí aparece 1 vez fuera
+> de él — ¿el ámbito señala al CONTENEDOR o solo a su título?
+
+Con eso el QA cambia el ámbito a `{role:'dialog'}` y el paso resuelve como
+`getByRole('dialog') >> getByLabel('Name', { exact: true })`. El diagnóstico se valida por lo
+que provoca: llevó a la acción correcta a la primera.
+
+Detalle de honestidad en el propio mensaje: el conteo se hace **por intento**, no sumando el
+plan. Los intentos exacto y substring de K0.33 encuentran el mismo elemento, y sumarlos decía
+"aparece 2 veces" de algo que aparece una. Un número inflado en el informe es otra mentira.
+
+### La inconsistencia que cazó su propio test
+
+El primer test del par falsable de D1 (envoltorio con DOS controles dentro) salió verde
+cuando debía plantarse: `labelFor` se plantaba bien y **el tier anclado, justo debajo,
+deshacía la regla** cogiendo el primer input que seguía a la etiqueta. Es el principio de
+K0.33 otra vez — la ambigüedad no se repara descendiendo de peldaño —, aplicado ahora dentro
+de nuestra propia escalera. Cuando la asociación declarada existe pero no dice a cuál de los
+controles se refiere, la escalera PARA.
+
+### Predicciones: 8 aciertos limpios de 11
+
+Mejor puntuación de la gira, y eso también es dato: Angular es terreno conocido y mi modelo
+de la familia era más fino. Las tres que no:
+
+- **P6 (parcial)**: el `select` resolvió, pero no por donde dije. Nunca pasó por `getByLabel`;
+  llegó por el peldaño nuevo. La capa de resolución de la OPCIÓN sí funcionó igual que en
+  Angular Material y PrestaShop — tercera familia con el mismo código.
+- **P9 (desenlace sí, causa no)**: predije que la aserción del producto fallaría por el filtro
+  "Blue"; falla por **paginación** (el alta manda el producto al final de 31, página 4). Cada
+  flujo re-entra con `goto`, así que el filtro ya no estaba.
+- **P8 (falsada, y por algo que no contemplé)**: predije que el aviso de éxito pasaría por los
+  pelos o fallaría por temporización. Medido: **no hay aviso ninguno**. Ni resolución ni
+  reloj — la app no lo emite. `expect_text 'Successful'` era invención mía, y el walker lo
+  reportó como drift del FD, que es exactamente lo que tenía que hacer.
+
+Los dos rojos del guion ciego en ese flujo eran errores míos, no del walker, y los dos
+llegaron con el diagnóstico correcto. El alta sí ocurrió (30 → 31 productos, verificado por
+probe): el walker **no** cantó verde por eso, que es la clase §20 evitada.
+
+### Medido y NO arreglado, con la razón
+
+- **`expect_count {role:'row'}` cuenta la fila de cabecera.** El guion pedía 2 y el informe
+  dijo 3. Excluir cabeceras sería el walker decidiendo qué filas cuentan, y "cuántas filas
+  hay" es justo lo que declara el QA. El mensaje ya da el número real, que es accionable.
+- **En la pantalla de formularios no existe vocabulario que exprese "el Email de la tarjeta
+  Horizontal".** Las tarjetas no tienen rol, ni nombre, ni landmark: no hay `scope` posible.
+  El paso se planta por ambigüedad con el mensaje correcto de K0.33 y el remedio honesto es
+  el panel asistido con un locator capturado — inventarse un ámbito que la pantalla no ofrece
+  sería adivinar. Queda como el 1 de 16 del run reconciliado, a propósito.
+- **`getByPlaceholder` sigue sin instancia medida.** Era la apuesta de P1 y salió al revés:
+  el buscador resolvió por `getByRole` substring, porque el placeholder sí alimenta el nombre
+  accesible. El hueco de K0.19 sigue nombrado y sin evidencia que lo justifique.
+
+### Resultado
+
+7 tests nuevos con sus dos pares falsables. 544/545 en suite completa: el único rojo es
+`obstructions.test.ts`, que agota su tope de 60 s bajo la suite en paralelo y pasa aislado en
+39,8 s — la deuda de flakiness bajo carga nombrada en K0.27a, a la que este ciclo suma siete
+tests más de navegador en el mismo pool.
