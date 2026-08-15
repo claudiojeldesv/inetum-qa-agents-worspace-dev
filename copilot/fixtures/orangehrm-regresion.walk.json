@@ -1,0 +1,183 @@
+{
+  "$comment": "SUITE DE REGRESION — 5 casos sobre el portal de RRHH OrangeHRM. Escritos con el vocabulario que usaria un FD, sin mirar el DOM. El orden importa: CP02 va primero porque necesita sesion cerrada, CP01 abre la sesion y CP03-CP05 la reutilizan (el walker mantiene el contexto del navegador entre flujos).",
+  "version": 1,
+  "site_id": "orangehrm",
+  "entry": "/web/index.php/auth/login",
+  "base_url": "https://opensource-demo.orangehrmlive.com",
+  "flows": [
+    {
+      "flow": "CP02-acceso-credenciales-invalidas",
+      "criteria": [
+        "RF-002"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Username"
+          },
+          "value": "usuario.inexistente"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Password"
+          },
+          "value": "clave-incorrecta",
+          "secret": true
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          }
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Invalid credentials"
+        }
+      ]
+    },
+    {
+      "flow": "CP01-acceso-credenciales-validas",
+      "criteria": [
+        "RF-001"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Username"
+          },
+          "value": "$fixtures.credentials[0].username"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Password"
+          },
+          "value": "$fixtures.credentials[0].password",
+          "secret": true
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          },
+          "expect_transition": true,
+          "screen": "dashboard"
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Dashboard"
+        }
+      ]
+    },
+    {
+      "flow": "CP03-listado-de-empleados",
+      "criteria": [
+        "RF-010"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/web/index.php/pim/viewEmployeeList",
+          "screen": "pim-listado"
+        },
+        {
+          "id": "s2",
+          "action": "expect_text",
+          "value": "Records Found"
+        },
+        {
+          "id": "s3",
+          "action": "expect_count",
+          "hint": {
+            "role": "row"
+          },
+          "operator": ">",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "flow": "CP04-filtrado-por-nombre-de-empleado",
+      "criteria": [
+        "RF-011"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/web/index.php/pim/viewEmployeeList",
+          "screen": "pim-listado"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Nombre del empleado"
+          },
+          "value": "Odis"
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Search"
+          }
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Records Found"
+        }
+      ],
+      "$nota": "El FD del cliente esta en ESPANOL y el producto es un COTS en INGLES. Es el caso corporativo mas comun en banca/seguros, y es el que dispara el rescate: la escalera determinista no puede puentear 'Nombre del empleado' a 'Employee Name' sin adivinar, y adivinar es lo unico que este componente no hace. El LLM lee el arbol de accesibilidad podado, devuelve el locator, y si la postcondicion se cumple el alias queda en memoria: ese rescate se paga UNA VEZ por cliente, no una vez por ejecucion."
+    },
+    {
+      "flow": "CP05-consulta-datos-personales",
+      "criteria": [
+        "RF-020"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/web/index.php/pim/viewMyDetails",
+          "screen": "mis-datos"
+        },
+        {
+          "id": "s2",
+          "action": "expect_text",
+          "value": "Personal Details"
+        },
+        {
+          "id": "s3",
+          "action": "expect_state",
+          "hint": {
+            "role": "textbox",
+            "name": "First Name"
+          },
+          "value": "visible"
+        }
+      ]
+    }
+  ]
+}

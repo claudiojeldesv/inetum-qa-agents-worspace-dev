@@ -1,0 +1,22 @@
+{
+  "$comment": "ARBITRAJE. La pasada A del Planner afirma que el buscador filtra UNICAMENTE por Name. La pasada B afirma que 'parece matchear al menos por nombre y categoria'. Mismo LLM, mismo sitio, mismo dia, mismo prompt, afirmaciones incompatibles sobre el mismo comportamiento. Se prueban las cuatro categorias visibles de la tabla; si alguna devuelve filas, B tiene razon. Coste: 0 tokens.",
+  "version": 1,
+  "site_id": "primeng",
+  "entry": "/pages/crud",
+  "base_url": "https://sakai.primeng.org",
+  "flows": [
+    {
+      "flow": "arbitraje-categorias",
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Accessories" },
+        { "id": "s2", "action": "expect_text", "value": "Showing 0 to 0 of 0 products" },
+        { "id": "s3", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Clothing" },
+        { "id": "s4", "action": "expect_text", "value": "Showing 0 to 0 of 0 products" },
+        { "id": "s5", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Electronics" },
+        { "id": "s6", "action": "expect_text", "value": "Showing 0 to 0 of 0 products" },
+        { "id": "s7", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Fitness" },
+        { "id": "s8", "action": "expect_text", "value": "Showing 0 to 0 of 0 products" }
+      ]
+    }
+  ]
+}

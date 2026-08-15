@@ -151,6 +151,7 @@ Carga **lazy** (Claude lee cuando la tarea lo pide):
 | [`SPEC.md`](SPEC.md) | Definición del agente: objective, modos, commands, structure, code style, boundaries, roadmap |
 | [`docs/STATUS.md`](docs/STATUS.md) | Historial completo de fases, releases y hallazgos (la vieja sección "Estado actual") |
 | [`docs/findings/spike-playwright-mcp.md`](docs/findings/spike-playwright-mcp.md) | Mediciones reales del Planner+Generator, decisiones data-dependent cerradas |
+| [`docs/findings/comparativa-walker-vs-llm.md`](docs/findings/comparativa-walker-vs-llm.md) | Walker determinista vs. LLM (Sakai y OrangeHRM): tokens, reloj, determinismo, verde falso en AMBOS motores, 5 defectos abiertos y 7 hipótesis falsables con su experimento |
 | [`docs/references/compliance-rules.md`](docs/references/compliance-rules.md) | Qué bloquea el pre-flight, sin override |
 | [`docs/references/pii-patterns.md`](docs/references/pii-patterns.md) | Regex DNI/IBAN/Luhn/teléfono/email ES |
 | [`docs/references/composition-rules.md`](docs/references/composition-rules.md) | Excepción Writer↔Reviewer documentada |

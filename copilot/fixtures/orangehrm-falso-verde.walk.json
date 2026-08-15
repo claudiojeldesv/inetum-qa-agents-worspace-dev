@@ -1,0 +1,27 @@
+{
+  "$comment": "PRUEBA DE JUSTICIA. La ejecucion solo-LLM marco CP04 como 'pasa' porque el literal 'Records Found' aparecia en pantalla... dentro de 'No Records Found'. Antes de usar eso como argumento hay que comprobar si el walker se come el mismo verde falso. Se le da el locator autoritativo (lo que produciria el panel asistido) para que llegue al mismo estado de pantalla que alcanzo el LLM.",
+  "version": 1,
+  "site_id": "orangehrm",
+  "entry": "/web/index.php/auth/login",
+  "base_url": "https://opensource-demo.orangehrmlive.com",
+  "flows": [
+    {
+      "flow": "CP00-sesion",
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard" }
+      ]
+    },
+    {
+      "flow": "CP04-mismo-estado-que-alcanzo-el-LLM",
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/web/index.php/pim/viewEmployeeList", "screen": "pim-listado" },
+        { "id": "s2", "action": "fill", "hint": { "label": "Nombre del empleado" }, "locator": "getByRole('textbox', { name: 'Type for hints...' }).nth(0)", "value": "Odis" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Search" } },
+        { "id": "s4", "action": "expect_text", "value": "Records Found" },
+        { "id": "s5", "action": "expect_text", "value": "No Records Found" }
+      ]
+    }
+  ]
+}

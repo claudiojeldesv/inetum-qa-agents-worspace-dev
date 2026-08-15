@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "site_id": "primeng",
+  "entry": "/",
+  "flows": [
+    {
+      "flow": "filtro-catalogo",
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": { "role": "textbox", "name": "Buscador" },
+          "value": "$fixtures.catalog.search_term"
+        },
+        {
+          "id": "s2",
+          "action": "expect_text",
+          "value": "2 de 2"
+        }
+      ]
+    },
+    {
+      "flow": "alta-producto",
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": { "role": "button", "name": "New" },
+          "expect_transition": true,
+          "screen": "detalle-producto"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "scope": { "role": "dialog", "name": "Product Details" },
+          "hint": { "role": "textbox", "name": "Name" },
+          "value": "$fixtures.catalog.new_product.name"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "scope": { "role": "dialog", "name": "Product Details" },
+          "hint": { "role": "combobox", "name": "Inventory Status" },
+          "value": "$fixtures.catalog.new_product.status"
+        },
+        {
+          "id": "s4",
+          "action": "fill",
+          "scope": { "role": "dialog", "name": "Product Details" },
+          "hint": { "role": "combobox", "name": "Category" },
+          "value": "$fixtures.catalog.new_product.category"
+        },
+        {
+          "id": "s5",
+          "action": "fill",
+          "scope": { "role": "dialog", "name": "Product Details" },
+          "hint": { "role": "textbox", "name": "Price" },
+          "value": "$fixtures.catalog.new_product.price"
+        },
+        {
+          "id": "s6",
+          "action": "click",
+          "scope": { "role": "dialog", "name": "Product Details" },
+          "hint": { "role": "button", "name": "Guardar" },
+          "expect_transition": true,
+          "screen": "manage-products"
+        },
+        {
+          "id": "s7",
+          "action": "fill",
+          "hint": { "role": "textbox", "name": "Buscador" },
+          "value": "$fixtures.catalog.new_product.name"
+        },
+        {
+          "id": "s8",
+          "action": "expect_text",
+          "value": "$fixtures.catalog.new_product.name"
+        }
+      ]
+    },
+    {
+      "flow": "formulario-datos",
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": { "role": "textbox", "name": "Username" },
+          "value": "$fixtures.forms.username"
+        }
+      ]
+    }
+  ]
+}

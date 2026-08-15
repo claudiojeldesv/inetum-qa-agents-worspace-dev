@@ -1,0 +1,18 @@
+{
+  "$comment": "Un hallazgo del Planner nativo, convertido en comprobacion determinista. El Planner descubrio explorando que el buscador de Manage Products filtra SOLO por Name: buscar 'Accessories' (una categoria que se ve en la tabla) devuelve cero. Eso es conocimiento que el walker no puede descubrir por si mismo, porque el walker ejecuta un guion, no explora. Pero una vez descubierto, verificarlo cuesta 0 tokens y ~20 s, todas las veces que haga falta.",
+  "version": 1,
+  "site_id": "primeng",
+  "entry": "/pages/crud",
+  "base_url": "https://sakai.primeng.org",
+  "flows": [
+    {
+      "flow": "el-buscador-solo-mira-el-nombre",
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Bamboo" },
+        { "id": "s2", "action": "expect_text", "value": "Showing 1 to 1 of 1 products" },
+        { "id": "s3", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Accessories" },
+        { "id": "s4", "action": "expect_text", "value": "Showing 0 to 0 of 0 products" }
+      ]
+    }
+  ]
+}
