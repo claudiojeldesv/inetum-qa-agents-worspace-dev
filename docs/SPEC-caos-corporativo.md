@@ -1079,3 +1079,117 @@ reproduce la clase y sigue con muestra de uno — no se construye. El Style Cont
 ocupado conocida (`sapUiLocalBusyIndicator`): declararla antes de medir habría sesgado el run
 — no sabríamos si el walker se sincroniza solo o si lo hizo la pista. No hizo falta: cero
 `settle_timeout` en los dos runs.
+
+## 24. K0.34 — gira de stacks, sitio 3 (JSF 1.2, era Java 5): la transición que la URL no delata
+
+Sitio 3 de la gira, y el primero que **no es público**: la generación JSF 1.x está
+extinta en la web abierta. Medido antes de decidir nada — `example.irian.at` (los ejemplos
+de MyFaces/Tomahawk, que aguantaron una década), OpenFaces, el livedemo de RichFaces de
+Exadel y ButterFaces ya no resuelven el dominio; ICEfaces no responde; ZK y el showcase de
+PrimeFaces sirven muro Cloudflare. Lo único vivo de la familia es JSF 2.x moderno, que trae
+AJAX, cambia de URL y emite ARIA: justo lo contrario de lo que había que probar.
+
+### El banco, y por qué es honesto
+
+Se levanta en local con los ejemplos **oficiales** de Apache — `myfaces-example-simple`
+1.1.14 (Tomahawk sobre MyFaces 1.2) — sobre Tomcat 7.0.109. No hay una línea nuestra dentro
+del WAR: **el DOM lo produce el renderer de JSF de verdad**, con su `javax.faces.ViewState`,
+sus ids con dos puntos, su maquetación con tablas y su navegación por POST. Escribirlo a
+mano habría sido repetir el error caro de K0.21, donde un fixture que no reproducía la
+estructura real dio un verde que mentía.
+
+Dos caminos para levantarlo, los dos en `copilot/bench/jsf-legacy/`:
+
+- `levantar.ps1` — **el verificado**: descarga JDK 8 + Tomcat 7 + el WAR a `.work/`
+  (ignorado por git), y arranca con `JAVA_HOME` puesto solo para ese proceso. Sin
+  instalador, sin administrador, sin tocar PATH ni registro. Se desmonta borrando la
+  carpeta.
+- `Dockerfile` + `docker-compose.yml` — equivalente y portable, **pero no construido
+  todavía**: en la máquina donde se hizo este ciclo, Docker Desktop estaba en bucle de
+  arranque fallido (sockets rancios en `AppData\Local` que su propio arranque no podía
+  borrar). Queda declarado como no verificado hasta que alguien lo construya.
+
+El contract `jsf-legacy.yaml` va **sin bloque `settle`**, por la misma disciplina de K0.33:
+declarar las señales de ocupado de la familia antes de medir haría imposible saber si el
+walker se sincroniza solo. No hizo falta — cero `settle_timeout` en los dos runs.
+
+### D1 — la señal de transición era solo la URL, y eso costaba diez segundos por acción
+
+El defecto del ciclo, y no tenía ningún rojo con el que delatarse.
+
+```ts
+await this.page.waitForURL((u) => u.toString() !== preUrl, { timeout: STEP_TIMEOUT_MS })
+  .catch(() => {});
+```
+
+El comentario que lo acompañaba lo decía sin querer: *"la señal de transición es el cambio
+de URL"*. Cierto en una SPA. **Falso en cualquier stack que navegue por POST** — JSF
+clásico, Struts, JSP, ASP.NET WebForms —, donde la página cambia entera y la URL se queda
+exactamente igual. Ahí la espera agotaba su tope completo y se lo tragaba el `.catch()`: el
+paso salía `ok`, el settle salía limpio (447 ms), y cada acción con `expect_transition`
+pagaba diez segundos en silencio. En un caso corporativo de 30 pasos son cinco minutos de
+espera pura que no aparecen en ninguna cifra de verdes.
+
+Arreglo: marcar el documento antes de actuar y **correr las dos señales en carrera** — URL
+distinta (SPA) o marca desaparecida, que significa documento nuevo (POST de toda la vida).
+Gana la primera. La marca se inyecta como CADENA, no como función, por la trampa del
+`__name` de esbuild documentada en la Fase 6.
+
+Medido contra el banco, con el guion ciego intocado:
+
+| paso | antes | después |
+|---|---|---|
+| `validaciones/s4` (enviar el formulario) | 10.806 ms | **618 ms** |
+| `paginacion/s3` (pasar de página) | 10.679 ms | **526 ms** |
+
+Y las dos transiciones se siguen registrando, con sus dos pantallas compartiendo la misma
+`url_pattern`: no se cambió corrección por velocidad.
+
+### D2 — "ambiguo" no es "irresoluble", y el QA leía lo segundo
+
+El enlace "Show" existe una vez POR FILA de la tabla maestra: seis coincidencias. La regla
+de K0.33 hizo lo correcto y se plantó — **primera instancia real de esa regla en campo** —,
+pero el informe decía `hint irresoluble`. Son dos hallazgos con remedios opuestos:
+irresoluble se arregla capturando un locator con el panel; ambiguo se arregla acotando con
+`scope`. El motivo de la ambigüedad viaja ya al informe, no solo al audit.
+
+### La corrección que más cambia nuestro modelo de la familia
+
+La predicción P1 decía que `getByLabel` devolvería cero, porque "JSF 1.x no emite
+label-for", y que el tier anclado tendría que puentear desde la celda de la etiqueta. **Es
+falso.** MyFaces 1.2 emite `<label for="form1:email">` correctamente para los seis campos.
+
+O sea: la patología "etiqueta en celda sin asociar" contra la que construimos el tier
+anclado en K0.19/K0.21 **no es un rasgo de JSF — es un defecto de la aplicación de
+onesait**. El framework hace lo correcto y la app lo rompió. El tier anclado sigue siendo
+valioso, pero como seguro contra aplicaciones mal construidas, no como requisito de la
+familia. Es exactamente el tipo de creencia que solo se corrige midiendo contra el stack de
+verdad en vez de contra un fixture propio.
+
+Matiz sobre los ids: aquí son `form1:email`, con dos puntos pero estables y con significado,
+porque el ejemplo los declara. En una app corporativa real serían generados
+(`j_id_jsp_1623871077_1`). La suposición "los ids de JSF no sirven" es cierta a medias, y
+depende de si el equipo los declaró.
+
+### Predicciones del guion ciego, puntuadas
+
+Aciertos limpios: P2 (el intento exacto aísla 'Email' de 'Email2' — segunda validación de
+campo del arreglo de K0.33, en otra familia), P3 (el normalizador se come 'Tarjeta de
+crédito'), P4 (el formulario se redibuja con lo enviado, comprobado con `expect_value`), P7
+(las seis coincidencias de 'Show' se plantan), P8 (el exacto aísla el '2' del paginador de
+los '102' de la tabla) y P9 (la segunda página empieza en 110).
+
+Fallos: P1, ya contado, que es el más instructivo. P5 era una apuesta declarada sobre el
+literal del mensaje de validación — el real es *"El valor (noesuncorreo) no es una dirección
+de correo válida."* — y el walker reportó el drift correctamente, que es lo que se le pide.
+
+P6 falló en la dirección interesante: predije que la detección de transición se rompería y
+resultó que **funciona**; lo que estaba roto era el reloj. El guion ciego vuelve a encontrar
+lo que yo no había escrito.
+
+### Resultado
+
+**12/14 pasos en el primer run ciego**, cero rescates, cero tokens. Los dos rojos son
+correctos: una postcondición con el literal equivocado (mío) y un hint genuinamente ambiguo.
+Tras los arreglos, mismo 12/14 con el guion intocado y ~20 segundos menos de reloj en 14
+pasos.

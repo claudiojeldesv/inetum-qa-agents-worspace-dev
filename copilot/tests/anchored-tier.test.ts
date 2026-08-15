@@ -115,7 +115,7 @@ describe('K0.25/D4 — el ancla ambigua se planta, no puentea', () => {
     }
   }, 120_000);
 
-  it('hint de texto duplicado → el paso se bloquea (hint irresoluble), nunca toca el select', async () => {
+  it('hint de texto duplicado → el paso se bloquea POR AMBIGÜEDAD, nunca toca el select', async () => {
     // K0.28: la acción es `fill` a propósito. Con `click` este test ya no probaría
     // la guarda del ancla — el tier ni siquiera correría (K0.28-B lo cubre aparte),
     // y quedaría un verde que no discrimina. Sobre un control el tier SÍ corre, así
@@ -123,7 +123,11 @@ describe('K0.25/D4 — el ancla ambigua se planta, no puentea', () => {
     const map = await walkAmbigua([{ id: 's1', action: 'fill', hint: { text: 'Duplicado' }, value: 'x' }]);
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
-    expect(blocked!.reason).toContain('hint irresoluble');
+    // K0.34: el desenlace no cambia (se planta y no toca el select), pero el motivo
+    // que lee el QA sí. "Ambiguo" e "irresoluble" piden acciones opuestas —acotar con
+    // `scope` vs. capturar un locator— y hasta aquí llegaban con la misma frase.
+    expect(blocked!.reason).toContain('matchea VARIOS elementos visibles');
+    expect(blocked!.reason).not.toContain('hint irresoluble');
   }, 120_000);
 
   it('control positivo: la etiqueta única sigue anclando al control como en K0.21', async () => {

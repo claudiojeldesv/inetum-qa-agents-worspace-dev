@@ -1,0 +1,89 @@
+# Style Contract — banco JSF 1.1 (era Java 5): Apache MyFaces + Tomahawk 1.1.14
+# Schema docs: docs/references/style-contract-schema.md
+#
+# Sitio 3 de la GIRA DE STACKS del kernel v2, y el primero que NO es público: la
+# generación JSF 1.x está extinta en la web abierta (medido en K0.34), así que el
+# banco se levanta en local con los ejemplos OFICIALES de Apache, sin tocarlos.
+# Ver copilot/bench/jsf-legacy/Dockerfile para el porqué y el cómo.
+#
+# Patologías esperadas de la familia (declaradas como HIPÓTESIS, no medidas aún):
+#   - navegación por POST sin cambio de URL (el enlace es un submit de formulario)
+#   - `javax.faces.ViewState` y vista caducada como página de error
+#   - ids generados por render (`_id0:_id1`, `j_id_jsp_...`): inservibles y, peor,
+#     candidatos a envenenar la memoria de alias si alguna vez se promocionaran
+#   - maquetación con tablas anidadas, cero ARIA, <label> sin `for`
+#   - el documento entero se destruye y se reconstruye en cada acción
+
+version: 1
+project: jsf-legacy
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByRole        # habrá poco: la era es anterior a ARIA. Se mide, no se supone.
+    - getByLabel
+    - getByText
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/jsf-legacy.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false      # una app de 2008 no pasa WCAG; el gate aquí no aporta
+  severity_threshold:
+    - serious
+    - critical
+
+evidence:
+  level: full
+  screenshots: on
+
+# SIN bloque `settle`, a propósito y por la misma razón que en `openui5.yaml`
+# (K0.33): esta familia tiene señales de ocupado conocidas, pero declararlas antes
+# de medir haría imposible saber si el walker se sincroniza solo o si lo hizo la
+# pista que le di. Primero se mide con el settle genérico. Si aparecen
+# `settle_timeout`, se declaran y se vuelve a medir.
+
+# Sin `obstructions` ni `consent`: una app de 2008 servida en local no tiene CMP.
+
+synthetic_fixtures:
+  credentials: []
+  buyer_info: []
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

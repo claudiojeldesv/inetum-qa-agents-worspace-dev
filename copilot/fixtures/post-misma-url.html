@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Transición sin cambio de URL</title>
+<!--
+  K0.34 — la clase medida en el banco JSF 1.2 (Apache MyFaces sobre Tomcat 7):
+  la página cambia ENTERA y la URL se queda exactamente igual. Es lo normal en
+  cualquier stack que navegue por POST — JSF clásico, Struts, JSP, ASP.NET
+  WebForms —, o sea la mayor parte del parque corporativo con años encima.
+
+  Aquí se reproduce con `location.reload()`, que produce la misma señal que un
+  POST: documento nuevo, URL idéntica. Lo que se prueba no es el POST, es la
+  SEÑAL — y esa es idéntica.
+-->
+<style>body { font: 14px system-ui, sans-serif; padding: 16px; }</style>
+
+<h1>Expediente 4711</h1>
+<p>Pulsa para recargar la vista sin que cambie la direcci&oacute;n.</p>
+<button id="recargar">Continuar</button>
+<p id="pie">vista servida</p>
+
+<script>
+  document.getElementById('recargar').addEventListener('click', () => {
+    // misma URL, documento nuevo: exactamente lo que hace un POST de JSF
+    location.reload();
+  });
+</script>
+</html>

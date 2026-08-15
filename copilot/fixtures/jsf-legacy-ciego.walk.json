@@ -1,0 +1,53 @@
+{
+  "$comment": "GUION CIEGO — sitio 3 de la gira de stacks: Apache MyFaces 1.2 + Tomahawk 1.1.14 sobre Tomcat 7, la era de Java 5. Banco LOCAL porque esa generación está extinta en la web pública (ver docs). PROTOCOLO (K0.17): hints con solo vocabulario visible en pantalla, predicciones por escrito ANTES de correr, guion intocado entre la escritura y el run.",
+  "$mire": "DECLARACIÓN DE SESGO — qué miré: capturas de pantalla completas de cuatro páginas (el índice, Validations, Master-Detail y Paged and Sortable) y las URLs de la barra de direcciones. NO leí el HTML, NO leí el árbol de accesibilidad, NO abrí las herramientas de desarrollo. Contaminación accidental: ninguna esta vez — el script de reconocimiento pulsa por texto visible y todos los enlaces del índice respondieron a la primera, así que no aprendí nada del DOM por la puerta de atrás.",
+  "$predicciones": [
+    "P1 EL PELDAÑO ANCLADO EN SU CASA — el formulario de validación es una tabla: etiqueta en una celda, input en la siguiente. Es la clase label-en-celda para la que construimos el tier anclado en K0.19/K0.21 contra onesait, pero aquella vez validé contra un fixture MÍO; esta es la primera vez que se mide contra markup generado por un renderer JSF de verdad. Predigo: getByLabel devuelve CERO (JSF 1.x no emite label-for), el peldaño de texto resuelve la celda pero no es un control, y el tier anclado (fill está en ANCHORED_ACTIONS) puentea al input que sigue. resolved_via debería delatar el puente.",
+    "P2 'Email' ES PREFIJO DE 'Email2' — dos etiquetas en la misma pantalla, una contenida en la otra. Es exactamente la clase que K0.33 acaba de arreglar en label y en texto. Con el intento exacto delante debería resolver el campo correcto; sin él habría dos coincidencias y se plantaría. Si el paso siguiente escribe en el campo equivocado, la postcondición de P4 lo caza.",
+    "P3 ACENTOS — 'Tarjeta de crédito' y 'Expresión regular' llevan tilde. El normalizador de K0.1 debería absorberlo sin gastar nada. Si no, es regresión de algo que ya estaba probado.",
+    "P4 EL FORMULARIO SE REDIBUJA CON LO ENVIADO — al enviar datos inválidos, JSF vuelve a pintar la misma vista conservando los valores. Lo asertamos con expect_value (K0.30), que no depende de adivinar el texto del mensaje de error. Si el walker escribió en el campo equivocado en P2, aquí sale.",
+    "P5 EL MENSAJE DE ERROR ES UNA APUESTA — no sé qué literal emite el validador de MyFaces en español. Si falla, el walker debe reportar drift CON el texto real, y eso puntúa mi predicción, no al walker.",
+    "P6 NAVEGACIÓN POR POST SIN CAMBIO DE URL — LA HIPÓTESIS PRINCIPAL DEL CICLO. Al pulsar 'Enviar' y al paginar, la página cambia entera y la URL se queda igual. Nuestra detección de transición y la huella de pantalla nunca han visto esto. Predigo que el paso pasa (la acción se ejecuta) pero sospecho de la transición: puede que no se capture pantalla nueva, o que se capture con el nombre equivocado. Es lo primero que iré a mirar al dom-map.",
+    "P7 'Show' APARECE SEIS VECES — un enlace por fila de la tabla maestra. Es la primera instancia REAL de la regla de K0.33 (la ambigüedad no se repara descendiendo de peldaño): debe plantarse honestamente con el aviso de hint ambiguo, no elegir uno. Si resuelve alguno, es un fallo grave del kernel.",
+    "P8 EL PAGINADOR '2' — el texto '2' está también dentro de '102', '2 x'... El intento exacto debería aislar el enlace del paginador. Predigo ok; si se planta, la escalera es demasiado estricta y habría que mirarlo.",
+    "P9 LA SEGUNDA PÁGINA EMPIEZA EN 110 — apuesta pura sobre el tamaño de página (la primera muestra 100..109). Si falla, drift declarado con lo que haya."
+  ],
+  "version": 1,
+  "site_id": "jsf-legacy",
+  "entry": "/jsf/home.jsf",
+  "base_url": "http://localhost:8080",
+  "flows": [
+    {
+      "flow": "validaciones",
+      "criteria": ["FD-JSF01"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/jsf/validate.jsf", "screen": "validaciones" },
+        { "id": "s2", "action": "fill", "hint": { "label": "Email" }, "value": "noesuncorreo" },
+        { "id": "s3", "action": "fill", "hint": { "label": "Tarjeta de crédito" }, "value": "1234" },
+        { "id": "s4", "action": "click", "hint": { "text": "Enviar" }, "expect_transition": true, "screen": "validaciones-enviado" },
+        { "id": "s5", "action": "expect_value", "hint": { "label": "Email" }, "value": "noesuncorreo" },
+        { "id": "s6", "action": "expect_text", "value": "Error de validación" }
+      ]
+    },
+    {
+      "flow": "maestro-detalle",
+      "criteria": ["FD-JSF02"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/jsf/masterDetail.jsf", "screen": "maestro-detalle" },
+        { "id": "s2", "action": "expect_text", "value": "AUSTRIA" },
+        { "id": "s3", "action": "expect_count", "hint": { "role": "row" }, "operator": ">", "value": "3" },
+        { "id": "s4", "action": "click", "hint": { "text": "Show" }, "expect_transition": true, "screen": "detalle-pais" }
+      ]
+    },
+    {
+      "flow": "paginacion",
+      "criteria": ["FD-JSF03"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/jsf/pagedSortTable.jsf", "screen": "tabla-paginada" },
+        { "id": "s2", "action": "expect_text", "value": "Car Type 100" },
+        { "id": "s3", "action": "click", "hint": { "text": "2" }, "expect_transition": true, "screen": "tabla-pagina-2", "expect_after": "Car Type 110" },
+        { "id": "s4", "action": "expect_text", "value": "Car Type 110" }
+      ]
+    }
+  ]
+}

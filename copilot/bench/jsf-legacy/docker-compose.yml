@@ -1,0 +1,9 @@
+# Banco JSF 1.1 (era Java 5). Ver Dockerfile para el porqué.
+#   docker compose -f copilot/bench/jsf-legacy/docker-compose.yml up --build
+services:
+  jsf-legacy:
+    build: .
+    image: ia4d/jsf-legacy
+    container_name: jsf-legacy
+    ports:
+      - '8080:8080'

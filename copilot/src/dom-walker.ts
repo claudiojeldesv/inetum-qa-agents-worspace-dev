@@ -1031,6 +1031,12 @@ class DomWalker {
   private lastDialogs: string[] = [];
   /** Paso en curso (Fase 2): el handler de estorbos lo usa para auditar "selector + paso". */
   private currentStepKey: string | null = null;
+  /**
+   * K0.34 — por qué se plantó la última resolución, cuando fue por AMBIGÜEDAD.
+   * `resolveHint` devuelve null para dos cosas que piden acciones opuestas del QA
+   * (capturar un locator vs. acotar con `scope`), y el informe las contaba igual.
+   */
+  private ultimaAmbiguedad: string | null = null;
   /** Estorbos declarados que resistieron el descarte (K0.29): su manejador queda inerte. */
   private readonly undismissable = new Set<string>();
   /** Banners de consentimiento ya resueltos (K0.30): no se re-intentan ni se re-auditan. */
@@ -2060,6 +2066,7 @@ class DomWalker {
    * el alias viene de un rescate ya verificado; el normalizado es una función.
    */
   private async resolveHint(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+    this.ultimaAmbiguedad = null; // por-llamada: nunca arrastrar el motivo de otro paso
     const scopes = await this.scopes();
 
     /**
@@ -2142,6 +2149,14 @@ class DomWalker {
           return { locator: res, via: source, frame_path: path };
         }
         if (ambiguo) {
+          /**
+           * K0.34 — y el motivo viaja al informe, no solo al audit. Medido en el
+           * banco JSF: el enlace "Show" existe una vez POR FILA, el paso se plantó
+           * correctamente... y el QA leyó "hint irresoluble", que es el diagnóstico
+           * equivocado y manda a la acción equivocada. Irresoluble se arregla
+           * capturando un locator; ambiguo se arregla acotando con `scope`.
+           */
+          this.ultimaAmbiguedad = `${ambiguo} matchea VARIOS elementos visibles: el hint designa a más de una cosa en la pantalla (acótalo con 'scope')`;
           this.audit('block', `hint ambiguo en ${step.id}: ${ambiguo} matchea varios elementos visibles`, {
             phase: 'ambiguo',
             hint: JSON.stringify(step.hint ?? {}),
@@ -3591,9 +3606,12 @@ class DomWalker {
         }
 
         if (!resolved) {
+          // K0.34 — ambiguo NO es irresoluble: son dos hallazgos con dos remedios
+          // distintos, y hasta aquí llegaban con la misma frase.
+          const causa = this.ultimaAmbiguedad ?? 'hint irresoluble';
           if (this.state.rescues_used >= this.opts.rescueBudget) {
-            const nota = await this.emptyScreenNote();
-            this.blockStep(flow, step, `hint irresoluble y presupuesto de rescates agotado (${this.opts.rescueBudget})${nota}`, false);
+            const nota = this.ultimaAmbiguedad ? '' : await this.emptyScreenNote();
+            this.blockStep(flow, step, `${causa} y presupuesto de rescates agotado (${this.opts.rescueBudget})${nota}`, false);
             this.audit('block', `presupuesto de rescates agotado en ${stepKey}`, { budget: this.opts.rescueBudget });
             return;
           }
@@ -3606,6 +3624,20 @@ class DomWalker {
 
         const from = this.state.current_screen;
         const preUrl = this.page.url();
+        /**
+         * K0.34 — MARCA DE DOCUMENTO. La transición no siempre se ve en la URL: en
+         * JSF clásico (y en cualquier stack que navegue por POST) la página cambia
+         * entera y la URL se queda EXACTAMENTE igual. Sellamos el documento actual
+         * antes de actuar; si después la marca ya no está, es que el navegador
+         * cargó un documento nuevo — que es la definición de haber transicionado.
+         *
+         * Se inyecta como CADENA, no como función: el `evaluate` con función se
+         * rompe bajo `tsx` porque esbuild la envuelve con `__name`, que no existe
+         * en la página (la trampa documentada en la Fase 6).
+         */
+        if (step.expect_transition) {
+          await this.page.evaluate('window.__qaDocMark = 1').catch(() => {});
+        }
         const value = step.value !== undefined ? resolveFixtureRef(step.value, fixtures) : undefined;
 
         const runAction = async (loc: Locator): Promise<void> => {
@@ -3731,11 +3763,27 @@ class DomWalker {
           }
 
           if (step.expect_transition) {
-            // SPAs: domcontentloaded ya disparó — la señal de transición es el cambio de URL.
-            // El settle va DESPUÉS de las esperas de navegación y solo una vez: la pantalla
-            // que interesa estabilizar es la nueva, y estabilizar la vieja de paso solo
-            // añade la ventana de quietud a cada transición sin comprar nada.
-            await this.page.waitForURL((u) => u.toString() !== preUrl, { timeout: STEP_TIMEOUT_MS }).catch(() => {});
+            // SPAs: domcontentloaded ya disparó — ahí la señal de transición es el
+            // cambio de URL. El settle va DESPUÉS de las esperas de navegación y solo
+            // una vez: la pantalla que interesa estabilizar es la nueva, y estabilizar
+            // la vieja de paso solo añade la ventana de quietud a cada transición.
+            /**
+             * K0.34 — pero la URL NO es la única señal, y creérselo costaba diez
+             * segundos por transición. Medido en el banco JSF 1.2: al enviar el
+             * formulario y al paginar, la página cambia entera y la URL se queda
+             * igual, así que este `waitForURL` agotaba su tope entero y se lo
+             * tragaba el `.catch()`. El paso salía `ok` — no había rojo que mirar —
+             * pero cada acción con transición pagaba 10 s. En un caso corporativo
+             * de 30 pasos eso son cinco minutos de espera pura, invisibles en el
+             * recuento de verdes.
+             *
+             * Se corre contra la marca de documento: gana la primera de las dos
+             * señales. URL distinta (SPA) o documento nuevo (POST de toda la vida).
+             */
+            await Promise.race([
+              this.page.waitForURL((u) => u.toString() !== preUrl, { timeout: STEP_TIMEOUT_MS }),
+              this.page.waitForFunction('window.__qaDocMark === undefined', undefined, { timeout: STEP_TIMEOUT_MS }),
+            ]).catch(() => {});
             await this.page.waitForLoadState('domcontentloaded', { timeout: STEP_TIMEOUT_MS }).catch(() => {});
             // networkidle fuera por lo mismo que en 'goto': retrasa el inicio de la
             // observación, que es justo lo que no podemos permitirnos.
