@@ -216,6 +216,14 @@ export interface StepReport {
   retry_reason?: string;
   /** Por qué NO se reintentó habiendo motivo: la acción podía duplicar negocio. */
   retry_refused?: string;
+  /**
+   * K0.27a (marcador) — la cadena del locator que resolvió el paso, tal como la
+   * devolvió la escalera (`resolveHint().via`). Es el dato que convierte un run
+   * en una fila del marcador de peldaños: sin él, un paso 'ok' no dice si lo
+   * resolvió el determinismo, un alias o el panel. Ausente en pasos sin hint
+   * (goto/press/wait_*).
+   */
+  resolved_via?: string;
 }
 
 /**

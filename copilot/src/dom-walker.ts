@@ -2974,7 +2974,7 @@ class DomWalker {
               });
               const assisted = await this.assistResolve(flow, step, detail);
               if (!assisted) {
-                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried, resolved_via: resolved.via });
                 return; // drift/block/timeout/captura-sin-ejecutar: ya anotado
               }
               /**
@@ -2995,7 +2995,7 @@ class DomWalker {
                   phase: 'assist-postaction',
                   matched: assisted.via,
                 });
-                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried, resolved_via: assisted.via });
                 return;
               }
               /**
@@ -3019,13 +3019,13 @@ class DomWalker {
                   phase: 'assist-postaction',
                   matched: assisted.via,
                 });
-                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+                this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried, resolved_via: assisted.via });
                 return;
               }
               resolved = assisted;
             } else {
               this.blockStep(flow, step, detail, false);
-              this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried });
+              this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, settle: obs, retried, resolved_via: resolved.via });
               return;
             }
           }
@@ -3145,7 +3145,7 @@ class DomWalker {
             } else {
               // assisted === null: el QA marcó drift/block o hubo timeout; assistResolve
               // ya anotó el open_question. Reportamos y salimos sin re-bloquear.
-              this.pushReport(flow, step, { outcome: 'postcondition_unmet', action_ms: Date.now() - startedAt, settle: obs, retried });
+              this.pushReport(flow, step, { outcome: 'postcondition_unmet', action_ms: Date.now() - startedAt, settle: obs, retried, resolved_via: resolved.via });
               return;
             }
           }
@@ -3177,6 +3177,7 @@ class DomWalker {
           action_ms: Date.now() - startedAt,
           settle: obs,
           retried,
+          resolved_via: resolved.via,
           ...(retryReason ? { retry_reason: retryReason } : {}),
           ...(retryRefused ? { retry_refused: retryRefused } : {}),
         });

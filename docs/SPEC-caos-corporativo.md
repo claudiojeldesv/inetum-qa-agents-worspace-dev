@@ -617,3 +617,42 @@ limpio. Nota de campo: el panel tampoco podía enseñar la fachada (rol `generic
 aviso nuevo de K0.26 lo explicó en vez de callar) — la salida correcta es reconciliar
 el guion con el texto visible real de la fachada, pendiente de que el QA reporte los
 textos reales del widget.
+
+## 18. K0.27a — el MARCADOR de peldaños + cierre del ciego de tufarmacia (sitio 0 de la gira)
+
+**Cierre de tufarmacia (probe + reconciliación + run de verificación headless).** El probe
+DOM de solo lectura desveló la verdad del "Ordenar por": NO hay select oculto — el trigger
+es un `<a class="select-title">` **sin texto, sin nombre accesible y sin href** (solo un
+caret), rol efectivo `generic`. Clase nombrada: **"trigger sin identidad accesible"**
+(el tema rompe el contrato a11y, como el login de K0.19) — irresoluble por diseño con la
+escalera actual; peldaño candidato futuro: *anchored-trigger* (de texto visible al primer
+CLICABLE que sigue, misma regla dura). CP01-s3 queda como CENTINELA (`optional`) en el
+guion: cuando el peldaño exista, empezará a pasar sin tocar el guion. Las opciones reales
+("Ventas en orden decreciente", "Relevancia", "Nombre, A a Z"…) puntúan la predicción
+ciega: drifteó (el formato real usa comas, no dos puntos). Run de verificación (headless,
+sin panel, rescate LLM respondido con `locator=null` honesto — "el hallazgo real está en
+s1"): **4/7** — buscador+Enter y la ficha de producto ENTERA sin asistencia (el par
+"Alcohol 96º Aposan 250 ml" → "ALCOHOL 96º APOSAN 250 ML" resolvió por texto), s3
+centinela y CP02 bloqueados con diagnóstico veraz.
+
+**Dos clases nuevas con evidencia, nombradas para el próximo ciclo (NO arregladas aquí):**
+(1) **texto-exacto-antes-que-substring** — 'Medicamentos' murió en el peldaño de texto
+porque el footer contiene "Venta de *medicamentos*…" (substring, 2 visibles → planta),
+cuando el match EXACTO era único (el enlace del nav); con exacto-primero CP02 pasa entero.
+(2) **el anclado no es para clicks** — tras la planta del texto, `anchored` puenteó la
+palabra de negocio a un control de formulario no relacionado y lo CLICÓ en silencio (la
+postcondición lo cazó: la red funcionó, pero es la variante VISIBLE de la clase K0.26b);
+el anclado existe para "etiqueta → control de formulario" (fill/select/check), un click
+no busca inputs.
+
+**El marcador (paso 1 del plan de escala).** `copilot/src/walk-scoreboard.ts`: agrega
+`walk-state.json`/`dom-map.json` (el que exista — el run terminado consolida y borra el
+state) + `audit-log.json` de N directorios de trabajo → tabla por run (desenlaces,
+plantas, asistencias, alias-hits, rescates ±, drift de select) + distribución por
+peldaño de resolución. Para eso `StepReport` gana **`resolved_via`** (la cadena que
+devolvió la escalera), enhebrado en los pushReport del camino de acción — sin él, un
+paso 'ok' no dice si lo resolvió el determinismo, un alias o el panel. Clasificador
+puro (`classifyVia`: testid/role/label/placeholder/texto/texto-normalizado/anchored/
+manual/css), inmune al prefijo de frame; audit cruzado para alias/asistencias/drift;
+JSONL tolerante a líneas corruptas. 5 tests unitarios con artefactos sintéticos.
+Primera tabla real sobre los 3 runs de tufarmacia emitida el mismo día.
