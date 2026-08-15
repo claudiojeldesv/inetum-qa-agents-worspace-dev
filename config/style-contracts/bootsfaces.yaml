@@ -1,0 +1,85 @@
+# Style Contract — BootsFaces Showcase (JSF 2.x + Bootstrap)
+# Schema docs: docs/references/style-contract-schema.md
+#
+# Sitio 1 de la GIRA DE STACKS del kernel v2. Familia de stack: JSF con fachada
+# Bootstrap — la de onesait. Showcase público de componentes: sin cuentas, sin
+# datos personales, solo los widgets de ejemplo. Autorizado QA 2026-08-15.
+#
+# (PrimeFaces, el sitio 1 previsto, sirve un muro anti-bot de Cloudflare al
+# navegador automatizado; ver config/allowed-targets.yaml. Este lo sustituye:
+# misma familia, mismas patologías — ids generados j_idt*, AJAX parcial,
+# fachadas sobre controles nativos.)
+
+version: 1
+project: bootsfaces
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByRole        # JSF genera ids (j_idt194j_idt196Inner): inútiles como locator
+    - getByLabel
+    - getByText
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/bootsfaces.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false
+  severity_threshold:
+    - serious
+    - critical
+
+evidence:
+  level: full
+  screenshots: on
+
+# Estorbo declarado a nivel de STACK, no de sitio: el banner es la librería
+# `cookieconsent` (el "Learn more / Accept Cookies" clásico), cuyo contenedor es
+# `.cc-window`. Es una predicción del pack: si el selector no es ese, el run lo
+# dirá (un paso quedará interceptado) y se corrige con evidencia.
+obstructions:
+  dismiss:
+    - '.cc-window'
+
+synthetic_fixtures:
+  credentials: []
+  buyer_info: []
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Estorbo que no se deja descartar</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .contenido { padding: 20px; }
+    /* El banner ocupa la franja inferior y TAPA lo que haya debajo (z-index alto),
+       igual que el banner de cookieconsent medido en la gira. */
+    /* El boton de aceptar va al EXTREMO derecho a proposito: asi el ultimo
+       recurso del descarte generico (clicar el propio estorbo, que apunta a su
+       centro) no puede pulsarlo por accidente. Aceptar no es una via valida. */
+    .cc-window {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+      background: #148f77; color: white; padding: 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .tapado { position: fixed; left: 20px; bottom: 30px; z-index: 1; }
+  </style>
+</head>
+<!--
+  La CLASE medida en la gira (sitio 1, BootsFaces / librería cookieconsent): un
+  estorbo DECLARADO en el contract que la estrategia genérica NO puede descartar.
+  - Escape no hace nada (sin listener de teclado).
+  - No hay botón de cierre: el único botón es "Aceptar cookies", y aceptar el
+    consentimiento no es decisión del walker (por eso el descarte genérico jamás
+    lo pulsa: busca cerrar/close/dismiss, no aceptar).
+  - Clicar el propio banner tampoco lo cierra.
+  Sin el arreglo K0.29, declararlo era PEOR que no declararlo: Playwright espera
+  tras el manejador a que el estorbo se oculte, no se oculta nunca, y toda accion
+  y toda espera de accionabilidad del run agotan su tope.
+-->
+<body>
+  <div class="contenido">
+    <h1>Panel</h1>
+    <button id="libre" onclick="document.getElementById('salida').innerHTML='<div role=&quot;status&quot;>Accion libre hecha</div>'">Continuar</button>
+    <div id="salida"></div>
+  </div>
+
+  <button class="tapado" id="debajo" onclick="document.getElementById('salida').textContent='NO deberia poder pulsarse'">Enviar formulario</button>
+
+  <div class="cc-window" role="dialog" aria-label="cookieconsent">
+    Este sitio usa cookies. <button id="aceptar">Aceptar cookies</button>
+  </div>
+
+  <script>
+    // el banner solo desaparece ACEPTANDO: la via que el walker tiene prohibida
+    document.getElementById('aceptar').addEventListener('click', () => {
+      document.querySelector('.cc-window').remove();
+    });
+  </script>
+</body>
+</html>

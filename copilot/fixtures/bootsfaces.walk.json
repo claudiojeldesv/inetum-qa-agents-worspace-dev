@@ -1,0 +1,19 @@
+{
+  "$comment": "GUION RECONCILIADO de bootsfaces (sitio 1 de la gira). El ciego (bootsfaces-ciego.walk.json) se queda en 4/7 por una razón legítima: la página de showcase repite el MISMO formulario de demostración 3 veces (3 comboboxes 'Select your car's brand: *', 6 botones 'Submit AJAX'), y el guion no decía en cuál. El walker se plantó y lo dijo — comportamiento correcto. Esta versión dice lo que quiere decir, y sirve para medir lo que el ciego no llegó a probar: si selectSmart resuelve la fachada select2 de BootsFaces (la clase K0.26/K0.26b en otro stack) y dónde aterriza el resultado del envío AJAX. NOTA sobre el peldaño de s2: la fachada select2 toma su nombre accesible del VALOR mostrado, no de la etiqueta ('(Please select)'), mientras que el <select> nativo toma el de la etiqueta — por eso 'el desplegable que pone (Please select)' es una forma legítima y única de señalarlo, y es como lo describiría un analista mirando la pantalla. NOTA sobre s3: 'Submit AJAX' sale 6 veces y esta página no ofrece ningún contenedor con identidad para acotarlo (en una app corporativa el panel tendría título: ahí valdría `scope`), así que se declara el tier INDEXADO explícitamente con `locator` .nth(0) — frágil y declarado como tal, no disfrazado. VEREDICTO DEL RUN (4/4, 0 rescates) — s4 ES UN VERDE FALSO Y ASÍ QUEDA ANOTADO: pasa, pero no por lo que se pretendía. Probe de solo lectura: 'Honda' ya está visible TRES veces ANTES de enviar nada, dentro de los bloques <code> con los que la página documenta su propio ejemplo, así que la aserción se habría cumplido igual si el envío no hubiera hecho nada. El resultado real vive donde predecía P5: en el `value` de un campo deshabilitado (`brandOutputID2`), que `expect_text` no mira. Se deja tal cual, como CENTINELA de dos clases nombradas para el próximo ciclo — (F4) `expect_text` es una búsqueda de texto en TODA la página y puede cobrarse un verde de cualquier sitio: necesita poder decir DÓNDE (un `hint` que acote); (F5) no hay forma de asertar el valor de un campo de solo lectura, y en JSF corporativo el resultado calculado vive justo ahí (`expect_value`). Lo que el run SÍ demuestra: el `select` sobre la fachada select2 de BootsFaces resuelve y ejecuta sin rescate ni asistencia — la clase K0.26/K0.26b generaliza a otro stack.",
+  "version": 1,
+  "site_id": "bootsfaces",
+  "entry": "/forms/selectOneMenu.jsf",
+  "base_url": "https://showcase.bootsfaces.net",
+  "flows": [
+    {
+      "flow": "combobox-fachada",
+      "criteria": ["FD-BF02"],
+      "steps": [
+        { "id": "s1", "action": "expect_text", "value": "Basic usage", "screen": "combobox" },
+        { "id": "s2", "action": "select", "hint": { "role": "combobox", "name": "(Please select)" }, "value": "Honda" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Submit AJAX" }, "locator": "getByRole('button', { name: 'Submit AJAX' }).nth(0)" },
+        { "id": "s4", "action": "expect_text", "value": "Honda" }
+      ]
+    }
+  ]
+}

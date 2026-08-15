@@ -1,0 +1,34 @@
+{
+  "$comment": "GUION CIEGO — sitio 1 de la gira de stacks (JSF 2.x + Bootstrap, la familia de onesait). PROTOCOLO (K0.17): los hints usan SOLO vocabulario visible en pantalla; predicciones por escrito ANTES de correr; el guion no se toca entre la escritura y el run. QUÉ MIRÉ (declaración de sesgo): la home y la página del combobox en CAPTURA (lo que ve un analista), nunca el árbol de accesibilidad ni el HTML. CONTAMINACIÓN ACCIDENTAL, declarada: los mensajes de error de strict-mode de Playwright al navegar me revelaron tres cosas — que 'SelectOneMenu' aparece dos veces (el índice dice 'Combobox (SelectOneMenu)'), que la fachada del primer desplegable es select2 con role=combobox, y que los ids son generados por JSF (j_idt194j_idt196Inner). No leí los .yml de snapshot. PREDICCIONES: (P1) F1-s1 'SelectOneMenu' es ambiguo por substring y lo resuelve el peldaño EXACTO de K0.28 → ok, resolved_via getByText('SelectOneMenu', { exact: true }). (P2) F2-s2: si JSF emitió label-for, getByLabel resuelve; si no, el anclado (select sí está en ANCHORED_ACTIONS) puentea al <select> real que select2 esconde y K0.26b lo corta por no visible → 'hint irresoluble' honesto, NUNCA un timeout de 10s. (P3) el valor 'Audi' es una apuesta: si no existe, selectSmart debe decir 'opción ausente' CON las opciones reales, que es lo que puntúa la predicción. (P4) el segundo desplegable parece nativo (flechas del SO) → rama nativa; 'Accord' también es apuesta. (P5) F3-s4 FALLARÁ: el resultado del envío vive en el `value` de un campo de solo lectura, no en el texto visible; si falla es hallazgo de PRODUCTO (clase 'resultado en campo de solo lectura', omnipresente en JSF corporativo) y el candidato es una acción expect_value, no un arreglo del guion. (P6) el banner de cookies es la librería cookieconsent y el contract lo descarta con '.cc-window'; si el selector no es ese, algún paso reportará intercepción.",
+  "version": 1,
+  "site_id": "bootsfaces",
+  "entry": "/",
+  "base_url": "https://showcase.bootsfaces.net",
+  "flows": [
+    {
+      "flow": "menu-lateral",
+      "criteria": ["FD-BF01"],
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "text": "SelectOneMenu" }, "expect_transition": true, "screen": "combobox", "expect_after": "Basic usage" }
+      ]
+    },
+    {
+      "flow": "combobox-fachada",
+      "criteria": ["FD-BF02"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/forms/selectOneMenu.jsf", "screen": "combobox" },
+        { "id": "s2", "action": "select", "hint": { "label": "Select your car's brand" }, "value": "Audi" }
+      ]
+    },
+    {
+      "flow": "envio-ajax",
+      "criteria": ["FD-BF03"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/forms/selectOneMenu.jsf", "screen": "combobox" },
+        { "id": "s2", "action": "select", "hint": { "label": "Select your car's type" }, "value": "Accord" },
+        { "id": "s3", "action": "click", "hint": { "text": "Submit AJAX" } },
+        { "id": "s4", "action": "expect_text", "value": "Accord" }
+      ]
+    }
+  ]
+}

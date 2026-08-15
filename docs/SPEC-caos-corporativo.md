@@ -711,3 +711,76 @@ el peldaño exacto, CP02 entero en verde (s2 'En stock' nunca había llegado a e
 y el único rojo que queda es el CENTINELA documentado de §18 (trigger sin identidad
 accesible), fallando exactamente como se predijo. 469/469 tests en verde en la suite
 completa —sin flakiness en este run—, tsc limpio.
+
+## 20. K0.29 — gira de stacks, sitio 1 (JSF + Bootstrap): tres defectos del kernel salidos de un run
+
+**El sitio.** PrimeFaces, el sitio 1 previsto, quedó DESCARTADO: `showcase.primefaces.org`
+sirve un muro de verificación anti-bot (Cloudflare) al navegador automatizado. Saltárselo
+está prohibido y además invalidaría la medición; queda anotado en `allowed-targets.yaml`
+para que nadie lo reintente a ciegas. Sustituto de la misma familia: **BootsFaces
+Showcase** (JSF 2.x + Bootstrap), con las mismas patologías que onesait — ids generados
+(`j_idt194j_idt196Inner`), AJAX parcial, fachadas (select2) sobre controles nativos.
+
+**Protocolo (K0.17), con el sesgo declarado.** Guion ciego escrito mirando solo capturas
+de pantalla (nunca el árbol de accesibilidad), seis predicciones por escrito antes de
+correr, y una declaración explícita de la contaminación accidental: los mensajes de error
+de *strict mode* de Playwright revelaron por el camino que 'SelectOneMenu' aparece dos
+veces y que la fachada es select2. Se declara, no se disimula.
+
+**Resultado: 2/7 en el primer run.** De ahí salieron tres defectos, y los tres son
+genéricos (ninguno es de este sitio).
+
+**D1 — un estorbo declarado que no se puede descartar ENVENENA el run entero.** El banner
+de cookies es la librería `cookieconsent`; el contract lo declaró (`.cc-window`, acierto
+del pack: el descarte se disparó) pero la estrategia genérica no puede quitarlo — y no
+debe: su único botón es "Accept Cookies", y **aceptar el consentimiento no es decisión del
+walker**. Lo grave no era eso, sino lo que Playwright hace después: tras correr el
+manejador ESPERA a que el estorbo se oculte, y si no se oculta nunca, toda acción y toda
+espera de accionabilidad agotan su tope. Su propio call log lo cantaba: *"locator handler
+has finished, waiting for `.cc-window` to be hidden — 19 × locator resolved to visible"*.
+Declarar el estorbo era PEOR que no declararlo. Arreglo en tres piezas: `noWaitAfter: true`
+(nunca cuelga), **comprobación** después de la estrategia (antes se auditaba "estorbo
+descartado" ANTES de intentarlo: el audit afirmaba un hecho que nadie había verificado) y
+manejador inerte tras el primer fracaso, para no pagar ni auditar lo mismo en cada acción.
+Nota deliberada: el botón de aceptar tiene `aria-label="dismiss cookie message"`; añadir
+"dismiss" a la búsqueda de botones de cierre haría que el walker aceptara cookies en
+nombre del usuario. **No se añade.**
+
+**D2 — la petición de rescate se pedía a ciegas.** `ariaSnapshot(...).catch(() => '')`
+convertía el síntoma de D1 en tres peticiones consecutivas con `aria_snapshot: ""` y ni
+una palabra de por qué. Un rescate sin evidencia solo puede responder `null` honesto o
+inventarse el locator, y lo segundo es justo lo prohibido. Ahora el error se captura, viaja
+en el propio archivo (`snapshot_error`), se audita, y las instrucciones **empiezan** con el
+aviso de ceguera (`rescueInstructions`, función pura y por tanto verificable sin navegador).
+
+**D3 — y cuando el snapshot llegó, era todo menú.** Con D1 arreglado la petición traía
+3.639 caracteres… de árbol de navegación: el tope de líneas se gastaba entero en la
+cabecera y el formulario por el que se preguntaba no aparecía jamás. No estaba vacío,
+estaba lleno de lo que no era. `pruneAriaSnapshot` acepta ahora un `focus` (el vocabulario
+del hint, y el `value` salvo que sea `secret`): las líneas que lo mencionan entran primero
+con su ventana de contexto, el resto rellena en orden de documento, y cada corte se
+declara. El tope no sube — sigue siendo una micro-llamada.
+
+**Verificación de campo, mismo día.** Mismo guion ciego, sin tocarlo: **2/7 → 4/7**. El
+paso que moría en 10 s de timeout opaco (`menu-lateral/s1`) pasa en **1,06 s**, y la
+petición de rescate llegó con el combobox por el que preguntaba delante de las narices.
+Los tres pasos que siguen bloqueados lo están por una razón legítima: la página de
+showcase repite el MISMO formulario tres veces (3 comboboxes con idéntico nombre
+accesible, 6 botones "Submit AJAX"), el guion ciego no decía en cuál, y el walker se
+plantó y lo dijo. Con el guion reconciliado —que sí lo dice— el flujo entero va **4/4 sin
+rescates ni asistencia**, y con él queda demostrado lo que el ciego no llegó a probar: el
+`select` sobre la fachada **select2 de BootsFaces resuelve solo**, o sea que la clase
+K0.26/K0.26b generaliza a otro stack.
+
+**Dos clases nuevas, con evidencia dura, NO arregladas aquí.** El 4/4 del guion reconciliado
+incluye un **verde falso** y así queda anotado en el propio guion: `expect_text 'Honda'`
+pasa, pero un probe de solo lectura demuestra que 'Honda' ya está visible TRES veces antes
+de enviar nada, dentro de los bloques `<code>` con que la página documenta su ejemplo — la
+aserción se habría cumplido igual si el envío no hubiera hecho nada.
+(**F4**) `expect_text` es una búsqueda de texto en TODA la página y puede cobrarse un verde
+de cualquier sitio: necesita poder decir DÓNDE (un `hint` que acote). En una app corporativa
+el equivalente es el valor que aparece a la vez en el filtro y en la rejilla.
+(**F5**) no hay forma de asertar el `value` de un campo de solo lectura, y en JSF
+corporativo el resultado calculado vive justo ahí (`brandOutputID2` medido): candidato a
+acción `expect_value`. Las dos son de la familia más peligrosa para un producto de QA —
+equivocarse **en verde**— y por eso van nombradas con su evidencia en vez de estiradas hoy.

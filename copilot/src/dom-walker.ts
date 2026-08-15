@@ -70,6 +70,7 @@ import {
   parseLocatorChain,
   pruneAriaSnapshot,
   pruneAssistSequence,
+  rescueInstructions,
   resolveFixtureRef,
   slugFromUrl,
   updateTimingProfile,
@@ -1003,6 +1004,8 @@ class DomWalker {
   private lastDialogs: string[] = [];
   /** Paso en curso (Fase 2): el handler de estorbos lo usa para auditar "selector + paso". */
   private currentStepKey: string | null = null;
+  /** Estorbos declarados que resistieron el descarte (K0.29): su manejador queda inerte. */
+  private readonly undismissable = new Set<string>();
   private aliases: HintAliasFile;
   private readonly aliasesPath: string;
   /** Resolver del envío del overlay (K0.10): lo rellena assistResolve por paso. */
@@ -1293,29 +1296,69 @@ class DomWalker {
     const selectors = this.contract.obstructions?.dismiss ?? [];
     for (const selector of selectors) {
       const obstruction = this.page.locator(selector);
-      await this.page.addLocatorHandler(obstruction, async (locator) => {
-        const stepKey = this.currentStepKey ?? '(fuera de un paso)';
-        this.audit('skip', `estorbo descartado en ${stepKey}: ${selector}`, {
-          phase: 'obstruction-dismiss',
-          selector,
-          step: stepKey,
-        });
-        // Escape primero: cierra la mayoría de overlays/backdrops sin necesitar
-        // un control de cierre propio. Si el estorbo trae uno (banner de
-        // cookies, snackbar con acción "Cerrar"), es el respaldo cuando Escape
-        // no hizo nada; si no hay ninguno de los dos, el último recurso es
-        // clicar el estorbo mismo (backdrops que cierran al clicar fuera).
-        await this.page.keyboard.press('Escape').catch(() => {});
-        if (await locator.count().catch(() => 0)) {
-          const closeBtn = locator
-            .locator(
-              '[aria-label*="cerrar" i], [aria-label*="close" i], button:has-text("Cerrar"), button:has-text("Close"), .close, .cerrar, .dismiss',
-            )
-            .first();
-          if (await closeBtn.count().catch(() => 0)) await closeBtn.click({ timeout: 2_000 }).catch(() => {});
-          else await locator.click({ timeout: 2_000 }).catch(() => {});
-        }
-      });
+      await this.page.addLocatorHandler(
+        obstruction,
+        async (locator) => {
+          /**
+           * K0.29 — un estorbo que ya se midió como INDESCARTABLE no se vuelve a
+           * intentar: el manejador se dispara antes de CADA acción, y repetir una
+           * estrategia que no funcionó solo añade latencia y ruido al audit.
+           */
+          if (this.undismissable.has(selector)) return;
+          const stepKey = this.currentStepKey ?? '(fuera de un paso)';
+          // Escape primero: cierra la mayoría de overlays/backdrops sin necesitar
+          // un control de cierre propio. Si el estorbo trae uno (banner de
+          // cookies, snackbar con acción "Cerrar"), es el respaldo cuando Escape
+          // no hizo nada; si no hay ninguno de los dos, el último recurso es
+          // clicar el estorbo mismo (backdrops que cierran al clicar fuera).
+          await this.page.keyboard.press('Escape').catch(() => {});
+          if (await locator.count().catch(() => 0)) {
+            const closeBtn = locator
+              .locator(
+                '[aria-label*="cerrar" i], [aria-label*="close" i], button:has-text("Cerrar"), button:has-text("Close"), .close, .cerrar, .dismiss',
+              )
+              .first();
+            if (await closeBtn.count().catch(() => 0)) await closeBtn.click({ timeout: 2_000 }).catch(() => {});
+            else await locator.click({ timeout: 2_000 }).catch(() => {});
+          }
+          /**
+           * K0.29 — y se COMPRUEBA. Antes se auditaba "estorbo descartado" ANTES
+           * de intentarlo: el audit afirmaba un hecho que nadie había verificado.
+           * Medido en la gira (BootsFaces, banner `cookieconsent`): la estrategia
+           * genérica no puede quitarlo —y no debe: el único botón es "Accept
+           * Cookies", y aceptar el consentimiento no es decisión del walker—, así
+           * que el estorbo seguía ahí con el audit diciendo que se había ido.
+           */
+          if (await locator.first().isVisible().catch(() => false)) {
+            this.undismissable.add(selector);
+            this.audit(
+              'skip',
+              `estorbo NO descartado en ${stepKey}: ${selector} — sigue visible tras Escape/cierre/clic; ` +
+                'el manejador queda inerte (si tapa un objetivo, el paso fallará con el motivo real de Playwright)',
+              { phase: 'obstruction-dismiss', selector, step: stepKey, dismissed: false },
+            );
+            return;
+          }
+          this.audit('skip', `estorbo descartado en ${stepKey}: ${selector}`, {
+            phase: 'obstruction-dismiss',
+            selector,
+            step: stepKey,
+            dismissed: true,
+          });
+        },
+        /**
+         * K0.29 — `noWaitAfter` es la diferencia entre "un paso interceptado" y
+         * "el run entero envenenado". Por defecto, tras correr el manejador
+         * Playwright ESPERA a que el estorbo se oculte; si no se oculta nunca,
+         * TODA acción y TODA espera de accionabilidad agotan su tope — incluido
+         * el `ariaSnapshot` con el que se arma la petición de rescate, que
+         * llegaba VACÍA. Medido en la gira: el propio call log lo cantaba
+         * ("waiting for .cc-window to be hidden — 19 × locator resolved to
+         * visible"). Con esto, un estorbo indescartable solo molesta si de
+         * verdad tapa el objetivo, y entonces el error dice la verdad.
+         */
+        { noWaitAfter: true },
+      );
     }
   }
 
@@ -2380,7 +2423,40 @@ class DomWalker {
   // ------------------------------------------------------------ rescate LLM
 
   private async requestRescue(flow: WalkFlow, step: WalkStep): Promise<never> {
-    const snapshot = await this.page.locator('body').ariaSnapshot({ timeout: STEP_TIMEOUT_MS }).catch(() => '');
+    /**
+     * K0.29 — el snapshot NO se traga su error. `catch(() => '')` convertía un
+     * fallo diagnosticable en una petición de rescate MUDA: medido en la gira
+     * (BootsFaces), tres peticiones seguidas con `aria_snapshot: ""` porque el
+     * manejador de estorbos colgaba toda espera de accionabilidad. Un rescate a
+     * ciegas solo puede responder `null` honesto o inventarse el locator, y lo
+     * segundo es justo lo que el protocolo prohíbe: si el walker se queda sin
+     * evidencia, tiene que DECIRLO, en el archivo y en el audit.
+     */
+    const snap = await this.page
+      .locator('body')
+      .ariaSnapshot({ timeout: STEP_TIMEOUT_MS })
+      .then((text) => ({ text, error: '' }))
+      .catch((e: unknown) => ({ text: '', error: (e instanceof Error ? e.message : String(e)).split('\n')[0] }));
+    // El vocabulario del paso enfoca la poda (K0.29). El `value` entra solo si no
+    // es secreto: un rescate no es sitio para volcar una contraseña.
+    const focus = [
+      step.hint?.test_id,
+      step.hint?.role,
+      step.hint?.name,
+      step.hint?.label,
+      step.hint?.text,
+      step.secret ? undefined : step.value,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const pruned = pruneAriaSnapshot(snap.text, 120, focus);
+    const snapshotError = snap.error || (pruned.length === 0 ? 'el snapshot podado quedó vacío' : '');
+    if (snapshotError) {
+      this.audit('block', `rescate SIN evidencia en ${flow.flow}/${step.id}: ${snapshotError}`, {
+        phase: 'rescue-request',
+        snapshot_error: snapshotError,
+      });
+    }
     const req: RescueRequest = {
       version: 1,
       site_id: this.script.site_id,
@@ -2388,15 +2464,11 @@ class DomWalker {
       step: step.id,
       action: step.action,
       hint: step.hint,
-      aria_snapshot: pruneAriaSnapshot(snapshot),
+      aria_snapshot: pruned,
+      ...(snapshotError ? { snapshot_error: snapshotError } : {}),
       frame_path: [],
       budget_remaining: this.opts.rescueBudget - this.state.rescues_used,
-      instructions:
-        `Resuelve el locator Playwright del elemento que este paso necesita (action='${step.action}'). ` +
-        `Responde SOLO escribiendo el archivo rescue-response.json en este mismo directorio con ` +
-        `{"step":"${step.id}","locator":"getByRole('...', { name: '...' })"} — grammar permitida: ` +
-        `getByTestId('x') | getByRole('r', { name: 'n' }) | getByLabel('x') | getByText('x') | css=<selector>. ` +
-        `Si el elemento NO existe en el snapshot, locator=null (el paso quedará bloqueado, no lo inventes).`,
+      instructions: rescueInstructions(step.id, step.action, snapshotError),
     };
     writeFileSync(resolve(this.opts.workDir, 'rescue-request.json'), JSON.stringify(req, null, 2), 'utf8');
     await this.persist();

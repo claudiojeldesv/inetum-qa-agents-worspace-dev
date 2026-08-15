@@ -25,6 +25,17 @@ patterns:
   - 'https://tufarmaciaelche.es/*'    # e-commerce farmacia (prod real, autorizado QA 2026-08-15; solo lectura + carrito de sesión, sin checkout ni formularios)
   - 'https://tienda.tufarmaciaelche.es/*'    # subdominio tienda (PrestaShop) del mismo dominio autorizado; mismas restricciones
 
+  # Gira de stacks corporativos (kernel v2) — showcases públicos de las familias de
+  # UI que dominan banca/seguros. Sitios de demostración, sin cuentas ni datos
+  # personales: se interactúa con los widgets de ejemplo y nada más.
+  # NO USABLE: showcase.primefaces.org sirve un muro de verificación anti-bot
+  # (Cloudflare "Performing security verification") ante el navegador automatizado.
+  # Saltárselo está prohibido y además invalidaría la medición. Comprobado 2026-08-15.
+  # - 'https://primefaces.org/showcase*'
+  - 'https://showcase.bootsfaces.net/*'    # sitio 1: JSF 2.x + Bootstrap (familia de onesait), autorizado QA 2026-08-15
+  - 'https://sdk.openui5.org/*'    # sitio 2 previsto: SAP UI5 (back-office de seguros)
+  - 'https://www.primefaces.org/showcase-v14*'    # reserva por si el mirror sin muro sigue en pie
+
   # Entornos no productivos (cualquier subdominio)
   - 'https://*.qa.*'
   - 'https://*.test.*'

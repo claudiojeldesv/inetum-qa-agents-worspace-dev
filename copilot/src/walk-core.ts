@@ -847,10 +847,67 @@ export function hashScript(script: WalkScript): string {
  * interactivos o texto, con tope de líneas. El rescate es una MICRO-llamada
  * (~1-3 créditos) — el snapshot completo de una SPA la convertiría en macro.
  */
-export function pruneAriaSnapshot(snapshot: string, maxLines = 120): string {
+/**
+ * Instrucciones de la petición de rescate (K0.29). Función pura para que el
+ * AVISO de "sin evidencia" sea verificable sin navegador: cuando el snapshot
+ * llega vacío, el subagent tiene que saberlo — un rescate a ciegas que no se
+ * anuncia invita a inventar el locator, que es exactamente lo prohibido.
+ */
+export function rescueInstructions(stepId: string, action: string, snapshotError = ''): string {
+  const base =
+    `Resuelve el locator Playwright del elemento que este paso necesita (action='${action}'). ` +
+    `Responde SOLO escribiendo el archivo rescue-response.json en este mismo directorio con ` +
+    `{"step":"${stepId}","locator":"getByRole('...', { name: '...' })"} — grammar permitida: ` +
+    `getByTestId('x') | getByRole('r', { name: 'n' }) | getByLabel('x') | getByText('x') | css=<selector>. ` +
+    `Si el elemento NO existe en el snapshot, locator=null (el paso quedará bloqueado, no lo inventes).`;
+  if (!snapshotError) return base;
+  return (
+    `AVISO: esta petición va SIN EVIDENCIA — el snapshot ARIA no se pudo obtener (${snapshotError}). ` +
+    `Sin DOM que mirar, la única respuesta honesta es locator=null con el motivo; no adivines. ` +
+    base
+  );
+}
+
+/**
+ * `focus` (K0.29) — vocabulario del paso (los valores del hint). Con el tope
+ * aplicado a las PRIMERAS líneas, una app corporativa con árbol de menú grande
+ * gastaba el presupuesto entero en la navegación y el rescate no llegaba a ver
+ * jamás el contenido: medido en la gira (sitio 1), 3.639 caracteres de menú y
+ * cero del formulario por el que se preguntaba. No estaba vacío — estaba lleno
+ * de lo que no era. Con `focus`, las líneas que mencionan el vocabulario del
+ * paso (y su ventana de contexto) entran primero; el resto rellena en orden de
+ * documento. Sigue siendo una micro-llamada: el tope no sube.
+ */
+export function pruneAriaSnapshot(snapshot: string, maxLines = 120, focus = ''): string {
   const INTERACTIVE = /- (button|link|textbox|checkbox|radio|combobox|listbox|option|searchbox|spinbutton|switch|tab|menuitem|heading|form|navigation|main|banner|contentinfo|dialog|alert)\b/;
   const lines = snapshot.split('\n').filter((l) => INTERACTIVE.test(l) || /"[^"]+"/.test(l));
-  const kept = lines.slice(0, maxLines);
-  if (lines.length > kept.length) kept.push(`# ... podado: ${lines.length - kept.length} líneas más`);
-  return kept.join('\n');
+  if (lines.length <= maxLines) return lines.join('\n');
+
+  const tokens = normalizeText(focus)
+    .split(/\s+/)
+    .filter((t) => t.length >= 3);
+  const keep = new Set<number>();
+  if (tokens.length > 0) {
+    const CONTEXT = 2; // el padre y los hermanos inmediatos: sin ellos la línea no se sabe leer
+    lines.forEach((line, i) => {
+      const low = normalizeText(line);
+      if (!tokens.some((t) => low.includes(t))) return;
+      for (let j = Math.max(0, i - CONTEXT); j <= Math.min(lines.length - 1, i + CONTEXT); j += 1) keep.add(j);
+    });
+  }
+  // El resto del presupuesto se rellena en orden de documento: la cabecera del
+  // snapshot sitúa al lector (qué pantalla es), y si no hubo coincidencias esto
+  // deja el comportamiento de siempre.
+  for (let i = 0; i < lines.length && keep.size < maxLines; i += 1) keep.add(i);
+
+  const indices = [...keep].sort((a, b) => a - b).slice(0, maxLines);
+  const out: string[] = [];
+  let prev = -1;
+  for (const i of indices) {
+    if (prev >= 0 && i > prev + 1) out.push(`# ... ${i - prev - 1} líneas omitidas`);
+    out.push(lines[i]);
+    prev = i;
+  }
+  if (prev < lines.length - 1) out.push(`# ... podado: ${lines.length - 1 - prev} líneas más`);
+  return out.join('\n');
 }

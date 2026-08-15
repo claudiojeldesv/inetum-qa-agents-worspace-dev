@@ -27,6 +27,7 @@ import {
   parseJsonLoose,
   percentile,
   pruneAriaSnapshot,
+  rescueInstructions,
   resolveFixtureRef,
   slugFromUrl,
   updateTimingProfile,
@@ -284,6 +285,54 @@ describe('pruneAriaSnapshot', () => {
     const pruned = pruneAriaSnapshot(snap, 50);
     expect(pruned.split('\n')).toHaveLength(51);
     expect(pruned).toMatch(/podado: 150/);
+  });
+
+  it('K0.29: con foco, el contenido buscado entra aunque el menú se coma el tope', () => {
+    // la forma exacta del hallazgo de campo: 200 entradas de menú y, al final,
+    // el formulario por el que se pregunta. Sin foco, el rescate ve solo menú.
+    const snap = [
+      ...Array.from({ length: 200 }, (_, i) => `- menuitem "Componente ${i}"`),
+      '- form "datos del coche":',
+      '  - combobox "Select your car\'s brand"',
+      '  - button "Submit AJAX"',
+    ].join('\n');
+
+    const sinFoco = pruneAriaSnapshot(snap, 50);
+    expect(sinFoco).not.toContain("Select your car's brand");
+
+    const conFoco = pruneAriaSnapshot(snap, 50, "Select your car's brand");
+    expect(conFoco).toContain("combobox \"Select your car's brand\"");
+    expect(conFoco).toContain('form "datos del coche"'); // la ventana de contexto trae al padre
+    expect(conFoco.split('\n').length).toBeLessThanOrEqual(50 + 2); // el tope se respeta
+    expect(conFoco).toMatch(/líneas omitidas|podado/); // y el corte se declara, no se disimula
+  });
+
+  it('K0.29: el foco tolera acentos y mayúsculas, como el resto de la escalera', () => {
+    const snap = [
+      ...Array.from({ length: 60 }, (_, i) => `- menuitem "Menu ${i}"`),
+      '- textbox "Número de póliza"',
+    ].join('\n');
+    expect(pruneAriaSnapshot(snap, 30, 'numero de poliza')).toContain('Número de póliza');
+  });
+});
+
+describe('rescueInstructions (K0.29)', () => {
+  it('con snapshot, pide el locator y prohíbe inventarlo', () => {
+    const txt = rescueInstructions('s3', 'click');
+    expect(txt).toContain("action='click'");
+    expect(txt).toContain('locator=null');
+    expect(txt).not.toContain('SIN EVIDENCIA');
+  });
+
+  it('sin snapshot, ANUNCIA la ceguera antes de pedir nada', () => {
+    // el defecto medido en la gira: tres peticiones seguidas con aria_snapshot
+    // vacío y ni una palabra de por qué. Un rescate a ciegas que no se anuncia
+    // invita a inventar el locator.
+    const txt = rescueInstructions('s2', 'select', 'locator.ariaSnapshot: Timeout 10000ms exceeded.');
+    expect(txt).toContain('SIN EVIDENCIA');
+    expect(txt).toContain('Timeout 10000ms exceeded.');
+    expect(txt).toContain('no adivines');
+    expect(txt.indexOf('AVISO')).toBe(0); // primero el aviso, luego la petición
   });
 });
 

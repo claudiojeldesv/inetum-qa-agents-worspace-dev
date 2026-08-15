@@ -134,3 +134,66 @@ describe('Fase 2 — snackbar que intercepta (dismiss por boton de cierre)', () 
     expect((dismiss!.metadata as Record<string, unknown>).selector).toBe('.mat-snack-bar-container');
   }, 60_000);
 });
+
+/**
+ * K0.29 (gira de stacks, sitio 1) — el estorbo DECLARADO que no se deja
+ * descartar. Medido contra el banner de `cookieconsent` del showcase de
+ * BootsFaces: la estrategia genérica no puede quitarlo (Escape no hace nada, no
+ * hay botón de cierre, clicar el banner tampoco) y NO debe — el único botón es
+ * "Aceptar cookies", y el consentimiento no lo decide el walker.
+ *
+ * Antes del arreglo, declararlo era PEOR que no declararlo: tras correr el
+ * manejador, Playwright espera a que el estorbo se oculte, no se oculta nunca y
+ * TODA acción y TODA espera de accionabilidad del run agotan su tope — incluido
+ * el ariaSnapshot del rescate, que llegaba vacío. El propio call log lo cantaba:
+ * "waiting for .cc-window to be hidden — 19 × locator resolved to visible".
+ */
+describe('K0.29 — estorbo declarado que resiste el descarte', () => {
+  it('no envenena el run: el paso que NO está tapado pasa igual', async () => {
+    const { map } = await walk(
+      '/estorbo-indescartable.html',
+      [{ id: 's1', action: 'click', hint: { role: 'button', name: 'Continuar' }, expect_after: 'Accion libre hecha' }],
+      {
+        locators: { priority: ['getByTestId', 'getByRole', 'getByLabel', 'getByText'] },
+        obstructions: { dismiss: ['.cc-window'] },
+      },
+    );
+    const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
+    expect(report.outcome).toBe('ok');
+    expect(map.open_questions).toEqual([]);
+  }, 60_000);
+
+  it('el audit dice la VERDAD: "NO descartado", no "descartado"', async () => {
+    const { auditEntries } = await walk(
+      '/estorbo-indescartable.html',
+      [{ id: 's1', action: 'click', hint: { role: 'button', name: 'Continuar' }, expect_after: 'Accion libre hecha' }],
+      {
+        locators: { priority: ['getByTestId', 'getByRole', 'getByLabel', 'getByText'] },
+        obstructions: { dismiss: ['.cc-window'] },
+      },
+    );
+    const dismiss = auditEntries.filter(
+      (e) => (e.metadata as Record<string, unknown> | undefined)?.phase === 'obstruction-dismiss',
+    );
+    expect(dismiss.length).toBeGreaterThan(0);
+    expect(dismiss.every((e) => (e.metadata as Record<string, unknown>).dismissed === false)).toBe(true);
+    expect(dismiss[0].reason).toContain('NO descartado');
+    // y solo se mide UNA vez: el manejador queda inerte, no repite la estrategia
+    // ni el apunte en cada acción posterior
+    expect(dismiss.length).toBe(1);
+  }, 60_000);
+
+  it('si de verdad TAPA el objetivo, el paso falla con el motivo real (no un timeout desnudo)', async () => {
+    const { map } = await walk(
+      '/estorbo-indescartable.html',
+      [{ id: 's1', action: 'click', hint: { role: 'button', name: 'Enviar formulario' } }],
+      {
+        locators: { priority: ['getByTestId', 'getByRole', 'getByLabel', 'getByText'] },
+        obstructions: { dismiss: ['.cc-window'] },
+      },
+    );
+    const blocked = map.open_questions.find((q) => q.step === 's1');
+    expect(blocked).toBeDefined();
+    expect(blocked!.reason.toLowerCase()).toMatch(/intercept|pointer/);
+  }, 60_000);
+});

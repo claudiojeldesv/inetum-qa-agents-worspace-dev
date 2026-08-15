@@ -380,6 +380,12 @@ export interface RescueRequest {
   hint?: StepHint;
   /** Snapshot ARIA podado del frame donde falló la resolución. */
   aria_snapshot: string;
+  /**
+   * K0.29 — por qué el snapshot llegó vacío, cuando llegó vacío. Existe porque
+   * el silencio era peor que el fallo: el subagent recibía `aria_snapshot: ""`
+   * sin explicación y solo podía responder null a ciegas o inventar.
+   */
+  snapshot_error?: string;
   frame_path: string[];
   budget_remaining: number;
   instructions: string;          // qué debe devolver el subagent (rescue-response.json)
