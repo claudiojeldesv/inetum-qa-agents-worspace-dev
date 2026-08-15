@@ -1385,7 +1385,12 @@ class DomWalker {
   /** Único visible o null. Nunca .first() sobre ambiguos (regla dura). */
   private async uniqueOrNull(loc: Locator): Promise<Locator | null> {
     const count = await loc.count().catch(() => 0);
-    if (count === 1) return loc;
+    // K0.26b (campo, PrestaShop): con UNA coincidencia también se exige visible.
+    // El tier anclado puenteó "Ordenar por" al <select> OCULTO tras la fachada y
+    // el walker quemó el tope clicando un invisible con error engañoso ("click:
+    // Timeout"). "Único visible" es el contrato declarado de este método; un
+    // único oculto no es resolución — es caer al siguiente peldaño o al panel.
+    if (count === 1) return (await loc.isVisible().catch(() => false)) ? loc : null;
     if (count > 1) {
       const visible = loc.filter({ visible: true });
       if ((await visible.count().catch(() => 0)) === 1) return visible;

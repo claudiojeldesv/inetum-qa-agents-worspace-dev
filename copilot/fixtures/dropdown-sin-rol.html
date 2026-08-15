@@ -27,6 +27,15 @@
       Ordenar por:
       <button id="orden-trigger" type="button">Relevancia ▾</button>
     </p>
+    <!-- Fiel a PrestaShop (K0.26b): tras la etiqueta hay un <select> OCULTO que la
+         fachada sincroniza. El tier anclado que puentee "Ordenar por" al primer
+         control que sigue aterriza AQUÍ — y un único oculto no es resolución. -->
+    <select id="orden-select-oculto" hidden>
+      <option>Relevancia</option>
+      <option>Precio: de más bajo a más alto</option>
+      <option>Precio: de más alto a más bajo</option>
+      <option>Nombre, de A a Z</option>
+    </select>
     <ul class="menu" id="orden-menu">
       <li>Relevancia</li>
       <li>Precio: de más bajo a más alto</li>

@@ -597,3 +597,23 @@ plantado) + los 6 de `mat-select-portal` intactos (Material sin regresión). 193
 unit copilot, tsc limpio. Pendiente de campo: re-ejecutar el guion ciego de la tienda
 SIN tocarlo — si s3 resuelve solo, la generalización queda demostrada contra un sitio
 que el fix nunca miró por nombre.
+
+**K0.26b — `uniqueOrNull` exige visible también con UNA coincidencia (el re-run de campo
+lo cazó el mismo día).** El re-run del guion ciego dio dos datos: `s1` resolvió por
+alias-hit (la memoria enseñada en el run anterior pagó — ciclo completo en cliente
+nuevo), y `s3` falló ANTES del menú con un error nuevo: `anchored(label:'Ordenar por')
+→ locator.click: Timeout`. Causa: el tier anclado puenteó la etiqueta al primer control
+que sigue — el `<select>` OCULTO que PrestaShop esconde tras la fachada (la clase
+"select oculto tras fachada" que K0.23 dejó como límite sin evidencia; ya la tiene) — y
+`uniqueOrNull` con `count === 1` devolvía el locator SIN comprobar visibilidad,
+contradiciendo su propio contrato ("único visible"). El walker quemaba el tope clicando
+un invisible y el error culpaba a la acción. Fix: único-oculto → null (caer al
+siguiente peldaño o al panel ANTES de ejecutar, con "hint irresoluble" honesto).
+Fixture `dropdown-sin-rol.html` hecho fiel (etiqueta + `<select hidden>` + fachada) +
+test del par falsable (irresoluble sí / Timeout no); anclado 6/6 y Material 6/6
+intactos con la regla endurecida. 194 unit copilot (un rojo no reproducido en re-run
+completo, sin atribuir — misma firma que el flake de K0.25 bajo suite paralela), tsc
+limpio. Nota de campo: el panel tampoco podía enseñar la fachada (rol `generic`, el
+aviso nuevo de K0.26 lo explicó en vez de callar) — la salida correcta es reconciliar
+el guion con el texto visible real de la fachada, pendiente de que el QA reporte los
+textos reales del widget.

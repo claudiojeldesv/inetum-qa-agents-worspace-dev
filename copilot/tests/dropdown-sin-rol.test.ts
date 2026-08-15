@@ -93,6 +93,22 @@ describe('K0.26 — select sobre desplegable sin rol (Bootstrap/PrestaShop)', ()
     expect(blocked!.reason).toContain('no apareció');
   }, 60_000);
 
+  it('K0.26b: el ancla que puentea a un control OCULTO no resuelve — irresoluble honesto, no timeout engañoso', async () => {
+    // Fiel a PrestaShop: tras "Ordenar por:" el primer control que sigue es el
+    // <select> oculto que la fachada sincroniza. Antes: uniqueOrNull devolvía el
+    // único-oculto y el walker quemaba el tope clicando un invisible ("click:
+    // Timeout", culpando a la acción). Ahora: único visible o nada — el paso cae
+    // como hint irresoluble ANTES de ejecutar, que es donde el panel puede ayudar.
+    const map = await walk([
+      { id: 's1', action: 'select', hint: { label: 'Ordenar por' }, value: 'Nombre, de A a Z' },
+    ]);
+
+    const blocked = map.open_questions.find((q) => q.step === 's1');
+    expect(blocked).toBeDefined();
+    expect(blocked!.reason).toContain('irresoluble');
+    expect(blocked!.reason).not.toContain('Timeout');
+  }, 60_000);
+
   it('texto de opción duplicado fuera del menú → se planta (ambigua), no elige', async () => {
     // "Nombre, de A a Z" existe también como leyenda visible fuera del menú:
     // sin contenedor declarado, ≥2 visibles a nivel de página es ambigüedad.
