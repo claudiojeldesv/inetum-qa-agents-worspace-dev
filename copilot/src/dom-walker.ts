@@ -19,11 +19,13 @@
  *     [--cap=60] [--headed] [--assist] [--assist-timeout=600] [--no-minimize] \
  *     [--quiet-ms=400] [--settle-timeout=10000] [--max-mutations=2] \
  *     [--busy-selector=<sel> ...] [--timing-profile=<file>] [--no-calibrate] \
- *     [--from=<stepId>] [--to=<stepId>] [--step-delay=<ms>]
+ *     [--from=<stepId>] [--to=<stepId>] [--step-delay=<ms>] [--capture-corpus=<dir>]
  *
  *   --from/--to acotan la ventana de pasos ejecutados (entry siempre corre). --to=<id>
  *   es la vía segura de llegar a una pantalla e iterar sin pasar de ella (p. ej. parar
  *   antes de "Finalizar"). --step-delay pausa entre pasos, tras el settle.
+ *   --capture-corpus fotografía el DOM donde la escalera resolvió y emite casos para
+ *   el banco (K0.32). OFF por defecto: una foto es HTML CRUDO de la pantalla.
  *
  * Escalera de resolución: determinístico → normalizador (acentos) → aliases del
  * cliente → ASISTIDO (--assist, $0, capta también la coreografía) → rescate LLM
@@ -56,6 +58,7 @@ import {
   calibratedTimeout,
   compareCount,
   consentSelector,
+  corpusVerdict,
   CONSENT_ACCEPT,
   CONSENT_CLOSE,
   CONSENT_REJECT,
@@ -167,6 +170,16 @@ interface WalkerOptions {
   toStep?: string;
   /** Pausa fija entre pasos, TRAS el settle (K0.24). Ritmo/observabilidad, no sync. Default 0. */
   stepDelayMs?: number;
+  /**
+   * K0.32 — directorio donde volcar el CORPUS del banco (fotos del DOM + casos
+   * con verdad anotada). Presencia = activado; ausencia = no se captura nada.
+   *
+   * OFF por defecto, y no por comodidad: una foto del DOM es el HTML CRUDO de
+   * la pantalla, con los datos que hubiera dentro. Contra un entorno con datos
+   * reales eso es una decisión del QA, no un efecto colateral de correr el
+   * walker (regla dura #6 del proyecto).
+   */
+  corpusDir?: string;
 }
 
 interface StyleContract {
@@ -1022,6 +1035,23 @@ class DomWalker {
   private readonly undismissable = new Set<string>();
   /** Banners de consentimiento ya resueltos (K0.30): no se re-intentan ni se re-auditan. */
   private readonly consentHandled = new Set<string>();
+  /**
+   * K0.32 — candidatos a caso del banco, capturados en el momento en que la
+   * escalera resolvió (que es el estado del DOM que hay que fotografiar) y
+   * decididos al final, cuando ya se sabe si algo INDEPENDIENTE los corrobora.
+   */
+  private readonly corpusPendiente: Array<{
+    id: string;
+    flow: string;
+    step: string;
+    archivo: string;
+    action: WalkAction;
+    hint?: StepHint;
+    scope?: StepHint;
+    via: string;
+    frame_path: string[];
+    tienePostcondicion: boolean;
+  }> = [];
   private aliases: HintAliasFile;
   private readonly aliasesPath: string;
   /** Resolver del envío del overlay (K0.10): lo rellena assistResolve por paso. */
@@ -1050,6 +1080,145 @@ class DomWalker {
     this.assistPatch = { version: 1, site_id: script.site_id, generated_at: '', entries: [] };
     this.timingPath = resolve(opts.timingProfilePath ?? `config/timing-profiles/${script.site_id}.json`);
     this.timing = this.loadTiming();
+  }
+
+  // ------------------------------------------------- corpus del banco (K0.32)
+
+  /**
+   * Fotografía el DOM en el instante en que la escalera resolvió, marcando el
+   * elemento resuelto. Esa marca es la que el banco usará como objetivo: un
+   * atributo inyectado en la propia foto no puede volverse ambiguo ni caducar,
+   * a diferencia de un selector reconstruido a posteriori.
+   *
+   * Se captura ANTES de ejecutar la acción a propósito: el estado del DOM sobre
+   * el que hay que medir la resolución es en el que se resolvió, no el que deja
+   * la acción. Y solo se guarda la foto; si el caso entra o no en el corpus se
+   * decide al final (ver flushCorpus), cuando ya se sabe si algo lo corrobora.
+   */
+  private async captureCorpusCandidate(
+    flow: WalkFlow,
+    step: WalkStep,
+    resolved: { locator: Locator; via: string; frame_path: string[] },
+  ): Promise<void> {
+    if (!this.opts.corpusDir || this.verifying) return;
+    const id = `${this.script.site_id}-${flow.flow}-${step.id}`;
+    const marca = `data-corpus-target`;
+    try {
+      await resolved.locator.evaluate((el, attr: string) => el.setAttribute(attr, '1'), marca);
+      await this.freezeVisibility(true);
+      const html = await this.page.content();
+      await this.freezeVisibility(false);
+      // la marca se retira de la página VIVA: la foto ya la lleva dentro, pero
+      // dejarla puesta sería mutar la app bajo prueba más allá del paso
+      await resolved.locator.evaluate((el, attr: string) => el.removeAttribute(attr), marca).catch(() => {});
+      const archivo = `${id}.html`;
+      mkdirSync(this.opts.corpusDir, { recursive: true });
+      writeFileSync(resolve(this.opts.corpusDir, archivo), html, 'utf8');
+      this.corpusPendiente.push({
+        id,
+        flow: flow.flow,
+        step: step.id,
+        archivo,
+        action: step.action,
+        hint: step.hint,
+        scope: step.scope,
+        via: resolved.via,
+        frame_path: resolved.frame_path,
+        tienePostcondicion: typeof step.expect_after === 'string' && step.expect_after.length > 0,
+      });
+    } catch {
+      // capturar corpus JAMÁS puede tumbar un run: es telemetría, no producto
+    }
+  }
+
+  /**
+   * K0.32 — CONGELA la visibilidad dentro de la foto. Medido con el primer
+   * corpus real (tufarmacia): dos de tres casos que resolvían EN VIVO se
+   * plantaban sobre su propia fotografía, y la causa era la misma en los dos —
+   * la foto no lleva las hojas de estilo (son peticiones externas), y sin CSS
+   * lo que estaba oculto pasa a estar visible: donde en vivo había UNA
+   * coincidencia visible, offline había dos, y la regla dura se plantaba.
+   *
+   * Como la visibilidad es carga estructural de esa regla, la foto tiene que
+   * llevarla dentro. Se marcan los elementos que AHORA MISMO están ocultos y se
+   * inyecta una regla que los mantenga ocultos sin depender de ningún CSS
+   * externo. Aplicarlo en vivo no cambia nada de lo que se ve —solo se marca lo
+   * que ya estaba oculto— y se retira justo después de serializar.
+   *
+   * No pretende conservar el aspecto de la página: conserva lo único que la
+   * escalera mira.
+   */
+  private async freezeVisibility(on: boolean): Promise<void> {
+    const STYLE_ID = 'qa-corpus-visibility';
+    const ATTR = 'data-corpus-hidden';
+    await this.page
+      .evaluate(
+        ({ activar, styleId, attr }) => {
+          if (!activar) {
+            document.getElementById(styleId)?.remove();
+            for (const el of Array.from(document.querySelectorAll(`[${attr}]`))) el.removeAttribute(attr);
+            return;
+          }
+          for (const el of Array.from(document.body.querySelectorAll('*'))) {
+            const cs = getComputedStyle(el);
+            const r = el.getBoundingClientRect();
+            const oculto = cs.display === 'none' || cs.visibility === 'hidden' || (r.width === 0 && r.height === 0);
+            if (oculto) el.setAttribute(attr, '1');
+          }
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.textContent = `[${attr}]{display:none !important}`;
+          document.head.appendChild(style);
+        },
+        { activar: on, styleId: STYLE_ID, attr: ATTR },
+      )
+      .catch(() => {});
+  }
+
+  /**
+   * Reparte los candidatos entre el corpus (verdad corroborada) y los
+   * pendientes de revisión humana, con el motivo de cada exclusión. El veredicto
+   * lo da `corpusVerdict`, que es puro y está aparte precisamente porque es el
+   * criterio que decide si el banco mide algo o se mide a sí mismo.
+   */
+  private flushCorpus(): void {
+    if (!this.opts.corpusDir || this.corpusPendiente.length === 0) return;
+    const reports = this.state.step_reports ?? [];
+    const casos: string[] = [];
+    const pendientes: string[] = [];
+    for (const c of this.corpusPendiente) {
+      const r = reports.find((x) => x.flow === c.flow && x.step === c.step);
+      const v = corpusVerdict({
+        outcome: r?.outcome ?? 'action_failed',
+        tienePostcondicion: c.tienePostcondicion,
+        via: c.via,
+        frame_path: c.frame_path,
+      });
+      const base = {
+        id: c.id,
+        site: this.script.site_id,
+        task: `${c.flow}/${c.step}`,
+        html_path: c.archivo,
+        action: c.action,
+        hint: c.hint ?? {},
+        ...(c.scope ? { scope: c.scope } : {}),
+        target: '[data-corpus-target]',
+      };
+      if (v.incluir) casos.push(JSON.stringify({ ...base, verdad: v.motivo }));
+      else pendientes.push(JSON.stringify({ ...base, excluido: v.motivo, resuelto_como: c.via }));
+    }
+    const dir = this.opts.corpusDir;
+    if (casos.length > 0) writeFileSync(resolve(dir, 'manifest.jsonl'), `${casos.join('\n')}\n`, 'utf8');
+    if (pendientes.length > 0) writeFileSync(resolve(dir, 'pendientes.jsonl'), `${pendientes.join('\n')}\n`, 'utf8');
+    this.audit('allow', `corpus del banco: ${casos.length} casos con verdad, ${pendientes.length} pendientes de revisión`, {
+      phase: 'corpus',
+      casos: casos.length,
+      pendientes: pendientes.length,
+      dir,
+    });
+    console.error(
+      `[dom-walker] corpus: ${casos.length} caso(s) con verdad corroborada, ${pendientes.length} pendiente(s) → ${dir}`,
+    );
   }
 
   // ------------------------------------------------- banco de resolución
@@ -3311,6 +3480,10 @@ class DomWalker {
           return this.requestRescue(flow, step); // exit 42
         }
 
+        // K0.32 — la foto se toma AQUÍ: resolución hecha, acción todavía sin
+        // ejecutar. Ese es el DOM sobre el que el banco tiene que medir.
+        await this.captureCorpusCandidate(flow, step, resolved);
+
         const from = this.state.current_screen;
         const preUrl = this.page.url();
         const value = step.value !== undefined ? resolveFixtureRef(step.value, fixtures) : undefined;
@@ -3880,6 +4053,9 @@ class DomWalker {
 
     // el perfil de tiempos se persiste al cerrar: cada run recalibra el siguiente
     this.saveTiming();
+    // K0.32 — y el corpus se reparte al final, cuando ya se sabe qué pasos
+    // tienen algo INDEPENDIENTE que corrobore su resolución
+    this.flushCorpus();
 
     const stepsTotal = this.script.flows.reduce((n, f) => n + f.steps.length, 0);
     const reports = this.state.step_reports ?? [];
@@ -3982,6 +4158,7 @@ async function main(): Promise<void> {
       from: { type: 'string' },
       to: { type: 'string' },
       'step-delay': { type: 'string' },
+      'capture-corpus': { type: 'string' },
     },
   });
 
@@ -4028,7 +4205,21 @@ async function main(): Promise<void> {
     fromStep: values.from,
     toStep: values.to,
     stepDelayMs: values['step-delay'] !== undefined ? Number(values['step-delay']) : undefined,
+    corpusDir: values['capture-corpus'],
   };
+
+  /**
+   * K0.32 — el aviso NO es decorativo. Una foto del corpus es el HTML crudo de
+   * la pantalla: contra un entorno con datos reales, activarlo es una decisión
+   * que el QA tiene que tomar sabiéndolo (regla dura #6).
+   */
+  if (opts.corpusDir) {
+    console.error(
+      `[dom-walker] CAPTURA DE CORPUS activada → ${opts.corpusDir}\n` +
+        '            se guardará el HTML CRUDO de cada pantalla en la que la escalera resuelva.\n' +
+        '            Contra un entorno con datos reales, revisa qué queda en esas fotos antes de compartirlas.',
+    );
+  }
 
   // K0.24 — si se pide una ventana, el id debe existir en algún flujo; si no, es un
   // typo y todos los flujos se saltarían en silencio. Falla claro y temprano.

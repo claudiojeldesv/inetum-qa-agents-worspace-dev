@@ -12,6 +12,7 @@ import type {
   PickedElement,
   SettleProfile,
   StepHint,
+  StepOutcome,
   TimingProfile,
   WalkAction,
   WalkScript,
@@ -842,6 +843,61 @@ export function fingerprintHash(raw: string): string {
 /** Hash estable del script: invalida el checkpoint si el guion cambió. */
 export function hashScript(script: WalkScript): string {
   return createHash('sha256').update(JSON.stringify(script)).digest('hex').slice(0, 16);
+}
+
+// ------------------------------------------------- corpus del banco (K0.32)
+
+/**
+ * ¿Este paso puede entrar en el corpus del banco como caso con VERDAD anotada?
+ *
+ * Aquí está el criterio que decide si el banco vale para algo. La tentación es
+ * obvia: el walker resolvió un elemento, guárdalo como "la verdad" y a correr.
+ * Eso sería **medirse a sí mismo** — el banco daría 100% de acierto por
+ * construcción, incluidos los casos en los que la escalera se equivocó en
+ * silencio, que son justo los que hay que cazar. La verdad tiene que venir de
+ * fuera de la escalera.
+ *
+ * Dos fuentes independientes se aceptan:
+ *  - **humana**: el QA señaló el elemento en el panel o escribió el locator a
+ *    mano. Es la más fuerte que hay.
+ *  - **postcondición cumplida**: se actuó sobre el elemento y la app respondió
+ *    con el resultado de negocio que el FD esperaba. No prueba que ese elemento
+ *    sea el único canónico, pero sí que el clic logró lo que tenía que lograr,
+ *    que es exactamente la noción de acierto que le importa al banco. Es el
+ *    mismo criterio con el que un rescate se promueve a alias (K0.5).
+ *
+ * Todo lo demás va a `pendientes.jsonl` con su motivo, para que el QA lo
+ * promueva a mano si quiere. Un caso sin corroborar NO se cuela en el corpus.
+ */
+export interface CorpusCandidato {
+  outcome: StepOutcome;
+  /** ¿El paso declaraba postcondición inline (`expect_after`)? */
+  tienePostcondicion: boolean;
+  /** Cadena del locator que resolvió (para detectar procedencia humana). */
+  via: string;
+  frame_path: string[];
+}
+
+export function corpusVerdict(c: CorpusCandidato): { incluir: boolean; motivo: string } {
+  if (c.frame_path.length > 0) {
+    // `page.content()` serializa SOLO el documento principal: el elemento vive
+    // en un iframe que la foto no contiene, así que el caso no es reproducible
+    // offline. Límite honesto, no un fallo.
+    return { incluir: false, motivo: 'el elemento vive en un iframe y la foto del documento principal no lo contiene' };
+  }
+  const humano = c.via.includes('✎') || c.via.includes('manual');
+  if (humano) return { incluir: true, motivo: 'verdad humana: el QA señaló o escribió el locator' };
+  if (c.outcome !== 'ok' && c.outcome !== 'ok_after_retry') {
+    return { incluir: false, motivo: `el paso no salió bien (${c.outcome}): no hay nada que corrobore la resolución` };
+  }
+  if (!c.tienePostcondicion) {
+    return {
+      incluir: false,
+      motivo:
+        'resolvió y ejecutó, pero nada lo corrobora: tomar la propia resolución del walker como verdad sería medirse a sí mismo',
+    };
+  }
+  return { incluir: true, motivo: 'postcondición del FD cumplida tras actuar sobre el elemento' };
 }
 
 // -------------------------------------------- consentimiento (K0.30, familias)

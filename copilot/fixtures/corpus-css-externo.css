@@ -1,0 +1,5 @@
+/* La hoja EXTERNA es la clave del fixture: page.content() la deja como <link>,
+   y una foto offline no la carga. Sin ella, el duplicado del menu movil deja de
+   estar oculto y la escalera ve dos coincidencias visibles donde en vivo habia
+   una. Esa es la clase que el congelado de visibilidad (K0.32) resuelve. */
+.menu-movil { display: none; }

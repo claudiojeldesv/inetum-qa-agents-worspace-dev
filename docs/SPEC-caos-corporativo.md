@@ -880,3 +880,62 @@ de autovalidación dejaría una alarma roja permanente y un exit 1 que en CI se 
 avería—, pero si algún día deja de dar su desenlace, el informe grita **BANCO ROTO** y
 declara que la cifra de arriba no es fiable. El CLI sale con error por dos motivos, no por
 uno: un `EQUIVOCADO` real del walker, o un control incumplido.
+
+## 22. K0.32 — el capturador de corpus: cada walk deja banco
+
+El banco de §21 funcionaba y estaba vacío. Lo que le faltaba no era código, eran páginas:
+cada visita a un sitio real se perdía al cerrar el navegador, así que los hallazgos eran
+anécdotas de un día en vez de regresión permanente. Con `--capture-corpus=<dir>`, todo
+walk fotografía el DOM en el instante en que la escalera resolvió y emite casos listos
+para el banco.
+
+**De dónde sale la VERDAD (lo único que decide si esto sirve).** La tentación evidente es
+anotar como verdad el elemento que el walker resolvió. Eso sería **medirse a sí mismo**:
+el banco daría 100% por construcción, incluidos los casos en los que la escalera se
+equivocó en silencio, que son justo los que hay que cazar. Solo entran casos con una
+corroboración **independiente de la escalera**:
+
+- **humana** — el QA señaló el elemento en el panel o escribió el locator (la más fuerte);
+- **postcondición del FD cumplida** — se actuó sobre el elemento y la app respondió con el
+  resultado de negocio esperado. No prueba que ese elemento sea el único canónico, pero sí
+  que la acción logró lo que tenía que lograr, que es la noción de acierto que le importa
+  al banco. Es el mismo criterio con el que un rescate se promueve a alias (K0.5).
+
+Todo lo demás va a `pendientes.jsonl` **con su motivo y con el locator que usó el walker**,
+para que el QA lo promueva a mano si quiere. La decisión vive en `corpusVerdict`, función
+pura y por tanto verificable sin navegador: es el criterio, no un detalle de implementación.
+
+**El objetivo se marca DENTRO de la foto** (`data-corpus-target`), no con un selector
+reconstruido a posteriori: un atributo inyectado en el HTML serializado no puede volverse
+ambiguo ni caducar. Y la foto se toma ANTES de ejecutar la acción, porque el DOM sobre el
+que hay que medir la resolución es aquel en el que se resolvió.
+
+**La lección que costó el primer corpus real, y que afecta a Mind2Web.** El primer volcado
+de tufarmacia dio 3 casos con verdad… y el banco solo acertó 1: **dos casos que resolvían
+EN VIVO se plantaban sobre su propia fotografía**. Misma causa en los dos: las hojas de
+estilo son peticiones externas que la foto no lleva, y sin CSS lo que estaba oculto pasa a
+estar visible — donde en vivo había UNA coincidencia visible, offline había dos, y la regla
+dura se plantaba. La visibilidad no es cosmética para este walker: es carga estructural de
+la regla. Así que la foto tiene que llevarla dentro: al capturar se marcan los elementos
+que están ocultos en ese instante y se inyecta una regla que los mantenga ocultos sin
+depender de ningún CSS externo (aplicarlo en vivo no cambia nada de lo que se ve —solo se
+marca lo ya oculto— y se retira tras serializar). Con el congelado, el mismo corpus pasa a
+**3/3 acierto, 0 EQUIVOCADO**: la foto reproduce el comportamiento en vivo.
+
+Esto es un aviso metodológico para el corpus externo: los volcados de Mind2Web tampoco
+traen CSS. Medir cualquier resolvedor que use visibilidad sobre HTML crudo sin reconstruir
+la visibilidad da una cifra que no significa lo que parece. Fixture propio de la clase
+(`corpus-css-externo.html` + hoja externa) con el par falsable sobre la MISMA foto:
+quitándole el congelado hay 2 coincidencias visibles, con él 1.
+
+**Apagado por defecto, y no por comodidad**: una foto es el HTML CRUDO de la pantalla, con
+lo que hubiera dentro. Contra un entorno con datos reales eso es una decisión del QA, no un
+efecto colateral de correr el walker (regla dura #6) — por eso la bandera es explícita y el
+arranque avisa con esas palabras. Los corpus van a `.work/` (ignorado por git): publicar el
+HTML de un sitio de terceros es otra decisión, y tampoco la toma el walker.
+
+**Límites honestos**: `page.content()` serializa solo el documento principal, así que los
+pasos resueltos dentro de un iframe se excluyen con ese motivo; y el rendimiento del corpus
+depende de que el guion declare postcondiciones — un guion sin `expect_after` produce cero
+casos con verdad, lo cual es correcto y además es el incentivo que ya empuja el check
+`MF-postcondition`.

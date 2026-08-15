@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Duplicado oculto por CSS externo</title>
+  <link rel="stylesheet" href="corpus-css-externo.css">
+</head>
+<body>
+  <nav><a id="bueno" href="#">Medicamentos</a></nav>
+
+  <!-- mismo texto, oculto en vivo por la hoja EXTERNA: el menu movil -->
+  <div class="menu-movil"><a id="duplicado" href="#">Medicamentos</a></div>
+
+  <div id="salida"></div>
+  <script>
+    document.getElementById('bueno').addEventListener('click', () => {
+      document.getElementById('salida').innerHTML = '<div role="status">Categoria abierta</div>';
+    });
+  </script>
+</body>
+</html>
