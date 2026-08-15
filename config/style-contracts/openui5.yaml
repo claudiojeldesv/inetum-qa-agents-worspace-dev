@@ -1,0 +1,91 @@
+# Style Contract — OpenUI5 SDK (SAP UI5 1.151)
+# Schema docs: docs/references/style-contract-schema.md
+#
+# Sitio 2 de la GIRA DE STACKS del kernel v2. Familia de stack: SAP UI5 — la de
+# los back-office de seguros y los portales de banca corporativa construidos
+# sobre SAPUI5/Fiori. Showcase público: sin cuentas, sin datos personales.
+# El objetivo del guion es la app de demostración "Shopping Cart", que es una
+# aplicación UI5 completa (master-detail, buscador, carrito) y no una página de
+# documentación. Autorizado QA 2026-08-15.
+#
+# Patologías esperadas de la familia (declaradas, no medidas todavía): controles
+# compuestos donde el elemento clicable no es el que lleva la etiqueta, ids
+# generados (`__input0`, `container-…--field`), botones solo-icono en cabecera, y
+# listas con render diferido.
+
+version: 1
+project: openui5
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByRole        # UI5 genera ids (__button12, container-cart---home--searchField): inútiles
+    - getByLabel
+    - getByText
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/openui5.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false
+  severity_threshold:
+    - serious
+    - critical
+
+evidence:
+  level: full
+  screenshots: on
+
+# SIN bloque `settle` a propósito, y la decisión se declara: UI5 tiene una señal
+# de ocupado propia y conocida (`sapUiLocalBusyIndicator`), que es exactamente el
+# tipo de conocimiento que debe vivir en el client pack de la FAMILIA. Declararla
+# ANTES de medir sesgaría el run: no sabríamos si el walker se sincroniza solo o
+# si lo hizo la pista que le di. Primero se mide con el settle genérico; si
+# aparecen `settle_timeout`, entonces se declara y se vuelve a medir.
+
+# Sin `obstructions`: el banner del Demo Kit lo cubre el consentimiento POR
+# DISEÑO del walker (K0.30). Si la familia CMP de este sitio no estuviera en el
+# catálogo del kernel, el hallazgo es "falta una familia" — no se parchea aquí.
+
+synthetic_fixtures:
+  credentials: []
+  buyer_info: []
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

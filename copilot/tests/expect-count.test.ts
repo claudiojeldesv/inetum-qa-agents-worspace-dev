@@ -128,12 +128,24 @@ describe('Fase 6 — expect_count contra la tabla de corp-bench (Consulta Declar
     expect(table.rows.map((r) => r[1])).toContain('DRT-1024');
   }, 300_000);
 
-  it('rows > 0 se reporta INCUMPLIDO (no error) cuando no hay datos', async () => {
+  /**
+   * K0.33 — esta aserción decía 'incumplido' y era un VERDE FALSO del propio
+   * banco, destapado al quitar el substring del peldaño de texto alimentado por
+   * `name`. Con la búsqueda sin resultados, `#tabla-dec` se OCULTA, así que el
+   * ámbito {role:'table', name:'Declaraciones'} no existe en pantalla — pero el
+   * plan caía al intento `getByText('Declaraciones')` y resolvía el ámbito al
+   * `<h1>Consulta Declaraciones</h1>`. Contar filas dentro de un titular da 0, y
+   * ese 0 pasaba por "incumplido": la respuesta correcta por el camino
+   * equivocado. Lo verdadero es que no hay DÓNDE contar, y no es lo mismo que
+   * "cuenta 0" — el paso sigue siendo postcondition_unmet, pero por su motivo.
+   */
+  it('sin datos, el contenedor declarado NO está en pantalla y se dice tal cual', async () => {
     const map = await bench();
     expect(report(map, 's32').outcome).toBe('postcondition_unmet');
     const blocked = map.open_questions.find((q) => q.step === 's32');
     expect(blocked).toBeDefined();
-    expect(blocked!.reason).toContain('incumplido');
+    expect(blocked!.reason).toContain('no está en pantalla');
+    expect(blocked!.reason).not.toContain('ambigua');
     // "no hay datos" no crashea el run: el resto de pasos ya se ejecutaron
     expect(map.stats.steps_total).toBe(34);
   }, 300_000);

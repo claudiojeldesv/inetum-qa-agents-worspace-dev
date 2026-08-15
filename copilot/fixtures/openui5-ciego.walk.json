@@ -1,0 +1,51 @@
+{
+  "$comment": "GUION CIEGO — sitio 2 de la gira de stacks (SAP UI5 1.151, la familia de los back-office de seguros). Objetivo: la app de demostración Shopping Cart, una aplicación UI5 completa, no la documentación. PROTOCOLO (K0.17): hints con SOLO vocabulario visible en pantalla; predicciones por escrito ANTES de correr; el guion no se toca entre la escritura y el run.",
+  "$mire": "DECLARACIÓN DE SESGO — qué miré: capturas de pantalla (lo que ve un analista al que le enseñan la app) de la home del Demo Kit, la sección Samples, la sección Demo Apps, la home del Shopping Cart, la categoría Laptops, el detalle de 'Astro Laptop 1516' y el carrito con ese producto dentro. Y las URLs de la barra de direcciones. NO leí el HTML, NO leí el árbol de accesibilidad, NO abrí las herramientas de desarrollo. CONTAMINACIÓN ACCIDENTAL, declarada porque debilita dos predicciones: (a) mi script de reconocimiento intentó clicar el menú del Demo Kit con getByRole('link'|'button', {name:'Muestras'}) y NO funcionó — sé, sin haberlo buscado, que la navegación del shell del Demo Kit no responde a ese nombre accesible; por eso navegué por coordenadas a partir de ahí, y por eso NINGÚN paso del guion toca el shell; (b) rechacé las cookies en el reconocimiento con getByText('Rechazar todo') y SÍ funcionó, así que P1 es una apuesta más floja de lo que parece: ya sé que el botón de rechazar es alcanzable por su texto visible.",
+  "$predicciones": [
+    "P1 CONSENTIMIENTO — la home del Demo Kit sirve un banner con 'Aceptar todo' / 'Rechazar todo' / 'Administrar opciones'. Espero que el walker lo reconozca como SUPERPUESTO, pulse RECHAZAR (nunca aceptar) y lo deje en el audit-log. Si la familia CMP de SAP no está en el catálogo del kernel ni la cazan los genéricos, no habrá entrada de audit y el banner se quedará ahí: como el guion sigue por otra ruta, eso NO daría ningún rojo — se detecta por AUSENCIA, y el hallazgo sería 'falta una familia', no un fallo de los pasos.",
+    "P2 IDIOMA — la home del Demo Kit carga en ESPAÑOL (geolocalización por IP) y en mi reconocimiento pasó a inglés después de rechazar cookies. Por eso el guion entero vive dentro de la app del carrito, cuyo contenido es dato en inglés y no cambia. Declarado para que un rojo por idioma no se lea como 'el walker no sabe con i18n': si ocurre, es del shell, que deliberadamente no toco.",
+    "P3 MAESTRO-DETALLE (F1 s2/s3) — resuelven por texto visible único. 'Laptops' aparece una sola vez (lista de categorías). 'Astro Laptop 1516' es único EN EL INSTANTE del clic; después de la transición pasa a estar tres veces (fila de la lista, título de la cabecera y encabezado del detalle). Predigo ok y resolved_via = getByText exacto (el peldaño de K0.28).",
+    "P4 BUSCADOR (F2 s2) — el campo se ve con el marcador de posición 'Search' y sin etiqueta visible al lado. Si UI5 emite aria-label, getByLabel resuelve. Si la única seña es el placeholder, FALLA — y es el hueco NOMBRADO en K0.19: getByPlaceholder está declarado en el contract y PRIORITY_TO_KIND lo ignora en silencio. Sería la segunda instancia de esa clase, en familia distinta, y eso justifica el peldaño. Exijo fallo HONESTO ('hint irresoluble'), no timeout opaco de 10s.",
+    "P5 ICONO DEL CARRITO (F3 s3) — botón SOLO-ICONO en la cabecera, sin texto visible. {name:'Cart'} es una apuesta sobre el tooltip/aria-label de UI5. Si resuelve, la clase 'trigger sin identidad accesible' NO se reproduce aquí y el peldaño anchored-trigger sigue con muestra de uno (tufarmacia) — no se construye. Si NO resuelve, es la segunda instancia en otra familia y el peldaño queda justificado con evidencia. Las dos salidas informan; la que no vale es un timeout sin diagnóstico.",
+    "P6 ÁMBITO (F3 s4) — al llegar al carrito, 'Astro Laptop 1516' está visible TRES veces, así que la aserción SIN ámbito sería un verde falso literal: pasaría aunque 'Add to Cart' no hubiera hecho nada. Es el caso §20 en estado puro. Con scope predigo una de dos: (a) el panel del carrito tiene nombre accesible, el ámbito resuelve y la aserción significa algo; (b) el ámbito NO resuelve y el walker dice 'ámbito de la postcondición irresoluble', que es el diagnóstico DISTINTO que K0.30 construyó. Defecto de producto sería decir 'el texto no aparece'.",
+    "P7 TOTAL (F3 s5) — 'Total: 989,00 EUR' es único en pantalla y es la postcondición de negocio de verdad (el importe calculado, no el mueble). Si s2 surtió efecto, pasa. Si el literal 'Total:' es i18n o el importe se formatea distinto, el fallo será drift declarado CON el texto real: eso puntúa mi predicción, no al walker.",
+    "P8 CORPUS — espero pocos casos con verdad corroborada: solo los pasos de acción cuya postcondición se cumplió. Los expect_* y los goto no dejan caso. Si el reparto sale al revés (muchos con verdad), sospechar del criterio, no celebrarlo."
+  ],
+  "version": 1,
+  "site_id": "openui5",
+  "entry": "/",
+  "base_url": "https://sdk.openui5.org",
+  "flows": [
+    {
+      "flow": "catalogo",
+      "criteria": ["FD-U501"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/test-resources/sap/m/demokit/cart/webapp/index.html", "screen": "catalogo" },
+        { "id": "s2", "action": "click", "hint": { "text": "Laptops" }, "expect_transition": true, "screen": "lista-laptops", "expect_after": "Astro Laptop 1516", "retry_safe": true },
+        { "id": "s3", "action": "click", "hint": { "text": "Astro Laptop 1516" }, "expect_transition": true, "screen": "detalle-producto", "expect_after": "Supplier: Ultrasonic United", "retry_safe": true },
+        { "id": "s4", "action": "expect_text", "value": "Weight: 4.2 KG" }
+      ]
+    },
+    {
+      "flow": "buscador",
+      "criteria": ["FD-U502"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/test-resources/sap/m/demokit/cart/webapp/index.html", "screen": "catalogo" },
+        { "id": "s2", "action": "fill", "hint": { "label": "Search" }, "value": "Astro", "debounced": true },
+        { "id": "s3", "action": "press", "hint": { "label": "Search" }, "value": "Enter" },
+        { "id": "s4", "action": "expect_text", "value": "Astro Laptop 1516" }
+      ]
+    },
+    {
+      "flow": "carrito",
+      "criteria": ["FD-U503"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/test-resources/sap/m/demokit/cart/webapp/index.html#/category/LT/product/HT-1251", "screen": "detalle-producto" },
+        { "id": "s2", "action": "click", "hint": { "text": "Add to Cart" } },
+        { "id": "s3", "action": "click", "hint": { "name": "Cart" }, "expect_transition": true, "screen": "carrito" },
+        { "id": "s4", "action": "expect_text", "value": "Astro Laptop 1516", "scope": { "name": "Shopping Cart" } },
+        { "id": "s5", "action": "expect_text", "value": "Total: 989,00 EUR" }
+      ]
+    }
+  ]
+}

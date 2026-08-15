@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Portal con CMP que se inyecta tarde</title>
+<!--
+  K0.33 — la clase medida en el sitio 2 de la gira: el gestor de consentimiento
+  se carga ASÍNCRONO y no existe en el instante en que el walker barre tras el
+  `goto`. El contenedor es el de TrustArc, que YA estaba en el catálogo de
+  familias del kernel: lo que falló no fue reconocerlo, fue el momento de mirar.
+  Se inyecta a 1,2 s, después de que la navegación haya terminado.
+-->
+<style>
+  body { font: 14px system-ui, sans-serif; padding: 16px; }
+  #truste-consent-track { position: fixed; bottom: 0; left: 0; right: 0;
+    background: #1b1b1b; color: #fff; padding: 14px; }
+  #truste-consent-track button { margin-right: 8px; }
+</style>
+
+<h1>Panel de p&oacute;lizas</h1>
+<button id="continuar">Continuar</button>
+<p id="estado">sin continuar</p>
+<!-- testigo del CMP: solo el botón de RECHAZAR lo pone en 'rechazado'. Sin él,
+     "el banner ya no está" no distinguiría rechazo de aceptación. -->
+<p id="cmp">consentimiento pendiente</p>
+
+<script>
+  document.getElementById('continuar').addEventListener('click', () => {
+    document.getElementById('estado').textContent = 'continuado';
+  });
+  setTimeout(() => {
+    const d = document.createElement('div');
+    d.id = 'truste-consent-track';
+    d.innerHTML =
+      '<span>Este sitio utiliza cookies y tecnolog&iacute;as relacionadas.</span> ' +
+      '<button id="truste-consent-button">Aceptar todo</button>' +
+      '<button id="truste-consent-required">Rechazar todo</button>' +
+      '<button id="truste-show-consent">Administrar opciones</button>';
+    d.querySelector('#truste-consent-required').addEventListener('click', () => {
+      d.remove();
+      document.getElementById('cmp').textContent = 'consentimiento rechazado';
+    });
+    d.querySelector('#truste-consent-button').addEventListener('click', () => {
+      d.remove();
+      document.getElementById('cmp').textContent = 'CONSENTIMIENTO ACEPTADO';
+    });
+    document.body.appendChild(d);
+  }, 1200);
+</script>
+</html>

@@ -1370,6 +1370,25 @@ class DomWalker {
 
     const results = await Promise.all(scopes.map(observe));
 
+    /**
+     * K0.33 — el barrido de consentimiento, TAMBIÉN aquí. Medido en campo (UI5,
+     * sitio 2): el CMP era TrustArc, estaba en el catálogo de familias y su banner
+     * era `position: fixed`, o sea que la detección habría funcionado — lo que
+     * falló fue el MOMENTO. El barrido iba pegado al `goto`, y los gestores de
+     * consentimiento se cargan asíncronos: cuando miramos, el banner todavía no
+     * existía. Después nada volvió a mirar (el `addLocatorHandler` solo dispara en
+     * comprobaciones de accionabilidad, y hasta el primer paso no hay ninguna), así
+     * que el run terminó con CERO apuntes de consentimiento y el banner intacto: un
+     * fallo por silencio, no por rojo.
+     *
+     * Aquí no cuesta nada y llega justo a tiempo: la pantalla acaba de quedarse
+     * quieta —o sea que el CMP ya se inyectó— y todavía no hemos actuado sobre
+     * ella. El caso residual conocido: una página en la que el guion no da ningún
+     * paso (la de entrada, aquí) no se barre; es inocuo, porque se abandona sin
+     * tocarla, y arreglarlo costaría una espera fija en CADA navegación.
+     */
+    await this.dismissConsent();
+
     return {
       waited_ms: Math.max(...results.map((r) => r.waited_ms)),
       busy_cycles: results.reduce((n, r) => n + r.busy_cycles, 0),
@@ -1542,18 +1561,34 @@ class DomWalker {
       const banners = scope.locator(selector);
       const total = Math.min(await banners.count().catch(() => 0), 8);
       /**
-       * Solo los contenedores MÁS EXTERNOS (K0.30). Los patrones genéricos por
-       * `aria-label*="cookie"` matchean también los enlaces de DENTRO del banner
-       * ("learn more about cookies", "dismiss cookie message"): medido en vivo,
-       * un solo banner producía tres apuntes y tres barridos. El banner es el
-       * contenedor; sus hijos no son banners distintos.
+       * Solo los contenedores más externos QUE SE VEAN (K0.30 + K0.33). Los
+       * patrones genéricos por `aria-label*="cookie"` matchean también los
+       * enlaces de DENTRO del banner ("learn more about cookies", "dismiss
+       * cookie message"): medido en vivo, un solo banner producía tres apuntes y
+       * tres barridos. El banner es el contenedor; sus hijos no son banners
+       * distintos.
+       *
+       * K0.33 — pero "más externo" NO es lo mismo que "el banner". Medido en
+       * campo (UI5, sitio 2): TrustArc cuelga su barra de un envoltorio
+       * `div#consent_blackbar` de ALTURA CERO, y el banner de verdad
+       * (`#truste-consent-track`, 1442x126, fixed) es hijo suyo. Con la regla
+       * anterior se elegía el envoltorio, la puerta de visibilidad lo descartaba
+       * —correctamente, no se ve— y el banner real se saltaba por anidado: las
+       * dos reglas juntas dejaban el CMP intacto y el run sin un solo apunte. El
+       * ancestro solo tapa a su hijo si él mismo se ve.
        */
       const outer: number[] = [];
       for (let i = 0; i < total; i += 1) {
         const anidado = await banners
           .nth(i)
           .evaluate((el, sel: string) => {
-            for (let p = el.parentElement; p; p = p.parentElement) if (p.matches(sel)) return true;
+            const seVe = (n: Element): boolean => {
+              const cs = getComputedStyle(n);
+              if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+              const r = n.getBoundingClientRect();
+              return r.width > 0 && r.height > 0;
+            };
+            for (let p = el.parentElement; p; p = p.parentElement) if (p.matches(sel) && seVe(p)) return true;
             return false;
           }, selector)
           .catch(() => false);
@@ -1752,17 +1787,27 @@ class DomWalker {
 
   private attemptToLocator(scope: Page | Frame | Locator, a: LocatorAttempt): Locator {
     // K0.1: intento normalizado → matching por regex accent-insensitive
+    // K0.33: y si además es exacto, la regex va ANCLADA (una regex sin anclar
+    // matchea substring, así que sin esto la pasada normalizada desharía el
+    // peldaño exacto). Con string, `exact: true` hace ese trabajo.
+    const exact = 'exact' in a && a.exact === true;
     const val = (v: string): string | RegExp =>
-      'normalized' in a && a.normalized ? new RegExp(accentInsensitivePattern(v), 'i') : v;
+      'normalized' in a && a.normalized
+        ? new RegExp(exact ? accentInsensitiveExactPattern(v) : accentInsensitivePattern(v), 'i')
+        : v;
+    const opcionExacta = exact && !('normalized' in a && a.normalized) ? { exact: true } : {};
     switch (a.kind) {
       case 'test_id': {
         const attr = this.testidAttr ?? 'data-testid';
         return scope.locator(`[${attr}="${a.value}"]`);
       }
       case 'role':
-        return scope.getByRole(a.role as Parameters<Page['getByRole']>[0], a.name ? { name: val(a.name) } : undefined);
+        return scope.getByRole(
+          a.role as Parameters<Page['getByRole']>[0],
+          a.name ? { name: val(a.name), ...opcionExacta } : undefined,
+        );
       case 'label':
-        return scope.getByLabel(val(a.value));
+        return scope.getByLabel(val(a.value), opcionExacta);
       case 'text':
         // K0.28: `exact` = texto completo. Normalizado + exacto = regex anclada.
         if (a.normalized) {
@@ -1805,10 +1850,21 @@ class DomWalker {
     if (testId) return this.attemptToLocator(scope, { kind: 'test_id', value: testId[1] });
     const roleRe = src.match(/^getByRole\('([^']+)',\s*\{\s*name:\s*\/(.+)\/i\s*\}\)$/);
     if (roleRe) return scope.getByRole(roleRe[1] as Parameters<Page['getByRole']>[0], { name: new RegExp(roleRe[2], 'i') });
+    // K0.33 — las formas EXACTAS de role/label se parsean antes que las planas,
+    // por la misma razón que la del texto en K0.28: sin esto un alias o un
+    // `step.locator` emitido por la escalera nueva no se podría releer.
+    const roleExact = src.match(/^getByRole\('([^']+)',\s*\{\s*name:\s*'((?:[^'\\]|\\.)*)',\s*exact:\s*true\s*\}\)$/);
+    if (roleExact) {
+      return this.attemptToLocator(scope, { kind: 'role', role: roleExact[1], name: roleExact[2].replace(/\\'/g, "'"), exact: true });
+    }
     const role = src.match(/^getByRole\('([^']+)'(?:,\s*\{\s*name:\s*'((?:[^'\\]|\\.)*)'\s*\})?\)$/);
     if (role) return this.attemptToLocator(scope, { kind: 'role', role: role[1], name: role[2]?.replace(/\\'/g, "'") });
     const labelRe = src.match(/^getByLabel\(\/(.+)\/i\)$/);
     if (labelRe) return scope.getByLabel(new RegExp(labelRe[1], 'i'));
+    const labelExact = src.match(/^getByLabel\('((?:[^'\\]|\\.)*)',\s*\{\s*exact:\s*true\s*\}\)$/);
+    if (labelExact) {
+      return this.attemptToLocator(scope, { kind: 'label', value: labelExact[1].replace(/\\'/g, "'"), exact: true });
+    }
     const label = src.match(/^getByLabel\('((?:[^'\\]|\\.)*)'\)$/);
     if (label) return this.attemptToLocator(scope, { kind: 'label', value: label[1].replace(/\\'/g, "'") });
     const textRe = src.match(/^getByText\(\/(.+)\/i\)$/);
@@ -1832,6 +1888,23 @@ class DomWalker {
       out.push({ scope: f, path: await framePath(f) });
     }
     return out;
+  }
+
+  /**
+   * K0.33 — el desenlace de un intento, DISTINGUIENDO ausente de ambiguo. Los dos
+   * devuelven "no resuelto", pero no significan lo mismo y por eso no pueden
+   * tratarse igual: ausente = este vocabulario no aplica aquí (tiene sentido
+   * probar otro peldaño), ambiguo = la palabra del guion designa a varias cosas
+   * (ningún otro peldaño puede arreglar eso; solo elegir una por su cuenta).
+   */
+  private async intento(loc: Locator): Promise<Locator | 'ausente' | 'ambiguo'> {
+    const count = await loc.count().catch(() => 0);
+    if (count === 0) return 'ausente';
+    if (count === 1) return (await loc.isVisible().catch(() => false)) ? loc : 'ausente';
+    const visible = loc.filter({ visible: true });
+    const nVisibles = await visible.count().catch(() => 0);
+    if (nVisibles === 1) return visible;
+    return nVisibles === 0 ? 'ausente' : 'ambiguo';
   }
 
   /** Único visible o null. Nunca .first() sobre ambiguos (regla dura). */
@@ -2033,16 +2106,47 @@ class DomWalker {
       return null;
     }
 
+    /**
+     * K0.33 — LA AMBIGÜEDAD NO SE REPARA DESCENDIENDO DE PELDAÑO. Medido en campo
+     * (UI5, sitio 2): el hint {name:'Cart'} del icono del carrito daba DOS botones
+     * con `getByRole` ("Show Shopping Cart" y "Add to Cart", ambos contienen la
+     * palabra), así que la escalera siguió bajando y el peldaño de texto encontró
+     * UNA sola coincidencia visible... el botón "Add to Cart". El walker resolvió,
+     * pulsó, reportó `ok` — y añadió una segunda unidad al carrito. Fallo mudo con
+     * duplicación de negocio: lo peor que puede hacer este componente.
+     *
+     * La distinción es estructural, no una heurística de tuning:
+     *  - CERO coincidencias = este vocabulario no describe al elemento aquí. Otro
+     *    peldaño (otra forma de nombrarlo) puede acertar → se sigue bajando.
+     *  - DOS O MÁS = la palabra del guion designa a varias cosas de la pantalla.
+     *    Ningún peldaño más flojo puede resolver eso: solo puede elegir una por su
+     *    cuenta, que es exactamente lo prohibido. Y como cada peldaño busca en un
+     *    ATRIBUTO distinto (nombre accesible ≠ texto visible), el que "desatasca"
+     *    puede estar señalando otro elemento, como aquí.
+     *
+     * La escalera para y el paso sube al panel asistido / rescate, que es donde un
+     * humano desambigua. Plantarse es lento; equivocarse en silencio es inservible.
+     */
     const rawPlan = hintLocatorPlan(step.hint ?? {}, this.priority);
+    let ambiguo: string | null = null;
     for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
       for (const attempt of plan) {
         for (const { scope, path, via } of containers) {
-          const unique = await this.uniqueOrNull(this.attemptToLocator(scope, attempt));
-          if (unique) {
-            const source = via ? `${via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
-            return { locator: unique, via: source, frame_path: path };
+          const res = await this.intento(this.attemptToLocator(scope, attempt));
+          if (res === 'ambiguo') {
+            ambiguo ??= locatorSource(attempt);
+            continue; // otro contenedor/frame todavía puede tener UNA sola
           }
-          // ambiguo o ausente: siguiente intento — jamás adivinar
+          if (res === 'ausente') continue;
+          const source = via ? `${via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
+          return { locator: res, via: source, frame_path: path };
+        }
+        if (ambiguo) {
+          this.audit('block', `hint ambiguo en ${step.id}: ${ambiguo} matchea varios elementos visibles`, {
+            phase: 'ambiguo',
+            hint: JSON.stringify(step.hint ?? {}),
+          });
+          return null;
         }
       }
     }
@@ -2184,12 +2288,20 @@ class DomWalker {
    */
   private async resolveCollection(
     step: WalkStep,
-  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | { fallo: 'ambito' | 'ambiguo' }> {
     const scopes = await this.scopes();
     const containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> = step.scope
       ? await this.resolveScope(step.scope, scopes)
       : scopes;
-    if (step.scope && containers.length === 0) return null; // scope irresoluble: no se adivina cuál contar
+    /**
+     * K0.33 — "no encontré DÓNDE contar" y "no sé en CUÁL de dos contar" son
+     * hallazgos distintos y hasta ahora se reportaban con la misma frase
+     * ("ambigua entre contenedores/frames"), que además era falsa en el primer
+     * caso. Es el mismo principio que separó ámbito-irresoluble de texto-ausente
+     * en K0.30: mezclarlos envenena la reconciliación, porque uno apunta al
+     * guion y el otro a la pantalla.
+     */
+    if (step.scope && containers.length === 0) return { fallo: 'ambito' };
 
     const visible = (scope: Page | Frame | Locator, attempt: LocatorAttempt): Locator =>
       this.attemptToLocator(scope, attempt).filter({ visible: true });
@@ -2202,7 +2314,7 @@ class DomWalker {
           const count = await visible(container.scope, attempt).count().catch(() => 0);
           if (count > 0) hits.push(container);
         }
-        if (hits.length > 1) return null; // ambiguo entre contenedores/frames: no se adivina cuál contar
+        if (hits.length > 1) return { fallo: 'ambiguo' }; // no se adivina en cuál contar
         if (hits.length === 1) {
           const container = hits[0];
           const source = container.via ? `${container.via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
@@ -2213,7 +2325,7 @@ class DomWalker {
     // ningún intento resolvió en ningún contenedor: colección VACÍA — es el dato, no un fallo de locator
     const attempt = rawPlan[0];
     const container = containers[0];
-    if (!attempt || !container) return null;
+    if (!attempt || !container) return { fallo: 'ambito' };
     const source = container.via ? `${container.via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
     return { locator: visible(container.scope, attempt), via: source, frame_path: container.path };
   }
@@ -3260,9 +3372,13 @@ class DomWalker {
         const operator = step.operator!;
         const threshold = Number(step.value!);
         const resolved = await this.resolveCollection(step);
-        if (!resolved) {
-          this.blockStep(flow, step, `drift: colección de expect_count ambigua entre contenedores/frames`, false);
-          this.audit('block', `expect_count ambiguo ${stepKey}`, { phase: 'expect-count', settle: obs });
+        if ('fallo' in resolved) {
+          const why =
+            resolved.fallo === 'ambito'
+              ? `el contenedor declarado de expect_count no está en pantalla: no hay dónde contar (distinto de "cuenta 0")`
+              : `drift: colección de expect_count ambigua entre contenedores/frames`;
+          this.blockStep(flow, step, why, false);
+          this.audit('block', `expect_count sin colección (${resolved.fallo}) ${stepKey}`, { phase: 'expect-count', settle: obs });
           this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
           return;
         }
@@ -3312,9 +3428,13 @@ class DomWalker {
         const operator = each.operator;
         const threshold = Number(each.value);
         const outer = await this.resolveCollection(step);
-        if (!outer) {
-          this.blockStep(flow, step, `drift: contenedores de expect_each ambiguos entre frames`, false);
-          this.audit('block', `expect_each ambiguo ${stepKey}`, { phase: 'expect-each', settle: obs });
+        if ('fallo' in outer) {
+          const why =
+            outer.fallo === 'ambito'
+              ? `el contenedor declarado de expect_each no está en pantalla: no hay dónde mirar`
+              : `drift: contenedores de expect_each ambiguos entre frames`;
+          this.blockStep(flow, step, why, false);
+          this.audit('block', `expect_each sin contenedores (${outer.fallo}) ${stepKey}`, { phase: 'expect-each', settle: obs });
           this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
           return;
         }

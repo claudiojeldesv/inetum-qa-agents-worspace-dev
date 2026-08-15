@@ -939,3 +939,143 @@ pasos resueltos dentro de un iframe se excluyen con ese motivo; y el rendimiento
 depende de que el guion declare postcondiciones — un guion sin `expect_after` produce cero
 casos con verdad, lo cual es correcto y además es el incentivo que ya empuja el check
 `MF-postcondition`.
+
+## 23. K0.33 — gira de stacks, sitio 2 (SAP UI5): el peldaño exacto no era solo del texto
+
+Sitio 2 de la gira: **SAP UI5 1.151**, la familia de los back-office de seguros y los
+portales de banca construidos sobre SAPUI5/Fiori. Objetivo: la app de demostración
+*Shopping Cart* del Demo Kit — una aplicación UI5 completa (maestro-detalle, buscador,
+carrito), no una página de documentación. Protocolo de guion CIEGO (K0.17): hints con solo
+vocabulario visible en pantalla, predicciones por escrito antes de correr, guion intocado
+entre la escritura y el run (`copilot/fixtures/openui5-ciego.walk.json`, con la declaración
+de sesgo y las ocho predicciones dentro del propio fichero).
+
+**Primer run: 10/13 pasos — y dos de esos diez eran mentira.** Esa es la lectura que
+importa, no la cifra. El detalle salió de cuatro probes de solo lectura posteriores al run;
+ninguna causa se dio por supuesta.
+
+### D1 — el peldaño EXACTO no era solo del peldaño de texto
+
+K0.28 puso el intento exacto delante del substring en `getByText`. Faltaba ver que
+`getByLabel` y `getByRole({name})` **también matchean por substring**. El buscador del
+catálogo tiene `aria-label="Search"` y vive dentro de una región etiquetada *"Product
+Catalog Search and Navigation"*, que contiene la palabra: `getByLabel('Search')` devuelve
+DOS y el paso se plantaba. Con el exacto delante, una.
+
+El argumento de seguridad es el mismo de K0.28, palabra por palabra: si el exacto es único
+está dentro del conjunto del substring, así que un substring que hoy resuelve único resuelve
+al MISMO elemento. No puede cambiar una resolución por otra — solo convierte plantas en
+resoluciones. La forma exacta se emite y **se relee** (aliases, `step.locator`, replay), y en
+la pasada normalizada va como regex ANCLADA, o desharía el peldaño.
+
+### D2 — un hint de NOMBRE no puede terminar en un substring de TEXTO
+
+El peor hallazgo de la gira. El icono del carrito es un botón solo-icono; el hint del guion
+era `{name:'Cart'}`. Sin `role` no se emite intento de rol, así que la escalera cae al
+peldaño de texto: exacto → cero, substring → **una** coincidencia visible... el botón "Add
+to Cart". El walker resolvió, pulsó, reportó `ok` y **añadió una segunda unidad al
+carrito**: EQUIVOCADO con duplicación de negocio, que es exactamente lo que este componente
+existe para no hacer. Nada lo cazó porque el paso no llevaba postcondición.
+
+El arreglo no es "substring es peligroso" — para `text` sigue siendo la red que absorbe el
+drift de sufijos ("Total: 12 €" desde 'Total'). Es que aquí se encadenan DOS saltos: se
+cambia de atributo (nombre accesible → texto visible) y además se afloja el matching. Con el
+atributo ya sustituido, la única comparación defendible es la exacta. Si el FD quería decir
+"el texto que se ve", el guion tiene `text` para eso.
+
+Y una regla dura nueva, hermana de esta: **la ambigüedad no se repara descendiendo de
+peldaño**. Cero coincidencias significa "este vocabulario no describe al elemento aquí" y
+tiene sentido probar otro peldaño; dos o más significa "la palabra del guion designa a
+varias cosas", y ningún peldaño más flojo puede arreglar eso — solo elegir una por su
+cuenta. La escalera para y el paso sube al panel, que es donde un humano desambigua.
+Honestidad sobre esta regla: **en este run no salvó ningún caso**; su evidencia es
+estructural y su coste medido fue cero (ningún banco con navegador se degradó).
+
+### D3 — el verde falso que se apoyaba en un cartel
+
+La postcondición "el producto está en el carrito" llevaba `scope: {name:'Shopping Cart'}`, y
+resolvió al `MessageToast` que la app acababa de mostrar: *Product "Astro Laptop 1516" added
+to your shopping cart* — un elemento que contiene A LA VEZ el nombre del ámbito y el texto
+buscado. La aserción pasó en verde **sin que el carrito llegara a abrirse**. No probó que el
+producto estuviera dentro: probó que salió un cartel diciéndolo. Es §20 en su forma más
+traicionera, porque el aviso repite el hecho de negocio con las mismas palabras.
+
+D2 lo mata en esta instancia (con solo el intento exacto, el toast ya no matchea). Se
+consideró y **se descartó** una guarda estructural que prohibiera que un `role=alert` /
+`aria-live` fuera ámbito: "en el mensaje de error aparece X" es una postcondición legítima,
+y no hay ninguna instancia medida que sobreviva a D2. Queda **nombrada, no arreglada**.
+
+### D4 — el consentimiento: dos puertas, no una
+
+El CMP del Demo Kit es **TrustArc**, que ya estaba en el catálogo de familias, y su banner es
+`position: fixed`. Aun así el run terminó con **cero apuntes de consentimiento y el banner
+intacto**: un fallo por silencio, no por rojo — el modo de fallo que este componente tiene
+prohibido. Dos causas encadenadas, las dos genéricas:
+
+1. **El momento.** El barrido iba pegado al `goto`, y los gestores de consentimiento se
+   cargan asíncronos: medido, el banner aparece a 1,95 s, mucho después. Después nada volvía
+   a mirar, porque el `addLocatorHandler` solo dispara en comprobaciones de accionabilidad.
+   Arreglo: barrer también **al final de cada settle** — ahí no cuesta nada (la pantalla
+   acaba de quedarse quieta, o sea que el CMP ya se inyectó) y llega antes de actuar.
+2. **"El más externo" no es "el banner".** TrustArc cuelga su barra de un envoltorio
+   `div#consent_blackbar` de **altura cero**; el banner real (`#truste-consent-track`,
+   1442x126) es hijo suyo. La regla de K0.30 elegía el envoltorio, la puerta de visibilidad
+   lo descartaba —bien, no se ve— y el banner se saltaba por anidado. Las dos reglas juntas
+   dejaban el CMP en pie. Arreglo: un ancestro solo tapa a su hijo **si él mismo se ve**.
+
+Verificado en el sitio real: `banner de consentimiento descartado ... por rechazo:
+DIV#truste-consent-track`. Rechazado, nunca aceptado, y auditado.
+
+Límite residual conocido y aceptado: una página en la que el guion no da ningún paso (la de
+entrada, en este guion) no se barre. Es inocuo —se abandona sin tocarla— y arreglarlo
+costaría una espera fija en CADA navegación.
+
+### Un verde falso en mi propio banco
+
+Al quitar el substring del peldaño alimentado por `name` (D2), un test de `expect_count` que
+llevaba verde desde la Fase 6 se puso rojo. No era una degradación: con la búsqueda sin
+resultados la tabla se OCULTA, así que el ámbito `{role:'table', name:'Declaraciones'}` no
+existe en pantalla — pero el plan caía al intento `getByText('Declaraciones')` y resolvía el
+ámbito al `<h1>Consulta Declaraciones</h1>`. Contar filas dentro de un titular da 0, y ese 0
+pasaba por "incumplido": **la respuesta correcta por el camino equivocado**, dentro del
+banco que usamos para detectar justo eso. De paso, `resolveCollection` mezclaba "no encontré
+DÓNDE contar" con "no sé en CUÁL contar" bajo la misma frase; ahora son dos diagnósticos,
+por el mismo principio que separó ámbito-irresoluble de texto-ausente en K0.30.
+
+### Resultado en campo, con el mismo guion ciego sin tocar
+
+| | primer run | tras los arreglos |
+|---|---|---|
+| pasos `ok` | 10/13 | 10/13 |
+| de los cuales, EQUIVOCADO | **1** (pulsó "Add to Cart" creyendo abrir el carrito) | 0 |
+| de los cuales, verde falso | **1** (aserción contra el toast) | 0 |
+| flujo del buscador | 1/4 (hint irresoluble) | **4/4** |
+| flujo del carrito | 3/5, dos de ellos mintiendo | 2/5, los tres rojos honestos |
+
+La cifra no se mueve; lo que cambia es cuánta de ella es verdad. Los tres rojos que quedan
+dicen cosas distintas y correctas: el hint `{name:'Cart'}` es genuinamente ambiguo y sube al
+panel, el ámbito declarado no se encuentra, y el total no está porque el carrito nunca se
+abrió. Un walker que se planta es lento; uno que se equivoca en silencio es inservible.
+
+### Predicciones del guion ciego, puntuadas
+
+P1 (consentimiento) acertó el desenlace y falló la causa: predije "falta la familia" y la
+familia estaba — fallaban el momento y la regla del envoltorio. P3 (maestro-detalle) exacta,
+incluido el peldaño por el que resolvió. P4 (buscador) acertó el desenlace —fallo honesto, no
+timeout— y **falló la causa**: predije el hueco de `getByPlaceholder` de K0.19 y era el
+substring del nombre. P5 (icono) resolvió por una rama que no había escrito: no era ni que
+resolviera ni que se plantara, es que resolvía OTRA COSA. P6 (ámbito) predije dos salidas y
+ocurrió una tercera, la peor. P7 (total) falló: el literal era exacto, el rojo venía de D2.
+Dos aciertos limpios de ocho: el guion ciego sigue ganándome, que es justo para lo que está.
+
+### Lo que NO se tocó, y por qué
+
+`getByPlaceholder` sigue declarado en el contract e ignorado por `PRIORITY_TO_KIND`: la
+predicción P4 apuntaba ahí y la evidencia dijo otra cosa, así que sigue sin instancia medida.
+El peldaño *anchored-trigger* (el "Ordenar por" de PrestaShop) tampoco: en UI5 el botón
+solo-icono **sí** tiene nombre accesible ("Show Shopping Cart"), o sea que esta familia no
+reproduce la clase y sigue con muestra de uno — no se construye. El Style Contract de
+`openui5` se dejó **sin bloque `settle`** a propósito, pese a que UI5 tiene una señal de
+ocupado conocida (`sapUiLocalBusyIndicator`): declararla antes de medir habría sesgado el run
+— no sabríamos si el walker se sincroniza solo o si lo hizo la pista. No hizo falta: cero
+`settle_timeout` en los dos runs.

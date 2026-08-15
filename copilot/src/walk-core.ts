@@ -135,8 +135,8 @@ export function accentInsensitiveExactPattern(value: string): string {
 
 export type LocatorAttempt =
   | { kind: 'test_id'; value: string }
-  | { kind: 'role'; role: string; name?: string; normalized?: boolean }
-  | { kind: 'label'; value: string; normalized?: boolean }
+  | { kind: 'role'; role: string; name?: string; normalized?: boolean; exact?: boolean }
+  | { kind: 'label'; value: string; normalized?: boolean; exact?: boolean }
   /** `exact` (K0.28): texto COMPLETO del elemento, no substring. Ver hintLocatorPlan. */
   | { kind: 'text'; value: string; normalized?: boolean; exact?: boolean };
 
@@ -157,8 +157,27 @@ export function hintLocatorPlan(hint: StepHint, priority: string[]): LocatorAtte
     const kind = PRIORITY_TO_KIND[p];
     if (!kind) continue; // entradas desconocidas del contract se ignoran aquí; el validador del contract ya avisa
     if (kind === 'test_id' && hint.test_id) attempts.push({ kind, value: hint.test_id });
-    if (kind === 'role' && hint.role) attempts.push({ kind, role: hint.role, name: hint.name });
-    if (kind === 'label' && hint.label) attempts.push({ kind, value: hint.label });
+    /**
+     * K0.33 — el peldaño EXACTO no era solo del texto. `getByRole({name})` y
+     * `getByLabel()` también matchean por SUBSTRING, y en campo (UI5, sitio 2 de
+     * la gira) eso mató el buscador: el hint {label:'Search'} calzaba a la vez
+     * con el `<input aria-label="Search">` y con la región que lo envuelve,
+     * etiquetada "Product Catalog Search and Navigation" → dos coincidencias →
+     * el paso se plantaba. Con el intento exacto delante, una.
+     *
+     * El mismo argumento de K0.28, verbatim: si el exacto es único, está dentro
+     * del conjunto del substring, así que un substring que hoy resuelve único
+     * resuelve al MISMO elemento. No puede cambiar una resolución por otra —
+     * solo convierte plantas en resoluciones.
+     */
+    if (kind === 'role' && hint.role) {
+      if (hint.name) attempts.push({ kind, role: hint.role, name: hint.name, exact: true });
+      attempts.push({ kind, role: hint.role, name: hint.name });
+    }
+    if (kind === 'label' && hint.label) {
+      attempts.push({ kind, value: hint.label, exact: true });
+      attempts.push({ kind, value: hint.label });
+    }
     /**
      * K0.28 — el peldaño de TEXTO prueba EXACTO antes que substring. Medido en
      * campo (tufarmacia, CP02-s1): el hint 'Medicamentos' murió por ambigüedad
@@ -174,7 +193,23 @@ export function hintLocatorPlan(hint: StepHint, priority: string[]): LocatorAtte
     if (kind === 'text' && (hint.text ?? hint.name)) {
       const value = (hint.text ?? hint.name) as string;
       attempts.push({ kind, value, exact: true });
-      attempts.push({ kind, value });
+      /**
+       * K0.33 — la red de substring es SOLO para `text`, no para `name`. Medido en
+       * campo (UI5, sitio 2), y es el fallo mudo más caro de la gira: el hint
+       * {name:'Cart'} del icono del carrito no lleva `role`, así que la escalera
+       * nunca prueba `getByRole` y cae al peldaño de texto. Exacto → cero; substring
+       * → UNA coincidencia visible... el botón "Add to Cart". El walker resolvió,
+       * pulsó, reportó `ok` y añadió una segunda unidad al carrito: EQUIVOCADO con
+       * duplicación de negocio, que es lo peor que puede hacer este componente.
+       *
+       * El razonamiento no es "substring es peligroso" —para `text` es la red que
+       * absorbe el drift de sufijos ("Total: 12 €" desde 'Total')— sino que aquí se
+       * encadenan DOS saltos: se cambia de atributo (nombre accesible → texto
+       * visible) y además se afloja el matching. Con el atributo ya sustituido, la
+       * única comparación defendible es la exacta. Si el FD quería decir "el texto
+       * que se ve", el guion tiene `text` para eso.
+       */
+      if (hint.text) attempts.push({ kind, value });
     }
   }
   return attempts;
@@ -196,18 +231,24 @@ export function normalizedPlan(attempts: LocatorAttempt[]): LocatorAttempt[] {
 
 /** Representación textual de un intento (para dom-map, transitions y audit). */
 export function locatorSource(a: LocatorAttempt): string {
-  const norm = (v: string) => `/${accentInsensitivePattern(v)}/i`;
+  // K0.33 — normalizado + exacto = patrón ANCLADO, igual que en el texto (K0.28):
+  // una regex sin anclar volvería a ser substring y desharía el peldaño exacto.
+  const norm = (v: string, exact?: boolean) =>
+    `/${exact ? accentInsensitiveExactPattern(v) : accentInsensitivePattern(v)}/i`;
   switch (a.kind) {
     case 'test_id':
       return `getByTestId('${a.value}')`;
     case 'role':
-      if (a.normalized && a.name) return `getByRole('${a.role}', { name: ${norm(a.name)} })`;
-      return a.name
-        ? `getByRole('${a.role}', { name: '${a.name.replace(/'/g, "\\'")}' })`
-        : `getByRole('${a.role}')`;
+      if (a.normalized && a.name) return `getByRole('${a.role}', { name: ${norm(a.name, a.exact)} })`;
+      if (!a.name) return `getByRole('${a.role}')`;
+      return a.exact
+        ? `getByRole('${a.role}', { name: '${a.name.replace(/'/g, "\\'")}', exact: true })`
+        : `getByRole('${a.role}', { name: '${a.name.replace(/'/g, "\\'")}' })`;
     case 'label':
-      if (a.normalized) return `getByLabel(${norm(a.value)})`;
-      return `getByLabel('${a.value.replace(/'/g, "\\'")}')`;
+      if (a.normalized) return `getByLabel(${norm(a.value, a.exact)})`;
+      return a.exact
+        ? `getByLabel('${a.value.replace(/'/g, "\\'")}', { exact: true })`
+        : `getByLabel('${a.value.replace(/'/g, "\\'")}')`;
     case 'text':
       if (a.normalized) return `getByText(/${a.exact ? accentInsensitiveExactPattern(a.value) : accentInsensitivePattern(a.value)}/i)`;
       return a.exact

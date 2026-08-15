@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>CMP colgado de un envoltorio de altura cero</title>
+<!--
+  K0.33 — la clase medida en el sitio 2: el contenedor MÁS EXTERNO que matchea el
+  catálogo de familias no es el banner, es un ancla de ALTURA CERO. TrustArc
+  cuelga su barra de `div#consent_blackbar` (height 0) y el banner real es hijo
+  suyo. Con "solo el más externo" + "tiene que verse", las dos reglas juntas
+  dejaban el CMP intacto: se elegía el envoltorio, se descartaba por invisible, y
+  el banner se saltaba por anidado.
+
+  El envoltorio lleva id `consent_blackbar` (matchea el genérico *consent* solo si
+  además fuese role=dialog — aquí lo que lo mete en el catálogo es su hijo) y el
+  banner lleva el id de familia. Así el fixture reproduce la ANIDACIÓN, que es lo
+  que se prueba.
+-->
+<style>
+  body { font: 14px system-ui, sans-serif; padding: 16px; }
+  #consent_blackbar { position: relative; z-index: 999999; height: 0; }
+  #truste-consent-track { position: fixed; bottom: 0; left: 0; right: 0;
+    background: #1b1b1b; color: #fff; padding: 14px; }
+</style>
+
+<h1>Panel de p&oacute;lizas</h1>
+<button id="continuar">Continuar</button>
+<p id="estado">sin continuar</p>
+<p id="cmp">consentimiento pendiente</p>
+
+<div id="consent_blackbar">
+  <div id="truste-consent-track">
+    <span>Este sitio utiliza cookies y tecnolog&iacute;as relacionadas.</span>
+    <button id="truste-consent-button">Aceptar todo</button>
+    <button id="truste-consent-required">Rechazar todo</button>
+    <a href="#" id="mas-cookies" aria-label="M&aacute;s sobre cookies">Declaraci&oacute;n sobre Cookies</a>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  $('continuar').addEventListener('click', () => { $('estado').textContent = 'continuado'; });
+  $('truste-consent-required').addEventListener('click', () => {
+    $('consent_blackbar').remove();
+    $('cmp').textContent = 'consentimiento rechazado';
+  });
+  $('truste-consent-button').addEventListener('click', () => {
+    $('consent_blackbar').remove();
+    $('cmp').textContent = 'CONSENTIMIENTO ACEPTADO';
+  });
+</script>
+</html>

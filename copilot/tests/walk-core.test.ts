@@ -69,13 +69,54 @@ describe('hintLocatorPlan', () => {
 
   it('respeta el orden del priority del contract', () => {
     const plan = hintLocatorPlan({ test_id: 'login-button', role: 'button', name: 'Login' }, PRIORITY);
-    // el peldaño de texto son DOS intentos desde K0.28: exacto y, detrás, substring
-    expect(plan.map((a) => a.kind)).toEqual(['test_id', 'role', 'text', 'text']);
+    // role son DOS intentos desde K0.33 (exacto, substring) por la misma razón
+    // que el texto en K0.28: getByRole({name}) también matchea por substring.
+    // El texto es UNO solo porque aquí lo alimenta `name`, no `text` (K0.33).
+    expect(plan.map((a) => a.kind)).toEqual(['test_id', 'role', 'role', 'text']);
   });
 
   it('omite intentos sin datos en el hint', () => {
     const plan = hintLocatorPlan({ role: 'textbox', name: 'Username' }, PRIORITY);
-    expect(plan.map((a) => a.kind)).toEqual(['role', 'text', 'text']);
+    expect(plan.map((a) => a.kind)).toEqual(['role', 'role', 'text']);
+  });
+
+  it('K0.33: el peldaño de LABEL prueba exacto antes que substring', () => {
+    // la clase de campo (UI5): el <input aria-label="Search"> y la región que lo
+    // envuelve, etiquetada "Product Catalog Search and Navigation". Substring ve
+    // dos y el paso se planta; exacto ve uno.
+    const plan = hintLocatorPlan({ label: 'Search' }, PRIORITY);
+    expect(plan.map(locatorSource)).toEqual([
+      "getByLabel('Search', { exact: true })",
+      "getByLabel('Search')",
+    ]);
+  });
+
+  it('K0.33: el peldaño de ROLE prueba exacto antes que substring', () => {
+    const plan = hintLocatorPlan({ role: 'button', name: 'Cart' }, ['getByRole']);
+    expect(plan.map(locatorSource)).toEqual([
+      "getByRole('button', { name: 'Cart', exact: true })",
+      "getByRole('button', { name: 'Cart' })",
+    ]);
+  });
+
+  it('K0.33: un hint de NOMBRE no cae a substring de texto (el fallo mudo de UI5)', () => {
+    // {name:'Cart'} sin `role` no produce intento de role, así que la escalera cae
+    // al peldaño de texto. Con substring resolvía UNA coincidencia visible —el
+    // botón "Add to Cart"— y el walker lo pulsaba: EQUIVOCADO con duplicación de
+    // negocio. Cambiar de atributo Y aflojar el matching son dos saltos.
+    expect(hintLocatorPlan({ name: 'Cart' }, ['getByText']).map(locatorSource)).toEqual([
+      "getByText('Cart', { exact: true })",
+    ]);
+    // pero cuando el FD dice TEXTO, la red de substring sigue puesta (drift de sufijos)
+    expect(hintLocatorPlan({ text: 'Total' }, ['getByText']).map(locatorSource)).toEqual([
+      "getByText('Total', { exact: true })",
+      "getByText('Total')",
+    ]);
+  });
+
+  it('K0.33: un role SIN name no duplica intento (no hay texto que acotar)', () => {
+    const plan = hintLocatorPlan({ role: 'button' }, PRIORITY);
+    expect(plan).toEqual([{ kind: 'role', role: 'button', name: undefined }]);
   });
 
   it('usa hint.text para getByText y cae a name si no hay text', () => {
@@ -108,7 +149,7 @@ describe('hintLocatorPlan', () => {
 
   it('con priority invertida cambia el orden de intentos', () => {
     const plan = hintLocatorPlan({ test_id: 'x', role: 'button', name: 'Go' }, ['getByRole', 'getByTestId']);
-    expect(plan.map((a) => a.kind)).toEqual(['role', 'test_id']);
+    expect(plan.map((a) => a.kind)).toEqual(['role', 'role', 'test_id']);
   });
 });
 
@@ -374,7 +415,7 @@ describe('normalizedPlan (K0.1)', () => {
   it('excluye test_id y conserva el orden del contract', () => {
     const raw = hintLocatorPlan({ test_id: 'x', role: 'link', name: 'GESTION' }, PRIORITY);
     const norm = normalizedPlan(raw);
-    expect(norm.map((a) => a.kind)).toEqual(['role', 'text', 'text']);
+    expect(norm.map((a) => a.kind)).toEqual(['role', 'role', 'text']);
     expect(norm.every((a) => 'normalized' in a && a.normalized)).toBe(true);
   });
 
