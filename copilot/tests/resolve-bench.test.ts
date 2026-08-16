@@ -82,6 +82,31 @@ describe('K0.31 — banco de resolución', () => {
     expect(malo.via).toBeDefined();
   }, 120_000);
 
+  it('K0.40 — «dentro» es su propio desenlace: ni acierto ni EQUIVOCADO', async () => {
+    // La forma más común de un control real: `<a><span>Texto</span></a>`. El
+    // peldaño de texto resuelve el `<span>` y lo anotado es el `<a>`. El clic
+    // burbuja, así que el negocio ocurre igual — pero no es el mismo nodo.
+    const r = await correrCorpus();
+    const d = r.get('dentro-del-anotado')!;
+    expect(d.outcome).toBe('dentro');
+    expect(d.got).toContain('span');
+    // y NO se cuela en la cifra de acierto: son líneas distintas del informe
+    const txt = renderBench([...r.values()]);
+    expect(txt).toMatch(/acierto {8}4\b/);
+    expect(txt).toMatch(/dentro {9}1\b/);
+  }, 120_000);
+
+  it('K0.40 — MITADES FALSABLES: el ancestro y la acción que no propaga siguen siendo EQUIVOCADO', async () => {
+    // Sin estas dos, «dentro» sería una amnistía en vez de una categoría.
+    const r = await correrCorpus();
+    // hacia arriba no burbuja: pulsar el contenedor pulsa su centro, otro hijo
+    expect(r.get('ancestro-sigue-siendo-equivocado')!.outcome).toBe('EQUIVOCADO');
+    expect(r.get('ancestro-sigue-siendo-equivocado')!.relacion).toBe('ancestro');
+    // teclear sobre el span no activa el enlace: ahí «por dentro» no equivale a nada
+    expect(r.get('dentro-sin-propagacion')!.outcome).toBe('EQUIVOCADO');
+    expect(r.get('dentro-sin-propagacion')!.relacion).toBe('dentro');
+  }, 120_000);
+
   it('un caso sin verdad anotada no puntúa a favor de nadie', async () => {
     const r = await correrCorpus();
     const sin = r.get('sin-verdad')!;
@@ -96,7 +121,7 @@ describe('K0.31 — banco de resolución', () => {
     // y el informe lo aparta del recuento del walker: 0 equivocados REALES
     const txt = renderBench([...r.values()]);
     expect(txt).toContain('EQUIVOCADO     0');
-    expect(txt).toContain('autocomprobación del banco: 1/1 OK');
+    expect(txt).toContain('autocomprobación del banco: 3/3 OK');
   }, 120_000);
 
   it('si el control deja de detectar el fallo mudo, el informe grita BANCO ROTO', () => {

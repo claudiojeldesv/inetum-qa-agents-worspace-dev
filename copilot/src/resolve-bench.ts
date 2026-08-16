@@ -31,7 +31,7 @@
  * Uso:
  *   tsx copilot/src/resolve-bench.ts <manifest.jsonl> [--contract=<yaml>] [--json] [--limit=N]
  */
-import { existsSync, readFileSync, mkdtempSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -60,7 +60,35 @@ export interface BenchCase {
   expect?: BenchOutcome;
 }
 
-export type BenchOutcome = 'acierto' | 'EQUIVOCADO' | 'planta';
+/**
+ * K0.40 — el cuarto desenlace, y hay que justificarlo porque es el único que
+ * podría estar inventado para que la cifra quede bonita.
+ *
+ * En un corpus real la mitad de los controles son `<a><span>Texto</span></a>`, y
+ * el peldaño de texto resuelve al nodo MÁS PROFUNDO que contiene el texto: el
+ * `<span>`, no el `<a>` que anotó la persona. Medido en Mind2Web: 8 de los 9
+ * primeros "EQUIVOCADO" eran exactamente eso.
+ *
+ * Eso no es un fallo mudo. Un clic sobre el `<span>` BURBUJEA hasta el `<a>`: se
+ * ejecuta el mismo manejador y el negocio ocurre igual. Cuál de los dos nodos es
+ * "el elemento" es una decisión de modelado del dataset, no un hecho de la
+ * página.
+ *
+ * Tres cautelas que hacen que la categoría no sea una amnistía:
+ *  - Solo cuenta HACIA DENTRO. Resolver un ANCESTRO del anotado es EQUIVOCADO y
+ *    se queda así: pulsar el contenedor pulsa su centro, que puede ser otro hijo.
+ *  - Solo para acciones cuyo efecto propaga (`click`/`hover`). Escribir o
+ *    seleccionar sobre un descendiente no equivale a nada.
+ *  - Nunca se suma al acierto. Va en su propia línea y con su propio recuento.
+ *
+ * Límite declarado: offline no se puede comprobar que el descendiente no pare la
+ * propagación (`stopPropagation`, `pointer-events:none`). Es la parte de esta
+ * categoría que se sostiene por argumento y no por medida.
+ */
+export type BenchOutcome = 'acierto' | 'dentro' | 'EQUIVOCADO' | 'planta';
+
+/** Acciones cuyo efecto alcanza al elemento anotado desde un descendiente. */
+const ACCIONES_QUE_PROPAGAN = new Set<WalkAction>(['click', 'hover']);
 
 export interface BenchResult {
   id: string;
@@ -71,12 +99,33 @@ export interface BenchResult {
   got?: string;
   /** Por qué no hay veredicto posible (target inexistente en la foto, HTML ilegible). */
   invalid?: string;
+  /** Relación con lo anotado cuando el desenlace es EQUIVOCADO: `ajeno` o `ancestro`. */
+  relacion?: string;
   /** Caso de control: qué se esperaba y si el arnés lo cumplió. No puntúa al walker. */
   control?: { expected: BenchOutcome; ok: boolean };
 }
 
 /** Atributo con el que se marca la verdad anotada dentro de la foto. */
 const TARGET_ATTR = 'data-bench-target';
+
+/**
+ * VIGILANTE (K0.40). Un tope de Playwright no basta: entre miles de páginas
+ * reales hay volcados que dejan al navegador VIVO PERO SORDO — `isConnected()`
+ * sigue diciendo que sí y la siguiente petición no vuelve nunca. Medido tres
+ * veces con la misma firma: el reloj corriendo y la CPU al 3%.
+ *
+ * Un corpus de miles no puede depender de que las miles contesten. El plazo va
+ * FUERA del navegador para no depender de que el navegador conteste.
+ */
+export function conTope<T>(p: Promise<T>, ms: number, que: string): Promise<T> {
+  // el rechazo tardío de la promesa abandonada no puede tumbar el proceso
+  p.catch(() => undefined);
+  let t: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    p.finally(() => clearTimeout(t)),
+    new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error(`${que}: tope de ${ms} ms agotado`)), ms); }),
+  ]);
+}
 
 export function parseManifest(text: string): BenchCase[] {
   const out: BenchCase[] = [];
@@ -150,14 +199,27 @@ async function evaluarCaso(page: Page, walker: DomWalker, c: BenchCase, html: st
   const resolved = await walker.benchResolve(step).catch(() => null);
   if (!resolved) return { id: c.id, site, outcome: 'planta' };
 
-  const esElBueno = await resolved.locator
-    .evaluate((el, attr: string) => el.hasAttribute(attr), TARGET_ATTR)
-    .catch(() => false);
-  if (esElBueno) return { id: c.id, site, outcome: 'acierto', via: resolved.via };
-  const got = await resolved.locator
-    .evaluate((el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} "${(el.textContent ?? '').trim().slice(0, 40)}"`)
-    .catch(() => '(ilegible)');
-  return { id: c.id, site, outcome: 'EQUIVOCADO', via: resolved.via, got };
+  // Un solo viaje al navegador: relación con lo anotado + descripción de lo
+  // resuelto, en una cadena (devolver un objeto obliga a una función auxiliar
+  // dentro del `evaluate`, y esbuild la envuelve con `__name`, que no existe en
+  // la página — la trampa de la Fase 6, ya pisada dos veces).
+  const crudo = await resolved.locator
+    .evaluate((el, attr: string) => {
+      const t = document.querySelector(`[${attr}]`);
+      let rel = 'ajeno';
+      if (el.hasAttribute(attr)) rel = 'es';
+      else if (t && t.contains(el)) rel = 'dentro';
+      else if (t && el.contains(t)) rel = 'ancestro';
+      const d = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} "${(el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)}"`;
+      return `${rel}||${d}`;
+    }, TARGET_ATTR)
+    .catch(() => 'ajeno||(ilegible)');
+  const [rel, got] = crudo.split('||');
+  if (rel === 'es') return { id: c.id, site, outcome: 'acierto', via: resolved.via };
+  if (rel === 'dentro' && ACCIONES_QUE_PROPAGAN.has(c.action)) {
+    return { id: c.id, site, outcome: 'dentro', via: resolved.via, got };
+  }
+  return { id: c.id, site, outcome: 'EQUIVOCADO', via: resolved.via, got, relacion: rel };
 }
 
 /** ¿Falló alguna autocomprobación? Si el termómetro miente, la medida no vale. */
@@ -176,7 +238,8 @@ export function renderBench(results: BenchResult[]): string {
   const pct = (x: number): string => (n === 0 ? '0%' : `${((x / n) * 100).toFixed(1)}%`);
   const lines = [
     `casos          ${n}${invalid ? `  (${invalid} sin verdad anotada: no puntúan a favor de nadie)` : ''}`,
-    `acierto        ${by('acierto').length}  (${pct(by('acierto').length)})`,
+    `acierto        ${by('acierto').length}  (${pct(by('acierto').length)})   ← el nodo anotado, exacto`,
+    `dentro         ${by('dentro').length}  (${pct(by('dentro').length)})   ← un descendiente: el clic burbuja al anotado`,
     `planta         ${by('planta').length}  (${pct(by('planta').length)})   ← honesto: panel o rescate`,
     `EQUIVOCADO     ${by('EQUIVOCADO').length}  (${pct(by('EQUIVOCADO').length)})   ← el que tiene que ser CERO`,
   ];
@@ -193,7 +256,7 @@ export function renderBench(results: BenchResult[]): string {
   const malos = by('EQUIVOCADO');
   if (malos.length > 0) {
     lines.push('', 'elementos equivocados (cada uno es un fallo mudo — la clase que hay que matar):');
-    for (const m of malos.slice(0, 20)) lines.push(`  ${m.id} [${m.site}] ${m.via} → ${m.got}`);
+    for (const m of malos.slice(0, 20)) lines.push(`  ${m.id} [${m.site}] (${m.relacion ?? '?'}) ${m.via} → ${m.got}`);
     if (malos.length > 20) lines.push(`  … y ${malos.length - 20} más`);
   }
   return lines.join('\n');
@@ -203,12 +266,19 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const manifestPath = args.find((a) => !a.startsWith('--'));
   if (!manifestPath) {
-    console.error('uso: tsx copilot/src/resolve-bench.ts <manifest.jsonl> [--contract=<yaml>] [--json] [--limit=N]');
+    console.error('uso: tsx copilot/src/resolve-bench.ts <manifest.jsonl> [--contract=<yaml>] [--json] [--json-out=<f.jsonl>] [--limit=N]');
     process.exit(1);
   }
   const contractPath = args.find((a) => a.startsWith('--contract='))?.slice('--contract='.length);
   const limit = Number(args.find((a) => a.startsWith('--limit='))?.slice('--limit='.length) ?? '0');
   const asJson = args.includes('--json');
+  /**
+   * Con un corpus de miles, un resultado que solo existe al final es un
+   * resultado que se pierde entero cuando algo va mal a mitad — pasó: 68 minutos
+   * de banco tirados al morir el proceso en el caso 4.000. Se escribe línea a
+   * línea, según salen.
+   */
+  const jsonOut = args.find((a) => a.startsWith('--json-out='))?.slice('--json-out='.length);
 
   const contract: StyleContract = contractPath
     ? (parseYaml(readFileSync(resolve(contractPath), 'utf8')) as StyleContract)
@@ -220,21 +290,43 @@ async function main(): Promise<void> {
   const dir = dirname(abs);
   const workDir = mkdtempSync(resolve(tmpdir(), 'qa-bench-'));
 
-  const browser: Browser = await chromium.launch();
-  const page = await browser.newPage();
+  let browser: Browser = await chromium.launch();
+  let page = await browser.newPage();
   await prepareBenchPage(page);
   // sin memoria de cliente: el banco mide la ESCALERA, no los alias aprendidos
-  const walker = DomWalker.forBench(page, contract, workDir, resolve(workDir, 'sin-alias.json'));
+  let walker = DomWalker.forBench(page, contract, workDir, resolve(workDir, 'sin-alias.json'));
+  /** Un navegador sordo no se cierra ni se comprueba: se abandona y se relanza. */
+  const relanzar = async (): Promise<void> => {
+    await conTope(browser.close(), 5_000, 'cierre').catch(() => undefined);
+    browser = await chromium.launch();
+    page = await browser.newPage();
+    await prepareBenchPage(page);
+    walker = DomWalker.forBench(page, contract, workDir, resolve(workDir, 'sin-alias.json'));
+  };
+
+  if (jsonOut) writeFileSync(resolve(jsonOut), '', 'utf8');
   const results: BenchResult[] = [];
+  const anota = (r: BenchResult): void => {
+    results.push(r);
+    if (jsonOut) appendFileSync(resolve(jsonOut), `${JSON.stringify(r)}\n`, 'utf8');
+    if (results.length % 250 === 0) console.error(`[bench] ${results.length}/${trabajo.length}`);
+  };
   for (const c of trabajo) {
     const html = loadHtml(c, dir);
     if (html === null) {
-      results.push({ id: c.id, site: c.site ?? '?', outcome: 'planta', invalid: 'html ausente' });
+      anota({ id: c.id, site: c.site ?? '?', outcome: 'planta', invalid: 'html ausente' });
       continue;
     }
-    results.push(await runCase(page, walker, c, html));
+    try {
+      anota(await conTope(runCase(page, walker, c, html), 60_000, 'caso'));
+    } catch (e) {
+      // Sin veredicto posible, y se dice: contarlo como plantada culparía a la
+      // escalera de una foto que ni siquiera llegó a cargarse.
+      anota({ id: c.id, site: c.site ?? '?', outcome: 'planta', invalid: `la foto colgó el navegador (${(e as Error).message})` });
+      await relanzar();
+    }
   }
-  await browser.close();
+  await conTope(browser.close(), 5_000, 'cierre').catch(() => undefined);
 
   if (asJson) console.log(JSON.stringify(results, null, 2));
   else console.log(renderBench(results));

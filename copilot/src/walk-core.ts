@@ -206,7 +206,24 @@ export function hintLocatorPlan(hint: StepHint, priority: string[]): LocatorAtte
     if (kind === 'placeholder' && (hint.label ?? hint.name ?? hint.text)) {
       const value = (hint.label ?? hint.name ?? hint.text) as string;
       attempts.push({ kind, value, exact: true });
-      attempts.push({ kind, value });
+      /**
+       * K0.40 — la red de substring del marcador es SOLO para `label`, por el
+       * mismo argumento con el que K0.33 se la quitó a `name` en el peldaño de
+       * texto: cuando ya se ha cambiado de atributo, aflojar además el matching
+       * son DOS saltos encadenados y la comparación deja de ser defendible.
+       *
+       * Y aquí no es teoría. Medido en Mind2Web (travelzoo, 1ba150cb-1): el paso
+       * pedía la sugerencia «Hotels» de una lista desplegada — hint
+       * {role:'listitem', name:'Hotels'} —, el rol no resolvió, el marcador exacto
+       * tampoco, y el substring encontró UNO: el `<input>` del buscador, cuyo
+       * marcador dice «Hotels, e.g. Las Vegas». Resolvió el campo de búsqueda en
+       * lugar de la opción del menú, en silencio. Único caso AJENO del corpus.
+       *
+       * `label` es el vocabulario con el que el FD dice "lo que se lee en el
+       * hueco del campo", así que ahí el substring sigue siendo la red del drift.
+       * De `name` (nombre accesible) al marcador solo se pasa exacto.
+       */
+      if (hint.label) attempts.push({ kind, value });
     }
     /**
      * K0.28 — el peldaño de TEXTO prueba EXACTO antes que substring. Medido en

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Plantilla</title></head>
+<!--
+  K0.40 — la forma MAS COMUN de un control en una pagina real, y la que obligo a
+  separar el cuarto desenlace del banco: el texto no cuelga del elemento
+  interactivo, cuelga de un <span> dentro de el.
+
+  El peldano de texto resuelve al nodo MAS PROFUNDO que contiene el texto, o sea
+  el <span>, y lo anotado por la persona es el <a>. En un clic el evento burbuja
+  y el negocio ocurre igual, asi que no es un fallo mudo — pero tampoco es el
+  mismo nodo, y sumarlo al acierto seria maquillar.
+
+  Las dos mitades falsables viven aqui al lado:
+   - #ficha tiene su propio nombre accesible, asi que la escalera resuelve el
+     ANCESTRO de lo anotado. Eso NO burbuja hacia abajo: pulsar el contenedor
+     pulsa su centro, que puede ser otro hijo. Sigue siendo EQUIVOCADO.
+   - la misma resolucion "por dentro" con una accion que no propaga (press) no
+     equivale a nada: teclear sobre el <span> no activa el enlace.
+-->
+<body>
+  <nav>
+    <a href="/roster" id="enlace-roster"><span>Roster</span></a>
+  </nav>
+
+  <div id="ficha" role="group" aria-label="Ficha del equipo">
+    <span id="dorsal">23</span>
+    <button id="seguir">Seguir</button>
+  </div>
+</body></html>

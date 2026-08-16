@@ -1640,3 +1640,94 @@ aislar las suites de navegador en su propia ejecución, no seguir moviendo cifra
 ### Resultado
 
 5 tests nuevos con sus dos pares falsables. 557/557 en suite completa, tres veces seguidas.
+
+## 30. K0.40 — Mind2Web: la escalera medida contra 73 sitios que no elegimos
+
+Hasta aquí todo lo que sabíamos de la escalera venía de sitios elegidos por nosotros: la gira
+de stacks, el banco corporativo, los fixtures. Eso no puede desmentir la afirmación central
+del producto. Mind2Web sí: 137 sitios reales, acciones humanas anotadas sobre el HTML de la
+página en el instante de cada acción, licencia abierta.
+
+El detalle completo —método, reparaciones de la foto, ablaciones, limitaciones— vive en
+[`docs/findings/banco-mind2web.md`](findings/banco-mind2web.md). Aquí solo lo que cambia el
+modelo del producto.
+
+### La cifra
+
+**6.249 casos, 73 sitios, 0 tokens**, con la configuración menos favorable: los cinco
+peldaños por defecto para todos, sin client pack, sin alias, sin `settle`.
+
+| desenlace | casos | % |
+|---|---|---|
+| acierto exacto | 4.170 | 66,7% |
+| `dentro` (descendiente; el clic burbuja) | 645 | 10,3% |
+| plantada honesta | 1.396 | 22,3% |
+| **EQUIVOCADO** | **38** | **0,6%** |
+
+De los 38, **21 son «ajeno»** (resolvió otra cosa), 14 son descendientes con una acción que
+falla en voz alta, y 3 son ancestros. El fallo fuerte es **0,34%**.
+
+Y el reparto por peldaño confirma el diseño de la escalera: `getByRole` da **2.954 aciertos y
+5 fallos**; `getByText` —el último y el más flojo, que solo entra cuando los de arriba no
+resolvieron— da 1.216 aciertos y **33 fallos**. La escalera falla donde era previsible.
+
+### Lo que NO se puede concluir
+
+Mind2Web es web pública de consumo. No dice nada de banca ni de seguros corporativos, y sumar
+esta evidencia a la de la gira sería mezclar dos cosas distintas. Además el corpus **borra los
+`href`**, así que en la clase más numerosa —los enlaces— la escalera pierde su peldaño más
+fuerte: la cifra es un suelo.
+
+### D1 — el marcador aceptaba substring desde el NOMBRE
+
+Caso `1ba150cb-1` (travelzoo): el paso pedía la sugerencia «Hotels» de un desplegable, hint
+`{role:'listitem', name:'Hotels'}`. El rol no resolvió, el marcador exacto tampoco, y el
+substring encontró UNO: el `<input>` del buscador, con marcador «Hotels, e.g. Las Vegas».
+Resolvió el campo de búsqueda en lugar de la opción del menú, en silencio.
+
+Misma clase que K0.33/D2 un peldaño más abajo: cambiar de atributo (nombre accesible →
+marcador) **y además** aflojar el matching son dos saltos encadenados. `label` conserva su red
+de substring —es el vocabulario con el que el FD dice "lo que se lee en el hueco"—; `name`
+pasa a solo exacto.
+
+### D2 — el cuarto desenlace del banco
+
+En una página real la mitad de los controles son `<a><span>Texto</span></a>`, y el peldaño de
+texto resuelve al nodo más profundo. Sumar eso al acierto sería maquillar; contarlo como fallo
+mudo sería falso, porque el clic burbuja. Va en su propia línea, con tres cerrojos con test:
+solo hacia dentro, solo con acciones que propagan, nunca sumado al acierto.
+
+### El experimento que se deshizo, y por qué importa
+
+459 casos traen el marcador en el hint y **ninguno llega al peldaño del marcador**: el primer
+intento es un **rol pelado** (`getByRole('textbox')` a secas), en una página con tres campos
+eso es ambiguo, y la regla de K0.33 detiene la escalera antes de consultar la palabra buena.
+304 pasos, el 4,9% del corpus.
+
+El arreglo parecía estructural: un intento que no lleva palabras del guion no debería
+disparar la parada por ambigüedad. Medido sobre esos 459: **155→344 aciertos y 0→11 fallos
+mudos**. Revertido.
+
+La razón es la regla que sostiene todo lo demás: **el EQUIVOCADO no es moneda de cambio**, ni
+a 189 contra 11. Lo que sobrevive es el diagnóstico: los once salen todos de `getByLabel` y
+diez de los once resuelven algo que **no es un campo** (`<div>`, `<a>`, `<label>`). El
+candidato para el siguiente ciclo —que el peldaño de etiqueta exija resolver un control
+etiquetable— queda nombrado y sin construir.
+
+### Lo que cazó el corpus de nuestro propio lado
+
+Cuatro defectos del adaptador, ninguno detectado por revisión: la regla de visibilidad tapaba
+85 de 743 objetivos anotados (la lección de K0.32 un nivel más arriba, sin aplicar); el `value`
+de un checkbox entraba al hint aunque no se ve; `a → link` a ciegas sobre un corpus sin `href`;
+y una foto rota tumbaba el corpus entero, que es literalmente la regla que el manifiesto del
+banco ya declaraba. **El banco mide también al que mide.**
+
+### El vigilante
+
+Tres veces con la misma firma —reloj corriendo, CPU al 3%—: hay volcados que dejan al
+navegador **vivo pero sordo**, `isConnected()` sigue diciendo que sí y la siguiente petición no
+vuelve nunca. Ni el tope de `setContent` ni la comprobación de conexión sirven. `conTope` pone
+el plazo FUERA del navegador; al agotarse se abandona el navegador (no se cierra: un navegador
+sordo tampoco se cierra) y se relanza. El caso se marca **sin veredicto posible**, no como
+plantada — culpar a la escalera de una foto que no llegó a cargarse falsearía la medida a
+nuestro favor.

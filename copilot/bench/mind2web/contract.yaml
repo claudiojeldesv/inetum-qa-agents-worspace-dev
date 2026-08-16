@@ -1,0 +1,19 @@
+# Vocabulario de resolución con el que se mide la escalera contra Mind2Web.
+#
+# NO es un client pack: es configuración del banco. Un pack declara lo que sabe
+# el cliente de SU aplicación; aquí no hay cliente y no puede haberlo — el corpus
+# son 137 sitios que nadie de este equipo eligió, y ajustar el vocabulario por
+# sitio sería exactamente el sesgo que el banco existe para evitar.
+#
+# Por eso: los cinco peldaños, en el orden por defecto del kernel, para todos.
+# Es la configuración menos favorable y la única defendible.
+version: 1
+project: mind2web-bench
+
+locators:
+  priority:
+    - getByTestId
+    - getByRole
+    - getByLabel
+    - getByPlaceholder
+    - getByText
