@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Acceso al portal</title>
+<!--
+  K0.38 — la clase medida en Vaadin Flow, reproducida FIEL.
+
+  Un web component pone su etiqueta DENTRO del shadow root y deja el <input>
+  fuera, reproyectado por slot. El input declara aria-labelledby apuntando al id
+  de esa etiqueta, pero las referencias ARIA se resuelven en el arbol del propio
+  elemento: el input esta en el documento y el id esta en el shadow, asi que NO
+  resuelve y el nombre accesible queda VACIO.
+
+  Consecuencias medidas: getByLabel da 0, getByRole({name}) da 0, y el tier
+  anclado tampoco puede — su following:: se queda dentro del arbol de la
+  etiqueta y nunca alcanza el control, que esta en el otro.
+
+  Tres casos:
+   (a) USUARIO  — el caso Vaadin: se resuelve completando la referencia declarada.
+   (b) IDIOMA   — MITAD FALSABLE: la etiqueta no tiene id, asi que no hay
+                  referencia que completar y el peldano debe quedarse quieto.
+   (c) DUPLICADO— dos controles citan la MISMA etiqueta: se planta, no se elige.
+-->
+<style>body { font: 14px system-ui, sans-serif; padding: 16px; }</style>
+
+<h1>Acceso al portal</h1>
+
+<campo-texto id="c1"><input slot="control" aria-labelledby="et-usuario"></campo-texto>
+<campo-sin-id id="c2"><input slot="control"></campo-sin-id>
+<campo-duplicado id="c3">
+  <input slot="control" aria-labelledby="et-duplicada">
+  <input slot="control" aria-labelledby="et-duplicada">
+</campo-duplicado>
+
+<script>
+  // Componentes minimos: lo unico que importa es DONDE vive cada cosa.
+  const monta = (tag, etiquetaId, texto) => {
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() {
+        const sr = this.attachShadow({ mode: 'open' });
+        sr.innerHTML =
+          '<label' + (etiquetaId ? ' id="' + etiquetaId + '"' : '') + '>' + texto + '</label>' +
+          '<slot name="control"></slot>';
+      }
+    });
+  };
+  monta('campo-texto', 'et-usuario', 'Usuario');
+  monta('campo-sin-id', '', 'Idioma');
+  monta('campo-duplicado', 'et-duplicada', 'Duplicado');
+</script>
+</html>

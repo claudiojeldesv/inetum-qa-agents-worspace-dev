@@ -1,0 +1,68 @@
+{
+  "$comment": "GUION CIEGO — sitio 5 de la gira de stacks (Vaadin Flow 14+, aplicacion Bakery). Familia: Java corporativo con UI renderizada en SERVIDOR sobre web components. Es la primera familia de la gira con SHADOW DOM de verdad, y por eso interesa: banca y seguros tienen Vaadin donde el equipo es de Java puro y no quiso front separado. Objetivo la app oficial de demostracion (login, pedidos, mantenimiento de productos), no una galeria de componentes. PROTOCOLO (K0.17): hints con SOLO vocabulario visible; predicciones por escrito ANTES de correr; el guion no se toca entre la escritura y el run.",
+  "$mire": "DECLARACION DE SESGO — que mire: capturas de la pantalla de acceso (con las credenciales publicadas en ella), de la tienda con la lista de pedidos, y de los mantenimientos de usuarios y productos. Y las URLs. NO lei el HTML, NO lei el arbol de accesibilidad, NO abri herramientas de desarrollo. CONTAMINACION ACCIDENTAL, declarada porque debilita P1: mi script de reconocimiento intento entrar con getByLabel('Email') y FALLO con timeout, asi que se —sin haberlo buscado— que la etiqueta no resuelve en el login de Vaadin. A partir de ahi entre por COORDENADAS, que no ensena estructura. Tambien se, por el mismo fallo, que document.body.innerText devuelve casi nada en este sitio.",
+  "$predicciones": [
+    "P1 LA MAS INFORMATIVA — ETIQUETA Y CONTROL EN ARBOLES DISTINTOS. Predigo que {label:'Email'} NO resuelve (contaminado: ya lo vi fallar) pero que {role:'textbox', name:'Email'} SI, porque Playwright atraviesa shadow ABIERTO al calcular el nombre accesible. Si sale asi, la clase es nueva y tiene nombre: en un web component la etiqueta vive DENTRO del shadow root y el <input> va reproyectado por slot, de modo que la asociacion label-control cruza la frontera del componente. El peldano labelFor de K0.36 tampoco puede salvarlo, porque el 'for' apunta dentro del shadow. Si me equivoco y label SI resuelve, entonces Vaadin expone la asociacion hacia fuera y la clase no existe — tambien util.",
+    "P2 BUSCADOR — su unica identidad visible es el marcador 'Search'. Como en PrimeNG, espero que el marcador alimente el nombre accesible y {role:'textbox', name:'Search'} resuelva por el intento substring.",
+    "P3 REJILLA VIRTUALIZADA — vaadin-grid materializa solo las filas visibles y las pinta dentro del shadow con reproyeccion por slot. expect_count {role:'row'} dara un numero que NO es 12: o solo las materializadas, o cero si el rol no cruza la frontera. Los dos desenlaces informan; el que no vale es un timeout opaco.",
+    "P4 TEXTO DE NEGOCIO — expect_text 'Strawberry Bun' SI resuelve, porque el contenido de las celdas va reproyectado al light DOM y el motor de texto de Playwright lo ve.",
+    "P5 EL BOTON SIN TEXTO de cada fila (el icono de editar) NO se toca en este guion: es la clase 'trigger sin identidad accesible' que sigue con muestra de uno (tufarmacia) y no quiero forzarla aqui.",
+    "P6 EL CAPTURADOR DE CORPUS SE VA A ROMPER — page.content() serializa el light DOM y NO el contenido de los shadow roots. Predigo que las fotos de este sitio quedaran inservibles para el banco Y QUE LO HARA EN SILENCIO. Si acierto es un defecto del METODO, no de este sitio, y afecta al banco de resolucion y al corpus de Mind2Web: hay que nombrarlo antes de la fase 3.",
+    "P7 TRANSICIONES — Vaadin Flow navega con URL que si cambia, asi que la deteccion de K0.34 (que existe para el POST de JSF) no deberia sufrir aqui.",
+    "P8 SETTLE — cada interaccion hace ida y vuelta al servidor y la respuesta muta el DOM, asi que la ventana de quietud generica deberia aguantar. Contract SIN bloque settle a proposito, igual que en los cuatro sitios anteriores: declarar la senal de la familia antes de medir haria imposible saber si el walker se sincroniza solo."
+  ],
+  "version": 1,
+  "site_id": "vaadin-bakery",
+  "entry": "/",
+  "base_url": "https://bakery-flow.demo.vaadin.com",
+  "flows": [
+    {
+      "flow": "CP01-acceso",
+      "criteria": ["FD-V501"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "label": "Email" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "label": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Sign in" }, "expect_transition": true, "screen": "tienda" },
+        { "id": "s4", "action": "expect_text", "value": "Storefront" }
+      ]
+    },
+    {
+      "flow": "CP02-acceso-por-rol",
+      "criteria": ["FD-V501"],
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "role": "textbox", "name": "Email" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Sign in" }, "expect_transition": true, "screen": "tienda" },
+        { "id": "s4", "action": "expect_text", "value": "Storefront" }
+      ]
+    },
+    {
+      "flow": "CP03-catalogo-de-productos",
+      "criteria": ["FD-V502"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/products", "screen": "productos" },
+        { "id": "s2", "action": "expect_text", "value": "Product Name" },
+        { "id": "s3", "action": "expect_text", "value": "Strawberry Bun" },
+        { "id": "s4", "action": "expect_count", "hint": { "role": "row" }, "operator": ">", "value": "1" }
+      ]
+    },
+    {
+      "flow": "CP04-busqueda-en-el-catalogo",
+      "criteria": ["FD-V503"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/products", "screen": "productos" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Search" }, "value": "Vanilla" },
+        { "id": "s3", "action": "expect_text", "value": "Vanilla Cracker" }
+      ]
+    },
+    {
+      "flow": "CP05-lista-de-pedidos",
+      "criteria": ["FD-V504"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/storefront", "screen": "tienda" },
+        { "id": "s2", "action": "expect_text", "value": "Upcoming" },
+        { "id": "s3", "action": "expect_state", "hint": { "role": "button", "name": "New order" }, "value": "visible" }
+      ]
+    }
+  ]
+}

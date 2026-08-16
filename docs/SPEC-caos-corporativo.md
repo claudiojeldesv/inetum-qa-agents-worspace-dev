@@ -1461,3 +1461,104 @@ fragmento legítimo) y, sobre el caso REAL que lo motivó
 (`copilot/fixtures/orangehrm-falso-verde.walk.json`), el run pasa de no decir nada a listar la
 coincidencia parcial sin alterar el resultado: 8/8 antes, 8/8 después. 547/547 en suite
 completa, sin flakiness en este run.
+
+## 28. K0.38 — sitio 5 (Vaadin Flow): la referencia ARIA que cruza la frontera del shadow
+
+Quinto sitio de la gira. Objetivo: **Bakery**, la aplicación de demostración oficial de Vaadin
+(acceso, pedidos, mantenimientos). Familia: Java corporativo con la UI declarada en Java y
+renderizada en SERVIDOR sobre web components — la opción de los equipos de banca/seguros que
+son de Java puro y no quisieron un front separado. **Primera familia de la gira con shadow DOM
+de verdad**, y ese era el motivo de elegirla.
+
+Guion ciego con ocho predicciones. Primer run: **5/18, el peor de toda la gira**. Con el
+peldaño nuevo y **sin tocar el guion: 14/18**, y el reloj de 158 s a 20,8 s.
+
+Sitios descartados por no ser alcanzables, anotados en `allowed-targets.yaml`: el demo de
+Oracle ADF Faces (`jdevadf.oracle.com`) no responde y `demo.liferay.com` no resuelve DNS.
+
+### D1 — el nombre accesible queda VACÍO, y no es culpa del walker
+
+El `<input>` vive en el documento (reproyectado por slot) y declara
+`aria-labelledby="vaadin-text-field-label-0"`. Ese id está **dentro del shadow root** del
+`<vaadin-text-field>`. Las referencias ARIA se resuelven en el árbol del propio elemento, así
+que la del input no encuentra nada. Medido, y no inferido — el árbol de accesibilidad que
+calcula el navegador dice literalmente:
+
+```
+- text: Email •
+- textbox            ← sin nombre
+```
+
+Consecuencias, las tres medidas: `getByLabel('Email')` → 0, `getByRole('textbox',{name:'Email'})`
+→ 0, y **el tier anclado tampoco puede**: su `following::` se queda dentro del árbol de la
+etiqueta y nunca alcanza el control, que está en el otro. El `count()` daba 1 y `uniqueOrNull`
+lo rechazaba por invisible — o sea, el walker se plantaba **bien**, por la guarda de K0.26b.
+
+Vale la pena decirlo en voz alta: **esto es también un defecto de accesibilidad de la
+aplicación**. Un lector de pantalla resuelve los IDREF igual que el navegador, así que ese
+campo no tiene nombre para nadie. Para un QA en dominio regulado (EAA 2025) el bloqueo del
+walker es evidencia, no una molestia.
+
+### El arreglo: completar la referencia declarada, no adivinarla
+
+La asociación **existe y la escribió el autor**; lo único que falla es dónde se resuelve.
+Completarla es exactamente lo mismo que honrar un `for` (§26): un dato de la aplicación. Del
+texto visible se va a su `id`, y de ahí al único control que lo referencia
+(`[aria-labelledby~="<id>"]`, con `~=` porque el atributo admite varios ids).
+
+Regla dura intacta: dos controles que citen la misma etiqueta se plantan. Y es **inerte donde
+no aplica** — si la etiqueta no tiene `id`, no hay peldaño; verificado también contra PrimeNG,
+donde la escalera sigue exactamente igual que antes.
+
+### D2 — la foto del corpus no lleva el shadow, y lo hacía en SILENCIO
+
+`page.content()` serializa el documento pero **no los árboles de sombra**. Medido en la foto
+real de esta gira: contiene `vaadin-text-field-label-0` (aparece como valor de atributo) pero
+**no contiene `>Email<`** — el elemento de la etiqueta no está. Un caso así resuelve en vivo y
+se planta sobre su propia fotografía, sin que nada lo diga.
+
+Serializar shadow es trabajo aparte, y decidirlo también. Lo que no puede quedarse es la
+omisión muda: se cuentan los shadow roots con contenido y se declara, en el audit y en la
+consola. Afecta al banco de resolución, al banco de rescates y **al corpus de Mind2Web**, que
+es la razón de arreglarlo ahora y no después.
+
+Aviso de honestidad sobre el proceso: mi primera comprobación buscó la cadena `"Email"` en la
+foto y salió `true`, lo que me llevó a dar P6 por falsada. Aparecía en otro sitio del bundle.
+La comprobación precisa (`>Email<`) dice lo contrario. **P6 se confirma**, y la lección es que
+una aguja demasiado corta no prueba nada.
+
+### Predicciones: 4 de 8, la peor de la gira, y por buenas razones
+
+- **P1 (mitad y mitad)**: acerté que `{label:'Email'}` no resuelve; **fallé** en que
+  `{role:'textbox',name:'Email'}` sí lo haría. Da 0 igual, por la misma causa raíz. Lo midió un
+  probe, no el run: el flujo que lo comparaba nunca vio el formulario (ver más abajo).
+- **P2 falsada**: el marcador "Search" NO alimenta el nombre accesible en Vaadin, al revés que
+  en PrimeNG (§26). El buscador sigue sin resolver: es el caso vivo de `getByPlaceholder`.
+- **P3**: `expect_count {role:'row'}` sobre la rejilla virtualizada resolvió; la predicción
+  ("un número que no es 12") queda sin puntuar porque el guion pedía `> 1`.
+- **P4 acertada**: el texto de las celdas SÍ resuelve — el motor de texto de Playwright
+  atraviesa shadow abierto, aunque el cálculo del nombre accesible no cruce IDREFs.
+- **P6 acertada** (tras corregirme): la foto queda incompleta.
+- **P7 y P8 acertadas**: ni la detección de transición ni el settle genérico sufrieron.
+
+### Lo que queda rojo es MI guion, y dos de esos rojos son verdes falsos míos
+
+Los cuatro bloqueos que sobreviven no son del walker:
+
+- **CP02** era un A/B de `label` contra `role+name` sobre el acceso, pero los flujos comparten
+  sesión: cuando llega, ya está dentro y no hay formulario. Diseño mío defectuoso.
+- **CP04/s2** es el buscador (P2, arriba).
+
+Y lo incómodo: **CP02/s4 y CP04/s3 pasaron en VERDE observando estado que ya era cierto** —
+"Storefront" estaba porque CP01 ya había entrado, y "Vanilla Cracker" estaba porque la rejilla
+no se había filtrado. Es la clase §20 dentro de mi propio guion. Clase **nombrada y no
+arreglada**: el walker sabe que el paso anterior del mismo flujo quedó bloqueado, y podría
+decir *"esta postcondición puede estar observando el estado previo"* sin adivinar nada. Tercera
+instancia de la familia del verde falso en dos sesiones.
+
+### Resultado
+
+5 tests nuevos (el par falsable del peldaño, el duplicado que se planta y el aviso del corpus).
+551/552 en suite completa; el rojo es `obstructions.test.ts`, que agota su tope de 60 s bajo la
+suite en paralelo y pasa aislado en 38,6 s — la deuda de flakiness bajo carga de K0.27a, que
+esta sesión vuelve a alimentar con más tests de navegador.

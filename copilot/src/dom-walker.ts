@@ -1146,7 +1146,9 @@ class DomWalker {
       await resolved.locator.evaluate((el, attr: string) => el.setAttribute(attr, '1'), marca);
       await this.freezeVisibility(true);
       const html = await this.page.content();
+      const shadow = await this.contarShadowConContenido();
       await this.freezeVisibility(false);
+      if (shadow > 0) this.avisoShadow(id, shadow);
       // la marca se retira de la página VIVA: la foto ya la lleva dentro, pero
       // dejarla puesta sería mutar la app bajo prueba más allá del paso
       await resolved.locator.evaluate((el, attr: string) => el.removeAttribute(attr), marca).catch(() => {});
@@ -1181,7 +1183,9 @@ class DomWalker {
     try {
       await this.freezeVisibility(true);
       const html = await this.page.content();
+      const shadow = await this.contarShadowConContenido();
       await this.freezeVisibility(false);
+      if (shadow > 0) this.avisoShadow(id, shadow);
       const archivo = `bloqueado-${id}.html`;
       mkdirSync(this.opts.corpusDir, { recursive: true });
       writeFileSync(resolve(this.opts.corpusDir, archivo), html, 'utf8');
@@ -1198,6 +1202,48 @@ class DomWalker {
     } catch {
       // telemetría, no producto: capturar jamás puede tumbar un run
     }
+  }
+
+  /**
+   * K0.38 — LA FOTO NO LLEVA LO QUE HAY DENTRO DE UN SHADOW ROOT, y callarlo
+   * convierte el corpus en basura silenciosa. Medido en Vaadin: `page.content()`
+   * serializa el documento pero NO los árboles de sombra, así que la etiqueta
+   * "Email" —que vive dentro del `<vaadin-text-field>`— desaparece de la foto y
+   * el caso resuelve en vivo y se planta offline, sin que nada lo diga.
+   *
+   * Serializar shadow es trabajo aparte (y decidirlo, también). Lo que no puede
+   * quedarse es la omisión muda: se cuenta y se declara, en el audit y en la
+   * consola. Vale para el banco de resolución y para el corpus de Mind2Web.
+   */
+  private async contarShadowConContenido(): Promise<number> {
+    return (await this.page
+      .evaluate(
+        `(() => {
+          let n = 0;
+          const visitar = (raiz) => {
+            for (const el of raiz.querySelectorAll('*')) {
+              if (el.shadowRoot) {
+                if ((el.shadowRoot.textContent || '').trim().length > 0) n++;
+                visitar(el.shadowRoot);
+              }
+            }
+          };
+          visitar(document);
+          return n;
+        })()`,
+      )
+      .catch(() => 0)) as number;
+  }
+
+  private avisoShadow(id: string, cuantos: number): void {
+    this.audit('skip', `foto del corpus INCOMPLETA en ${id}: ${cuantos} shadow root(s) con contenido no serializado`, {
+      phase: 'corpus',
+      shadow_roots: cuantos,
+    });
+    console.error(
+      `[dom-walker] AVISO corpus ${id}: la pantalla tiene ${cuantos} shadow root(s) con contenido y page.content() NO los serializa — ` +
+        `la foto NO reproduce lo que vio la escalera.`,
+    );
   }
 
   /**
@@ -2337,6 +2383,30 @@ class DomWalker {
       if (porEtiqueta) return porEtiqueta;
     }
 
+    /**
+     * K0.38 — LA REFERENCIA ARIA QUE CRUZA LA FRONTERA DEL SHADOW. Medido en campo
+     * (Vaadin Flow, aplicación Bakery): el `<input>` vive en el DOM normal y declara
+     * `aria-labelledby="vaadin-text-field-label-0"`, pero ESE id está dentro del
+     * shadow root del `<vaadin-text-field>`. Las referencias ARIA se resuelven en el
+     * árbol del propio elemento, así que la del input no encuentra nada y **el
+     * nombre accesible queda vacío**: `getByLabel` da 0, `getByRole({name})` da 0, y
+     * el tier anclado tampoco puede — su `following::` se queda dentro del árbol de
+     * la etiqueta y nunca llega al control, que está en el otro.
+     *
+     * La asociación EXISTE y la escribió el autor; lo único que falla es dónde se
+     * resuelve. Completarla es lo mismo que honrar un `for` (K0.36): un dato de la
+     * aplicación, no una conjetura. Se va del texto visible a su `id`, y de ahí al
+     * único control que lo referencia.
+     *
+     * Es inerte donde no aplica: si la etiqueta no tiene `id`, no hay peldaño. Y
+     * mantiene la regla dura — dos controles que reclamen la misma etiqueta se
+     * plantan, no se elige.
+     */
+    if (step.hint) {
+      const porAria = await this.resolveAriaLabelledby(step.hint, containers);
+      if (porAria) return porAria;
+    }
+
     if (step.hint && ANCHORED_ACTIONS.has(step.action)) {
       const anchored = await this.resolveAnchored(step.hint, containers);
       if (anchored) return anchored;
@@ -2424,6 +2494,40 @@ class DomWalker {
           if (!elegido) continue;
           const src = `${via ? via + ' >> ' : ''}labelFor('${texto}')`;
           return { locator: elegido, via: src, frame_path: path };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * K0.38 — del texto visible a su `id`, y de ahí al control que lo declara como su
+   * etiqueta mediante `aria-labelledby`. Ver el razonamiento largo en `resolveHint`.
+   */
+  private async resolveAriaLabelledby(
+    hint: StepHint,
+    containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }>,
+  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+    const texto = hint.label ?? hint.text ?? hint.name;
+    if (!texto) return null;
+    const needles: Array<string | RegExp> = [texto, new RegExp(accentInsensitivePattern(texto), 'i')];
+    for (const needle of needles) {
+      const exacts = typeof needle === 'string' ? [true, false] : [false];
+      for (const exact of exacts) {
+        for (const { scope, path, via } of containers) {
+          const txt = typeof needle === 'string' ? scope.getByText(needle, { exact }) : scope.getByText(needle);
+          const etiqueta = await this.uniqueOrNull(txt);
+          if (!etiqueta) continue;
+          const id = await etiqueta.getAttribute('id').catch(() => null);
+          if (!id) continue;
+          // `~=` porque aria-labelledby admite VARIOS ids separados por espacios y
+          // el control puede citar a su etiqueta junto a otras referencias.
+          const destino = await this.uniqueOrNull(
+            scope.locator(`[aria-labelledby~="${id.replace(/["\\]/g, '\\$&')}"]`),
+          );
+          if (!destino) continue;
+          const src = `${via ? via + ' >> ' : ''}ariaLabelledby('${texto}')`;
+          return { locator: destino, via: src, frame_path: path };
         }
       }
     }

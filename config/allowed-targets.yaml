@@ -35,6 +35,8 @@ patterns:
   - 'https://showcase.bootsfaces.net/*'    # sitio 1: JSF 2.x + Bootstrap (familia de onesait), autorizado QA 2026-08-15
   - 'https://sdk.openui5.org/*'    # sitio 2 previsto: SAP UI5 (back-office de seguros)
   - 'https://sakai.primeng.org/*'    # sitio 4: Angular 19 + PrimeNG 19 (Sakai, plantilla de back-office oficial), autorizado QA 2026-08-15
+  - 'https://bakery-flow.demo.vaadin.com/*'    # sitio 5: Vaadin Flow (app Bakery oficial), primera familia de la gira con shadow DOM; autorizado QA 2026-08-16
+  # NO USABLE: el demo de Oracle ADF Faces (jdevadf.oracle.com) no responde y demo.liferay.com no resuelve DNS. Comprobado 2026-08-16.
   - 'https://www.primefaces.org/showcase-v14*'    # reserva por si el mirror sin muro sigue en pie
 
   # Entornos no productivos (cualquier subdominio)
@@ -79,3 +81,9 @@ allowed_test_credentials:
   - username: Admin
     password: admin123
     source: 'opensource-demo.orangehrmlive.com - OrangeHRM demo account, publicly documented on login page'
+  - username: admin@vaadin.com
+    password: admin
+    source: 'bakery-flow.demo.vaadin.com - impresas en la propia pantalla de acceso del demo (verificado en captura 2026-08-16)'
+  - username: barista@vaadin.com
+    password: barista
+    source: 'bakery-flow.demo.vaadin.com - impresas en la propia pantalla de acceso del demo (verificado en captura 2026-08-16)'
