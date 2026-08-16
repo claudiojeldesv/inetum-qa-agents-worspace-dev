@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Consulta de expedientes</title>
+<!--
+  K0.37 — el verde falso medido en OrangeHRM, reproducido.
+
+  El criterio del FD dice "aparece 'Records Found'". La pantalla, cuando la
+  busqueda NO encuentra nada, dice "(0) No Records Found" — que CONTIENE el
+  literal. La asercion pasa, el negocio no ocurrio, y el informe registraba el
+  texto BUSCADO, asi que no habia forma de verlo.
+
+  El fixture trae los dos lados a proposito:
+   - el bloque de RESULTADO VACIO, que es el caso peligroso
+   - un texto EXACTO ("Consulta finalizada"), que NO debe marcarse como parcial,
+     porque si todo se marca el aviso deja de significar nada
+-->
+<style>body { font: 14px system-ui, sans-serif; padding: 16px; }</style>
+
+<h1>Consulta de expedientes</h1>
+
+<p id="resumen">(0) No Records Found</p>
+
+<p id="exacto">Consulta finalizada</p>
+
+<p id="importe">El importe total de la p&oacute;liza asciende a 1.250,00 EUR anuales.</p>
+</html>

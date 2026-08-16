@@ -233,6 +233,25 @@ export interface StepReport {
    * (goto/press/wait_*).
    */
   resolved_via?: string;
+  /**
+   * Texto COMPLETO del nodo que satisfizo un `expect_text`, cuando no es idéntico
+   * al literal buscado. Existe por un verde falso medido en campo (OrangeHRM):
+   * el criterio del FD pedía "Records Found" y la pantalla decía "(0) No Records
+   * Found" — el literal aparecía, la búsqueda no había encontrado nada, y el caso
+   * salía verde. El artefacto registraba el texto BUSCADO, así que el informe
+   * escondía justo el dato que delataba el problema.
+   *
+   * No cambia el veredicto: decidir que "No X" niega a "X" es específico del
+   * idioma y sería adivinar. Solo cita lo medido, como la nota de página de error
+   * (K0.35) o el conteo fuera del ámbito (K0.36).
+   */
+  matched_text?: string;
+  /**
+   * El literal que pedía el FD, guardado JUNTO a `matched_text` para que la fila
+   * del informe se explique sola: sin los dos al lado, "coincidencia parcial" no
+   * dice de qué. Solo se rellena cuando hay coincidencia parcial.
+   */
+  value_searched?: string;
 }
 
 /**
@@ -277,6 +296,12 @@ export interface DomElement {
   /** Nº de apariciones deduplicadas (componentes repetidos, p.ej. cards). */
   count?: number;
   disabled?: boolean;
+  /**
+   * Texto COMPLETO del nodo, cuando el `name` registrado es solo un fragmento de
+   * él. Ver `StepReport.matched_text`: la evidencia tiene que decir lo que había
+   * en pantalla, no lo que se buscó.
+   */
+  matched_text?: string;
 }
 
 export interface DomForm {

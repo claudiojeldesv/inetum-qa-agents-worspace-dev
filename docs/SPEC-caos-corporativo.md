@@ -1410,3 +1410,54 @@ probe): el walker **no** cantó verde por eso, que es la clase §20 evitada.
 `obstructions.test.ts`, que agota su tope de 60 s bajo la suite en paralelo y pasa aislado en
 39,8 s — la deuda de flakiness bajo carga nombrada en K0.27a, a la que este ciclo suma siete
 tests más de navegador en el mismo pool.
+
+## 27. K0.37 — la evidencia dice lo que HABÍA, no lo que se buscó
+
+Sale de la comparativa walker vs. LLM (`docs/findings/comparativa-walker-vs-llm.md`), no de la
+gira: es el único defecto de aquella sesión que produjo **un veredicto equivocado invisible**.
+
+### El caso
+
+Criterio del FD: *"aparece 'Records Found'"*. La pantalla, con el filtro sin resultados, dice
+**"(0) No Records Found"** — que contiene el literal. La aserción pasa, el negocio no ocurrió,
+y el caso sale verde. Medido en OrangeHRM, y **en los dos motores**: la ejecución solo-LLM lo
+marcó "pasa", y el walker, puesto en el mismo estado de pantalla con el locator autoritativo,
+también.
+
+El fallo está en el criterio de aceptación, no en el motor. Pero el artefacto de evidencia lo
+tapaba: `business_text` registraba `"Records Found"` —el texto **buscado**— así que ni el
+`dom-map` ni el informe llevaban el único dato con el que un QA lo habría visto.
+
+### Qué se cambia, y qué NO
+
+Se cita lo medido. `findVisibleText` devuelve además el texto COMPLETO del nodo que satisfizo
+la búsqueda; cuando no es idéntico al literal, viaja a `StepReport.matched_text` (con
+`value_searched` al lado para que la fila se explique sola), a `DomElement.matched_text` del
+`business_text`, al audit-log, y a una lista propia al final del run:
+
+```
+[dom-walker] 1 postcondición(es) pasaron por COINCIDENCIA PARCIAL (el texto del FD es un
+fragmento del que hay en pantalla):
+  - CP04/s4: el FD pedía 'Records Found' y en pantalla hay 'No Records Found'
+```
+
+**El veredicto no cambia y no debe cambiar.** Decidir que "No X" niega a "X" es específico del
+idioma: en español "0 resultados encontrados" contiene "resultados encontrados", y "No hay
+movimientos" no niega a "movimientos" de la misma forma. El walker no sabe negar; sabe decir
+qué había. Mismo patrón que la nota de página de error (§25) y el conteo fuera del ámbito
+(§26): citar la evidencia, dejar el juicio a quien puede emitirlo.
+
+Tampoco se marca todo: una coincidencia EXACTA no aparece en la lista. Si el aviso saliera en
+cada aserción dejaría de significar nada, y esa es la mitad falsable del fixture.
+
+Y la coincidencia parcial **legítima** también se cita, a propósito: un importe calculado vive
+dentro de una frase ("El importe total de la póliza asciende a 1.250,00 EUR anuales"), la
+aserción por fragmento es deliberada, y ver la frase entera es información, no ruido.
+
+### Verificación
+
+4 tests sobre `coincidencia-parcial.html` (el verde falso + el par falsable exacto + el
+fragmento legítimo) y, sobre el caso REAL que lo motivó
+(`copilot/fixtures/orangehrm-falso-verde.walk.json`), el run pasa de no decir nada a listar la
+coincidencia parcial sin alterar el resultado: 8/8 antes, 8/8 después. 547/547 en suite
+completa, sin flakiness en este run.

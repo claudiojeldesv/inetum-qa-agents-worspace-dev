@@ -3607,14 +3607,33 @@ class DomWalker {
           this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
           return;
         }
-        // éxito → el texto queda como business_text de la pantalla con locator verificado en vivo
-        this.recordBusinessText(value, found.via, found.frame_path);
+        /**
+         * K0.37 — LA EVIDENCIA DICE LO QUE HABÍA, NO LO QUE SE BUSCÓ. Medido en
+         * campo (OrangeHRM, comparativa walker vs LLM): el criterio del FD pedía
+         * "Records Found", la pantalla decía "(0) No Records Found" — el literal
+         * aparecía, el filtro no había encontrado nada, y el caso salía VERDE. El
+         * `business_text` registraba el texto BUSCADO, así que el artefacto de
+         * evidencia escondía justo el dato que delataba el problema.
+         *
+         * El veredicto NO cambia: decidir que "No X" niega a "X" es específico del
+         * idioma y sería adivinar (en español "0 resultados encontrados" contiene
+         * "resultados encontrados", y "No hay movimientos" no niega a "movimientos"
+         * de la misma forma). Se cita lo medido y se deja juzgar a quien puede.
+         */
+        const parcial = found.matched_text !== '' && found.matched_text !== value;
+        this.recordBusinessText(value, found.via, found.frame_path, parcial ? found.matched_text : undefined);
+        if (parcial) {
+          this.audit('allow', `expect_text por coincidencia PARCIAL en ${stepKey}: '${value}' dentro de '${found.matched_text}'`, {
+            phase: 'expect',
+          });
+        }
         // K0.30 — y DÓNDE se cumplió viaja al informe: una aserción que pasa sin
         // decir dónde pasó es la que esconde los verdes falsos (§20).
         this.pushReport(flow, step, {
           ...report,
           outcome: obs.timed_out ? 'settle_timeout' : 'ok',
           resolved_via: found.via,
+          ...(parcial ? { matched_text: found.matched_text, value_searched: value } : {}),
         });
         return;
       }
@@ -4281,7 +4300,7 @@ class DomWalker {
     value: string,
     timeoutMs = STEP_TIMEOUT_MS,
     containers?: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }>,
-  ): Promise<{ via: string; frame_path: string[] } | null> {
+  ): Promise<{ via: string; frame_path: string[]; matched_text: string } | null> {
     // K0.30 (F4): con ámbito declarado se busca SOLO dentro de él; sin ámbito,
     // toda la página como siempre.
     const scopes = containers ?? (await this.scopes());
@@ -4302,14 +4321,18 @@ class DomWalker {
          * salía incumplida teniendo el resultado delante. Clase real, no de fixture:
          * en un formulario de consulta el valor y su filtro comparten literal.
          */
-        const visible = await scope
-          .getByText(needle)
-          .filter({ visible: true })
-          .first()
+        const nodo = scope.getByText(needle).filter({ visible: true }).first();
+        const visible = await nodo
           .waitFor({ state: 'visible', timeout: timeoutMs })
           .then(() => true)
           .catch(() => false);
-        if (visible) return { via, frame_path: path };
+        if (visible) {
+          // El texto ENTERO del nodo que satisfizo la búsqueda. La aserción es por
+          // fragmento a propósito (un importe vive dentro de una frase), pero el
+          // informe tiene que poder decir dentro de QUÉ frase apareció.
+          const completo = ((await nodo.textContent().catch(() => null)) ?? '').replace(/\s+/g, ' ').trim();
+          return { via, frame_path: path, matched_text: completo };
+        }
       }
     }
     return null;
@@ -4333,7 +4356,7 @@ class DomWalker {
   }
 
   /** Upsert de un texto de negocio verificado en la pantalla actual (K0.2/K0.3). */
-  private recordBusinessText(value: string, via: string, frame_path: string[]): void {
+  private recordBusinessText(value: string, via: string, frame_path: string[], matched_text?: string): void {
     if (this.verifying) return; // K0.25: cinturón — el replay no anota business_text
     const screen = this.state.screens.find((s) => s.name === this.state.current_screen);
     if (!screen) return;
@@ -4343,6 +4366,7 @@ class DomWalker {
       role: 'text',
       name: value,
       ...(frame_path.length ? { frame_path } : {}),
+      ...(matched_text ? { matched_text } : {}),
       locator_candidates: [via],
     });
   }
@@ -4797,6 +4821,22 @@ async function main(): Promise<void> {
     for (const r of (map.step_reports ?? []).filter((x) => x.outcome !== 'ok')) {
       const cycles = r.settle ? `, ${r.settle.busy_cycles} ciclos de ocupado en ${r.settle.waited_ms} ms` : '';
       console.log(`  - ${r.flow}/${r.step} (${r.action}): ${r.outcome}${cycles}`);
+    }
+  }
+  /**
+   * K0.37 — las postcondiciones que pasaron por COINCIDENCIA PARCIAL se listan
+   * aparte, con el texto que había en pantalla al lado del que pedía el FD. No son
+   * fallos y no se cuentan como tales: son los verdes que hay que mirar dos veces.
+   * El caso que motivó esto pedía "Records Found" y pasó con "(0) No Records Found".
+   */
+  const parciales = (map.step_reports ?? []).filter((r) => r.matched_text);
+  if (parciales.length > 0) {
+    console.log(
+      `[dom-walker] ${parciales.length} postcondición(es) pasaron por COINCIDENCIA PARCIAL ` +
+        `(el texto del FD es un fragmento del que hay en pantalla):`,
+    );
+    for (const r of parciales) {
+      console.log(`  - ${r.flow}/${r.step}: el FD pedía '${r.value_searched ?? ''}' y en pantalla hay '${r.matched_text}'`);
     }
   }
   process.exit(EXIT_OK);
