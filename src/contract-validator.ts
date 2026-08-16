@@ -487,7 +487,7 @@ export function resolveConfigState(
   });
 
   // Evidence
-  const level = (evidence.level as string) ?? 'minimal';
+  const level = (evidence.level as string) ?? 'steps';
   rows.push({
     key: 'evidence.level',
     value: level,

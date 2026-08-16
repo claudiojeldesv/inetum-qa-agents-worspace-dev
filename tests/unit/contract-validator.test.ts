@@ -138,7 +138,9 @@ describe('resolveConfigState — effective session state', () => {
   it('marks defaults when the contract is empty', () => {
     const { rows } = resolveConfigState({}, {});
     expect(rows.find((r) => r.key === 'evidence.level')?.origin).toBe('default');
-    expect(rows.find((r) => r.key === 'evidence.level')?.value).toBe('minimal');
+    // default 'steps' desde spec-template.md: test.step estructura Allure y el error
+    // dice en qué paso de negocio rompió; 'minimal' queda como opt-out por contract
+    expect(rows.find((r) => r.key === 'evidence.level')?.value).toBe('steps');
   });
 });
 

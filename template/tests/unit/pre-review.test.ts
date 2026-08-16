@@ -18,10 +18,12 @@ const BASE: PreReviewContract = {
   pom_enabled: true,
   require_business_postcondition: false,
   min_functional_asserts: 1,
+  evidence_level: 'minimal',
 };
 
 const HEADER = `/**
  * @criterion El usuario válido accede al inventario (plan: inicio-sesion)
+ * @generated-by ia4d-writer
  */
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -134,6 +136,75 @@ describe('preReviewSpec — waits y banned APIs', () => {
       BASE,
     );
     expect(ids(r)).toContain('MF-banned-api');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Checks de FORMA (spec-template.md) — should-fix, nunca tocan `clean`
+// ---------------------------------------------------------------------------
+
+const STEPS: PreReviewContract = { ...BASE, evidence_level: 'steps' };
+
+/** Spec canónico en forma `steps`: el golden de spec-template.md, reducido. */
+const SPEC_CANON_STEPS = `${HEADER}
+test('credenciales válidas → muestra inventario', async ({ page }) => {
+  const login = new LoginPage(page);
+  await test.step('Dado: el formulario de login', async () => {
+    await page.goto('/');
+  });
+  await test.step('Evidencia a11y (WCAG 2.1 AA)', async () => {
+    ${A11Y_BLOCK}
+  });
+  await test.step('Cuando: introduce credenciales válidas', async () => {
+    await login.iniciarSesion('standard_user', 'secret_sauce');
+  });
+  await test.step('Entonces: muestra el inventario', async () => {
+    await expect(page.getByTestId('inventory-list')).toBeVisible();
+  });
+});
+`;
+
+describe('preReviewSpec — forma (spec-template.md)', () => {
+  it('el golden en forma steps pasa sin findings (par falsable, mitad limpia)', () => {
+    const r = preReviewSpec(write('canon-steps.spec.ts', SPEC_CANON_STEPS), STEPS);
+    expect(r.findings).toEqual([]);
+    expect(r.clean).toBe(true);
+  });
+
+  it('SF-generated-by: JSDoc sin procedencia', () => {
+    const sinTag = SPEC_CANON_STEPS.replace(' * @generated-by ia4d-writer\n', '');
+    const r = preReviewSpec(write('sin-procedencia.spec.ts', sinTag), STEPS);
+    expect(ids(r)).toContain('SF-generated-by');
+    expect(r.clean).toBe(true); // should-fix no bloquea
+  });
+
+  it('SF-steps: evidence.level steps pero cuerpo plano', () => {
+    const r = preReviewSpec(write('plano-en-steps.spec.ts', SPEC_LIMPIO), STEPS);
+    expect(ids(r)).toContain('SF-steps');
+    expect(r.clean).toBe(true);
+  });
+
+  it("SF-steps no aplica con evidence.level 'minimal' (mismo spec, otro contract)", () => {
+    const r = preReviewSpec(write('plano-en-minimal.spec.ts', SPEC_LIMPIO), BASE);
+    expect(ids(r)).not.toContain('SF-steps');
+  });
+
+  it('SF-step-lang: marcador // Step N: en inglés, en cualquier nivel', () => {
+    const conStep = SPEC_LIMPIO.replace('await page.goto', '// Step 1: navegar\n  await page.goto');
+    const r = preReviewSpec(write('step-en.spec.ts', conStep), BASE);
+    expect(ids(r)).toContain('SF-step-lang');
+    const conPaso = SPEC_LIMPIO.replace('await page.goto', '// Paso 1: navegar\n  await page.goto');
+    expect(ids(preReviewSpec(write('paso-es.spec.ts', conPaso), BASE))).not.toContain('SF-step-lang');
+  });
+
+  it('SF-a11y-step: scan fuera de su step canónico', () => {
+    const scanSuelto = SPEC_CANON_STEPS.replace(
+      "await test.step('Evidencia a11y (WCAG 2.1 AA)', async () => {",
+      "await test.step('preparación', async () => {",
+    );
+    const r = preReviewSpec(write('a11y-fuera.spec.ts', scanSuelto), STEPS);
+    expect(ids(r)).toContain('SF-a11y-step');
+    expect(r.clean).toBe(true);
   });
 });
 

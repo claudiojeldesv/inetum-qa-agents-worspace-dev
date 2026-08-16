@@ -5,8 +5,9 @@
  * Extrae del ia4d-reviewer los criterios que no requieren juicio: locators prohibidos (MF-1/MF-1b),
  * waits hardcodeados (MF-2), banned APIs del contract, scan a11y (MF-4, delegado en verify-a11y),
  * cita @criterion (MF-5), conteo de asserts funcionales (parte mecánica de MF-3/MF-9), uso de POM
- * (MF-8, proxy por import), toHaveClass con regex sin anclas (MF-regex-anchor, Q3) y naturaleza
- * en el título (should-fix de naming).
+ * (MF-8, proxy por import), toHaveClass con regex sin anclas (MF-regex-anchor, Q3), naturaleza
+ * en el título (should-fix de naming) y los checks de FORMA de spec-template.md (SF-generated-by,
+ * SF-step-lang, SF-steps, SF-a11y-step — should-fix: tres runs produjeron tres dialectos).
  *
  * NO es un gate ni sustituye al Reviewer: es la red determinística que corre tras el Writer+Reviewer
  * (Acto 4, junto a verify-a11y) y garantiza que ningún must-fix objetivo llegó al final del run.
@@ -37,6 +38,8 @@ export interface PreReviewContract {
   pom_enabled: boolean;
   require_business_postcondition: boolean;
   min_functional_asserts: number;
+  /** evidence.level del contract — decide si los checks de forma SF-steps/SF-a11y-step aplican. */
+  evidence_level: 'minimal' | 'steps' | 'full';
 }
 
 export interface PreReviewFinding {
@@ -139,6 +142,7 @@ export function loadPreReviewContract(contractPath?: string): PreReviewContract 
     pom_enabled: true,
     require_business_postcondition: false,
     min_functional_asserts: 1,
+    evidence_level: 'steps',
   };
   if (!contractPath) return defaults;
   const path = resolve(process.cwd(), contractPath);
@@ -147,6 +151,7 @@ export function loadPreReviewContract(contractPath?: string): PreReviewContract 
   if (!parsed) return defaults;
   const locators = parsed.locators ?? {};
   const testDesign = parsed.test_design ?? {};
+  const level = parsed.evidence?.level;
   return {
     forbid_css_selectors: locators.forbid_css_selectors !== false,
     forbid_xpath: locators.forbid_xpath !== false,
@@ -158,6 +163,7 @@ export function loadPreReviewContract(contractPath?: string): PreReviewContract 
     require_business_postcondition: testDesign.require_business_postcondition === true,
     min_functional_asserts:
       typeof testDesign.min_functional_asserts === 'number' ? testDesign.min_functional_asserts : 1,
+    evidence_level: level === 'minimal' || level === 'full' ? level : 'steps',
   };
 }
 
@@ -329,6 +335,33 @@ export function preReviewSpec(
     const title = m[2];
     if (NATURE_IN_TITLE.test(title)) {
       add({ criterion_id: 'SF-naming', category: 'style-contract', severity: 'should-fix', location: { line: lineOf(source, m.index!) }, description: `Título '${title}' nombra la naturaleza — describir condición → resultado` });
+    }
+  }
+
+  // ---- Checks de FORMA (spec-template.md) — should-fix: la forma no bloquea un test
+  // correcto, pero tres runs produjeron tres dialectos y el Reviewer debe verlo.
+
+  // SF-generated-by — procedencia en el JSDoc (¿emisor determinista o Writer?)
+  if (!/@generated-by\s+\S/.test(source)) {
+    add({ criterion_id: 'SF-generated-by', category: 'style-contract', severity: 'should-fix', location: { line: 1 }, description: 'JSDoc sin @generated-by — la procedencia (walk-to-spec vN | ia4d-writer) es dato de auditoría' });
+  }
+
+  // SF-step-lang — marcador de paso en inglés (dialecto; el canon minimal es '// Paso N:')
+  for (const m of source.matchAll(/\/\/\s*Step\s+\d+\s*:/gi)) {
+    if (/paso/i.test(m[0])) continue;
+    add({ criterion_id: 'SF-step-lang', category: 'style-contract', severity: 'should-fix', location: { line: lineOf(source, m.index!) }, description: `Marcador '${m[0].trim()}' en inglés — el canon es '// Paso N: <prosa>' (spec-template.md)` });
+  }
+
+  const usesTestStep = /\btest\.step\s*\(/.test(source);
+  if (contract.evidence_level !== 'minimal') {
+    // SF-steps — con evidence.level steps/full el cuerpo va en test.step() (timeline en Allure,
+    // el fallo dice en qué paso de NEGOCIO rompió; spec-template.md)
+    if (!usesTestStep) {
+      add({ criterion_id: 'SF-steps', category: 'style-contract', severity: 'should-fix', location: { line: 1 }, description: `evidence.level '${contract.evidence_level}' pero el spec no usa test.step() — cuerpo plano es forma 'minimal'` });
+    }
+    // SF-a11y-step — el scan a11y vive en su step de título fijo, siempre en el mismo sitio
+    if (usesTestStep && /AxeBuilder/.test(source) && !/test\.step\s*\(\s*(['"`])[^'"`]*a11y[^'"`]*\1/i.test(source)) {
+      add({ criterion_id: 'SF-a11y-step', category: 'style-contract', severity: 'should-fix', location: { line: 1 }, description: `El scan AxeBuilder no está en su step canónico — título fijo 'Evidencia a11y (WCAG 2.1 AA)' (spec-template.md)` });
     }
   }
 

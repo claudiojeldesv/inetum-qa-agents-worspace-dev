@@ -287,6 +287,14 @@ function stageVerify(values: Record<string, string | undefined>): number {
     return 1;
   }
 
+  // normalización de formato a $0 (spec-template.md): lo cosmético se corrige con
+  // Prettier, no se le pide al LLM. Fallo de formateo no tumba el stage.
+  try {
+    sh(`npx --no-install prettier --write "${ctx.specsDir}/**/*.ts"`);
+  } catch {
+    console.error('[lean-run] verify: prettier no pudo normalizar (no bloquea)');
+  }
+
   // pre-review determinístico (informativo; el writer lean ya lo corrió shift-left).
   // --discovery-report activa MF-postcondition (K0.7): exige assert sobre el texto
   // de resultado que el walker observó, no solo N asserts funcionales.

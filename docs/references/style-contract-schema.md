@@ -174,14 +174,15 @@ settle:
 # antes de `npx playwright test`; playwright.config.ts los consume. El nivel `level`
 # además guía al ia4d-writer sobre cómo estructurar el .spec.ts (test.step + attachments).
 evidence:
-  level: string                     # 'minimal' | 'steps' | 'full' — default 'minimal' (sin regresión)
-                                    #   minimal → comentarios `// Step N` + screenshot final (según screenshots)
-                                    #   steps   → cada acción lógica en `await test.step('desc')` → timeline en Allure
+  level: string                     # 'minimal' | 'steps' | 'full' — default 'steps' (spec-template.md:
+                                    #   el step estructura Allure y el error dice en qué paso de NEGOCIO rompió)
+                                    #   minimal → opt-out austero: comentarios `// Paso N:` + screenshot final
+                                    #   steps   → cada acción lógica en `await test.step('Dado/Cuando/Entonces: ...')`
                                     #   full    → steps + screenshot por paso (test.info().attach) + trace 'on'
                                     #   Es también un KNOB DE COSTE: 'full' genera specs más largos
                                     #   (test.step + attach por paso) y el output del Writer se paga
                                     #   por spec. 'full' = vitrina/demo; para contracts de cliente,
-                                    #   'minimal' o 'steps' como default.
+                                    #   'steps' (default) o 'minimal'.
   screenshots: string               # 'on' | 'only-on-failure' | 'off' — default 'only-on-failure'.
                                     #   Solo aplica a level 'minimal' (captura final). En 'full' el command
                                     #   fuerza screenshots=on + trace=on automáticamente.

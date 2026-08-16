@@ -872,6 +872,15 @@ export function summarizeReviews(consolidated: string): SpecReviewSummary[] {
 function stagePostWriters(flags: Record<string, string | undefined>): number {
   const ctx = contextFromFlags(flags);
 
+  // 10.b — normalización de formato a $0 (spec-template.md): lo cosmético no se le pide al
+  // LLM, se corrige con Prettier. Fallo de formateo no tumba el stage (specs con error de
+  // sintaxis los delatará tsc/playwright con mejor diagnóstico).
+  try {
+    runChild(`npx --no-install prettier --write "${ctx.specsDir}/**/*.ts"`, ctx);
+  } catch {
+    console.error('[run-s4-mecanico] post-writers: prettier no pudo normalizar (no bloquea)');
+  }
+
   // 11 — a11y determinística (verify-a11y.ts registra su propio audit; exit 1 = specs a rescatar)
   const a11y = runChild(
     `npx --no-install tsx src/scripts/verify-a11y.ts ${ctx.specsDir} --style-contract=${ctx.stylePath}`,
@@ -1008,7 +1017,7 @@ function stageVerify(flags: Record<string, string | undefined>): number {
   if (seedDeleted) rmSync(seed);
 
   // Verification 2-3 — env-vars + npx playwright test (evidence.level decide reporters)
-  const level = String(contract.evidence?.level ?? 'minimal');
+  const level = String(contract.evidence?.level ?? 'steps');
   const resultsPath = `${ctx.workDir}/playwright-results.json`;
   const env: Record<string, string> = {
     QA_BASE_URL: url,

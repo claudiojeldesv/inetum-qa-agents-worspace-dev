@@ -25,7 +25,7 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
 ## Process (iteration 0)
 
 1. Read all inputs; identify scenario title, steps, expected outcomes, criterion.
-2. Generate the `.spec.ts`:
+2. Generate the `.spec.ts`. **FORMA: lee `docs/references/spec-template.md` y produce un spec indistinguible de su golden example salvo el contenido** — orden de bloques, títulos de step Dado/Cuando/Entonces, régimen de comentarios (solo 3 clases permitidas), step a11y fijo. Reglas de contenido:
    - Import `@playwright/test`, `@axe-core/playwright`, and the relevant POM class(es).
    - **Axe: ONE valid API, no other exists.** `import AxeBuilder from '@axe-core/playwright'` (default import) and `const { violations } = await new AxeBuilder({ page }).analyze()`. There is NO `injectAxe`, NO `checkA11y`, NO `getViolations`, NO `axe-playwright` package — any of those is a fabricated API and the spec will not compile.
    - Locator priority from the Style Contract (`getByTestId` first for SauceDemo). The discovery comes annotated by `verify-locators` (deterministic, against the live DOM): honor `verified` per the locator rules below.
@@ -33,7 +33,7 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
    - Materialize steps with semantic actions + POM methods, structured per `evidence.level` (below).
    - Asserts verify functional state, not just navigation. If the contract has `test_design`, honor it (below) or the Reviewer rejects (MF-9).
    - **Business postcondition (mandatory when the discovery carries one)**: discovery elements with role `text`/`heading`/`alert`/`status` are the **result texts the walker observed live** (e.g. `"Thank you for your order!"`, `"Simulación generada correctamente"`). If the case's final screen has one, the closing assert goes **on that text or on its `test_id`** — never on page chrome (a "Back" button, a section title, anything present both before and after the operation). Asserting chrome leaves the test green without verifying the business outcome; `pre-review` flags it as `MF-postcondition`.
-   - **Naming (español, nature never named)**: `test.describe` = `Feature: <feature>`; `test()` title per `naming.test_title_pattern` (default `{condicion} → {resultado}`, e.g. `'compra con tarjeta válida → muestra confirmación de pedido'`). Never `happy-path`/`negative` in title or describe.
+   - **Naming (español, nature never named)**: `test.describe` = `<feature en prosa ES>` sin prefijo `Feature:` ni slug (ej. `'Inicio de sesión'`); `test()` title per `naming.test_title_pattern` (default `{condicion} → {resultado}`, e.g. `'compra con tarjeta válida → muestra confirmación de pedido'`). Never `happy-path`/`negative` in title or describe.
    - JSDoc with `@criterion` (and `@tc-id` if passed).
    - `--tags` passed → native Playwright tags (below).
 3. Write the file to `--output`.
@@ -106,10 +106,10 @@ Emit as the **native Playwright `tag` option** (second argument of `test()` / `t
 
 ## Instrumentación de evidencia (`evidence.level`)
 
-Default `minimal`. Controls **only** the body structure — locators, POM, asserts, `@criterion`, A11y unchanged:
+Default `steps`. Controls **only** the body structure — locators, POM, asserts, `@criterion`, A11y unchanged:
 
-- **`minimal`**: plain body with `// Step N:` comments. No `test.step()`.
-- **`steps`**: wrap each logical action in `await test.step('<human description>', async () => {…})` (a11y scan in a first `test.step('a11y scan', …)`). Step descriptions reuse the plan/criterion wording.
+- **`steps` (default)**: wrap each logical action in `await test.step('<título>', async () => {…})` with the Dado/Cuando/Entonces mapping from `spec-template.md`; a11y scan as second step with the FIXED title `'Evidencia a11y (WCAG 2.1 AA)'`. Step titles reuse the plan/criterion wording.
+- **`minimal`** (opt-out austero por contract): plain body with `// Paso N: <prosa>` comments (español — `// Step N` es dialecto, pre-review lo marca). No `test.step()`.
 - **`full`**: `steps` + screenshot attached at the END of each step:
   `await test.info().attach('post-submit', { body: await page.screenshot(), contentType: 'image/png' })`.
   `page.screenshot()` viewport-only (not `fullPage`). Data-driven tests instrument each `test()` the same way.
@@ -122,6 +122,7 @@ The `.spec.ts` at `--output`, with JSDoc header:
 /**
  * @criterion <cita>            // S4: plan prose. S3: RF-NNN (source_ref)
  * @tc-id <ID>                  // only when --tc-id passed
+ * @generated-by ia4d-writer    // procedencia (el emisor determinista firma walk-to-spec vN)
  * @writer-iterations <N>
  * @reviewer-verdict <pass|iteration_2_exhausted>
  */
@@ -139,5 +140,6 @@ The `.spec.ts` at `--output`, with JSDoc header:
 
 ## Reference
 
+- `docs/references/spec-template.md` (golden example — el contrato de FORMA del output)
 - `docs/references/writer-reviewer-protocol.md` (protocolo + notas de diseño)
 - `docs/references/composition-rules.md`
