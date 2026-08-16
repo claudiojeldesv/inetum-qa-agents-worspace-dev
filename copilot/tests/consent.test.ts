@@ -88,13 +88,13 @@ describe('K0.30 — el banner con rechazo', () => {
     const c = consentEntries(audit);
     expect(c.length).toBeGreaterThan(0);
     expect((c[0].metadata as Record<string, unknown>).outcome).toBe('rechazo');
-  }, 60_000);
+  }, 120_000);
 
   it('sin declarar NADA en el contract: es comportamiento por diseño, no opt-in', async () => {
     // el contract de este test no menciona cookies ni estorbos por ningún lado
     const { audit } = await walk('/consent-rechazable.html', [continuar]);
     expect(consentEntries(audit).length).toBeGreaterThan(0);
-  }, 60_000);
+  }, 120_000);
 
   it('con consent.enabled=false el walker no lo toca (el banner puede SER la prueba)', async () => {
     const { map, audit } = await walk('/consent-rechazable.html', [continuar], {
@@ -105,7 +105,7 @@ describe('K0.30 — el banner con rechazo', () => {
     // y entonces el banner tapa el objetivo: el paso falla con el motivo real
     expect(report(map, 's1')!.outcome).toBe('action_failed');
     expect(map.open_questions.find((q) => q.step === 's1')!.reason.toLowerCase()).toMatch(/intercept|pointer/);
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('K0.30 — el banner que solo deja aceptar', () => {
@@ -119,7 +119,7 @@ describe('K0.30 — el banner que solo deja aceptar', () => {
     const c = consentEntries(audit);
     expect((c[0].metadata as Record<string, unknown>).outcome).toBe('neutralizado-sin-consentir');
     expect(c[0].reason).toContain('aceptar es decisión del usuario');
-  }, 60_000);
+  }, 120_000);
 
   it('el barrido no se come el presupuesto del paso que lo dispara', async () => {
     // Regresión de campo, cazada en el primer run tras escribir la pieza: leer el
@@ -129,7 +129,7 @@ describe('K0.30 — el banner que solo deja aceptar', () => {
     // incumplida por el reloj. Este fixture no tiene botón de cierre: es el caso.
     const { map } = await walk('/consent-solo-aceptar.html', [{ id: 's1', action: 'expect_text', value: 'Tienda' }]);
     expect(report(map, 's1')!.outcome).toBe('ok');
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('K0.30 — la guarda: no tocar contenido de la aplicación', () => {
@@ -143,5 +143,5 @@ describe('K0.30 — la guarda: no tocar contenido de la aplicación', () => {
     // habría cambiado y la aserción caería
     expect(report(map, 's2')!.outcome).toBe('ok');
     expect(consentEntries(audit)).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 });

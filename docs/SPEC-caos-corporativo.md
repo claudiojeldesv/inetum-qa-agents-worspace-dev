@@ -1562,3 +1562,81 @@ instancia de la familia del verde falso en dos sesiones.
 551/552 en suite completa; el rojo es `obstructions.test.ts`, que agota su tope de 60 s bajo la
 suite en paralelo y pasa aislado en 38,6 s — la deuda de flakiness bajo carga de K0.27a, que
 esta sesión vuelve a alimentar con más tests de navegador.
+
+## 29. K0.39 — el marcador, la postcondición tardía, y el cierre de la deuda de flakiness
+
+Ciclo de deuda: tres cosas que llevaban tiempo nombradas y que el sitio 5 dejó con evidencia
+suficiente para cerrarlas.
+
+### D1 — el marcador de posición se declaraba y se ignoraba EN SILENCIO
+
+`getByPlaceholder` estaba en la lista de valores válidos del validador de contracts y lo
+declaraban **cuatro** proyectos (orangehrm, mapfre-hogar, mapfre-ahorro-inversion,
+santalucia). La escalera lo descartaba sin decir nada, porque `PRIORITY_TO_KIND` no lo
+mapeaba. Ese es el defecto de verdad: el Style Contract es la voz del cliente, y una
+instrucción declarada que se tira en silencio es peor que no admitirla.
+
+Nombrado desde K0.19 y **sin instancia medida hasta el sitio 5**, que es lo que faltaba para
+justificarlo. Ahora hay dos, y en direcciones opuestas:
+
+- **Vaadin**: el buscador no tiene etiqueta ni nombre accesible (§28), así que lo único
+  escrito es el marcador. Sin peldaño, el paso no resuelve de ninguna manera.
+- **PrimeNG**: el marcador SÍ alimenta el nombre accesible, y por eso el mismo hint ya
+  resolvía por rol. El peldaño no habría cambiado nada allí.
+
+Se alimenta del mismo vocabulario del FD que los demás (`label`/`name`/`text`): un FD dice "el
+buscador" o cita lo que se ve escrito en el hueco, y no distingue si eso es una etiqueta o un
+marcador — esa distinción es del HTML, no del negocio. Exacto antes que substring, por el
+argumento de K0.28/K0.33. Y **solo donde el contract lo declara**: un proyecto que no lo pide
+se comporta exactamente igual que antes, y ese es el par falsable del test.
+
+Verificado en campo sobre el guion ciego de Vaadin sin tocarlo: **14/18 → 15/18**, resuelto
+como `getByPlaceholder('Search', { exact: true })`.
+
+### D2 — la postcondición que puede estar mirando el estado anterior
+
+Tercera instancia de la familia del verde falso en dos sesiones, y esta se cazó en mi propio
+guion: en Vaadin, `expect_text 'Storefront'` pasó porque un flujo anterior ya había entrado, y
+`expect_text 'Vanilla Cracker'` pasó porque la rejilla NO se había filtrado — el paso que
+debía filtrarla estaba bloqueado.
+
+No hace falta adivinar: el walker **sabe** que un paso anterior del mismo flujo quedó
+bloqueado. Una aserción que pasa después de eso puede estar observando lo que ya había.
+`StepReport.after_blocked` lo registra y el run lo lista aparte. El veredicto no cambia
+—igual que en §27—: la aserción se cumplió y puede ser legítima.
+
+Lo bueno es que **discrimina**. Con el peldaño del marcador arreglado, `Vanilla Cracker` pasó
+a ser cierto de verdad (la rejilla sí queda filtrada) y ya NO se marca; el de "Storefront",
+que sigue siendo falso, sí. Si marcara los dos sería ruido; marcar solo el sospechoso es la
+señal que sirve.
+
+### D3 — la deuda de flakiness bajo carga, cerrada con dato (y con dos hipótesis mías falsadas)
+
+Nombrada en K0.27a y alimentada durante cinco ciclos: bajo la suite completa caía 1-3 tests
+de navegador, siempre verdes en aislado, fichero distinto cada vez. Había dejado de poderse
+decir "suite verde" sin asterisco, justo antes de construir un banco de medición encima.
+
+**Hipótesis 1 (contención), FALSADA.** 25 de 48 ficheros arrancan Chromium y vitest paraleliza
+hasta el número de CPUs. Con el tope de trabajadores en 4: 386/319/322 s y **un fallo**. Un
+55% más lento y sin dejar de fallar.
+
+**Hipótesis 2 (presupuesto global), FALSADA por una razón tonta.** Subir `testTimeout` a
+120 s dio 235/201/211 s y **un fallo**: el mismo test. Al abrirlo, ese test declara su propio
+tope de `60_000`, que **anula el global** — el cambio fue inerte precisamente para el único
+caso que lo necesitaba.
+
+**Lo que sí era.** Contando los presupuestos declarados: **82 tests con 120 s y 49 con 60 s**.
+La convención del repositorio ya era 120 y los que fallaban eran los rezagados. Alineados los
+outliers: **263/226/236 s y 0 fallos en 3 pasadas**, al mismo coste que la línea base.
+
+Y lo que un presupuesto mayor esconde y lo que no: no esconde una regresión de corrección —el
+test sigue afirmando lo mismo—, sino que un test se vuelva más lento. Para eso están los
+tiempos por paso que el propio walker registra, que son mejor señal que un tope binario.
+
+**Salvedad**: tres pasadas verdes no demuestran que esté arreglado, son compatibles con que lo
+esté (las configuraciones anteriores fallaban 2/3 y 1/3). Si reaparece, el siguiente paso es
+aislar las suites de navegador en su propia ejecución, no seguir moviendo cifras.
+
+### Resultado
+
+5 tests nuevos con sus dos pares falsables. 557/557 en suite completa, tres veces seguidas.

@@ -138,12 +138,25 @@ export type LocatorAttempt =
   | { kind: 'role'; role: string; name?: string; normalized?: boolean; exact?: boolean }
   | { kind: 'label'; value: string; normalized?: boolean; exact?: boolean }
   /** `exact` (K0.28): texto COMPLETO del elemento, no substring. Ver hintLocatorPlan. */
-  | { kind: 'text'; value: string; normalized?: boolean; exact?: boolean };
+  | { kind: 'text'; value: string; normalized?: boolean; exact?: boolean }
+  /** K0.39 — marcador de posición (`placeholder`). Ver hintLocatorPlan. */
+  | { kind: 'placeholder'; value: string; normalized?: boolean; exact?: boolean };
 
 const PRIORITY_TO_KIND: Record<string, LocatorAttempt['kind']> = {
   getByTestId: 'test_id',
   getByRole: 'role',
   getByLabel: 'label',
+  /**
+   * K0.39 — CUATRO contracts lo declaraban y la escalera lo IGNORABA EN SILENCIO,
+   * que es el defecto de verdad: el Style Contract es la voz del cliente y una
+   * instrucción declarada que se descarta sin decir nada es peor que no admitirla.
+   * Nombrado desde K0.19 y sin instancia medida hasta el sitio 5: en Vaadin el
+   * buscador NO tiene más identidad que su marcador (el nombre accesible sale
+   * vacío), al revés que en PrimeNG, donde el marcador SÍ alimenta el nombre y por
+   * eso el mismo hint resolvía por rol. Las dos mediciones, en direcciones
+   * opuestas, son las que justifican el peldaño.
+   */
+  getByPlaceholder: 'placeholder',
   getByText: 'text',
 };
 
@@ -177,6 +190,23 @@ export function hintLocatorPlan(hint: StepHint, priority: string[]): LocatorAtte
     if (kind === 'label' && hint.label) {
       attempts.push({ kind, value: hint.label, exact: true });
       attempts.push({ kind, value: hint.label });
+    }
+    /**
+     * K0.39 — el marcador se alimenta del MISMO vocabulario del FD que los demás
+     * peldaños (`label`/`name`/`text`): un FD dice "el buscador" o cita lo que se
+     * ve escrito en el hueco, y no distingue si eso es una etiqueta o un marcador
+     * — esa distinción es del HTML, no del negocio.
+     *
+     * Exacto antes que substring, por el argumento de K0.28/K0.33: el exacto está
+     * contenido en el substring, así que no puede cambiar una resolución por otra;
+     * solo convierte plantas en resoluciones. Y va donde lo ponga el contract: si
+     * un proyecto no lo declara, la escalera se comporta exactamente igual que
+     * antes.
+     */
+    if (kind === 'placeholder' && (hint.label ?? hint.name ?? hint.text)) {
+      const value = (hint.label ?? hint.name ?? hint.text) as string;
+      attempts.push({ kind, value, exact: true });
+      attempts.push({ kind, value });
     }
     /**
      * K0.28 — el peldaño de TEXTO prueba EXACTO antes que substring. Medido en
@@ -254,6 +284,11 @@ export function locatorSource(a: LocatorAttempt): string {
       return a.exact
         ? `getByText('${a.value.replace(/'/g, "\\'")}', { exact: true })`
         : `getByText('${a.value.replace(/'/g, "\\'")}')`;
+    case 'placeholder':
+      if (a.normalized) return `getByPlaceholder(${norm(a.value, a.exact)})`;
+      return a.exact
+        ? `getByPlaceholder('${a.value.replace(/'/g, "\\'")}', { exact: true })`
+        : `getByPlaceholder('${a.value.replace(/'/g, "\\'")}')`;
   }
 }
 

@@ -25,6 +25,11 @@ locators:
   priority:
     - getByRole        # los ids los genera Vaadin; el nombre accesible es lo único estable
     - getByLabel
+    # K0.39 — declarado DESPUÉS del run ciego, y por eso se dice: en este stack el
+    # buscador no tiene etiqueta ni nombre accesible (la referencia ARIA muere en la
+    # frontera del shadow, ver §28), así que lo único escrito es el marcador. Es la
+    # clase de conocimiento que vive en el pack de la FAMILIA, no en el kernel.
+    - getByPlaceholder
     - getByText
   forbid_css_selectors: true
   forbid_xpath: true

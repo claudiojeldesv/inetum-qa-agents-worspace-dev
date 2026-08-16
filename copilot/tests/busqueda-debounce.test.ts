@@ -91,7 +91,7 @@ describe('Fase 5 — par falsable: settle ciego al debounce vs consciente', () =
     expect(blocked).toBeDefined();
     // hint irresoluble: el boton "Manzana" no existe todavia cuando se busca
     expect(blocked!.reason).toContain('presupuesto de rescates agotado');
-  }, 60_000);
+  }, 120_000);
 
   it('CON debounce_ms declarado, el mismo guion sobre la misma pagina PASA', async () => {
     const fill: WalkStep = { id: 's1', action: 'fill', hint: { label: 'Buscador' }, value: 'man', debounce_ms: 1_500 };
@@ -100,5 +100,5 @@ describe('Fase 5 — par falsable: settle ciego al debounce vs consciente', () =
     expect(map.open_questions).toEqual([]);
     const s2 = (map.step_reports ?? []).find((r) => r.step === 's2')!;
     expect(s2.outcome).toBe('ok');
-  }, 60_000);
+  }, 120_000);
 });

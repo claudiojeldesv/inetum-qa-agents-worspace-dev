@@ -81,7 +81,7 @@ describe('Fase 2 — backdrop fantasma (dismiss por Escape)', () => {
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
     expect(blocked!.reason.toLowerCase()).toMatch(/intercept|pointer/);
-  }, 60_000);
+  }, 120_000);
 
   it('CON el pack declarando el estorbo, el paso pasa y el descarte queda auditado', async () => {
     const { map, auditEntries } = await walk(
@@ -101,7 +101,7 @@ describe('Fase 2 — backdrop fantasma (dismiss por Escape)', () => {
     expect(dismiss!.action).toBe('skip');
     expect((dismiss!.metadata as Record<string, unknown>).selector).toBe('.cdk-overlay-backdrop');
     expect((dismiss!.metadata as Record<string, unknown>).step).toBe('estorbo/s1');
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('Fase 2 — snackbar que intercepta (dismiss por boton de cierre)', () => {
@@ -114,7 +114,7 @@ describe('Fase 2 — snackbar que intercepta (dismiss por boton de cierre)', () 
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
     expect(blocked!.reason.toLowerCase()).toMatch(/intercept|pointer/);
-  }, 60_000);
+  }, 120_000);
 
   it('CON el pack declarando el estorbo, el clic al boton "Cerrar" propio lo descarta y el paso pasa', async () => {
     const { map, auditEntries } = await walk(
@@ -132,7 +132,7 @@ describe('Fase 2 — snackbar que intercepta (dismiss por boton de cierre)', () 
     const dismiss = auditEntries.find((e) => (e.metadata as Record<string, unknown> | undefined)?.phase === 'obstruction-dismiss');
     expect(dismiss).toBeDefined();
     expect((dismiss!.metadata as Record<string, unknown>).selector).toBe('.mat-snack-bar-container');
-  }, 60_000);
+  }, 120_000);
 });
 
 /**
@@ -162,7 +162,7 @@ describe('K0.29 — estorbo declarado que resiste el descarte', () => {
     const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
     expect(report.outcome).toBe('ok');
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 
   it('el audit dice la VERDAD: "NO descartado", no "descartado"', async () => {
     const { auditEntries } = await walk(
@@ -182,7 +182,7 @@ describe('K0.29 — estorbo declarado que resiste el descarte', () => {
     // y solo se mide UNA vez: el manejador queda inerte, no repite la estrategia
     // ni el apunte en cada acción posterior
     expect(dismiss.length).toBe(1);
-  }, 60_000);
+  }, 120_000);
 
   it('si de verdad TAPA el objetivo, el paso falla con el motivo real (no un timeout desnudo)', async () => {
     const { map } = await walk(
@@ -196,5 +196,5 @@ describe('K0.29 — estorbo declarado que resiste el descarte', () => {
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
     expect(blocked!.reason.toLowerCase()).toMatch(/intercept|pointer/);
-  }, 60_000);
+  }, 120_000);
 });

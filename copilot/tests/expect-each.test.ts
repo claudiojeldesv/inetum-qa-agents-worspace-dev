@@ -71,7 +71,7 @@ describe('Fase 6 — expect_each: "cada listbox tiene >= 1 option"', () => {
     const report = (map.step_reports ?? []).find((r) => r.step === 's2')!;
     expect(report.outcome).toBe('ok');
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 
   it('INCUMPLIDO cuando el umbral por-elemento no se cumple, sin crashear', async () => {
     const map = await walk([
@@ -83,5 +83,5 @@ describe('Fase 6 — expect_each: "cada listbox tiene >= 1 option"', () => {
     const blocked = map.open_questions.find((q) => q.step === 's2');
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toMatch(/1\/1 contenedor/);
-  }, 60_000);
+  }, 120_000);
 });

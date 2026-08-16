@@ -76,7 +76,7 @@ describe('Fase 1 — par falsable: selectOption ciego vs select inteligente', ()
     } finally {
       await browser.close();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('el driver ramificado resuelve el widget en portal SIN declarar scope', async () => {
     const map = await walk([
@@ -92,7 +92,7 @@ describe('Fase 1 — par falsable: selectOption ciego vs select inteligente', ()
     const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
     expect(report.outcome).toBe('ok');
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('Fase 1 — <select> nativo: match contra las opciones REALES, sin adivinar', () => {
@@ -106,7 +106,7 @@ describe('Fase 1 — <select> nativo: match contra las opciones REALES, sin adiv
     const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
     expect(report.outcome).toBe('ok');
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 
   it('una opción que no existe se reporta con las opciones reales como drift, no se adivina', async () => {
     const map = await walk([
@@ -117,7 +117,7 @@ describe('Fase 1 — <select> nativo: match contra las opciones REALES, sin adiv
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('no existe en el <select>');
     expect(blocked!.reason).toContain('Rescate total'); // las opciones reales viajan en el motivo
-  }, 60_000);
+  }, 120_000);
 
   it('dos opciones que normalizan igual → se planta, no elige una', async () => {
     const map = await walk([
@@ -127,7 +127,7 @@ describe('Fase 1 — <select> nativo: match contra las opciones REALES, sin adiv
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('ambigua');
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('Fase 1 — nunca adivina', () => {
@@ -139,5 +139,5 @@ describe('Fase 1 — nunca adivina', () => {
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('no resuelve única');
-  }, 60_000);
+  }, 120_000);
 });

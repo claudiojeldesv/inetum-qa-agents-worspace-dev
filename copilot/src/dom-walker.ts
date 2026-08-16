@@ -136,6 +136,14 @@ const DEFAULT_SCROLL_MAX_STEPS = 40;
  * un control con valor, exactamente la pregunta que el tier sabe contestar.
  */
 const ANCHORED_ACTIONS = new Set<WalkAction>(['fill', 'select', 'check', 'uncheck', 'press', 'expect_value']);
+/** Pasos que solo COMPRUEBAN: no tocan la aplicación, solo juzgan lo que hay (K0.39). */
+const ASSERTION_ACTIONS = new Set<WalkAction>([
+  'expect_text',
+  'expect_state',
+  'expect_value',
+  'expect_count',
+  'expect_each',
+]);
 
 interface WalkerOptions {
   scriptPath: string;
@@ -1589,6 +1597,22 @@ class DomWalker {
     const reports = (this.state.step_reports ??= []);
     const at = reports.findIndex((x) => x.flow === flow.flow && x.step === step.id);
     const report: StepReport = { flow: flow.flow, step: step.id, action: step.action, ...r };
+    /**
+     * K0.39 — LA POSTCONDICIÓN QUE PUEDE ESTAR MIRANDO EL ESTADO ANTERIOR. Tercera
+     * instancia de la familia del verde falso en dos sesiones, y esta se cazó en mi
+     * propio guion de Vaadin: `expect_text 'Storefront'` pasó porque un flujo previo
+     * ya había entrado, y `expect_text 'Vanilla Cracker'` pasó porque la rejilla NO
+     * se había filtrado — el paso que debía filtrarla estaba bloqueado.
+     *
+     * No hace falta adivinar nada: el walker SABE que un paso anterior del mismo
+     * flujo quedó bloqueado. Una aserción que pasa después de eso puede estar
+     * observando lo que ya había, y decirlo es citar un hecho. El veredicto no
+     * cambia —igual que en K0.37—: la aserción se cumplió, y puede ser legítima.
+     */
+    if (ASSERTION_ACTIONS.has(step.action) && report.outcome === 'ok') {
+      const previo = this.state.open_questions.find((q) => q.flow === flow.flow);
+      if (previo) report.after_blocked = previo.step;
+    }
     if (at >= 0) reports[at] = report;
     else reports.push(report);
     /**
@@ -1969,6 +1993,8 @@ class DomWalker {
           return scope.getByText(new RegExp(pattern, 'i'));
         }
         return a.exact ? scope.getByText(a.value, { exact: true }) : scope.getByText(a.value);
+      case 'placeholder':
+        return scope.getByPlaceholder(val(a.value), opcionExacta);
     }
   }
 
@@ -2021,6 +2047,18 @@ class DomWalker {
     }
     const label = src.match(/^getByLabel\('((?:[^'\\]|\\.)*)'\)$/);
     if (label) return this.attemptToLocator(scope, { kind: 'label', value: label[1].replace(/\\'/g, "'") });
+    // K0.39 — el marcador, con sus tres formas, y ANTES del texto para que la
+    // exacta no la absorba una regla más laxa. Sin esta lectura, un alias emitido
+    // por el peldaño nuevo no se podría releer y la memoria del cliente caería en
+    // silencio, que es el mismo defecto que este ciclo viene a cerrar.
+    const phRe = src.match(/^getByPlaceholder\(\/(.+)\/i\)$/);
+    if (phRe) return scope.getByPlaceholder(new RegExp(phRe[1], 'i'));
+    const phExact = src.match(/^getByPlaceholder\('((?:[^'\\]|\\.)*)',\s*\{\s*exact:\s*true\s*\}\)$/);
+    if (phExact) {
+      return this.attemptToLocator(scope, { kind: 'placeholder', value: phExact[1].replace(/\\'/g, "'"), exact: true });
+    }
+    const ph = src.match(/^getByPlaceholder\('((?:[^'\\]|\\.)*)'\)$/);
+    if (ph) return this.attemptToLocator(scope, { kind: 'placeholder', value: ph[1].replace(/\\'/g, "'") });
     const textRe = src.match(/^getByText\(\/(.+)\/i\)$/);
     if (textRe) return scope.getByText(new RegExp(textRe[1], 'i'));
     // K0.28 — la forma exacta debe parsearse ANTES que la plana (y existir: sin
@@ -4941,6 +4979,22 @@ async function main(): Promise<void> {
     );
     for (const r of parciales) {
       console.log(`  - ${r.flow}/${r.step}: el FD pedía '${r.value_searched ?? ''}' y en pantalla hay '${r.matched_text}'`);
+    }
+  }
+  /**
+   * K0.39 — y las que pasaron DESPUÉS de que un paso del mismo flujo quedara
+   * bloqueado: si lo que debía cambiar la pantalla no se ejecutó, la aserción puede
+   * estar mirando lo de antes. Tampoco son fallos; son los otros verdes que hay que
+   * mirar dos veces.
+   */
+  const tardias = (map.step_reports ?? []).filter((r) => r.after_blocked);
+  if (tardias.length > 0) {
+    console.log(
+      `[dom-walker] ${tardias.length} postcondición(es) pasaron con un paso ANTERIOR del mismo flujo bloqueado ` +
+        `(pueden estar observando el estado previo):`,
+    );
+    for (const r of tardias) {
+      console.log(`  - ${r.flow}/${r.step} pasó, pero ${r.flow}/${r.after_blocked} había quedado sin ejecutar`);
     }
   }
   process.exit(EXIT_OK);

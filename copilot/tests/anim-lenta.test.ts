@@ -79,7 +79,7 @@ describe('Fase 3 — knob settle.disable_animations', () => {
     // sin la transicion de 1.5s de por medio, muy por debajo de su duracion
     expect(s2.action_ms).toBeLessThan(1_000);
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 
   it('con el knob OFF la ventana de quietud lo absorbe igual, pero mas lento', async () => {
     const map = await walk(false);
@@ -89,5 +89,5 @@ describe('Fase 3 — knob settle.disable_animations', () => {
     // de completar el clic: la comparativa que pide la aceptacion de la Fase 3.
     expect(s2.action_ms).toBeGreaterThan(1_300);
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 });

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Consulta de siniestros</title>
+<!--
+  K0.39 — dos clases, las dos con evidencia de campo del sitio 5.
+
+  (A) EL MARCADOR COMO UNICA IDENTIDAD. En Vaadin el buscador no tiene etiqueta ni
+      nombre accesible: lo unico escrito es el marcador. Cuatro contracts declaran
+      getByPlaceholder y la escalera lo ignoraba EN SILENCIO.
+      Hay DOS campos cuyo marcador empieza igual, a proposito: con substring son
+      ambiguos y con exacto solo uno. Es el par que prueba que el orden importa.
+
+  (B) LA POSTCONDICION QUE MIRA EL ESTADO ANTERIOR. El texto "Consulta disponible"
+      ya esta en la pantalla desde el principio: una asercion sobre el pasa aunque
+      el paso que debia cambiar algo no se haya ejecutado.
+-->
+<style>body { font: 14px system-ui, sans-serif; padding: 16px; }</style>
+
+<h1>Consulta de siniestros</h1>
+
+<p id="estado">Consulta disponible</p>
+
+<input id="b1" type="text" placeholder="Buscar">
+<input id="b2" type="text" placeholder="Buscar en el archivo historico">
+</html>

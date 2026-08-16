@@ -79,7 +79,7 @@ describe('Fase 4 — scroll_until materializa el objetivo off-screen', () => {
     const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
     expect(report.outcome).toBe('ok');
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('Fase 4 — nunca afirma ausencia', () => {
@@ -99,7 +99,7 @@ describe('Fase 4 — nunca afirma ausencia', () => {
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('no se afirma que el registro no exista');
     expect(blocked!.reason).toContain('tope 15');
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('Fase 4 — validacion determinista del guion', () => {

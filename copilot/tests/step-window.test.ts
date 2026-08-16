@@ -72,24 +72,24 @@ describe('K0.24 — ventana de pasos', () => {
   it('sin ventana ejecuta los tres pasos', async () => {
     const map = await walk({});
     expect(executed(map)).toEqual(['s1', 's2', 's3']);
-  }, 60_000);
+  }, 120_000);
 
   it('--to=s2 para en s2, no toca s3 (vía segura para no pasar de una pantalla)', async () => {
     const map = await walk({ toStep: 's2' });
     expect(executed(map)).toEqual(['s1', 's2']);
     expect(executed(map)).not.toContain('s3');
-  }, 60_000);
+  }, 120_000);
 
   it('--from=s2 salta s1 y arranca en s2', async () => {
     const map = await walk({ fromStep: 's2' });
     expect(executed(map)).toEqual(['s2', 's3']);
     expect(executed(map)).not.toContain('s1');
-  }, 60_000);
+  }, 120_000);
 
   it('--from=s2 --to=s2 ejecuta solo ese paso', async () => {
     const map = await walk({ fromStep: 's2', toStep: 's2' });
     expect(executed(map)).toEqual(['s2']);
-  }, 60_000);
+  }, 120_000);
 
   it('--step-delay no rompe el run (los pasos siguen ejecutándose)', async () => {
     // el efecto es temporal (pausa entre pasos); aquí solo se verifica que la
@@ -97,5 +97,5 @@ describe('K0.24 — ventana de pasos', () => {
     // (sería flaky bajo carga de la suite completa).
     const map = await walk({ stepDelayMs: 50 });
     expect(executed(map)).toEqual(['s1', 's2', 's3']);
-  }, 60_000);
+  }, 120_000);
 });

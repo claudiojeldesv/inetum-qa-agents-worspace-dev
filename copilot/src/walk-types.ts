@@ -252,6 +252,14 @@ export interface StepReport {
    * dice de qué. Solo se rellena cuando hay coincidencia parcial.
    */
   value_searched?: string;
+  /**
+   * K0.39 — id del paso ANTERIOR del mismo flujo que quedó bloqueado. Se rellena
+   * solo en aserciones que PASAN: si el paso que debía cambiar la pantalla no se
+   * ejecutó, la postcondición puede estar observando el estado previo, y eso ya se
+   * ha cobrado verdes falsos. No cambia el veredicto — la aserción se cumplió y
+   * puede ser legítima —, solo dice de qué hay que desconfiar.
+   */
+  after_blocked?: string;
 }
 
 /**

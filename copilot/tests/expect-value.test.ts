@@ -62,7 +62,7 @@ describe('K0.30/F4 — el ámbito de la postcondición', () => {
     expect(r.outcome).toBe('ok'); // pasa... y no debería significar nada
     // el arreglo mínimo que hace visible el problema: DÓNDE se cumplió viaja al informe
     expect(r.resolved_via).toBeDefined();
-  }, 60_000);
+  }, 120_000);
 
   it('con `scope`, el mismo paso NO se cobra el verde del otro rincón de la pantalla', async () => {
     const map = await walk([
@@ -70,7 +70,7 @@ describe('K0.30/F4 — el ámbito de la postcondición', () => {
     ]);
     expect(report(map, 's1')!.outcome).toBe('postcondition_unmet');
     expect(map.open_questions.find((q) => q.step === 's1')!.reason).toContain('drift');
-  }, 60_000);
+  }, 120_000);
 
   it('el ámbito irresoluble se dice como tal, no como "el texto no aparece"', async () => {
     // culpar al negocio de un problema de locator es lo que envenena el informe
@@ -80,7 +80,7 @@ describe('K0.30/F4 — el ámbito de la postcondición', () => {
     ]);
     expect(report(map, 's1')!.outcome).toBe('postcondition_unmet');
     expect(map.open_questions.find((q) => q.step === 's1')!.reason).toContain('ámbito');
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('K0.30/F5 — expect_value: el resultado que vive en un campo', () => {
@@ -93,12 +93,12 @@ describe('K0.30/F5 — expect_value: el resultado que vive en un campo', () => {
     expect(r.outcome).toBe('ok');
     expect(r.resolved_via).toBeDefined();
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 
   it('el par falsable: SIN enviar, expect_value falla donde expect_text daba verde', async () => {
     const map = await walk([{ id: 's1', action: 'expect_value', hint: { label: 'Ultimo valor enviado' }, value: 'Honda' }]);
     expect(report(map, 's1')!.outcome).toBe('postcondition_unmet');
-  }, 60_000);
+  }, 120_000);
 
   it('cuando no coincide, el motivo dice el valor REAL (no solo que falló)', async () => {
     const map = await walk([
@@ -108,7 +108,7 @@ describe('K0.30/F5 — expect_value: el resultado que vive en un campo', () => {
     const blocked = map.open_questions.find((q) => q.step === 's3')!;
     expect(blocked.reason).toContain("vale 'Honda'");
     expect(blocked.reason).toContain("espera 'Opel'");
-  }, 60_000);
+  }, 120_000);
 
   it('drift de caja/acento: se tolera como en el resto de la escalera, y queda AUDITADO', async () => {
     const { map, audit } = await walkFull([
@@ -118,12 +118,12 @@ describe('K0.30/F5 — expect_value: el resultado que vive en un campo', () => {
     expect(report(map, 's3')!.outcome).toBe('ok');
     const drift = audit.find((e) => (e.metadata as Record<string, unknown> | undefined)?.phase === 'value-normalizado');
     expect(drift, 'la tolerancia sin apunte sería una equivalencia decidida en silencio').toBeDefined();
-  }, 60_000);
+  }, 120_000);
 
   it('sobre algo que no es un control, lo dice: "no es un control con valor legible"', async () => {
     const map = await walk([
       { id: 's1', action: 'expect_value', hint: { role: 'heading', name: 'Alta de vehículo' }, value: 'x' },
     ]);
     expect(map.open_questions.find((q) => q.step === 's1')!.reason).toContain('no es un control con valor legible');
-  }, 60_000);
+  }, 120_000);
 });

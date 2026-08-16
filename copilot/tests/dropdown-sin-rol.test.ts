@@ -80,7 +80,7 @@ describe('K0.26 — select sobre desplegable sin rol (Bootstrap/PrestaShop)', ()
     const report = (map.step_reports ?? []).find((r) => r.step === 's1')!;
     expect(report.outcome).toBe('ok');
     expect(map.open_questions).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 
   it('una opción ausente se reporta como tal, no se adivina', async () => {
     const map = await walk([
@@ -91,7 +91,7 @@ describe('K0.26 — select sobre desplegable sin rol (Bootstrap/PrestaShop)', ()
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('no resuelve única');
     expect(blocked!.reason).toContain('no apareció');
-  }, 60_000);
+  }, 120_000);
 
   it('K0.26b: el ancla que puentea a un control OCULTO no resuelve — irresoluble honesto, no timeout engañoso', async () => {
     // Fiel a PrestaShop: tras "Ordenar por:" el primer control que sigue es el
@@ -107,7 +107,7 @@ describe('K0.26 — select sobre desplegable sin rol (Bootstrap/PrestaShop)', ()
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('irresoluble');
     expect(blocked!.reason).not.toContain('Timeout');
-  }, 60_000);
+  }, 120_000);
 
   it('texto de opción duplicado fuera del menú → se planta (ambigua), no elige', async () => {
     // "Nombre, de A a Z" existe también como leyenda visible fuera del menú:
@@ -119,5 +119,5 @@ describe('K0.26 — select sobre desplegable sin rol (Bootstrap/PrestaShop)', ()
     const blocked = map.open_questions.find((q) => q.step === 's1');
     expect(blocked).toBeDefined();
     expect(blocked!.reason).toContain('ambigua');
-  }, 60_000);
+  }, 120_000);
 });

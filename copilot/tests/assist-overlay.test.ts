@@ -84,7 +84,7 @@ describe('overlay asistido (navegador real, fixture menú hover)', () => {
     await page.hover('#gestion');
     expect(await page.getByText('Simulación/Declaración Rescates').isVisible()).toBe(true);
     await page.close();
-  }, 60_000);
+  }, 120_000);
 
   it('graba hover del abridor + click del objetivo, y deja pasar los eventos a la app', async () => {
     page = await browser.newPage();
@@ -393,7 +393,7 @@ describe('escalera de fallback contra DOM real (caso onesait s7)', () => {
     expect(await p.getByLabel('Número Póliza').count()).toBe(0);
     // y el rol solo no discrimina: hay 4 textbox en la página
     expect(await p.getByRole('textbox').count()).toBe(4);
-  }, 60_000);
+  }, 120_000);
 
   /** Resuelve una cadena `A >> B >> C` como lo hace el driver. */
   const resolveChain = (start: Page, src: string) => {
@@ -439,7 +439,7 @@ describe('escalera de fallback contra DOM real (caso onesait s7)', () => {
     await unique.fill('POL-999');
     expect(await p.locator('#j_id123').inputValue()).toBe('POL-999');
     expect(await p.locator('#j_id124').inputValue()).toBe('');
-  }, 60_000);
+  }, 120_000);
 
   it('discrimina entre campos hermanos del mismo formulario', async () => {
     const mk = (label: string): PickedElement => ({
@@ -459,9 +459,9 @@ describe('escalera de fallback contra DOM real (caso onesait s7)', () => {
       await hit.fill('X-' + label);
       expect(await p.locator(id).inputValue()).toBe('X-' + label);
     }
-  }, 60_000);
+  }, 120_000);
 
   it('los ids del fixture son de los que NO se deben usar como locator', async () => {
     for (const id of ['j_id123', 'j_id124', 'j_id200']) expect(looksGeneratedId(id)).toBe(true);
-  }, 60_000);
+  }, 120_000);
 });
