@@ -1,6 +1,6 @@
 {
   "name": "ia4d-qa-automator-starter",
-  "version": "0.4.0-beta.1",
+  "version": "0.4.0-beta.2",
   "description": "Workspace de arranque para usar el agente QA ia4d-qa-automator: genera tests E2E Playwright con POM, A11y baked-in, compliance regulado y Quality layer Writer+Reviewer. Trae el runtime del agente + ejemplos listos para practicar.",
   "private": true,
   "type": "module",
