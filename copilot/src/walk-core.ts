@@ -263,6 +263,106 @@ export function hintLocatorPlan(hint: StepHint, priority: string[]): LocatorAtte
 }
 
 /**
+ * ¿Este intento lleva PALABRAS DEL GUION, o solo una forma?
+ *
+ * K0.41 — decide cuándo la ambigüedad detiene la escalera. La regla de K0.33
+ * («≥2 coincidencias → se planta; ningún peldaño más flojo puede arreglar eso»)
+ * se justifica en que *la palabra del guion designa a varias cosas de la
+ * pantalla*. Pero para un hint que trae rol y marcador y no nombre,
+ * `hintLocatorPlan` emite primero un **rol pelado**: `getByRole('textbox')` a
+ * secas. Ese intento no lleva ni una palabra del QA, así que "hay tres campos de
+ * texto" NO es la ambigüedad de la que hablaba la regla — es que todavía no se ha
+ * preguntado por el vocabulario.
+ *
+ * Medido en Mind2Web: 459 casos traían el marcador en el hint y **ninguno llegaba
+ * a ese peldaño**; 304 se plantaban con la palabra buena sin usar (4,9% del
+ * corpus).
+ *
+ * Este cambio se probó ANTES, sin la guarda de `esCampoEtiquetable`, y se
+ * revirtió: convertía 189 plantadas en aciertos pero abría 11 fallos mudos, todos
+ * del peldaño de etiqueta. Con la guarda delante, la puerta que abre ya no da a
+ * contenedores ni a enlaces. Ese es el orden en que había que hacerlo.
+ *
+ * La regla dura no se toca: los intentos que SÍ llevan palabras siguen parando la
+ * escalera exactamente como antes.
+ */
+export function attemptLlevaPalabras(a: LocatorAttempt): boolean {
+  return a.kind !== 'role' || Boolean(a.name);
+}
+
+const COMO_SE_LLAMA: Record<string, string> = {
+  a: 'el enlace', button: 'el botón', input: 'el campo', textarea: 'el campo',
+  select: 'el desplegable', option: 'la opción', label: 'la etiqueta',
+  li: 'el elemento de lista', td: 'la celda', th: 'la cabecera de columna',
+  tr: 'la fila', h1: 'el título', h2: 'el título', h3: 'el título',
+  h4: 'el título', h5: 'el título', h6: 'el título', img: 'la imagen',
+  p: 'el párrafo', span: 'el texto', div: 'el bloque',
+};
+const DONDE_ESTA: Record<string, string> = {
+  nav: 'la navegación', header: 'la cabecera', footer: 'el pie de página',
+  main: 'el contenido principal', aside: 'el lateral', form: 'el formulario',
+  table: 'la tabla', dialog: 'el diálogo', section: 'una sección', article: 'un artículo',
+};
+
+/**
+ * K0.41 — el elemento resuelto, DICHO EN CASTELLANO.
+ *
+ * El informe daba el locator (`getByText('Cerrar')`) y nada más, y con eso un QA
+ * funcional no puede juzgar nada: para saber si el paso tocó lo que debía hay que
+ * saber QUÉ tocó, no con qué frase se buscó. «el enlace "Cerrar", en el pie de
+ * página» se juzga en dos segundos; el locator, no.
+ *
+ * Solo se construye para el peldaño débil (el resto no lo necesita y costaría un
+ * viaje al DOM por paso). Nada de esto cambia el veredicto: es vocabulario.
+ */
+export function describirElemento(tag: string, texto: string, contenedor: string): string {
+  const que = COMO_SE_LLAMA[tag.toLowerCase()] ?? `el elemento <${tag.toLowerCase()}>`;
+  const t = texto.replace(/\s+/g, ' ').trim().slice(0, 40);
+  const donde = DONDE_ESTA[contenedor.toLowerCase()];
+  return `${que}${t ? ` "${t}"` : ''}${donde ? `, en ${donde}` : ''}`;
+}
+
+/**
+ * Roles que designan un CAMPO — algo que se rellena, se marca o se pulsa como
+ * control de formulario. `link` NO está, y esa ausencia es el corazón de la
+ * guarda: un enlace es interactivo pero no es un campo.
+ */
+const ROLES_DE_CAMPO = new Set([
+  'textbox', 'searchbox', 'combobox', 'listbox', 'checkbox', 'radio', 'switch',
+  'slider', 'spinbutton', 'button', 'menuitemcheckbox', 'menuitemradio', 'option',
+]);
+const ETIQUETABLES = new Set(['input', 'select', 'textarea', 'button', 'meter', 'output', 'progress']);
+
+/**
+ * K0.41 — ¿lo que ha resuelto el peldaño de ETIQUETA es de verdad un campo?
+ *
+ * `getByLabel` responde a la pregunta "¿cuál es el campo etiquetado X?", y en
+ * Playwright matchea por `aria-label`, `aria-labelledby`, `<label for>` y label
+ * envolvente. Eso alcanza a cosas que no son campos: un `<div>` con `aria-label`
+ * que ENVUELVE al control, un enlace cuyo nombre accesible contiene la palabra, o
+ * el propio elemento `<label>`.
+ *
+ * Medido en Mind2Web, y con el reparto exacto: de once resoluciones equivocadas
+ * del peldaño de etiqueta, **diez no eran campos** — seis `<div>` contenedores en
+ * delta, tres `<a>` («12 top summer destinations…») en ryanair y un `<label>` en
+ * united. La undécima sí era un `<input>`, y sigue en pie: esta guarda no lo
+ * arregla todo y no pretende hacerlo.
+ *
+ * La guarda es ESTRUCTURAL, no un umbral: o el elemento es etiquetable según el
+ * HTML, o declara un rol de campo. Un `<div>` sin rol no es ninguna de las dos.
+ * Y acepta los widgets de librería (`<div role="combobox">` de Material, PrimeNG,
+ * Vuetify), que son campos de verdad aunque no sean nativos — sin eso, la guarda
+ * rompería justo los stacks de la gira.
+ */
+export function esCampoEtiquetable(tag: string, role: string | null, tipo: string | null): boolean {
+  const r = (role ?? '').trim().split(/\s+/)[0].toLowerCase();
+  if (r) return ROLES_DE_CAMPO.has(r);
+  const t = tag.toLowerCase();
+  if (t === 'input') return (tipo ?? 'text').toLowerCase() !== 'hidden';
+  return ETIQUETABLES.has(t);
+}
+
+/**
  * Segunda pasada de la escalera (K0.1): mismo plan con matching normalizado
  * (regex accent-insensitive). test_id queda fuera — es atributo exacto.
  */

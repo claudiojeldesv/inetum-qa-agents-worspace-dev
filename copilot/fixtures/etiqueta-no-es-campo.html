@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Reserva</title>
+<!--
+  K0.41 — el peldaño de ETIQUETA entregaba cosas que NO son campos.
+
+  `getByLabel` responde a "cual es el CAMPO etiquetado X", pero matchea por
+  aria-label, aria-labelledby, <label for> y label envolvente, y eso alcanza a:
+
+   (a) un CONTENEDOR con aria-label que envuelve al control  → el caso de delta,
+       seis veces: getByLabel('City') devolvia el <div>, no el <input>.
+   (b) un ENLACE cuyo nombre accesible contiene la palabra   → el caso de ryanair,
+       tres veces: getByLabel('Destination') devolvia el enlace de "12 top summer
+       destinations". Un enlace es interactivo pero NO es un campo.
+
+  Y la mitad falsable, que es lo que impide que la guarda sea una poda ciega:
+
+   (c) un WIDGET DE LIBRERIA (<div role="combobox">) SI es un campo aunque no sea
+       nativo. Sin esto la guarda romperia Angular Material, PrimeNG y Vuetify, o
+       sea justo los stacks de la gira.
+-->
+<style>body { font: 14px system-ui, sans-serif; padding: 16px; }</style>
+
+<h1>Reserva de vuelo</h1>
+
+<!-- (a) el contenedor lleva la etiqueta; el campo esta dentro -->
+<div aria-label="Ciudad">
+  <input id="ciudad" type="text">
+</div>
+
+<!-- (b) un enlace cuyo nombre contiene la palabra del hint -->
+<p><a id="promo" href="#promos">12 destinos recomendados para el verano</a></p>
+
+<!-- (c) widget de libreria: no es nativo, pero es un campo -->
+<div id="pais" role="combobox" aria-label="Pais" tabindex="0">Selecciona...</div>
+</html>

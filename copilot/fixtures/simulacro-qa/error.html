@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<!--
+  TRAMPA 8 (cont.): la pagina de error REAL de un stack Java. El titulo tiene
+  forma de error de contenedor y el cuerpo trae firma de volcado de pila. Ese es
+  el par de senales que el walker exige (K0.35): la palabra "error" suelta no
+  basta, porque un catalogo de codigos de error de una aseguradora la lleva en
+  cada fila y no esta rota.
+-->
+<title>Error - Error calling action method of component with id form:tramitar</title>
+<body>
+  <h1>HTTP Status 500 - Internal Server Error</h1>
+  <p><b>Type</b> Exception Report</p>
+  <pre>java.lang.NullPointerException
+	at com.segurotel.siniestros.TramitacionBean.tramitar(TramitacionBean.java:214)
+	at javax.faces.component.UICommand.broadcast(UICommand.java:315)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:189)</pre>
+</body>
+</html>

@@ -76,6 +76,9 @@ import {
   parseJsonLoose,
   parseLocatorChain,
   pruneAriaSnapshot,
+  attemptLlevaPalabras,
+  describirElemento,
+  esCampoEtiquetable,
   pruneAssistSequence,
   rescueInstructions,
   resolveFixtureRef,
@@ -85,6 +88,9 @@ import {
   type LocatorAttempt,
   urlEstable,
 } from './walk-core.ts';
+// el marcador de peldaños (K0.27a) ya sabe leer una cadena de locator: reimplementar
+// esa clasificación aquí sería tener dos verdades sobre qué peldaño resolvió el paso
+import { classifyVia } from './walk-scoreboard.ts';
 import {
   EXIT_ERROR,
   EXIT_OK,
@@ -1047,6 +1053,14 @@ class DomWalker {
    */
   private ultimaAmbiguedad: string | null = null;
   /**
+   * K0.41 — descripción en castellano de lo último que resolvió el peldaño débil.
+   * Vive en la instancia porque `resolveHint` es quien tiene el locator y
+   * `pushReport` quien escribe el informe, y hay diez sitios que reportan: pasarla
+   * por parámetro obligaría a tocarlos todos para un dato que solo usa uno.
+   * Se reinicia en cada resolución, para que no se herede del paso anterior.
+   */
+  private ultimaDescripcion: string | null = null;
+  /**
    * K0.36 — motivo de bloqueo cuando el ÁMBITO resolvió pero no contenía el hint.
    * Campo aparte y no reutilizando `ultimaAmbiguedad`: son dos hallazgos distintos
    * con dos remedios distintos, y meterlos en la misma variable acabaría poniendo
@@ -1613,6 +1627,30 @@ class DomWalker {
       const previo = this.state.open_questions.find((q) => q.flow === flow.flow);
       if (previo) report.after_blocked = previo.step;
     }
+    /**
+     * K0.41 — EL PELDAÑO DÉBIL SE AUTODELATA. Medido contra 6.249 páginas reales
+     * (§30): el peldaño de rol dio 2.954 aciertos y 5 fallos; el de texto, 1.216
+     * y 33. Treinta y tres de los treinta y ocho fallos del corpus salieron de
+     * aquí, y hasta ahora se reportaban igual que los demás.
+     *
+     * Y `sin_red` es la combinación que de verdad preocupa: resuelto por el
+     * vocabulario más flojo y sin ninguna aserción de negocio detrás. Con red, un
+     * elemento equivocado suele hacer fallar la postcondición; sin red no lo caza
+     * nadie — y el Reviewer tampoco, porque audita el código, no la pantalla.
+     */
+    /**
+     * Solo pasos que ACTÚAN. Una aserción resuelta por texto no es un riesgo
+     * silencioso: comprobar texto ES buscar texto, y marcarla «sin red» es
+     * absurdo porque la red es ella. Lo cazó el simulacro en su primer run — el
+     * aviso salía sobre tres `expect_text` y habría enseñado al QA a ignorarlo.
+     */
+    if (!ASSERTION_ACTIONS.has(step.action) && classifyVia(report.resolved_via).startsWith('texto')) {
+      report.peldano_debil = true;
+      if (this.ultimaDescripcion) report.resolved_desc = this.ultimaDescripcion;
+      const yo = flow.steps.findIndex((s) => s.id === step.id);
+      const hayRed = yo >= 0 && flow.steps.slice(yo + 1).some((s) => ASSERTION_ACTIONS.has(s.action));
+      if (!hayRed) report.sin_red = true;
+    }
     if (at >= 0) reports[at] = report;
     else reports.push(report);
     /**
@@ -2099,6 +2137,62 @@ class DomWalker {
     return nVisibles === 0 ? 'ausente' : 'ambiguo';
   }
 
+  /**
+   * K0.41 — ¿el elemento resuelto es un campo? Se lee del DOM en un solo viaje y
+   * el juicio vive en `esCampoEtiquetable` (puro y con test). El `evaluate`
+   * devuelve una CADENA a propósito: componer un objeto obliga a una función
+   * auxiliar dentro, y esbuild la envuelve con `__name`, que no existe en la
+   * página (la trampa de la Fase 6).
+   */
+  private async esCampo(loc: Locator): Promise<boolean> {
+    const crudo = await loc
+      .evaluate((el) => `${el.tagName.toLowerCase()}|${el.getAttribute('role') ?? ''}|${el.getAttribute('type') ?? ''}`)
+      .catch(() => '');
+    if (!crudo) return false;
+    const [tag, role, tipo] = crudo.split('|');
+    return esCampoEtiquetable(tag, role || null, tipo || null);
+  }
+
+  /**
+   * K0.41 — descripción en castellano del elemento resuelto, para el informe.
+   * Un solo viaje al DOM, y solo cuando resolvió el peldaño débil: el resto no lo
+   * necesita y cobrarlo en cada paso sería pagar por nada. La cadena se compone
+   * fuera (`describirElemento`, puro y con test) — aquí solo se leen los datos.
+   */
+  private async describir(loc: Locator): Promise<string | null> {
+    const crudo = await loc
+      .evaluate((el) => {
+        const cont = el.closest('nav,header,footer,main,aside,form,table,dialog,section,article');
+        const txt = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+        return `${el.tagName.toLowerCase()}|${txt}|${cont && cont !== el ? cont.tagName.toLowerCase() : ''}`;
+      })
+      .catch(() => '');
+    if (!crudo) return null;
+    const [tag, texto, contenedor] = crudo.split('|');
+    return describirElemento(tag, texto ?? '', contenedor ?? '');
+  }
+
+  /**
+   * K0.41 — el campo al que se refiere la etiqueta, o null si lo que salió no es
+   * un campo en absoluto.
+   *
+   * El segundo paso no es nuevo: es `controlDelDestino`, la misma regla de K0.36.
+   * Allí la etiqueta apuntaba con `for` a un COMPONENTE de PrimeNG y había que
+   * bajar al control nativo de dentro; aquí la etiqueta llega por `aria-label`
+   * sobre un `<div role="combobox">` que envuelve al `<input>` — el patrón ARIA
+   * 1.1 que usa delta, y que produjo SEIS resoluciones equivocadas en el corpus.
+   *
+   * Distinguir "declara ser un campo y lo es" de "declara serlo y envuelve al
+   * verdadero" no se puede por atributos, pero sí por estructura: si dentro hay un
+   * control nativo único, ese es el campo. Si no hay ninguno —el `p-select` de
+   * PrimeNG, el widget de Material—, el componente ES el campo y se queda.
+   */
+  private async campoDeEtiqueta(loc: Locator): Promise<Locator | null> {
+    if (!(await this.esCampo(loc))) return null;
+    const dentro = await this.controlDelDestino(loc);
+    return dentro === 'ambiguo' ? null : dentro;
+  }
+
   /** Único visible o null. Nunca .first() sobre ambiguos (regla dura). */
   private async uniqueOrNull(loc: Locator): Promise<Locator | null> {
     const count = await loc.count().catch(() => 0);
@@ -2322,18 +2416,43 @@ class DomWalker {
      * humano desambigua. Plantarse es lento; equivocarse en silencio es inservible.
      */
     const rawPlan = hintLocatorPlan(step.hint ?? {}, this.priority);
+    // se reinicia por paso: una descripción heredada del paso anterior mentiría
+    this.ultimaDescripcion = null;
     let ambiguo: string | null = null;
     for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
       for (const attempt of plan) {
         for (const { scope, path, via } of containers) {
           const res = await this.intento(this.attemptToLocator(scope, attempt));
           if (res === 'ambiguo') {
-            ambiguo ??= locatorSource(attempt);
+            /**
+             * K0.41 — un intento SIN palabras del guion (rol pelado) no detiene la
+             * escalera. Ver `attemptLlevaPalabras`: "hay tres campos de texto" no
+             * es que la palabra del QA designe varias cosas, es que aún no se ha
+             * preguntado por ella. Medido: 304 pasos (4,9% del corpus) se
+             * plantaban ahí con el marcador del propio hint sin llegar a probarse.
+             */
+            if (attemptLlevaPalabras(attempt)) ambiguo ??= locatorSource(attempt);
             continue; // otro contenedor/frame todavía puede tener UNA sola
           }
           if (res === 'ausente') continue;
+          /**
+           * K0.41 — el peldaño de ETIQUETA solo puede entregar un CAMPO.
+           * `getByLabel` significa "el campo etiquetado X"; un `<div>` que
+           * envuelve al control, un enlace cuyo nombre contiene la palabra o el
+           * propio `<label>` no son campos. Se trata como AUSENTE, no como
+           * resolución: la escalera sigue bajando, que es lo que hace cuando un
+           * vocabulario no describe al elemento aquí.
+           */
+          let elegido = res;
+          if (attempt.kind === 'label') {
+            const campo = await this.campoDeEtiqueta(res);
+            if (!campo) continue;
+            elegido = campo;
+          }
+          // solo el peldaño débil paga el viaje: es el único cuyo resultado hay que juzgar a mano
+          if (attempt.kind === 'text') this.ultimaDescripcion = await this.describir(elegido);
           const source = via ? `${via} >> ${locatorSource(attempt)}` : locatorSource(attempt);
-          return { locator: res, via: source, frame_path: path };
+          return { locator: elegido, via: source, frame_path: path };
         }
         if (ambiguo) {
           /**
@@ -4995,6 +5114,27 @@ async function main(): Promise<void> {
     );
     for (const r of tardias) {
       console.log(`  - ${r.flow}/${r.step} pasó, pero ${r.flow}/${r.after_blocked} había quedado sin ejecutar`);
+    }
+  }
+  /**
+   * K0.41 — los pasos que resolvió el PELDAÑO DÉBIL. No son fallos ni bajan la
+   * cobertura: resolvieron. Pero medido contra 6.249 páginas reales (§30), 33 de
+   * los 38 fallos del corpus salieron de este peldaño y de ningún otro, así que
+   * es exactamente aquí donde el QA tiene que mirar — unos pocos pasos de cada
+   * cien en vez de todos. Los `SIN RED` van primero porque son los que nadie más
+   * puede cazar.
+   */
+  const debiles = (map.step_reports ?? []).filter((r) => r.peldano_debil);
+  if (debiles.length > 0) {
+    const sinRed = debiles.filter((r) => r.sin_red);
+    console.log(
+      `[dom-walker] ${debiles.length} paso(s) los resolvió el PELDAÑO DÉBIL (texto visible), el último de la escalera` +
+        `${sinRed.length > 0 ? ` — ${sinRed.length} SIN aserción de negocio detrás` : ''}:`,
+    );
+    for (const r of [...sinRed, ...debiles.filter((r2) => !r2.sin_red)]) {
+      console.log(
+        `  - ${r.flow}/${r.step}${r.sin_red ? ' [SIN RED]' : ''} → tocó ${r.resolved_desc ?? '(no descrito)'}`,
+      );
     }
   }
   process.exit(EXIT_OK);

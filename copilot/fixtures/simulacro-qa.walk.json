@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "site_id": "simulacro-qa",
+  "entry": "/simulacro-qa/index.html",
+  "flows": [
+    {
+      "flow": "CP01-consulta-de-siniestros",
+      "steps": [
+        { "id": "s1", "action": "fill", "hint": { "label": "Numero de poliza" }, "value": "POL-4471" },
+        { "id": "s2", "action": "select", "hint": { "label": "Ramo" }, "value": "Hogar" },
+        { "id": "s3", "action": "click", "hint": { "text": "Consultar" } },
+        { "id": "s4", "action": "expect_text", "value": "movimientos" }
+      ]
+    },
+    {
+      "flow": "CP02-descarga-de-justificante",
+      "steps": [
+        { "id": "s1", "action": "click", "hint": { "text": "Descargar justificante" } },
+        { "id": "s2", "action": "click", "hint": { "role": "button", "name": "Consultar" } }
+      ]
+    },
+    {
+      "flow": "CP03-alta-de-siniestro",
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/simulacro-qa/alta.html" },
+        { "id": "s2", "action": "fill", "hint": { "label": "Descripcion del siniestro" }, "value": "Rotura de cristal en salon" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Guardar" }, "expect_transition": false },
+        { "id": "s4", "action": "expect_text", "value": "Siniestro registrado" }
+      ]
+    },
+    {
+      "flow": "CP04-tramitacion",
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/simulacro-qa/alta.html" },
+        { "id": "s2", "action": "click", "hint": { "role": "button", "name": "Aprobar expediente" } },
+        { "id": "s3", "action": "expect_text", "value": "Expediente aprobado" }
+      ]
+    },
+    {
+      "flow": "CP05-error-del-servidor",
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/simulacro-qa/alta.html" },
+        { "id": "s2", "action": "click", "hint": { "role": "button", "name": "Tramitar" }, "expect_transition": true },
+        { "id": "s3", "action": "expect_text", "value": "Tramitacion completada" }
+      ]
+    }
+  ]
+}

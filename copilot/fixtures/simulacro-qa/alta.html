@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Segurotel — Alta de siniestro</title>
+<!--
+  Segunda pantalla del simulacro. Aqui viven la transicion, la postcondicion que
+  se cumple, y la pagina de error de la aplicacion.
+-->
+<style>
+  body { font: 15px system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+  header { background: #003b73; color: #fff; padding: 12px 24px; }
+  main { padding: 24px; max-width: 900px; }
+  label { display: block; margin: 12px 0 4px; font-weight: 600; }
+  input { padding: 6px 8px; font: inherit; width: 260px; }
+  button { padding: 8px 16px; font: inherit; cursor: pointer; }
+</style>
+
+<header><strong>Segurotel</strong> — Portal de siniestros</header>
+
+<main>
+  <h1>Alta de siniestro</h1>
+
+  <label for="desc">Descripcion del siniestro</label>
+  <input id="desc" type="text">
+
+  <p>
+    <button id="guardar" type="button">Guardar</button>
+    <!-- TRAMPA 8: este boton lleva a la pagina de error del servidor -->
+    <button id="tramitar" type="button">Tramitar</button>
+  </p>
+
+  <div id="salida"></div>
+</main>
+
+<script>
+  document.getElementById('guardar').addEventListener('click', function () {
+    document.getElementById('salida').innerHTML =
+      '<p id="ok">Siniestro registrado con el numero EXP-2026-00417</p>';
+  });
+  document.getElementById('tramitar').addEventListener('click', function () {
+    window.location.href = 'error.html';
+  });
+</script>
+</html>

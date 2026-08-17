@@ -1,0 +1,16 @@
+# Style Contract del simulacro. Vocabulario por defecto del kernel: los cinco
+# peldaños, sin nada tuneado. Lo que se quiere enseñar es lo que ve un QA que
+# arranca sin saber nada del sitio.
+version: 1
+project: simulacro-qa
+
+locators:
+  priority:
+    - getByTestId
+    - getByRole
+    - getByLabel
+    - getByPlaceholder
+    - getByText
+
+naming:
+  language: es

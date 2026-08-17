@@ -260,6 +260,37 @@ export interface StepReport {
    * puede ser legítima —, solo dice de qué hay que desconfiar.
    */
   after_blocked?: string;
+  /**
+   * K0.41 — el paso lo resolvió el PELDAÑO DÉBIL (texto visible), que es el
+   * último de la escalera y solo entra cuando ningún vocabulario mejor —testid,
+   * rol, etiqueta, marcador— describía al elemento.
+   *
+   * Sale de medir la escalera contra 6.249 páginas reales (§30): el peldaño de
+   * rol dio 2.954 aciertos y 5 fallos; el de texto, 1.216 y **33**. O sea que 33
+   * de los 38 fallos del corpus entero salieron de aquí. Hoy una resolución por
+   * rol y una por texto se reportaban EXACTAMENTE IGUAL, y no lo son.
+   *
+   * No cambia el veredicto ni la cobertura: el paso resolvió y punto. Lo que
+   * cambia es que el QA sepa dónde mirar — unos pocos pasos de cada cien en vez
+   * de todos. Convierte el fallo residual de silencioso en visible, que es lo
+   * único que le faltaba para ser auditable.
+   */
+  peldano_debil?: true;
+  /**
+   * El elemento que resolvió, DICHO EN CASTELLANO («el enlace "Cerrar", en el pie
+   * de página»). El locator dice con qué frase se buscó; esto dice qué se tocó, y
+   * es lo único con lo que un QA funcional puede juzgar el aviso sin abrir el
+   * navegador. Solo se rellena para el peldaño débil, que es donde hay que juzgar.
+   */
+  resolved_desc?: string;
+  /**
+   * K0.41 — además del peldaño débil, el flujo NO comprueba nada después de este
+   * paso. Es la combinación que de verdad preocupa: resuelto por el vocabulario
+   * más flojo y sin ninguna aserción de negocio detrás que delate el error. Con
+   * red, un elemento equivocado suele hacer fallar la postcondición; sin red, no
+   * lo caza nadie — y el Reviewer tampoco, porque lee código, no la pantalla.
+   */
+  sin_red?: true;
 }
 
 /**

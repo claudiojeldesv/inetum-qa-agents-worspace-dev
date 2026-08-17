@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Segurotel — Consulta de siniestros</title>
+<!--
+  SIMULACRO PARA EL QA (K0.41). No es un banco de medida ni un test: es el
+  escenario con el que se ilustra, con datos REALES de una ejecucion de verdad,
+  que ve un QA cuando algo va mal y que hace con ello.
+
+  Cada trampa esta sembrada a proposito y numerada. La lista completa y el porque
+  de cada una viven en docs/simulacro-qa.md.
+-->
+<style>
+  body { font: 15px system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+  header { background: #003b73; color: #fff; padding: 12px 24px; }
+  nav { background: #eef2f7; padding: 8px 24px; }
+  nav a { margin-right: 18px; color: #003b73; }
+  main { padding: 24px; max-width: 900px; }
+  footer { background: #f5f5f5; padding: 16px 24px; margin-top: 40px; color: #555; font-size: 13px; }
+  label { display: block; margin: 12px 0 4px; font-weight: 600; }
+  input, select { padding: 6px 8px; font: inherit; width: 260px; }
+  button { padding: 8px 16px; font: inherit; cursor: pointer; }
+  table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+  .aviso { background: #fff6e5; border-left: 4px solid #e0a800; padding: 10px 14px; margin: 16px 0; }
+  #capa { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; }
+  #capa.on { display: block; }
+</style>
+
+<header><strong>Segurotel</strong> — Portal de siniestros</header>
+
+<nav>
+  <a href="#inicio">Inicio</a>
+  <!-- TRAMPA 2: "Consultar" existe aqui y tambien como boton del formulario -->
+  <a href="#consultar">Consultar</a>
+  <a href="#nuevo">Nuevo siniestro</a>
+</nav>
+
+<main>
+  <h1>Consulta de siniestros</h1>
+
+  <form id="filtro">
+    <!-- TRAMPA 1: la etiqueta NO esta asociada al campo (sin for, sin aria-label) -->
+    <div><span>Numero de poliza</span><input id="poliza" type="text"></div>
+
+    <label for="ramo">Ramo</label>
+    <!-- TRAMPA 3: el guion pedira "Hogar" y la opcion real es "HOGAR" -->
+    <select id="ramo">
+      <option value="">Selecciona...</option>
+      <option value="h">HOGAR</option>
+      <option value="a">AUTO</option>
+    </select>
+
+    <label for="estado">Estado</label>
+    <select id="estado">
+      <option value="">Todos</option>
+      <option value="p">Pendiente</option>
+      <option value="r">Rehusado</option>
+    </select>
+
+    <p><button id="buscar" type="button">Consultar</button></p>
+  </form>
+
+  <div id="resultado"><p id="conteo">Sin consulta realizada</p></div>
+
+  <!-- TRAMPA 6: el peldano debil resolvera este texto, y no hay red detras -->
+  <p><a id="ayuda" href="#ayuda">Descargar justificante</a></p>
+</main>
+
+<footer>
+  <!-- TRAMPA 4: el mismo literal que el enlace de la navegacion -->
+  <p>Servicio de atencion al cliente. Puede <a href="#tel">Consultar</a> el estado por telefono.</p>
+  <p>Segurotel S.A. — Todos los movimientos registrados quedan auditados.</p>
+</footer>
+
+<div id="capa"></div>
+
+<script>
+  var b = document.getElementById('buscar');
+  b.addEventListener('click', function () {
+    var ramo = document.getElementById('ramo').value;
+    var out = document.getElementById('resultado');
+    if (ramo === 'h') {
+      // TRAMPA 5: el texto contiene el literal del FD pero lo NIEGA
+      out.innerHTML = '<p id="conteo">(0) No hay movimientos para esa poliza</p>';
+    } else {
+      out.innerHTML = '<p id="conteo">Sin consulta realizada</p>';
+    }
+  });
+
+  // TRAMPA 7: al pulsar "Descargar justificante" cae una capa que tapa la pagina
+  document.getElementById('ayuda').addEventListener('click', function (e) {
+    e.preventDefault();
+    document.getElementById('capa').classList.add('on');
+  });
+</script>
+</html>
