@@ -796,18 +796,44 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
     'scroll_until',
   ];
   for (const flow of s.flows ?? []) {
-    if (!flow.flow) errors.push('flow sin id');
+    // K0.43 — el mensaje tiene que mandar a la acción correcta. El prompt del refiner
+    // describía `id`/`criterion_refs`, así que el guion traía esos campos y el error
+    // decía "flow sin id" sobre un objeto que TIENE id: mandaba a mirar el sitio
+    // equivocado y obligaba a leerse walk-types.ts a mano. Misma clase que K0.34/D2
+    // ("ambiguo" ≠ "irresoluble" en lo que lee el QA). Solo los dos alias MEDIDOS en
+    // campo: esto no es un motor de sinónimos.
+    const rawFlow = flow as unknown as Record<string, unknown>;
+    if (!flow.flow) {
+      errors.push(
+        typeof rawFlow.id === 'string'
+          ? `flujo sin 'flow' (trae 'id': "${rawFlow.id}") — el campo se llama 'flow', no 'id'`
+          : "flujo sin 'flow' (nombre del flujo, p.ej. 'login')",
+      );
+    }
+    // el nombre se busca también en el alias para que el resto de errores sepan ubicarse
+    const flowName = flow.flow ?? (typeof rawFlow.id === 'string' ? rawFlow.id : '?');
+    if (rawFlow.criterion_refs !== undefined && flow.criteria === undefined)
+      errors.push(`${flowName}: los RF-NNN van en 'criteria', no en 'criterion_refs'`);
     const seen = new Set<string>();
     for (const step of flow.steps ?? []) {
-      const at = `${flow.flow}/${step.id}`;
-      if (!step.id) errors.push(`${flow.flow}: paso sin id`);
+      const at = `${flowName}/${step.id ?? '?'}`;
+      if (!step.id) errors.push(`${flowName}: paso sin id (único dentro del flujo: 's1', 's2', ...)`);
       else if (seen.has(step.id)) errors.push(`${at}: id duplicado`);
       seen.add(step.id);
       // K0.16: un `locator` autoritativo sustituye a la hint (la escalera no se usa)
       if (NEEDS_HINT.includes(step.action) && !step.hint && !step.locator)
         errors.push(`${at}: '${step.action}' requiere hint o locator`);
       if (NEEDS_VALUE.includes(step.action) && step.value === undefined) errors.push(`${at}: '${step.action}' requiere value`);
-      if (step.action === 'goto' && !step.target) errors.push(`${at}: 'goto' requiere target`);
+      if (step.action === 'goto' && !step.target) {
+        // K0.43 — el guion de campo traía `goto` con `hint: {url}`. La hint es para
+        // ELEMENTOS; una ruta no es un elemento y no tiene vocabulario perceptible.
+        const rawHint = step.hint as Record<string, unknown> | undefined;
+        errors.push(
+          rawHint?.url !== undefined
+            ? `${at}: 'goto' requiere 'target' — la ruta va en target, no en hint.url`
+            : `${at}: 'goto' requiere target`,
+        );
+      }
       if (step.action === 'wait_url' && !step.target) errors.push(`${at}: 'wait_url' requiere target`);
       if (step.action === 'expect_state' && step.value !== undefined && !EXPECT_STATES.has(step.value))
         errors.push(`${at}: 'expect_state' requiere value ∈ {visible|enabled|disabled|checked|unchecked}`);
@@ -875,7 +901,7 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
           errors.push(`${at}: 'max_steps' debe ser un entero > 0`);
       }
     }
-    if (!flow.steps?.length) errors.push(`${flow.flow}: flujo sin pasos`);
+    if (!flow.steps?.length) errors.push(`${flowName}: flujo sin pasos`);
   }
   return { ok: errors.length === 0, errors };
 }

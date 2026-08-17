@@ -42,9 +42,32 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
    --output=<criteria-dir>/criteria.json
    --questions-output=<criteria-dir>/refinement-questions.md
    --walk-output=<workDir>/walk-script.json
+   --site-id=<site-id>
    ```
-   `--walk-output` solo si el contract NO trae `walker.enabled: false`. Es el guion que el Acto 2
-   ejecuta a coste cero antes de gastar un token de planner.
+   `--walk-output` (y su `--site-id`) solo si el contract NO trae `walker.enabled: false`. Es el
+   guion que el Acto 2 ejecuta a coste cero antes de gastar un token de planner.
+
+**4.b — Valida el guion AL EMITIRLO, antes de que lo vea el walker.** Salta este paso solo si no
+se pidió `--walk-output`.
+
+```sh
+npx tsx copilot/src/check-walk-script.ts <workDir>/walk-script.json
+```
+
+Exit 0 = válido, sigue. Exit 2 = inválido: **no lo arregles tú** (el guion es artefacto del
+refiner; reescribirlo aquí esconde el defecto y lo repite el próximo run). Pasa la salida del
+script **entera y literal** de vuelta al mismo `ia4d-spec-refiner` —incluye los errores, el
+esqueleto canónico y las reglas— y pídele que reemita. Exit 1 = no se pudo leer: es un fallo de
+escritura del refiner, mismo tratamiento.
+
+**Un reintento, no más.** Si la segunda emisión tampoco valida, para y enséñale al QA los errores
+de las dos: un refiner que no acierta el esquema con el esquema delante es un defecto del producto
+y hay que verlo, no rodearlo por el planner en silencio.
+
+Existe porque `validateWalkScript` solo corría en el consumidor: el error aparecía al arrancar el
+navegador, y recuperarse costaba extraer el contrato de tipos a mano (medido en el primer run de
+campo: `docs/findings/run-beta-parabank.md`, D1). Es el mismo patrón con el que `/setup` valida el
+Style Contract que emite.
 5. Lee `criteria.json`. De él salen: los criterios RF-NNN y el **brief** (`brief.flows`, `brief.entry`, `brief.ignore`) que en S4 teclea el QA.
 6. **Gate de open_questions (ask-first, no override).** Si hay criterios con `then` `[AMBIGUO ...]` o `open_questions` no vacío, muéstralos al QA (resumen de `refinement-questions.md`) y avisa: esos criterios **NO se generan** en este run (opción (a), decisión QA). El QA puede responder y re-ejecutar, o continuar solo con los criterios claros. No se fabrica el comportamiento ambiguo.
 7. Registra al audit-log: `{ source: 'command', action: 'fd_ingested', metadata: { criteria_count, blocked_count, flows } }`.

@@ -20,6 +20,8 @@ You are the **Spec Refiner** of the S3 module. You take a Functional Design docu
 - `--questions-output=<path>` — where to write `refinement-questions.md` (default: `refinement-questions.md` in workspace root).
 - `--walk-output=<path>` — where to write `walk-script.json`, the guion the deterministic walker
   executes. Optional; when absent, skip step 9 entirely.
+- `--site-id=<slug>` — the site id the run is namespaced under. Goes verbatim into the
+  walk-script's `site_id`. Required whenever `--walk-output` is present; never invent it.
 
 ## Process
 
@@ -43,14 +45,55 @@ You are the **Spec Refiner** of the S3 module. You take a Functional Design docu
    live application, at zero token cost. It is what turns the FD into an executable smoke test
    instead of a document nobody runs.
 
-   One `flow` per criterion group, `id` = the RF's flow name. Per step:
+   **The schema is `WalkScript` in `copilot/src/walk-types.ts`, and it is not negotiable** — the
+   command validates the file you write with `copilot/src/check-walk-script.ts` and hands it back to
+   you if it does not conform. Copy this skeleton; the field names are exact:
+
+   ```json
+   {
+     "version": 1,
+     "site_id": "<--site-id verbatim>",
+     "entry": "/path/inicial",
+     "flows": [
+       {
+         "flow": "login",
+         "criteria": ["RF-001"],
+         "steps": [
+           { "id": "s1", "action": "goto", "target": "/parabank/index.htm" },
+           { "id": "s2", "action": "fill", "hint": { "label": "Username" }, "value": "john" },
+           { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Log In" },
+             "expect_transition": true },
+           { "id": "s4", "action": "expect_text", "value": "Accounts Overview" }
+         ]
+       }
+     ]
+   }
+   ```
+
+   The four field names below are the ones a previous run got wrong — every one of them, in the
+   same run, producing 26 schema errors and a wasted round trip:
+
+   | write this | NOT this |
+   |---|---|
+   | `flow` (the flow's name) | `id` |
+   | `criteria` (the RF-NNN list) | `criterion_refs` |
+   | `target` on `goto`/`wait_url` | `hint: { url }` |
+   | `id` on **every step**, unique within its flow | omitting it |
+
+   `version`, `site_id`, `entry` and a non-empty `flows[]` are all **required at the root**.
+   `entry` is the same value you put in `brief.entry` — a path, not a full URL.
+
+   Per step:
    - `action`: `goto` · `fill` · `click` · `select` · `check` · `press` · `expect_text` ·
      `expect_value` · `expect_count`.
-   - `hint`: **only words a person can read on screen.** `{label}` for what is written beside or
+   - `hint`: **only words a person can read on screen**, and only these five keys —
+     `test_id` | `role` | `name` | `label` | `text`. `{label}` for what is written beside or
      inside a field, `{role, name}` for a control whose kind and caption the FD states,
-     `{text}` for a visible literal. **Never** an `id`, a CSS class, an `xpath` or a position —
-     you have not seen the DOM, and inventing a selector is fabrication with extra steps.
+     `{text}` for a visible literal. **Never** an `id`, a CSS class, an `xpath`, a URL or a
+     position — you have not seen the DOM, and inventing a selector is fabrication with extra
+     steps.
    - `value` for `fill`/`select`/`press`, taken from `synthetic_fixtures`, never from the FD.
+   - `expect_transition: true` on the step after which the screen changes.
 
    **Two disciplines carry over from the criteria, and they matter more here:**
 
