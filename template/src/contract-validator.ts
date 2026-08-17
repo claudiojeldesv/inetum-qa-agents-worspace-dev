@@ -193,6 +193,32 @@ const SCHEMA: Record<string, FieldSpec> = {
       ignore_selectors: { type: 'string[]' },
     },
   },
+  /**
+   * K0.42 — el papel del WALKER en este proyecto, declarado.
+   *
+   * Hasta ahora el walker se invocaba a mano por línea de comandos y ningún
+   * command lo llamaba: era un componente de investigación, no una pieza
+   * configurable del producto. Aquí deja de serlo.
+   *
+   * Lo que NO entra en el bloque es tan importante como lo que entra. Si el
+   * walker es motor o verificador **no se declara**: se deriva del módulo que
+   * corre (con FD o Gherkin hay guion y el walker es el motor; con solo una URL
+   * no hay nada que ejecutar y entra después, a verificar lo que descubrió el
+   * LLM). Dejar que un contract afirme lo contrario permitiría declarar una
+   * combinación imposible, y un contract incoherente es peor que uno ausente.
+   *
+   * Lo que sí es elección del cliente: si el walker participa, cuánta ayuda de
+   * LLM se autoriza cuando la escalera se planta, y si el panel asistido puede
+   * abrirse (en integración continua no hay nadie para señalar con el ratón).
+   */
+  walker: {
+    type: 'object',
+    fields: {
+      enabled: { type: 'boolean' },
+      rescue_budget: { type: 'number' },
+      assist: { type: 'boolean' },
+    },
+  },
   // Client-defined test data (sites add buyer_info, invalid_credentials, ...).
   // Freeform: unknown children are NOT typo suspects.
   synthetic_fixtures: { type: 'object', freeform: true },
@@ -363,6 +389,31 @@ function checkCoherence(c: Record<string, unknown>, issues: Issue[]): void {
         severity: 'warning',
         path: 'a11y.severity_threshold',
         message: 'fail_on_violations:true pero severity_threshold vacío — el gate está on pero nada cuenta, no abortará nunca',
+      });
+    }
+  }
+
+  /**
+   * K0.42 — el walker apagado con ayuda contratada. Individualmente los dos
+   * campos son válidos, juntos no significan nada: nadie va a gastar ese
+   * presupuesto ni abrir ese panel si el walker no corre. Es exactamente el
+   * agujero silencioso que este validador existe para tapar — el contract dice
+   * una cosa y el run hace otra, sin que nada avise.
+   */
+  const walker = c.walker as Record<string, unknown> | undefined;
+  if (walker?.enabled === false) {
+    if (typeof walker.rescue_budget === 'number' && walker.rescue_budget > 0) {
+      issues.push({
+        severity: 'warning',
+        path: 'walker.rescue_budget',
+        message: 'walker.enabled:false pero hay rescue_budget — el walker no corre, ese presupuesto no lo gastará nadie',
+      });
+    }
+    if (walker.assist === true) {
+      issues.push({
+        severity: 'warning',
+        path: 'walker.assist',
+        message: 'walker.enabled:false pero assist:true — el panel asistido solo se abre durante un walk, y no habrá walk',
       });
     }
   }

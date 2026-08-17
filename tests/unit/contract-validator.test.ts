@@ -30,6 +30,35 @@ evidence:
   });
 });
 
+describe('contract-validator — el bloque walker (K0.42)', () => {
+  it('acepta el bloque que emite la entrevista', () => {
+    const res = validateContract('version: 1\nwalker:\n  enabled: true\n  rescue_budget: 0\n  assist: true\n');
+    expect(res.ok).toBe(true);
+    expect(res.issues).toHaveLength(0);
+  });
+
+  it('avisa del walker apagado con ayuda contratada', () => {
+    // individualmente válidos, juntos no significan nada: nadie va a gastar ese
+    // presupuesto ni abrir ese panel si el walker no corre
+    const w = warns('version: 1\nwalker:\n  enabled: false\n  rescue_budget: 3\n  assist: true\n');
+    expect(w.some((i) => i.path === 'walker.rescue_budget')).toBe(true);
+    expect(w.some((i) => i.path === 'walker.assist')).toBe(true);
+  });
+
+  it('MITAD FALSABLE: con el walker encendido, esos mismos valores no avisan de nada', () => {
+    // si avisara siempre, el aviso sería ruido y el QA aprendería a ignorarlo
+    const w = warns('version: 1\nwalker:\n  enabled: true\n  rescue_budget: 3\n  assist: true\n');
+    expect(w.filter((i) => i.path.startsWith('walker'))).toHaveLength(0);
+  });
+
+  it('el papel del walker NO es declarable: motor o verificador se deriva del modulo', () => {
+    // dejar que un contract lo afirme permitiria declarar una combinacion
+    // imposible (solo una URL y el walker como motor, sin guion que ejecutar)
+    const w = warns('version: 1\nwalker:\n  enabled: true\n  mode: primary\n');
+    expect(w.some((i) => i.path === 'walker.mode')).toBe(true);
+  });
+});
+
 describe('contract-validator — enum errors', () => {
   it('rejects an invalid evidence.level', () => {
     const e = errs('version: 1\nevidence:\n  level: complete\n');

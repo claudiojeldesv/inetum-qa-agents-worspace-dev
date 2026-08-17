@@ -68,7 +68,21 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
 
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
 
-8. **Mapeo PLANNER POR FLUJO (secuencial, no monolítico).** El planner nativo se cuelga si se le pide
+**7.b — EL WALK DETERMINISTA VA PRIMERO (K0.42), igual que en S3.** Mismo argumento y con una
+ventaja: aquí el Gherkin ya está estructurado, así que el guion no depende de interpretar prosa.
+
+Salta este paso si el contract trae `walker.enabled: false` o si no hay `walk-script.json`.
+
+Cuando exista el guion, el orden es idéntico a S3 (ver `spec-refiner.md`, pasos 7.b a 7.d): correr
+`copilot/src/dom-walker.ts`, emitir specs de lo verificado con `copilot/src/walk-to-spec.ts`, y
+dejar al planner y al Writer **solo la cola**, con el motivo de cada encolado.
+
+> **Hueco declarado, no disimulado.** `src/gherkin-to-criteria.ts` emite hoy `criteria.json` y **no
+> emite el guion**. Hasta que lo haga, S2 va por el planner como siempre. El emisor es trabajo
+> determinístico (un `.feature` maduro ya trae los pasos), no una interpretación, y por eso NO se
+> resuelve pidiéndoselo a un LLM: eso metería fabricación en el único módulo que hoy no la tiene.
+
+8. **Mapeo PLANNER POR FLUJO (secuencial, no monolítico) — SOLO sobre los flujos de la cola.** El planner nativo se cuelga si se le pide
    mapear muchos flujos de una vez (hallazgo: ~1h colgado con 6 flujos). Invócalo **un flujo por vez**,
    secuencial — **nunca en paralelo** (comparten el navegador del MCP). No hay timeout programático
    sobre un subagente Task: **acotar a un flujo es la mitigación**. Para **cada** `<flow>` de

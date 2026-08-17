@@ -41,14 +41,63 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
    --fd=<--fd> --target-url=<--url>
    --output=<criteria-dir>/criteria.json
    --questions-output=<criteria-dir>/refinement-questions.md
+   --walk-output=<workDir>/walk-script.json
    ```
+   `--walk-output` solo si el contract NO trae `walker.enabled: false`. Es el guion que el Acto 2
+   ejecuta a coste cero antes de gastar un token de planner.
 5. Lee `criteria.json`. De él salen: los criterios RF-NNN y el **brief** (`brief.flows`, `brief.entry`, `brief.ignore`) que en S4 teclea el QA.
 6. **Gate de open_questions (ask-first, no override).** Si hay criterios con `then` `[AMBIGUO ...]` o `open_questions` no vacío, muéstralos al QA (resumen de `refinement-questions.md`) y avisa: esos criterios **NO se generan** en este run (opción (a), decisión QA). El QA puede responder y re-ejecutar, o continuar solo con los criterios claros. No se fabrica el comportamiento ambiguo.
 7. Registra al audit-log: `{ source: 'command', action: 'fd_ingested', metadata: { criteria_count, blocked_count, flows } }`.
 
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
 
-8. **Mapeo PLANNER POR FLUJO (secuencial, no monolítico).** El planner nativo se cuelga si se le pide
+**7.b — EL WALK DETERMINISTA VA PRIMERO (K0.42). No es una optimización: es el orden correcto.**
+
+Con un FD hay un guion, y ejecutarlo cuesta **cero tokens**. El planner nativo cuesta entre 113.000
+y 161.000 (medido, dos pasadas sobre Sakai) y en esas dos pasadas **se contradijo a sí mismo** sobre
+un hecho de la aplicación. Gastar eso en flujos que el walker ya recorre y verifica contra el DOM
+vivo es pagar por una opinión donde ya hay una medida.
+
+Salta este paso **solo** si el contract trae `walker.enabled: false`. Si no hay `walk-script.json`
+(el refiner no lo emitió), dilo y sigue por el planner — no lo escribas tú.
+
+1. Corre el walker sobre el guion del refiner:
+   ```sh
+   npx tsx copilot/src/dom-walker.ts --script=<workDir>/walk-script.json \
+     --contract=<--style> --base-url=<--url> --work-dir=<workDir>/walk \
+     --rescue-budget=<walker.rescue_budget del contract> [--assist si walker.assist]
+   ```
+2. Emite specs de lo verificado, también a coste cero:
+   ```sh
+   npx tsx copilot/src/walk-to-spec.ts --walk-script=<workDir>/walk-script.json \
+     --dom-map=<workDir>/walk/dom-map.json --style-contract=<--style> \
+     --out-specs=tests/e2e/<site-id> --out-pages=tests/pages/<site-id>
+   ```
+   `walk-to-spec` decide qué flujo es emisible y **cuál no, con el motivo**. Un flujo cuya aserción
+   pasó con un paso anterior bloqueado (`after_blocked`, K0.39) **no se industrializa**: un verde
+   sospechoso no se convierte en test de regresión.
+3. **Reparte el trabajo restante.** `emitidos` = flujos ya cubiertos. `cola` = los que necesitan LLM.
+   A partir de aquí, **el planner y el Writer trabajan SOLO sobre la cola**. Nunca sobre un flujo ya
+   emitido: regenerarlo con LLM tira el determinismo por el que se pagó.
+4. Registra al audit-log:
+   `{ source: 'command', action: 'walk_first', metadata: { emitidos, cola, motivos, pasos_ok, pasos_bloqueados } }`.
+
+**7.c — Lo que el walker dice y hay que enseñar al QA, no enterrar en un JSON.** Del `dom-map`,
+súbele al resumen del run:
+- Los pasos **bloqueados**, con su motivo distinguido: *irresoluble* (no existe) se arregla señalando
+  el elemento; *ambiguo* (designa varias cosas) se arregla acotando con `scope`. Mandan a acciones
+  contrarias y confundirlos hace perder una tarde.
+- Los **verdes con sospecha**: coincidencia parcial (`matched_text`), postcondición tras paso
+  bloqueado (`after_blocked`), y peldaño débil sin red (`peldano_debil` + `sin_red`). Ninguno cambia
+  el veredicto; todos dicen dónde mirar.
+- El **drift de negocio** (`postcondition_unmet`): el FD decía que aparecería X y no apareció. Es el
+  hallazgo más valioso del acto y no cuesta un token.
+
+**7.d — La cola es información que el Writer hoy no tiene.** Al invocar al Writer sobre un flujo de
+la cola, pásale **el motivo por el que quedó fuera**. Un flujo encolado porque un paso no resolvió
+no es lo mismo que uno encolado porque usa `scroll_until`, y el Writer trabaja mejor sabiéndolo.
+
+8. **Mapeo PLANNER POR FLUJO (secuencial, no monolítico) — SOLO sobre los flujos de la cola.** El planner nativo se cuelga si se le pide
    mapear muchos flujos de una vez (hallazgo: ~1h colgado con 6 flujos). Invócalo **un flujo por vez**,
    secuencial — **nunca en paralelo** (comparten el navegador del MCP). No hay timeout programático
    sobre un subagente Task: **acotar a un flujo es la mitigación**. Para **cada** `<flow>` de

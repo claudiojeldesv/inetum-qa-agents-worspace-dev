@@ -213,6 +213,23 @@ test_design:
 # propósito; la autenticación es siempre crítica (transversal). El naming español también se infiere
 # (semilla transversal auth + inferencia por dominio). En S2/S3 la criticidad la dan los criterios RF.
 
+# Papel del WALKER en este proyecto (K0.42). Lo emite /ia4d-qa-automator:setup a partir de la
+# entrevista con el QA, y a partir de ahí cada run lo lee sin volver a preguntar.
+walker:
+  enabled: boolean                          # default true. false = el walker no participa en este proyecto.
+  rescue_budget: number                     # default 0. Cuántas veces puede pedir ayuda al LLM cuando la
+                                            #   escalera se planta. 0 = todo determinista; se para y pregunta.
+  assist: boolean                           # default true. Si el panel asistido puede abrirse. En CI va a
+                                            #   false: no hay nadie para señalar el elemento y el run
+                                            #   esperaría hasta expirar.
+
+# NOTA — lo que NO se declara aquí, y es deliberado: si el walker es MOTOR o VERIFICADOR no es una
+# opción del contract, se DERIVA del módulo. Con un FD (S3) o un Gherkin (S2) existe un guion que
+# ejecutar y el walker es el motor, a $0, con el LLM solo en el rescate. Con solo una URL (S4) no hay
+# nada que ejecutar: descubre el LLM y el walker entra después a verificar. Permitir declararlo abriría
+# la puerta a combinaciones imposibles —"solo una URL y el walker como motor"— y un contract incoherente
+# es peor que uno ausente. El validador avisa si aparece un campo así.
+
 # PII allowlist (datos test publicados por el target, no son PII real)
 synthetic_fixtures:
   credentials:
