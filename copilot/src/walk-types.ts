@@ -407,6 +407,17 @@ export interface RescueRecord {
   resolved: boolean;
   locator?: string;
   audit_logged: boolean;
+  /**
+   * K0.44 — QUIÉN resolvió el paso. `llm` = un subagente propuso un locator;
+   * `human` = el QA lo señaló (o lo tecleó) en el panel asistido.
+   *
+   * La procedencia ya existía en el comentario del código y en el audit-log
+   * (`source: 'human'`), pero NO en la estructura sobre la que decide
+   * `promoteRescues`, así que las dos se juzgaban con la misma vara. Opcional
+   * para poder leer checkpoints y dom-maps anteriores sin migrarlos; ausente se
+   * trata como `llm`, que es el criterio conservador.
+   */
+  source?: 'llm' | 'human';
 }
 
 export interface DomMap {

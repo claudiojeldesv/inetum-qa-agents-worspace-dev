@@ -85,6 +85,7 @@ import {
   slugFromUrl,
   updateTimingProfile,
   validateWalkScript,
+  aliasPromotionVerdict,
   type LocatorAttempt,
   urlEstable,
 } from './walk-core.ts';
@@ -240,6 +241,29 @@ interface RawElement {
 
 /** Marcador del host del panel asistido: la captura lo salta (K0.10). */
 const ASSIST_HOST_ATTR = 'data-qa-assist-host';
+
+/**
+ * K0.44 (D10) — cada cuánto se comprueba que el panel SIGUE en pantalla.
+ *
+ * El panel se inyecta con `page.evaluate` sobre el documento actual y NO sobrevive
+ * a una navegación (los puentes de `exposeFunction` sí, ver ensureAssistBridge).
+ * Los puentes vivos y la interfaz muerta es la peor combinación posible: la espera
+ * solo puede resolverla una pulsación dentro de un panel que ya no existe, así que
+ * el walker se quedaba plantado el timeout ENTERO (600 s por defecto) sin decir
+ * nada. Medido en campo: el QA demostró el paso pulsando el enlace de logout, la
+ * navegación se llevó el panel por delante, y hubo que abortar el run.
+ *
+ * El panel NO se retira solo al enviar (lo cierra el walker, para que el QA vea el
+ * resultado de la verificación), así que "el host no está" significa exactamente
+ * una cosa: el panel murió. No hay carrera con el envío.
+ */
+const ASSIST_WATCHDOG_MS = 500;
+
+/**
+ * Re-inyecciones permitidas antes de rendirse. Acotado a propósito: sin tope, una
+ * página que redirige sola dejaría al QA en un bucle infinito de paneles.
+ */
+const ASSIST_MAX_REINJECTIONS = 3;
 
 /**
  * Helpers de extracción in-page, COMPARTIDOS por la captura del dom-map y el
@@ -460,7 +484,15 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
       <div class="p">
         <div class="h"><span>Asistencia QA</span><span id="s">esperando</span></div>
         <div class="b">
-          <div class="ctx">Paso <b>\${'${step.id}'}</b> bloqueado.<br>El FD dice: <b>\${'${hintText.replace(/'/g, '&#39;').replace(/</g, '&lt;')}'}</b></div>
+          <div class="ctx">Paso <b>\${'${step.id}'}</b> bloqueado.<br>El FD dice: <b>\${${JSON.stringify(
+            // K0.44 — se embebe con JSON.stringify y no como literal entrecomillado a
+            // mano: el escapado manual cubría la comilla y el '<' pero NO el salto de
+            // línea, y un motivo multilínea reventaba el panel entero con
+            // "SyntaxError: Invalid or unexpected token" — o sea, sin panel y sin
+            // saber por qué. Lo cazó el aviso de panel perdido de D10, que es el
+            // primer motivo de varias líneas que existe.
+            hintText.replace(/</g, '&lt;').replace(/\n/g, '<br>'),
+          )}}</b></div>
           ${
             mutating
               ? `<div class="mut">Este paso CAMBIA estado de negocio (<code>${step.action}</code> sin
@@ -3123,24 +3155,88 @@ class DomWalker {
     console.error(`[dom-walker] ASISTENCIA ${flow.flow}/${step.id}: panel abierto en el navegador, esperando al QA...`);
     this.audit('llm_call', `asistencia solicitada: ${flow.flow}/${step.id}`, { phase: 'assist', source_hint: this.hintText(step) });
 
+    const mutating = !isRetrySafe(step);
+    const baseReason = contextReason ?? this.hintText(step);
+    let endReason = `asistencia sin respuesta en ${Math.round(this.opts.assistTimeoutMs / 1000)}s (timeout)`;
+    let reinjections = 0;
+
     const submission = await new Promise<AssistSubmission | null>((res) => {
-      const timer = setTimeout(() => {
-        this.assistPending = null;
-        res(null);
-      }, this.opts.assistTimeoutMs);
-      this.assistPending = (p) => {
+      let done = false;
+      let timer: ReturnType<typeof setTimeout>;
+      let watchdog: ReturnType<typeof setInterval>;
+      const finish = (p: AssistSubmission | null, reason?: string): void => {
+        if (done) return;
+        done = true;
+        if (reason) endReason = reason;
         clearTimeout(timer);
+        clearInterval(watchdog);
+        this.assistPending = null;
         res(p);
       };
-      void this.page
-        .evaluate(
-          assistOverlayScript(TESTID_ATTR_CANDIDATES, step, contextReason ?? this.hintText(step), !isRetrySafe(step)),
-        )
-        .catch((err) => console.error(`[dom-walker] no se pudo inyectar el panel: ${String(err).split('\n')[0]}`));
+      timer = setTimeout(() => finish(null), this.opts.assistTimeoutMs);
+      this.assistPending = (p) => finish(p);
+
+      const inject = (note: string): Promise<void> =>
+        this.page
+          .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, note, mutating))
+          .then(() => undefined)
+          // K0.44 (D10) — antes esto solo se escribía por consola y la espera seguía
+          // viva: el walker aguardaba el timeout entero por un panel que no llegó a
+          // existir. El silencio era peor que el fallo (clase K0.29/D2).
+          .catch((err) => finish(null, `no se pudo inyectar el panel de asistencia: ${String(err).split('\n')[0]}`));
+      void inject(baseReason);
+
+      watchdog = setInterval(() => {
+        if (done) return;
+        void this.page
+          .locator(`[${ASSIST_HOST_ATTR}]`)
+          .count()
+          .then((n) => {
+            if (done || n > 0) return;
+            if (reinjections >= ASSIST_MAX_REINJECTIONS) {
+              finish(
+                null,
+                `el panel de asistencia desapareció ${reinjections} veces (la página navega o se recarga sola); ` +
+                  `no se pudo mantener en pantalla`,
+              );
+              return;
+            }
+            reinjections += 1;
+            /**
+             * Lo grabado vivía DENTRO del panel, así que se ha perdido con él. No se
+             * puede reconstruir sin inventar, y decir "sigue grabando" sería mentir.
+             * Y si el paso muta negocio hay que decirlo con todas las letras: volver a
+             * demostrarlo puede dispararlo dos veces, y para eso está "capturar sin
+             * ejecutar" (K0.14), que el propio panel ofrece cuando `mutating`.
+             */
+            const nota =
+              `${baseReason}\n\n⚠ La página cambió y el panel se perdió con lo grabado hasta ahora ` +
+              `(intento ${reinjections}/${ASSIST_MAX_REINJECTIONS}). Vuelve a señalar el elemento.` +
+              (mutating
+                ? ' OJO: este paso modifica datos de negocio — si la acción ya se ejecutó, usa "capturar sin ejecutar" en vez de repetirla.'
+                : '');
+            console.error(
+              `[dom-walker] el panel de asistencia desapareció (la página navegó); re-inyectando ` +
+                `${reinjections}/${ASSIST_MAX_REINJECTIONS} — lo grabado se ha perdido`,
+            );
+            // 'skip' y no 'warn': la unión de acciones del walker no tiene 'warn' y
+            // ampliarla es decisión aparte (familia D2). El mensaje lleva el sentido.
+            this.audit('skip', `panel de asistencia perdido por navegación en ${flow.flow}/${step.id}`, {
+              phase: 'assist',
+              source: 'human',
+              reinjection: reinjections,
+              mutating,
+            });
+            void inject(nota);
+          })
+          // la página está navegando justo ahora: no es un diagnóstico, se reintenta
+          // en el siguiente tick del vigilante
+          .catch(() => undefined);
+      }, ASSIST_WATCHDOG_MS);
     });
 
     if (!submission) {
-      this.blockStep(flow, step, `asistencia sin respuesta en ${Math.round(this.opts.assistTimeoutMs / 1000)}s (timeout)`, false);
+      this.blockStep(flow, step, endReason, false);
       return null;
     }
     if (submission.kind === 'drift') {
@@ -3254,7 +3350,7 @@ class DomWalker {
     // el objetivo entra en la memoria del cliente igual que un rescate (promoción
     // condicional al cierre del flujo), pero con procedencia humana
     if (step.hint) {
-      this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: target.candidate.source, audit_logged: true });
+      this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: target.candidate.source, audit_logged: true, source: 'human' });
     }
     this.audit('allow', `asistencia resuelta ${flow.flow}/${step.id} → ${target.candidate.source}`, {
       phase: 'assist',
@@ -4133,7 +4229,7 @@ class DomWalker {
           if (rescue) {
             if (rescue.locator === null) {
               this.blockStep(flow, step, `rescate LLM respondió locator=null: ${rescue.reason ?? 'elemento no presente en el snapshot'}`, true);
-              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: false, audit_logged: true });
+              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: false, audit_logged: true, source: 'llm' });
               this.audit('block', `rescate fallido ${stepKey}: paso a open_questions`, { phase: 'rescue-response' });
               return;
             }
@@ -4141,11 +4237,11 @@ class DomWalker {
             const count = loc ? await loc.count().catch(() => 0) : 0;
             if (loc && count >= 1) {
               resolved = { locator: count === 1 ? loc : loc.first(), via: rescue.locator, frame_path: [] };
-              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: rescue.locator, audit_logged: true });
+              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: rescue.locator, audit_logged: true, source: 'llm' });
               this.audit('allow', `rescate resuelto ${stepKey} → ${rescue.locator}`, { phase: 'rescue-response' });
             } else {
               this.blockStep(flow, step, `el locator del rescate no resuelve en el DOM: ${rescue.locator}`, true);
-              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: false, locator: rescue.locator, audit_logged: true });
+              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: false, locator: rescue.locator, audit_logged: true, source: 'llm' });
               this.audit('block', `locator de rescate inválido ${stepKey}`, { phase: 'rescue-response' });
               return;
             }
@@ -4720,11 +4816,30 @@ class DomWalker {
   // ------------------------------------------------- promoción de rescates
 
   /**
-   * K0.5 — promoción CONDICIONAL de rescates a hint-aliases: solo si el paso
-   * rescatado completó, su postcondición se cumplió (transición registrada si
-   * expect_transition) y ningún expect_* posterior del flujo quedó en drift.
-   * Un rescate que resolvió pero llevó al sitio equivocado NO contamina la
-   * memoria. Aliases existentes nunca se sobrescriben (cambiarlos = PR humano).
+   * K0.5 — promoción CONDICIONAL de rescates a hint-aliases. Aliases existentes
+   * nunca se sobrescriben (cambiarlos = PR humano).
+   *
+   * Dos cerrojos valen SIEMPRE, porque son evidencia directa sobre el elemento
+   * que se va a memorizar: el paso no quedó bloqueado, y si declaraba
+   * `expect_transition` la transición se registró (si el clic no navegó, el
+   * elemento era otro).
+   *
+   * K0.44 — el tercero, `flowExpectsFailed`, habla de OTRO paso del flujo y solo
+   * frena al LLM. La regla original se escribió para rescates de subagente: un
+   * modelo propone un locator sin haber visto la pantalla, y la postcondición del
+   * FD es la corroboración independiente que hace falta antes de fiarse. Cuando
+   * quien resolvió es el QA mirando la aplicación, la corroboración independiente
+   * YA OCURRIÓ — exigir además el proxy es pedir dos veces lo mismo.
+   *
+   * Y el proxy falla justo donde más duele, medido en campo (ParaBank, S3): FD en
+   * castellano contra app en inglés, el QA señala Username y Password en el panel,
+   * y la postcondición del flujo —que está en castellano por la MISMA razón que
+   * los hints— no se cumple. Resultado: el run en el que el QA más enseña es el
+   * run en el que no se aprende nada, y a la siguiente vuelve a señalar lo mismo.
+   *
+   * El precedente es del propio producto: la captura de corpus (K0.32) ya admite
+   * «corroboración INDEPENDIENTE — humana (panel/locator a mano) O postcondición
+   * del FD cumplida» como ALTERNATIVAS. Aquí solo se admitía una de las dos.
    */
   private promoteRescues(flow: WalkFlow): void {
     const flowExpectsFailed = this.state.open_questions.some(
@@ -4736,14 +4851,18 @@ class DomWalker {
       if (!step?.hint) continue;
       const key = aliasKey(step.hint, step.scope);
       if (this.aliases.aliases[key]) continue;
-      const blocked = this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id);
-      const transitionOk =
-        !step.expect_transition ||
-        this.state.transitions.some((t) => t.flow === flow.flow && t.step === step.id);
-      if (blocked || !transitionOk || flowExpectsFailed) {
-        this.audit('skip', `rescate NO promovido a alias ${flow.flow}/${step.id}: postcondición no confirmada`, {
+      const verdict = aliasPromotionVerdict({
+        source: rescue.source,
+        stepBlocked: this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id),
+        expectsTransition: step.expect_transition === true,
+        transitionRecorded: this.state.transitions.some((t) => t.flow === flow.flow && t.step === step.id),
+        flowExpectsFailed,
+      });
+      if (!verdict.promote) {
+        this.audit('skip', `rescate NO promovido a alias ${flow.flow}/${step.id}: ${verdict.reason}`, {
           phase: 'alias-promotion',
           locator: rescue.locator,
+          rescue_source: rescue.source ?? 'llm',
         });
         continue;
       }
@@ -4756,6 +4875,9 @@ class DomWalker {
       this.audit('allow', `rescate promovido a alias: ${key} → ${rescue.locator}`, {
         phase: 'alias-promotion',
         file: this.aliasesPath,
+        rescue_source: rescue.source ?? 'llm',
+        // por qué se admitió pese al drift del flujo: queda en la traza, no en la cabeza de nadie
+        via_human_override: verdict.viaHumanOverride ? true : undefined,
       });
     }
   }

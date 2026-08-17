@@ -135,10 +135,35 @@ volvería a partir del FD en castellano y repetiría el ciclo entero.
 El orquestador lo parcheó inventando `.work/parabank-fd-snapshot/`, hermano del workDir para
 esquivar la limpieza. Es un apaño suyo dentro de un run, no una pieza del producto.
 
-**Lo grave es que el mecanismo ya existe y S3 no lo usa.** `config/hint-aliases/<site_id>.json`
-(K0.5) es exactamente *"para este cliente, «nombre de usuario» → Username"*: vive fuera de
-`.work/`, es durable, versionable y revisable por PR. La condición de promoción se cumplió —la
-postcondición pasó en la segunda pasada—, y aun así nada se promovió.
+**CORRECCIÓN (K0.44).** La primera redacción de esta sección decía que *"la condición de
+promoción se cumplió y aun así nada se promovió"*. **Es falso**, y se comprobó contra el código
+al ir a arreglarlo. Se deja escrito porque la causa real es más interesante que la que supuse.
+
+`config/hint-aliases/<site_id>.json` (K0.5) es exactamente *"para este cliente, «nombre de
+usuario» → Username"*: vive fuera de `.work/`, es durable, versionable y revisable por PR — o
+sea que **la limpieza de `.work/` nunca fue el problema**. El panel además SÍ registra su
+resolución como rescate, con procedencia humana anotada en el comentario y en el audit-log.
+
+Lo que pasó es esto: `promoteRescues` exige que **ninguna** aserción del flujo haya quedado en
+drift (`flowExpectsFailed`). En la pasada 1, `login/s5` era `expect_text 'resumen de cuentas'`
+—en castellano, **por la misma razón que los hints**— y falló. Eso bloqueó la promoción de todo
+el flujo, incluidos los pasos que el QA había señalado con el ratón. En la pasada 2, con los
+literales corregidos, **no hubo ningún rescate** que promover porque la escalera resolvió sola.
+
+O sea: **el run en el que el QA más enseña es exactamente el run en el que no se aprende nada.**
+La regla se escribió para rescates de subagente, donde la postcondición del FD es la
+corroboración independiente que hace falta antes de fiarse de un locator que un modelo propuso
+sin ver la pantalla. Cuando quien resuelve es una persona mirando la aplicación, esa
+corroboración ya ocurrió, y exigir además el proxy —que aquí está roto por la misma causa que
+los hints— convierte la memoria en inalcanzable justo en el caso corporativo que define el
+producto.
+
+**Arreglado en K0.44**: `RescueRecord.source` (`'llm' | 'human'`), y `aliasPromotionVerdict`
+—pura y con par falsable— aplica el gate de la postcondición **solo al subagente**. Los dos
+cerrojos que son evidencia directa sobre el elemento (paso no bloqueado, y transición
+registrada si la declaraba) siguen valiendo para todos. El precedente es del propio producto: la
+captura de corpus (K0.32) ya admite *"corroboración INDEPENDIENTE — humana (panel/locator a
+mano) **o** postcondición del FD cumplida"* como alternativas; aquí solo se admitía una.
 
 Segundo agujero de la misma naturaleza: los tres parches del panel quedaron en
 `assist-patch.json` y **no se fundieron ni se promovieron**. Lo que el humano señaló con el
@@ -177,7 +202,44 @@ un verde que se lee como «listo»**.
 | D7 | No hay CLI para `appendAuditEntry`: el orquestador escribió **tres `.ts` desechables** (`log-ingest.ts`, `log-walk.ts`, `log-pause.ts`) dentro de `.work/` solo para registrar | fricción pura, y las entradas quedan redactadas por el agente en vez de emitidas |
 | D8 | El command imprimió `--fd=<ruta>` como si fuera ejecutable; el QA lo pegó literal. Y la ruta que se ofreció después (`docs/demo/parabank/fd-parabank.md`) **no existe** — el spec del command cita un nombre que no es el del fixture (`examples/02-parabank/parabank-fd.md`) | deriva de documentación dentro del plugin; arreglo de un minuto |
 | D9 | `--assist` estaba **declarado en el contract** (`walker.assist: true`, K0.42) y aun así se preguntó a mitad de run | el contract declarado y no obedecido: familia D2 otra vez |
-| D10 | El panel se cerró solo a mitad del run de logout («algo pasó, se cerró el modal») | **sin diagnosticar y sin reproducir**. Queda nombrado |
+| D10 | El panel se cerró solo a mitad del run de logout («algo pasó, se cerró el modal») y el walker se quedó esperando | **diagnosticado y arreglado en K0.44** — ver abajo |
+
+---
+
+## D10 — El panel muere con la página, y el walker esperaba diez minutos
+
+Era el que de verdad bloqueó la sesión, y estaba sin diagnosticar. La causa es estructural:
+
+El panel se inyecta con `page.evaluate` sobre el **documento actual**. Los puentes hacia Node
+(`exposeFunction`) sobreviven a una navegación —hay un comentario que lo declara—, pero **la
+interfaz no**: es DOM de esa página y una navegación la destruye. Y la espera solo puede
+resolverla una pulsación *dentro de ese panel*, o el plazo, que por defecto son **600 segundos**.
+
+Puentes vivos e interfaz muerta es la peor combinación: el walker no estaba colgado por un fallo
+de sincronización, estaba esperando educadamente a que alguien pulsara un botón inexistente.
+
+Y el disparador es el propio uso previsto: el panel graba los clics reales del QA sobre la
+aplicación, así que **demostrar un paso que navega —un logout— destruye el panel que lo estaba
+grabando**. El diseño hasta anticipa que el clic pueda ejecutar la acción (existe `performed`),
+pero la grabación tiene que llegar a Node, y si la navegación ocurre antes del envío se va con
+la página.
+
+Agravante: si la inyección fallaba, el error se escribía por consola y **se tragaba** sin
+resolver la espera — el silencio peor que el fallo, clase K0.29/D2 otra vez.
+
+**Arreglado en K0.44** con un vigilante que comprueba cada 500 ms que el panel sigue en
+pantalla. Si no está, lo re-inyecta hasta **3 veces** —acotado a propósito: una página que
+redirige sola dejaría al QA en un carrusel infinito— avisando de que lo grabado se perdió, y
+diciéndolo con todas las letras cuando el paso **muta negocio**: repetir la demostración puede
+dispararlo dos veces, y para eso está "capturar sin ejecutar" (K0.14). Agotados los intentos, el
+paso se bloquea con la causa real en vez de con un timeout genérico. La comprobación no tiene
+carrera con el envío: el panel **no se retira solo** al enviar, lo cierra el walker.
+
+**Un bug preexistente cazado por el test de esto**: el motivo del panel se interpolaba en el
+código fuente generado con un escapado a mano que cubría la comilla y el `<` pero **no el salto
+de línea**. El aviso de panel perdido es el primer motivo multilínea que existe, y reventaba el
+panel entero con `SyntaxError: Invalid or unexpected token` — sin panel y sin saber por qué.
+Ahora se embebe con `JSON.stringify`, con tests para salto de línea, comilla y barra invertida.
 
 ---
 
@@ -197,14 +259,18 @@ un verde que se lee como «listo»**.
 
 ---
 
-## Orden de ataque acordado con el QA
+## Estado de los defectos
 
-1. **D1** — validar el walk-script al emitirlo, con el mismo patrón que ya usa `setup`, y
-   corregir el prompt del refiner para que describa el esquema real. Bloquea el camino insignia
-   en cada run y el arreglo ya está inventado dentro del propio producto.
-2. **D3** — promoción a `hint-aliases` desde S3. Es lo que hace que la segunda ejecución se
-   sienta distinta de la primera, que es el argumento comercial entero.
-3. **D4** — que el healthcheck deje de dar verde donde no puede comprobar nada.
+| # | estado |
+|---|---|
+| D1 — el guion emitido no valida | **arreglado (K0.43)**: prompt con el esqueleto real, `check-walk-script.ts` + paso 4.b con un reintento, mensajes accionables |
+| D3 — lo señalado por el QA no llega a memoria | **arreglado (K0.44)**: promoción por procedencia; el gate de la postcondición solo frena al subagente |
+| D10 — el panel muere y el walker espera | **arreglado (K0.44)**: vigilante con re-inyección acotada + causa real en el bloqueo |
+| D4 — healthcheck verde con el MCP sin conectar | pendiente, siguiente por orden |
+| D5-D9 | pendientes, sin coste medido salvo D5 (~130k tokens de planner evitables) |
+| D2 — la familia | **no es un ticket**: es el criterio con el que se hacen los demás |
 
-D2 no entra en la lista porque no es un ticket: es el criterio con el que se hacen los otros
-tres.
+**Lo que NO demuestra ninguno de los tres arreglos**: que el ciclo entero funcione en un run
+real. D1 se prueba cuando el refiner emita un guion válido a la primera; D3, cuando un segundo
+run resuelva por `alias-hit` sin volver a preguntar; D10, cuando el QA vuelva a demostrar un
+paso que navega y el panel reaparezca. Los tests fijan el mecanismo; el ciclo lo dice el campo.

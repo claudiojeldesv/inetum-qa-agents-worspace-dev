@@ -906,6 +906,47 @@ export function validateWalkScript(script: unknown): { ok: boolean; errors: stri
   return { ok: errors.length === 0, errors };
 }
 
+// ------------------------------------------- promoción a memoria (K0.5/K0.44)
+
+export interface AliasPromotionInput {
+  /** Quién resolvió el paso. Ausente = 'llm' (criterio conservador para checkpoints viejos). */
+  source?: 'llm' | 'human';
+  /** El paso quedó en open_questions. */
+  stepBlocked: boolean;
+  /** El paso declaraba `expect_transition`. */
+  expectsTransition: boolean;
+  /** Se registró una transición para ESE paso. */
+  transitionRecorded: boolean;
+  /** Algún `expect_*` de OTRO paso del mismo flujo quedó en drift. */
+  flowExpectsFailed: boolean;
+}
+
+export type AliasPromotionVerdict =
+  | { promote: true; viaHumanOverride: boolean }
+  | { promote: false; reason: string };
+
+/**
+ * K0.44 — decisión de promoción a `hint-aliases`, pura para poder falsarla.
+ *
+ * Dos cerrojos son evidencia DIRECTA sobre el elemento que se va a memorizar y
+ * valen para todos: el paso no quedó bloqueado, y si declaraba transición, la
+ * transición ocurrió (si el clic no navegó, el elemento era otro).
+ *
+ * El tercero —que ninguna aserción del flujo haya quedado en drift— habla de OTRO
+ * paso, y solo frena al LLM: un subagente propone un locator sin ver la pantalla y
+ * necesita corroboración independiente; el QA señalando en el panel YA ES esa
+ * corroboración. Misma alternativa que admite la captura de corpus (K0.32).
+ */
+export function aliasPromotionVerdict(i: AliasPromotionInput): AliasPromotionVerdict {
+  if (i.stepBlocked) return { promote: false, reason: 'el paso quedó bloqueado' };
+  if (i.expectsTransition && !i.transitionRecorded)
+    return { promote: false, reason: 'declaraba expect_transition y no se registró transición' };
+  const porHumano = i.source === 'human';
+  if (i.flowExpectsFailed && !porHumano)
+    return { promote: false, reason: 'postcondición del flujo no confirmada (rescate de subagente)' };
+  return { promote: true, viaHumanOverride: porHumano && i.flowExpectsFailed };
+}
+
 // -------------------------------------- sincronización (K0.13, capas 2/3/4)
 
 /**

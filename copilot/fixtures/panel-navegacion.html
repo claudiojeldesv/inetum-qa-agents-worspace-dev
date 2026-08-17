@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>La página se va sola</title></head>
+<!--
+  K0.44 (D10) — reproduce la CLASE, no un sitio: una página que cambia de documento
+  mientras el panel asistido está abierto.
+
+  El panel se inyecta con page.evaluate sobre el documento actual y muere con él.
+  En campo lo provocó el propio QA (demostró el paso pulsando un enlace de logout y
+  la navegación se llevó el panel); aquí lo provoca la página sola, que además es el
+  caso que obliga a ACOTAR las re-inyecciones: sin tope, un sitio que redirige en
+  bucle dejaría al QA en un carrusel de paneles para siempre.
+
+  Se autolimita a 5 navegaciones para que el fixture no sea una bomba: con el tope
+  de re-inyecciones en 3, sobran.
+-->
+<body>
+  <h1>Zona de cliente</h1>
+  <form onsubmit="return false">
+    <div><label for="busca">Buscar</label><input id="busca" type="text"></div>
+    <button type="button" id="ir">Continuar</button>
+  </form>
+  <script>
+    var n = Number(sessionStorage.getItem('qa-nav') || '0');
+    if (n < 5) {
+      setTimeout(function () {
+        sessionStorage.setItem('qa-nav', String(n + 1));
+        location.replace(location.pathname + '?r=' + (n + 1));
+      }, 900);
+    }
+  </script>
+</body>
+</html>
