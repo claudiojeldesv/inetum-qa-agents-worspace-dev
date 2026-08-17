@@ -37,6 +37,21 @@ for (const d of ['references', 'scripts', 'style-contracts']) {
 const COPY_DIRS = [
   'src',
   'hooks',
+  /**
+   * K0.42 — el WALKER viaja con el workspace. Hasta ahora no lo hacía, y eso
+   * convertía la integración de S2/S3 en instrucciones imposibles: los commands
+   * invocan `copilot/src/dom-walker.ts` y `copilot/src/walk-to-spec.ts`, y en un
+   * workspace desplegado esos ficheros no existían. El walker dejó de ser un
+   * componente de investigación cuando los commands empezaron a llamarlo; el
+   * paquete tiene que reflejarlo.
+   *
+   * Solo `src`: los fixtures y los tests del walker son del repo, no del cliente.
+   * Sus cuatro imports fuera de sí mismo (audit-log, compliance-preflight,
+   * pom-scaffolder, proxy-env) viven en `src/`, que ya se copia; sus dependencias
+   * externas (playwright, yaml, axe-core) ya están en el package.json del
+   * workspace.
+   */
+  'copilot/src',
   'docs/references',
   'tests/unit',
 ];

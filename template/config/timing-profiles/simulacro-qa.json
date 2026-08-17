@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "site_id": "simulacro-qa",
+  "steps": {
+    "CP01-consulta-de-siniestros/__entry": {
+      "samples": [
+        405
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP01-consulta-de-siniestros/s1": {
+      "samples": [
+        435
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP01-consulta-de-siniestros/s2": {
+      "samples": [
+        438
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP01-consulta-de-siniestros/s4": {
+      "samples": [
+        412
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP02-descarga-de-justificante/__entry": {
+      "samples": [
+        438
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP02-descarga-de-justificante/s1": {
+      "samples": [
+        443
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP03-alta-de-siniestro/__entry": {
+      "samples": [
+        409
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP03-alta-de-siniestro/s1": {
+      "samples": [
+        402
+      ],
+      "screen": "alta",
+      "updated": "2026-08-17"
+    },
+    "CP03-alta-de-siniestro/s2": {
+      "samples": [
+        449
+      ],
+      "screen": "alta",
+      "updated": "2026-08-17"
+    },
+    "CP03-alta-de-siniestro/s3": {
+      "samples": [
+        451
+      ],
+      "screen": "alta",
+      "updated": "2026-08-17"
+    },
+    "CP03-alta-de-siniestro/s4": {
+      "samples": [
+        451
+      ],
+      "screen": "alta",
+      "updated": "2026-08-17"
+    },
+    "CP04-tramitacion/__entry": {
+      "samples": [
+        439
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP04-tramitacion/s1": {
+      "samples": [
+        415
+      ],
+      "screen": "alta",
+      "updated": "2026-08-17"
+    },
+    "CP04-tramitacion/s3": {
+      "samples": [
+        452
+      ],
+      "screen": "alta",
+      "updated": "2026-08-17"
+    },
+    "CP05-error-del-servidor/__entry": {
+      "samples": [
+        403
+      ],
+      "screen": "simulacro-qa",
+      "updated": "2026-08-17"
+    },
+    "CP05-error-del-servidor/s1": {
+      "samples": [
+        453
+      ],
+      "screen": "alta",
+      "updated": "2026-08-17"
+    },
+    "CP05-error-del-servidor/s2": {
+      "samples": [
+        441
+      ],
+      "screen": "error",
+      "updated": "2026-08-17"
+    },
+    "CP05-error-del-servidor/s3": {
+      "samples": [
+        442
+      ],
+      "screen": "error",
+      "updated": "2026-08-17"
+    }
+  }
+}

@@ -119,7 +119,7 @@ fileCheck('Pre-review determinístico (paso 11.c)', 'src/scripts/pre-review.ts')
 fileCheck('Orquestación mecánica S4 (run-s4-mecanico)', 'src/scripts/run-s4-mecanico.ts');
 // Q2 quality-greens: guarda determinística de locators contra el DOM real
 fileCheck('Guarda de locators del discovery (verify-locators)', 'src/scripts/verify-locators.ts');
-// Q3 quality-greens: protocolo post-heal mecánico del command /qa-automator:heal
+// Q3 quality-greens: protocolo post-heal mecánico del command /ia4d-qa-automator:heal
 fileCheck('Orquestación mecánica del Healer (run-heal-mecanico)', 'src/scripts/run-heal-mecanico.ts');
 // Config declarativa
 fileCheck('allowed-targets (compliance)', 'config/allowed-targets.yaml');

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * run-heal-mecanico — orquestación determinística de los pasos SIN juicio del command
- * /qa-automator:heal (Fase Q3 quality-greens, patrón regla #10: healing off por defecto).
+ * /ia4d-qa-automator:heal (Fase Q3 quality-greens, patrón regla #10: healing off por defecto).
  *
  * El Healer nativo (playwright-test-healer) NO es juez: su output se audita con el protocolo
  * post-heal validado en Q1 — suite re-ejecutada + pre-review + Reviewer sobre los specs
@@ -98,7 +98,7 @@ function readJson<T>(path: string): T | null {
 }
 
 /**
- * Deriva el <workDir> con las mismas reglas que /qa-automator:report:
+ * Deriva el <workDir> con las mismas reglas que /ia4d-qa-automator:report:
  * --work-dir > QA_WORK_DIR > único .work/<site-id>/ con run-summary > legacy .work plano.
  * Varios candidatos → pending (el QA elige, nunca en silencio).
  */

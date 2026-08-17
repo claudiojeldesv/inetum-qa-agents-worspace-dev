@@ -150,7 +150,7 @@ const SCHEMA: Record<string, FieldSpec> = {
     },
   },
   // Sanación off por defecto (regla #10, v0.3 quality-greens Q3). enabled:true → autonomous
-  // encadena /qa-automator:heal sobre los rojos tras el Verification step.
+  // encadena /ia4d-qa-automator:heal sobre los rojos tras el Verification step.
   healing: {
     type: 'object',
     fields: {
