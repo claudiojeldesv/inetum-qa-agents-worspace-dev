@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "comment": "Settings versionado de ia4d-qa-automator. Cablea los 3 hooks de qa-automator (compliance pre-flight, PII/anti-fixme post-write, audit-write al cierre) que viven en hooks/*.ts. Este es el UNICO wiring: Claude Code carga hooks desde settings, no desde ficheros sueltos. Los permisos de maquina van en settings.local.json (gitignored).",
+  "comment": "Settings versionado de ia4d-qa-automator. Cablea los 3 hooks de qa-automator (compliance pre-flight, PII/anti-fixme post-write, audit-write al cierre) que viven en hooks/*.ts. Este es el UNICO wiring: Claude Code carga hooks desde settings, no desde ficheros sueltos. Los permisos de maquina van en settings.local.json (gitignored). Se invoca 'node node_modules/tsx/dist/cli.mjs' y NO 'npx tsx': Claude Code lanza los hooks por bash, y en Windows el 'npx' de npm es un script con shebang '#!/usr/bin/env bash' que muere con exit 126 si falta /usr/bin/env (habitual cuando el EDR corporativo pone env.exe en cuarentena). Un hook que no arranca se reporta como no-bloqueante y el tool sigue: seria un override silencioso de la regla dura #3.",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx hooks/pre-flight.ts"
+            "command": "node node_modules/tsx/dist/cli.mjs hooks/pre-flight.ts"
           }
         ]
       }
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx hooks/pii-post.ts"
+            "command": "node node_modules/tsx/dist/cli.mjs hooks/pii-post.ts"
           }
         ]
       }
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx hooks/audit-write.ts"
+            "command": "node node_modules/tsx/dist/cli.mjs hooks/audit-write.ts"
           }
         ]
       }
