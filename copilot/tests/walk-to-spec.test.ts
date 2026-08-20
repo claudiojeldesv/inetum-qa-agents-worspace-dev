@@ -221,16 +221,24 @@ describe('emitFromWalk — la mitad falsable: lo que NO se emite', () => {
 });
 
 describe('chainToCode — gramática de la escalera a código', () => {
-  it('segmento simple pasa tal cual', () => {
-    expect(chainToCode("getByTestId('login')")).toBe("getByTestId('login')");
+  it('el segmento final lleva la precondición de visibilidad de la escalera (duplicado responsive, campo tufarmacia)', () => {
+    expect(chainToCode("getByTestId('login')")).toBe("getByTestId('login').filter({ visible: true })");
+    expect(chainToCode("getByText('Medicamentos', { exact: true })")).toBe(
+      "getByText('Medicamentos', { exact: true }).filter({ visible: true })",
+    );
   });
-  it('cadena con scope y nth se anida', () => {
+  it('cadena con scope: el ámbito NO se filtra, el final sí', () => {
+    expect(chainToCode("getByRole('dialog') >> getByLabel('Precio')")).toBe(
+      "getByRole('dialog').getByLabel('Precio').filter({ visible: true })",
+    );
+  });
+  it('con .nth(N) no se filtra: el índice se calculó sobre el DOM completo', () => {
     expect(chainToCode("getByRole('dialog') >> getByRole('button').nth(2)")).toBe(
       "getByRole('dialog').getByRole('button').nth(2)",
     );
   });
-  it('css= se traduce a locator()', () => {
-    expect(chainToCode('css=#username')).toBe("locator('#username')");
+  it('css= se traduce a locator() y también se filtra', () => {
+    expect(chainToCode('css=#username')).toBe("locator('#username').filter({ visible: true })");
   });
 });
 

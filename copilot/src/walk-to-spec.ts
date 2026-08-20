@@ -159,13 +159,25 @@ export function flowEligibility(
 
 // ------------------------------------------------------------- locators → código
 
-/** `A >> B.nth(2)` / `css=#id` → expresión Playwright encadenada sobre `page`. */
+/**
+ * `A >> B.nth(2)` / `css=#id` → expresión Playwright encadenada sobre `page`.
+ *
+ * El segmento final lleva `.filter({ visible: true })`: la regla dura de la
+ * escalera es "única coincidencia VISIBLE", y la cadena sola no transporta esa
+ * precondición — sin ella, el duplicado responsive oculto (menú desktop + móvil,
+ * medido en tufarmacia) revienta el strict mode aunque el walker resolvió bien.
+ * Con `.nth(N)` no se filtra: el índice se calculó sobre el DOM completo y
+ * filtrar antes lo cambiaría.
+ */
 export function chainToCode(chain: string): string {
-  const parts = parseLocatorChain(chain).map(({ segment, nth }) => {
-    const code = segment.startsWith('css=')
+  const segments = parseLocatorChain(chain);
+  const parts = segments.map(({ segment, nth }, i) => {
+    let code = segment.startsWith('css=')
       ? `locator('${segment.slice('css='.length).replace(/'/g, "\\'")}')`
       : segment;
-    return nth !== undefined ? `${code}.nth(${nth})` : code;
+    if (nth !== undefined) return `${code}.nth(${nth})`;
+    if (i === segments.length - 1) code += `.filter({ visible: true })`;
+    return code;
   });
   return parts.join('.');
 }
