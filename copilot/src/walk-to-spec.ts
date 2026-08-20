@@ -147,9 +147,26 @@ export function flowEligibility(
       );
       continue;
     }
-    const chain = step.locator ?? report.resolved_via;
+    /**
+     * D20 — `emit_locator` ANTES de `resolved_via`, y por qué existe ese campo:
+     * `resolved_via` es DIAGNÓSTICO (lo parsea `classifyVia` para el marcador de
+     * peldaños, K0.27a), no código. El tier anclado emite su propia notación
+     * —`anchored(label:'Usuario')`— y hasta aquí se volcaba verbatim al fichero
+     * generado: `page.anchored(label:'Usuario')`, que no compila. Un solo paso
+     * resuelto por ese peldaño mataba el POM y con él TODOS los specs del sitio,
+     * justo en el legacy que es la razón de existir del peldaño.
+     */
+    const chain = step.locator ?? report.emit_locator ?? report.resolved_via;
     if (NEEDS_LOCATOR.has(step.action) && !chain) {
       reasons.push(`paso ${step.id}: acción '${step.action}' sin locator autoritativo (ni step.locator ni resolved_via)`);
+      continue;
+    }
+    const noCodigo = chain ? primerSegmentoNoExpresable(chain) : null;
+    if (noCodigo) {
+      reasons.push(
+        `paso ${step.id}: '${noCodigo}' es notación de diagnóstico, no código Playwright — ` +
+          `el walker no dejó locator emisible para este paso (D20)`,
+      );
       continue;
     }
     steps.push({ step, report, chain });
@@ -169,7 +186,42 @@ export function flowEligibility(
  * Con `.nth(N)` no se filtra: el índice se calculó sobre el DOM completo y
  * filtrar antes lo cambiaría.
  */
+/**
+ * D20 — los ÚNICOS prefijos de la gramática que producen código. Lista blanca y no
+ * negra a propósito: con una lista negra, cada peldaño nuevo que emitiera notación
+ * propia volvería a colarse verbatim, que es exactamente cómo llegó `anchored(...)`
+ * al fichero generado sin que nada se quejara.
+ */
+const PREFIJOS_EMISIBLES = [
+  'getByTestId(',
+  'getByRole(',
+  'getByLabel(',
+  'getByPlaceholder(',
+  'getByText(',
+  'getByTitle(',
+  'getByAltText(',
+  'locator(',
+  'css=',
+  'frameLocator(',
+];
+
+/** Primer segmento de la cadena que NO es código Playwright, o `null` si todos lo son. */
+export function primerSegmentoNoExpresable(chain: string): string | null {
+  for (const { segment } of parseLocatorChain(chain)) {
+    if (!PREFIJOS_EMISIBLES.some((p) => segment.startsWith(p))) return segment;
+  }
+  return null;
+}
+
 export function chainToCode(chain: string): string {
+  // Cinturón: `flowEligibility` ya descarta el flujo, pero esta función es exportada
+  // y el fallo silencioso es lo que produjo un POM que no parseaba y 0 tests.
+  const malo = primerSegmentoNoExpresable(chain);
+  if (malo) throw new Error(`chainToCode: '${malo}' no es código Playwright (notación de diagnóstico)`);
+  return chainToCodeInterno(chain);
+}
+
+function chainToCodeInterno(chain: string): string {
   const segments = parseLocatorChain(chain);
   const parts = segments.map(({ segment, nth }, i) => {
     let code = segment.startsWith('css=')

@@ -919,6 +919,21 @@ export interface AliasPromotionInput {
   transitionRecorded: boolean;
   /** Algún `expect_*` de OTRO paso del mismo flujo quedó en drift. */
   flowExpectsFailed: boolean;
+  /**
+   * K0.47 — quién ejecutó la acción (ver RescueRecord.executed). El cerrojo de
+   * transición solo tiene DATO cuando ejecutó el walker con su bracket puesto:
+   * exigir la transición de una acción que no ocurrió ('none') o que ocurrió sin
+   * bracket ('human') es exigir la prueba de un evento que nadie pudo registrar.
+   * Ausente = 'walker' (comportamiento previo).
+   */
+  executed?: 'walker' | 'human' | 'none';
+  /**
+   * K0.47 — el panel juzgó el locator posicional (`tier: 'indexed'`). Frágil no
+   * entra en memoria durable venga de quien venga: la memoria se reutiliza en
+   * todos los runs siguientes y un índice se rompe cuando el DOM gana un elemento.
+   * Se usa en el run actual y se reporta al QA para mejorarlo con ✎.
+   */
+  fragile?: boolean;
 }
 
 export type AliasPromotionVerdict =
@@ -938,13 +953,37 @@ export type AliasPromotionVerdict =
  * corroboración. Misma alternativa que admite la captura de corpus (K0.32).
  */
 export function aliasPromotionVerdict(i: AliasPromotionInput): AliasPromotionVerdict {
-  if (i.stepBlocked) return { promote: false, reason: 'el paso quedó bloqueado' };
-  if (i.expectsTransition && !i.transitionRecorded)
-    return { promote: false, reason: 'declaraba expect_transition y no se registró transición' };
+  // frágil no entra NUNCA: es el único cerrojo que no admite override humano,
+  // porque no juzga si el elemento era el correcto sino si el locator sobrevivirá
+  // — y eso no lo sabe ni el QA mirando la pantalla de hoy.
+  if (i.fragile) return { promote: false, reason: 'locator frágil (posicional): se usa en este run pero no entra en memoria durable — mejóralo con ✎ en el panel' };
+  const executed = i.executed ?? 'walker';
   const porHumano = i.source === 'human';
+  /**
+   * 'none' se decide ANTES del cerrojo de paso bloqueado: capturar-sin-ejecutar
+   * bloquea el paso POR DISEÑO (el flujo se detiene para no correr sobre estado
+   * que no corresponde, K0.14), así que ese bloqueo es la consecuencia elegida,
+   * no evidencia de que el elemento fuera el equivocado. Tratarlo como
+   * descalificante haría la promoción imposible en esta salida — la misma
+   * enfermedad que el cerrojo de transición acaba de curar.
+   */
+  if (executed === 'none') {
+    return porHumano
+      ? { promote: true, viaHumanOverride: true }
+      : { promote: false, reason: 'acción no ejecutada (captura sin ejecutar) y origen subagente: sin corroboración posible' };
+  }
+  if (i.stepBlocked) return { promote: false, reason: 'el paso quedó bloqueado' };
+  // el cerrojo de transición solo cuando ejecutó el walker con su bracket puesto:
+  // si la disparó el QA durante la grabación ('human'), nadie estaba midiendo la
+  // navegación y la ausencia de registro no prueba nada. La evidencia que queda
+  // es la mirada del QA (K0.32 ya la admite como corroboración alternativa).
+  if (executed === 'walker' && i.expectsTransition && !i.transitionRecorded)
+    return { promote: false, reason: 'declaraba expect_transition y no se registró transición' };
+  if (executed === 'human' && !porHumano)
+    return { promote: false, reason: 'acción ejecutada durante la grabación pero origen subagente: incoherente, sin corroboración' };
   if (i.flowExpectsFailed && !porHumano)
     return { promote: false, reason: 'postcondición del flujo no confirmada (rescate de subagente)' };
-  return { promote: true, viaHumanOverride: porHumano && i.flowExpectsFailed };
+  return { promote: true, viaHumanOverride: porHumano && (i.flowExpectsFailed || executed !== 'walker') };
 }
 
 // -------------------------------------- sincronización (K0.13, capas 2/3/4)
@@ -1292,6 +1331,64 @@ export function rescueInstructions(stepId: string, action: string, snapshotError
     `Sin DOM que mirar, la única respuesta honesta es locator=null con el motivo; no adivines. ` +
     base
   );
+}
+
+/** Marcador en disco de una asistencia en curso (K0.45/D12). */
+export interface AssistMarker {
+  estado: 'ESPERANDO AL QA';
+  flow: string;
+  step: string;
+  action: string;
+  motivo: string;
+  url: string;
+  muta_negocio: boolean;
+  abierto: string;
+  expira: string;
+  timeout_s: number;
+  que_hacer: string;
+}
+
+/**
+ * Payload del marcador de asistencia (K0.45/D12). Función pura porque lo que
+ * importa es el TEXTO: el aviso por consola ya existía y no llegó — quien lanzó
+ * el walker canalizó la salida por un buffer que no emite hasta que el proceso
+ * muere, así que hubo diez minutos de panel abierto y silencio absoluto. Este
+ * fichero es la vía que no depende de cómo esté cableado stdout.
+ *
+ * `que_hacer` va en castellano y en imperativo a propósito: lo lee o el QA o el
+ * orquestador que tiene que avisarle, y "assist_pending: true" no le dice a nadie
+ * que hay una ventana de navegador esperando.
+ */
+export function assistMarkerPayload(i: {
+  flow: string;
+  step: string;
+  action: string;
+  motivo: string;
+  url: string;
+  mutating: boolean;
+  timeoutMs: number;
+  now: number;
+}): AssistMarker {
+  const segundos = Math.round(i.timeoutMs / 1000);
+  const aviso = i.mutating
+    ? ' OJO: este paso MUTA NEGOCIO — si lo demuestras entero puede dispararse de verdad; usa "capturar sin ejecutar" si no quieres que ocurra.'
+    : '';
+  return {
+    estado: 'ESPERANDO AL QA',
+    flow: i.flow,
+    step: i.step,
+    action: i.action,
+    motivo: i.motivo,
+    url: i.url,
+    muta_negocio: i.mutating,
+    abierto: new Date(i.now).toISOString(),
+    expira: new Date(i.now + i.timeoutMs).toISOString(),
+    timeout_s: segundos,
+    que_hacer:
+      `El walker ha abierto un panel en la ventana del navegador y está BLOQUEADO esperando a una ` +
+      `persona. Ve a esa ventana: pulsa Grabar, haz en la aplicación lo que pide el paso, y pulsa ` +
+      `Parar. Si nadie lo atiende, el paso se bloquea en ${segundos}s y el run sigue sin él.${aviso}`,
+  };
 }
 
 /**

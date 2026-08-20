@@ -81,6 +81,7 @@ import {
   esCampoEtiquetable,
   pruneAssistSequence,
   rescueInstructions,
+  assistMarkerPayload,
   resolveFixtureRef,
   slugFromUrl,
   updateTimingProfile,
@@ -681,9 +682,16 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
         ? 'Capturando el locator sin ejecutar la acción. El flujo se detendrá aquí.'
         : 'Verificando el camino grabado por replay en un contexto limpio...';
       const targetIndex = seq.findIndex((s) => s.as === 'target');
+      // K0.47 — performed: el objetivo se señaló con un CLIC REAL, que propaga a la
+      // app (por eso demostrar un logout navega, D10). Si el walker lo re-dispara
+      // después, la acción de negocio ocurre DOS veces. Con ◎ sobre un hover no hay
+      // clic y la acción sigue pendiente. Sin objetivo explícito, el objetivo es el
+      // último clic por definición → performed.
+      const tgt = targetIndex >= 0 ? seq[targetIndex] : [...seq].reverse().find((s) => s.via === 'click');
+      const performed = !!tgt && tgt.via === 'click';
       // se limpian los campos internos del panel (_q, _editErr); manual_locator viaja
       const clean = seq.map(({ _q, _editErr, ...rest }) => rest);
-      window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: clean, target_index: targetIndex, reason, execute });
+      window.__qaAssistSubmit({ kind, step: '${step.id}', sequence: clean, target_index: targetIndex, reason, execute, performed });
     };
     const startRec = () => {
       recording = true;
@@ -3139,6 +3147,40 @@ class DomWalker {
     return null;
   }
 
+  /** Ruta del marcador de asistencia en curso (K0.45/D12). */
+  private get assistMarkerPath(): string {
+    return resolve(this.opts.workDir, 'assist-pending.json');
+  }
+
+  /**
+   * Deja constancia EN DISCO de que hay un panel abierto esperando a una persona.
+   * No sustituye al aviso por consola: lo respalda. Un fallo de escritura aquí no
+   * puede tumbar la asistencia —el panel ya está en pantalla y el QA puede
+   * atenderlo igual—, así que se degrada a aviso y se sigue.
+   */
+  private writeAssistMarker(flow: WalkFlow, step: WalkStep, motivo: string): void {
+    try {
+      const payload = assistMarkerPayload({
+        flow: flow.flow,
+        step: step.id,
+        action: step.action,
+        motivo,
+        url: this.page.url(),
+        mutating: !isRetrySafe(step),
+        timeoutMs: this.opts.assistTimeoutMs,
+        now: Date.now(),
+      });
+      writeFileSync(this.assistMarkerPath, JSON.stringify(payload, null, 2), 'utf8');
+    } catch (err) {
+      console.error(`[dom-walker] no se pudo escribir assist-pending.json: ${String(err).split('\n')[0]}`);
+    }
+  }
+
+  /** Retira el marcador. Se llama desde el ÚNICO punto de cierre de la espera. */
+  private clearAssistMarker(): void {
+    rmSync(this.assistMarkerPath, { force: true });
+  }
+
   /**
    * Peldaño asistido de la escalera. Abre el panel Record sobre la app, espera al
    * QA, y con la secuencia grabada: resuelve el objetivo, propone el parche (camino
@@ -3149,16 +3191,28 @@ class DomWalker {
     flow: WalkFlow,
     step: WalkStep,
     contextReason?: string,
-  ): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+  ): Promise<{ locator: Locator; via: string; frame_path: string[]; performed?: boolean } | null> {
     await this.ensureAssistBridge();
     this.assistOpenUrl = this.page.url();
-    console.error(`[dom-walker] ASISTENCIA ${flow.flow}/${step.id}: panel abierto en el navegador, esperando al QA...`);
     this.audit('llm_call', `asistencia solicitada: ${flow.flow}/${step.id}`, { phase: 'assist', source_hint: this.hintText(step) });
 
     const mutating = !isRetrySafe(step);
     const baseReason = contextReason ?? this.hintText(step);
-    let endReason = `asistencia sin respuesta en ${Math.round(this.opts.assistTimeoutMs / 1000)}s (timeout)`;
+    const segundos = Math.round(this.opts.assistTimeoutMs / 1000);
+    let endReason = `asistencia sin respuesta en ${segundos}s (timeout)`;
     let reinjections = 0;
+
+    // K0.45 (D12) — el aviso por consola YA existía y aun así el QA no se enteró: quien
+    // lanzó el walker canalizó la salida por un `Select-Object`, que no emite hasta que el
+    // proceso termina. Puentes vivos, panel abierto, y diez minutos de silencio. La espera
+    // tiene que ser observable FUERA de stdout, así que se deja marcador en disco — mismo
+    // patrón que `rescue-request.json`, que ya resolvió esto para el rescate.
+    this.writeAssistMarker(flow, step, baseReason);
+    console.error(
+      `[dom-walker] ASISTENCIA ${flow.flow}/${step.id}: PANEL ABIERTO en la ventana del navegador. ` +
+        `Ve a esa ventana y atiéndelo (Grabar → hazlo en la app → Parar). El walker está BLOQUEADO ` +
+        `hasta entonces, o ${segundos}s. Escrito assist-pending.json.`,
+    );
 
     const submission = await new Promise<AssistSubmission | null>((res) => {
       let done = false;
@@ -3171,6 +3225,7 @@ class DomWalker {
         clearTimeout(timer);
         clearInterval(watchdog);
         this.assistPending = null;
+        this.clearAssistMarker();
         res(p);
       };
       timer = setTimeout(() => finish(null), this.opts.assistTimeoutMs);
@@ -3327,6 +3382,22 @@ class DomWalker {
      */
     if (submission.execute === false) {
       this.flowAborted = true;
+      /**
+       * K0.47 — la enseñanza del QA ya NO se evapora con el flujo abortado. Antes
+       * aquí no se empujaba registro de rescate y el parche moría con la limpieza
+       * de `.work/` del run siguiente: cuanto más delicado el paso (los que mueven
+       * negocio, que son exactamente donde el panel recomienda esta salida), menos
+       * sobrevivía lo enseñado. El registro viaja con `executed: 'none'` — el
+       * veredicto de promoción sabe que no puede exigir transición de una acción
+       * que se impidió a propósito — y con la fragilidad que el panel ya midió.
+       */
+      if (step.hint) {
+        this.state.rescues.push({
+          flow: flow.flow, step: step.id, resolved: true, locator: target.candidate.source,
+          audit_logged: true, source: 'human', executed: 'none',
+          ...(target.candidate.fragile ? { fragile: true } : {}),
+        });
+      }
       this.blockStep(
         flow,
         step,
@@ -3348,9 +3419,18 @@ class DomWalker {
     }
 
     // el objetivo entra en la memoria del cliente igual que un rescate (promoción
-    // condicional al cierre del flujo), pero con procedencia humana
+    // condicional al cierre del flujo), pero con procedencia humana. K0.47: la
+    // fragilidad viaja (antes se tiraba aquí y la promoción no podía filtrarla), y
+    // `executed` distingue si la acción la disparará el walker con su bracket o ya
+    // la disparó el clic del QA durante la grabación.
+    const performed = submission.performed === true;
     if (step.hint) {
-      this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: target.candidate.source, audit_logged: true, source: 'human' });
+      this.state.rescues.push({
+        flow: flow.flow, step: step.id, resolved: true, locator: target.candidate.source,
+        audit_logged: true, source: 'human',
+        executed: performed && !isRetrySafe(step) ? 'human' : 'walker',
+        ...(target.candidate.fragile ? { fragile: true } : {}),
+      });
     }
     this.audit('allow', `asistencia resuelta ${flow.flow}/${step.id} → ${target.candidate.source}`, {
       phase: 'assist',
@@ -3364,7 +3444,7 @@ class DomWalker {
       `[dom-walker] asistencia OK: ${steps.length} paso(s), locator ${target.candidate.tier}` +
         `${target.candidate.fragile ? ' (FRÁGIL)' : ''}, parche ${verify.ok ? 'VERIFICADO' : 'SIN VERIFICAR'} → assist-patch.json`,
     );
-    return { locator: target.locator, via: target.candidate.source, frame_path: [] };
+    return { locator: target.locator, via: target.candidate.source, frame_path: [], performed };
   }
 
   /**
@@ -4285,6 +4365,22 @@ class DomWalker {
               this.pushReport(flow, step, { outcome: 'action_failed', action_ms: Date.now() - startedAt, retried: false });
               return;
             }
+            /**
+             * K0.47 — anti DOBLE DISPARO: `performed` = el QA señaló el objetivo con
+             * un clic real durante la grabación, y ese clic propaga a la app (es la
+             * misma física por la que demostrar un logout mataba el panel, D10). En
+             * un paso no reintenable, volver a ejecutarla aquí crearía la segunda
+             * declaración/transferencia/baja. El campo existía en el tipo desde
+             * K0.14 y no lo consumía nadie — familia D2, tercera instancia de campo.
+             */
+            if (assisted.performed && !isRetrySafe(step)) {
+              this.audit('allow', `acción ejecutada por el QA durante la grabación en ${stepKey}: no se re-dispara (paso no reintenable)`, {
+                phase: 'assist-postaction',
+                matched: assisted.via,
+              });
+              this.pushReport(flow, step, { outcome: 'ok', action_ms: Date.now() - startedAt, retried: false, resolved_via: assisted.via });
+              return;
+            }
             resolved = assisted;
           }
         }
@@ -4430,6 +4526,17 @@ class DomWalker {
                * bucle como "fallo de ejecución: Timeout" justo después de que el panel
                * dijera "Parche verificado" — el diagnóstico más desconcertante posible.
                */
+              // K0.47 — misma guarda anti doble disparo que en el disparador de
+              // resolución: aquí es aún más delicada, porque la PRIMERA ejecución del
+              // walker ya falló y la del QA es la única que ocurrió de verdad.
+              if (assisted.performed && !isRetrySafe(step)) {
+                this.audit('allow', `acción ejecutada por el QA durante la grabación en ${stepKey}: no se re-dispara (paso no reintenable)`, {
+                  phase: 'assist-postaction',
+                  matched: assisted.via,
+                });
+                this.pushReport(flow, step, { outcome: 'ok', action_ms: Date.now() - startedAt, settle: obs, retried, resolved_via: assisted.via });
+                return;
+              }
               try {
                 await runAction(assisted.locator);
               } catch (err2) {
@@ -4857,6 +4964,11 @@ class DomWalker {
         expectsTransition: step.expect_transition === true,
         transitionRecorded: this.state.transitions.some((t) => t.flow === flow.flow && t.step === step.id),
         flowExpectsFailed,
+        // K0.47 — sin estos dos, la decisión se tomaba a ciegas: la fragilidad se
+        // tiraba antes de llegar aquí, y a una captura-sin-ejecutar se le exigía la
+        // transición de una acción que se impidió a propósito.
+        executed: rescue.executed,
+        fragile: rescue.fragile,
       });
       if (!verdict.promote) {
         this.audit('skip', `rescate NO promovido a alias ${flow.flow}/${step.id}: ${verdict.reason}`, {

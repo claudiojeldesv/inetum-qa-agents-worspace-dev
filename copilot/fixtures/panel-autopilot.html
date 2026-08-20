@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Panel autopilotado</title></head>
+<!--
+  K0.47 — fixture que CONDUCE el panel asistido desde dentro de la página, por el
+  canal `qa-assist-cmd` que el propio panel expone para tests y orquestador.
+
+  Por qué existe: los tests de promoción de K0.44 sembraban `state.rescues` a mano,
+  y por eso no cazaron que el camino real (panel → submission → push → promoción)
+  producía combinaciones que la regla pura nunca vio (hover sin transición,
+  captura-sin-ejecutar sin registro). Este fixture recorre el camino ENTERO con un
+  walker real: el panel se abre porque el hint no resuelve, y la página lo maneja
+  como lo haría el QA.
+
+  El botón cuenta sus propios clics en el DOM: es el testigo del doble disparo. Si
+  el walker re-ejecuta una acción que el QA ya disparó grabando, aquí pone 2.
+
+  Modo por query string:
+    ?cmd=drift         pulsa "No existe aquí"
+    ?cmd=block         pulsa "Bloquear paso"
+    ?cmd=capture-click graba, clic real en el objetivo, "capturar sin ejecutar"
+    ?cmd=record-click  graba, clic real en el objetivo, "Parar" (performed)
+-->
+<body>
+  <h1>Caja de operaciones</h1>
+  <button id="objetivo" type="button">Confirmar operación</button>
+  <p>Clics ejecutados: <span id="n">0</span></p>
+  <script>
+    var n = 0;
+    document.getElementById('objetivo').addEventListener('click', function () {
+      n += 1;
+      document.getElementById('n').textContent = String(n);
+    });
+
+    var cmd = new URLSearchParams(location.search).get('cmd');
+    var enviar = function (host, detail) {
+      host.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: detail }));
+    };
+    var espera = setInterval(function () {
+      var host = document.querySelector('[data-qa-assist-host]');
+      if (!host || !cmd) return;
+      clearInterval(espera);
+      if (cmd === 'drift' || cmd === 'block') { enviar(host, cmd); return; }
+      // grabar → clic REAL sobre el objetivo (propaga: el contador sube a 1) → cerrar
+      enviar(host, 'record');
+      setTimeout(function () {
+        document.getElementById('objetivo').click();
+        setTimeout(function () {
+          enviar(host, cmd === 'capture-click' ? 'capture-only' : 'stop');
+        }, 250);
+      }, 250);
+    }, 100);
+  </script>
+</body>
+</html>

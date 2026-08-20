@@ -16,6 +16,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
+import { versionDriftVerdict, versionFromPluginPath, DEV_REPO_MARKER } from '../version-drift.ts';
 
 const root = process.cwd();
 const r = (p: string) => resolve(root, p);
@@ -159,6 +160,27 @@ if (!ptVer || !pwVer) {
   alignDetail = `@playwright/test y playwright en lockstep (${ptVer})`;
 }
 checks.push({ label: 'Playwright runtime ↔ @playwright/test alineados', ok: alignOk, detail: alignDetail });
+
+// D18 — la versión desplegada, declarada y comprobada. Sin esto, un workspace de dos
+// releases atrás pasa el healthcheck entero (medido tres veces el 2026-08-19).
+const PLUGIN_KEY = 'ia4d-qa-automator@ia4d-qa-automator-marketplace';
+function jsonOrNull(p: string): Record<string, unknown> | null {
+  try {
+    return existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+const wsPkg = jsonOrNull(r('package.json'));
+const registry = jsonOrNull(resolve(homedir(), '.claude', 'plugins', 'installed_plugins.json'));
+const entry = (registry?.plugins as Record<string, Array<{ version?: string }>> | undefined)?.[PLUGIN_KEY]?.[0];
+const drift = versionDriftVerdict({
+  isDevRepo: existsSync(r(DEV_REPO_MARKER)),
+  workspaceVersion: typeof wsPkg?.version === 'string' ? wsPkg.version : null,
+  installedVersion: entry?.version ?? null,
+  sessionVersion: versionFromPluginPath(process.env.CLAUDE_PLUGIN_ROOT),
+});
+checks.push({ label: 'Versión del payload desplegado', ok: drift.ok, detail: drift.detail });
 
 const chromium = chromiumInstalled();
 if (chromium === false) {

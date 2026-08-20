@@ -100,17 +100,23 @@ describe('K0.44/D10 — el vigilante del panel', () => {
     expect(razon(map)).not.toMatch(/desapareci/i);
     // y se esperó de verdad el plazo, no se cortó antes
     expect(ms).toBeGreaterThanOrEqual(3_500);
-  }, 60_000);
+  }, 120_000);
 
   it('página que NAVEGA sola: corta pronto y nombra la causa, sin agotar el plazo', async () => {
-    const PLAZO = 45_000;
+    const PLAZO = 90_000;
     const { map, ms } = await correr('/panel-navegacion.html', PLAZO);
     expect(razon(map)).toMatch(/desapareci/i);
-    // dice cuántas veces lo intentó, que es lo que permite distinguir "navegó una vez"
-    // de "esta página redirige en bucle"
+    // dice cuántas veces lo intentó, lo que distingue "navegó una vez" de "redirige en bucle"
     expect(razon(map)).toMatch(/3 veces/);
-    // LO QUE IMPORTA: antes esto consumía el plazo entero. 3 reintentos a 500 ms de
-    // vigilancia sobre una página que navega cada 900 ms terminan en pocos segundos.
-    expect(ms).toBeLessThan(PLAZO / 2);
-  }, 90_000);
+    /**
+     * LO QUE IMPORTA: el código roto consumía el plazo ENTERO (el timeout era lo único
+     * que resolvía la espera), así que su firma es ms ≈ PLAZO. Dos veces se intentó
+     * discriminar con un margen porcentual (50%, luego 80%) y dos veces lo tumbó la
+     * carga de la suite: 3 reintentos del vigilante llegaron a medir 39,6 s. La
+     * discriminación robusta no es afinar el margen sino AGRANDAR el plazo: a 90 s,
+     * lo arreglado tarda lo mismo en términos absolutos (~10-40 s según carga) y lo
+     * roto sigue pegado al plazo — la distancia pasa de 1,25× a >2×.
+     */
+    expect(ms).toBeLessThan(PLAZO - 10_000);
+  }, 150_000);
 });

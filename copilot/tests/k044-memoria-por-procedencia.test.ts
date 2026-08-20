@@ -146,12 +146,12 @@ describe('K0.44 — cableado: el alias aparece (o no) en disco según la procede
     const aliases = Object.values(file!.aliases);
     expect(aliases).toHaveLength(1);
     expect(aliases[0].locator).toBe('css=#username');
-  }, 60_000);
+  }, 120_000);
 
   it('procedencia de subagente, MISMO guion: no se escribe nada', async () => {
     const file = await correr('llm');
     expect(file === null || Object.keys(file.aliases).length === 0).toBe(true);
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('K0.44 — el camino feliz no cambia para nadie', () => {

@@ -234,6 +234,18 @@ export interface StepReport {
    */
   resolved_via?: string;
   /**
+   * D20 — locator EMISIBLE del elemento resuelto, cuando `resolved_via` no es
+   * código Playwright. Existe porque `resolved_via` es diagnóstico y lo parsea
+   * `classifyVia` para el marcador de peldaños: meter aquí el CSS destruiría la
+   * medición del peldaño anclado, que es una de las cifras del producto.
+   *
+   * Se rellena solo en el tier anclado, y solo si del elemento se puede derivar un
+   * selector ÚNICO por atributos declarados. Si no se puede, se queda ausente y
+   * `walk-to-spec` rehúsa emitir ese flujo con motivo — que es mejor que emitir un
+   * fichero que no compila, medido en campo (ParaBank, 3 specs muertos y 0 tests).
+   */
+  emit_locator?: string;
+  /**
    * Texto COMPLETO del nodo que satisfizo un `expect_text`, cuando no es idéntico
    * al literal buscado. Existe por un verde falso medido en campo (OrangeHRM):
    * el criterio del FD pedía "Records Found" y la pantalla decía "(0) No Records
@@ -418,6 +430,29 @@ export interface RescueRecord {
    * trata como `llm`, que es el criterio conservador.
    */
   source?: 'llm' | 'human';
+  /**
+   * K0.47 — QUIÉN ejecutó la acción del paso, que no es lo mismo que quién lo
+   * resolvió. Decide qué evidencia puede exigir la promoción:
+   *   'walker' = el walker la disparó con su bracket de transición puesto → el
+   *              cerrojo "declaraba expect_transition y no navegó" tiene DATO.
+   *   'human'  = el QA la disparó pulsando durante la grabación (performed): el
+   *              bracket no estaba puesto, así que la ausencia de transición
+   *              registrada no prueba nada.
+   *   'none'   = "capturar sin ejecutar" (K0.14): la acción NO ocurrió y exigir
+   *              su transición es pedir la prueba de un evento que se impidió
+   *              a propósito — el defecto medido en campo (ParaBank, bill-pay/s1:
+   *              el QA obedeció el hover y la promoción era imposible SIEMPRE).
+   * Ausente = 'walker', que es el comportamiento previo y el conservador.
+   */
+  executed?: 'walker' | 'human' | 'none';
+  /**
+   * K0.47 — el panel ya sabía la fragilidad del locator (`tier: 'indexed'`,
+   * `fragile: true` en el parche) y se tiraba ANTES de llegar a quien decide la
+   * promoción: el camino no es que no la mirase, es que estructuralmente no
+   * podía. Un locator posicional en memoria durable se rompe cuando el menú gana
+   * una entrada. Ausente = no frágil (los rescates LLM emiten gramática semántica).
+   */
+  fragile?: boolean;
 }
 
 export interface DomMap {

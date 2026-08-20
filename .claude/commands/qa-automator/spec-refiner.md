@@ -69,7 +69,27 @@ navegador, y recuperarse costaba extraer el contrato de tipos a mano (medido en 
 campo: `docs/findings/run-beta-parabank.md`, D1). Es el mismo patrón con el que `/setup` valida el
 Style Contract que emite.
 5. Lee `criteria.json`. De él salen: los criterios RF-NNN y el **brief** (`brief.flows`, `brief.entry`, `brief.ignore`) que en S4 teclea el QA.
-6. **Gate de open_questions (ask-first, no override).** Si hay criterios con `then` `[AMBIGUO ...]` o `open_questions` no vacío, muéstralos al QA (resumen de `refinement-questions.md`) y avisa: esos criterios **NO se generan** en este run (opción (a), decisión QA). El QA puede responder y re-ejecutar, o continuar solo con los criterios claros. No se fabrica el comportamiento ambiguo.
+6. **Gate de open_questions (ask-first, no override).**
+
+   **Lo que bloquea es la AUSENCIA DE ORÁCULO, no la existencia de una pregunta.** Un criterio
+   se excluye de este run si —y solo si— su `then` es `[AMBIGUO ...]`: sin resultado esperado,
+   generar el test sería fabricar el comportamiento. Eso es lo que no se hace.
+
+   Una pregunta abierta que **no** quita el oráculo (una duda sobre un caption, una asunción
+   sobre un literal ya citado) **no bloquea**: se muestra y se sigue. El refiner cuelga
+   típicamente una `Q` a *cada* criterio, así que tratar «`open_questions` no vacío» como
+   bloqueo excluye el run entero y no genera nada — medido en campo (ParaBank, 2026-08-19:
+   seis criterios, seis preguntas, dos `then` ambiguos, y la lectura literal dejaba el run a
+   cero).
+
+   `refinement-questions.md` trae una columna **«¿bloquea?»** por pregunta. **Léela y respétala**:
+   es el propio refiner declarando qué quita el oráculo y qué no, y es más fina que cualquier
+   regla que puedas aplicar desde aquí. Si una `Q` marcada como bloqueante afecta a un criterio
+   con `then` citado, gana la columna.
+
+   Muestra al QA la tabla completa —qué se genera, qué no, y por qué— y sigue con los criterios
+   que tienen oráculo. Los excluidos van al run-summary como pendientes de respuesta; el QA
+   puede contestarlos y re-ejecutar.
 7. Registra al audit-log: `{ source: 'command', action: 'fd_ingested', metadata: { criteria_count, blocked_count, flows } }`.
 
 ### Acto 2 — Mapear (modo mapear-contra-DOM, no descubrir)
@@ -90,6 +110,28 @@ Salta este paso **solo** si el contract trae `walker.enabled: false`. Si no hay 
      --contract=<--style> --base-url=<--url> --work-dir=<workDir>/walk \
      --rescue-budget=<walker.rescue_budget del contract> [--assist si walker.assist]
    ```
+
+**Si vas a pasar `--assist`, AVISA AL QA ANTES de lanzarlo. No es cortesía: es la
+diferencia entre un run de dos minutos y uno de doce.** `--assist` abre una ventana de
+navegador visible, y cuando un paso no resuelve aparece un panel dentro de esa ventana. La
+espera **solo la resuelve una persona pulsando ahí**; el walker se queda bloqueado hasta
+`walker.assist_timeout` (600s por defecto) por cada paso que se plante.
+
+Antes de lanzar, dile al QA con estas tres cosas: (a) que se va a abrir un navegador y que
+**lo tiene que mirar**; (b) que si sale un panel, la secuencia es *Grabar → hacerlo en la app
+→ Parar*; (c) que mientras no lo atienda el run no avanza. Después lanza el walker y **cede
+el turno** — no lo lances y te pongas a hacer otra cosa.
+
+**No canalices la salida del walker por un buffer.** `| Select-Object -Last N`, `| Out-String`
+y `| head` no emiten nada hasta que el proceso termina, así que el aviso de panel abierto que
+el walker imprime **no te llega** y el silencio se lee como cuelgue. Medido en campo: diez
+minutos con el panel abierto, el QA delante, y nadie enterado
+(`docs/findings/run-beta-parabank-2.md`, D12).
+
+**Si el walker parece colgado, mira `<workDir>/walk/assist-pending.json` antes de concluir
+nada.** Si existe, no está colgado: está esperando a una persona, y el fichero dice en qué
+flujo y paso, por qué, cuándo expira y qué hay que hacer. Reléváselo al QA literalmente.
+Si no existe, entonces sí es otra cosa.
 2. Emite specs de lo verificado, también a coste cero:
    ```sh
    npx tsx copilot/src/walk-to-spec.ts --walk-script=<workDir>/walk-script.json \
@@ -218,6 +260,8 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-i
 - Forma B exige `--url`. Sin target, aborta (no hay Forma A).
 - Gate de open_questions y compliance pre-flight: **sin override**.
 - **Namespace por sitio (paso 1.a, antes de la ingesta)**: artefactos efímeros bajo `<workDir>=.work/<site-id>` (incluido `criteria.json`); specs/POM bajo `tests/{e2e,pages,components}/<site-id>/`; `QA_WORK_DIR` exportado; `npx playwright test tests/e2e/<site-id>/`; limpieza de `<workDir>` al arrancar (no toca `config/tc-registry/<site-id>.json`). Runs de sitios distintos no se contaminan.
+- **`--assist` se anuncia ANTES de lanzarlo y se cede el turno** (7.b): abre un navegador visible y el panel solo lo resuelve una persona. Salida del walker **sin buffer**; si parece colgado, `<workDir>/walk/assist-pending.json` dice si hay alguien esperando. Nunca declares un cuelgue sin mirar ese fichero.
+- **Un paso que se planta se arregla con el panel o con el literal medido, NO escribiendo alias a mano** (7.b): la escalera lleva tier `anchored` (K0.19/K0.21), que resuelve texto-visible→control sin necesidad de `label for`. Antes de dar por imposible un hint, comprueba si lo único que falla es la PALABRA (idioma, mayúscula, tilde). Medido en campo: se diagnosticó "no hay label que resolver" sobre una pantalla que la escalera ya resolvía, y el desvío costó el run (D11).
 - **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el QA decide (no-mapeado / rescate MCP / abortar).
 - No se fabrica drift ni el `then` ambiguo. Un flujo no mapeado se reporta; un criterio ambiguo no se genera.
 - Writer+Reviewer activos (igual que S4); el **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`).
