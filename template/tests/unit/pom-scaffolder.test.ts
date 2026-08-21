@@ -5,6 +5,32 @@ import { join } from 'node:path';
 import { scaffoldPage, scaffoldBasePage, scaffold } from '../../src/pom-scaffolder.ts';
 
 describe('pom-scaffolder scaffoldPage', () => {
+  /**
+   * D24 (run beta.5, ParaBank): 25 links llamados '12345', '12456'... producian
+   * `readonly 12345: Locator`, que no compila — un solo nombre numerico mataba el POM
+   * entero y con el los specs del sitio. El identificador gana el rol como prefijo.
+   */
+  it('un nombre accesible NUMERICO produce un identificador valido (D24)', () => {
+    const result = scaffoldPage({
+      name: 'overview',
+      interactive_elements: [
+        { role: 'link', name: '12345' },
+        { role: 'link', name: '12456' },
+      ],
+    });
+    expect(result.content).toContain('readonly link12345: Locator');
+    expect(result.content).toContain('readonly link12456: Locator');
+    expect(result.content).not.toMatch(/readonly \d/);
+  });
+
+  it('el par falsable: un nombre normal se queda como estaba', () => {
+    const result = scaffoldPage({
+      name: 'overview',
+      interactive_elements: [{ role: 'link', name: 'Transfer Funds' }],
+    });
+    expect(result.content).toContain('readonly transferFunds: Locator');
+  });
+
   it('generates a Page class with PascalCase name from a kebab-case screen name', () => {
     const result = scaffoldPage({ name: 'checkout-step-one' });
     expect(result.className).toBe('CheckoutStepOnePage');

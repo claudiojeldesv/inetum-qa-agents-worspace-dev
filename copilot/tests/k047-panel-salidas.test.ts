@@ -127,7 +127,7 @@ describe('K0.47 — las salidas del panel, conducidas de verdad', () => {
 
   it('performed: el QA pulsó el objetivo grabando y el walker NO lo re-dispara', async () => {
     const { map, workDir, aliasPath } = await correr('record-click');
-    const paso = map.step_reports.find((r) => r.step === 's1');
+    const paso = (map.step_reports ?? []).find((r) => r.step === 's1');
     expect(paso?.outcome).toBe('ok');
     // el testigo es la rama del audit: esa rama hace `return` ANTES de runAction,
     // así que si su línea existe, el segundo disparo es imposible por construcción.

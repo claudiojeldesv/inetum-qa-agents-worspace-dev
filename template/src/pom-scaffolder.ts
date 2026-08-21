@@ -65,6 +65,21 @@ function toCamelCase(input: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
+/**
+ * D24 (run beta.5, ParaBank) — un identificador TS no puede empezar por dígito, y los
+ * nombres accesibles numéricos son corrientes en tablas de negocio (números de cuenta,
+ * de póliza, de contrato): ParaBank expone 25 links llamados '12345', '12456'... y
+ * `readonly 12345: Locator` no compila — un solo nombre numérico mataba el POM entero.
+ * Prefija con el rol, que es la misma convención del fallback `${role}${idx}`.
+ * Parche de campo del propio agente, aprobado por el QA en el run; portado al repo.
+ */
+function toIdentifier(input: string, rolePrefix?: string): string {
+  const camel = toCamelCase(input);
+  if (/^[A-Za-z_$]/.test(camel)) return camel;
+  const prefix = toCamelCase(rolePrefix ?? 'element') || 'element';
+  return prefix + camel.charAt(0).toUpperCase() + camel.slice(1);
+}
+
 export function fileNameFor(name: string, kind: 'page' | 'component'): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + `.${kind}.ts`;
 }
@@ -115,9 +130,9 @@ function locatorAssignments(elements: InteractiveElement[]): Array<{ key: string
   const seenKeys = new Set<string>();
   return elements.map((el, idx) => {
     const base = el.test_id
-      ? toCamelCase(el.test_id)
+      ? toIdentifier(el.test_id, el.role)
       : el.name
-        ? toCamelCase(el.name)
+        ? toIdentifier(el.name, el.role)
         : `${toCamelCase(el.role ?? 'element')}${idx}`;
     let unique = base;
     let n = 2;
