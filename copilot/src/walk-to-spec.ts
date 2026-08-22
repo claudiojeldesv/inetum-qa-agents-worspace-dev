@@ -312,6 +312,19 @@ export interface EmitResult {
   pages: EmittedPage[];
   queued: QueuedFlow[];
   warnings: string[];
+  /**
+   * Variables de entorno que los specs emitidos NECESITAN para correr, con la ruta del
+   * contract de donde sale cada valor.
+   *
+   * D43, medido en OrangeHRM el 2026-08-22: un paso con `secret: true` se emite como
+   * referencia a variable de entorno —correcto, un secreto no se incrusta en un spec
+   * versionado— pero nadie la declaraba, nadie la exportaba y nadie avisaba de que
+   * existia. Los tres specs emitidos fallaban con «locator.fill: value: expected string,
+   * got undefined», que no dice nada. El productor emitia un contrato y ningun consumidor
+   * lo cumplia. Sobrevivio hasta hoy porque hasta este run walk-to-spec nunca habia
+   * llegado a emitir NADA: el camino no se habia ejercitado de punta a punta.
+   */
+  required_env: Array<{ name: string; source: string }>;
 }
 
 interface PageModel {
@@ -391,6 +404,7 @@ export function emitFromWalk(
   for (const r of domMap.step_reports ?? []) reports.set(`${r.flow}/${r.step}`, r);
 
   const warnings: string[] = [];
+  const requiredEnv = new Map<string, string>();
   const queued: QueuedFlow[] = [];
   const emitted: EmittedSpec[] = [];
   const pagesByScreen = new Map<string, PageModel>();
@@ -495,11 +509,27 @@ export function emitFromWalk(
       if (step.dialog) lines.push(`page.once('dialog', (d) => d.${step.dialog === 'accept' ? 'accept' : 'dismiss'}());`);
 
       const pom = chain ? `${varFor(pageFor(screen))}.${propFor(pageFor(screen), step, chain)}` : '';
-      const value = step.value !== undefined && !step.secret
-        ? `'${q(resolveFixtureRef(step.value, contract.synthetic_fixtures))}'`
-        : step.secret
-          ? `process.env.${`QA_${script.site_id}_${hintKey(step)}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase()}!`
-          : '';
+      let value = '';
+      if (step.value !== undefined && !step.secret) {
+        value = `'${q(resolveFixtureRef(step.value, contract.synthetic_fixtures))}'`;
+      } else if (step.secret) {
+        const env = `QA_${script.site_id}_${hintKey(step)}`
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-zA-Z0-9]+/g, '_')
+          .toUpperCase();
+        requiredEnv.set(env, typeof step.value === 'string' ? step.value : 'synthetic_fixtures');
+        /**
+         * D43 — el secreto NO se incrusta (spec versionado), pero la ausencia de la
+         * variable tiene que fallar diciendo QUE falta y DE DONDE sale. `process.env.X!`
+         * producia «expected string, got undefined», que no ayuda a nadie.
+         */
+        value =
+          `(process.env.${env} ?? (() => { throw new Error(` +
+          `'falta la variable de entorno ${env}: es un secreto declarado (secret: true) y no se incrusta en el spec. ` +
+          `Su valor lo declara el Style Contract (synthetic_fixtures); exportala antes de correr la suite. El emit-report lista la ruta exacta en required_env.'` +
+          `); })())`;
+      }
 
       switch (step.action) {
         case 'goto': {
@@ -690,7 +720,13 @@ export function emitFromWalk(
       return { file: p.file, className: p.className, content: lines.join('\n') };
     });
 
-  return { emitted, pages, queued, warnings };
+  return {
+    emitted,
+    pages,
+    queued,
+    warnings,
+    required_env: [...requiredEnv].map(([name, source]) => ({ name, source })),
+  };
 }
 
 // ------------------------------------------------------------- CLI
@@ -728,6 +764,7 @@ function main(): void {
     site_id: script.site_id,
     emitted: result.emitted.map((e) => ({ flow: e.flow, spec: `${values['out-specs'] ?? `tests/e2e/${script.site_id}`}/${e.file}` })),
     queued_for_writer: result.queued,
+    required_env: result.required_env,
     warnings: result.warnings,
   };
   const reportPath = join(outSpecs, 'emit-report.json');

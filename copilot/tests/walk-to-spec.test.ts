@@ -290,3 +290,60 @@ describe('flowEligibility — expuesta para el consumidor', () => {
     expect(steps[0].chain).toBe("getByLabel('Usuario')");
   });
 });
+
+/**
+ * D43 — un secreto no se incrusta, pero la variable que lo sustituye SE DECLARA.
+ *
+ * Medido en OrangeHRM el 2026-08-22, en el primer run en el que `walk-to-spec` llego a
+ * emitir algo de verdad. Un paso con `secret: true` salia como `process.env.X!`: correcto
+ * al no meter el secreto en un spec versionado, pero nadie declaraba la variable, nadie la
+ * exportaba y nadie avisaba. Los tres specs emitidos morian con «locator.fill: value:
+ * expected string, got undefined», que no dice absolutamente nada.
+ *
+ * Sobrevivio hasta ese dia porque en los dos loops anteriores el emisor nunca emitio nada
+ * (`emitted: []`, el walker siempre bloqueaba antes): el camino no se habia ejercitado.
+ */
+describe('emitFromWalk — D43: el secreto declara su variable y falla legible', () => {
+  const scriptConSecreto = (): WalkScript => {
+    const s = script();
+    const login = s.flows[0];
+    for (const paso of login.steps) {
+      if (paso.action === 'fill' && /pass|contra/i.test(JSON.stringify(paso.hint ?? {}))) {
+        (paso as { secret?: boolean }).secret = true;
+      }
+    }
+    return s;
+  };
+
+  it('EL PAR FALSABLE: la variable requerida queda DECLARADA con su origen', () => {
+    const r = emitFromWalk(scriptConSecreto(), domMap(GREEN_REPORTS), CONTRACT);
+    expect(r.required_env.length).toBeGreaterThan(0);
+    const v = r.required_env[0];
+    expect(v.name).toMatch(/^QA_[A-Z0-9_]+$/);
+    expect(v.source.length).toBeGreaterThan(0);
+  });
+
+  it('el secreto NO se incrusta en el spec versionado', () => {
+    const r = emitFromWalk(scriptConSecreto(), domMap(GREEN_REPORTS), CONTRACT);
+    const todo = r.emitted.map((e) => e.content).join('\n');
+    expect(todo).toMatch(/process\.env\.QA_/);
+  });
+
+  it('si la variable falta, el fallo dice QUE falta y DE DONDE sale', () => {
+    const r = emitFromWalk(scriptConSecreto(), domMap(GREEN_REPORTS), CONTRACT);
+    const todo = r.emitted.map((e) => e.content).join('\n');
+    expect(todo).toContain('falta la variable de entorno');
+    expect(todo).toContain('Style Contract');
+    // y NO se queda en el `!` que producia «expected string, got undefined»
+    expect(todo).not.toMatch(/process\.env\.QA_[A-Z0-9_]+!/);
+  });
+
+  it('sin pasos secretos no se pide ninguna variable', () => {
+    // el script() base YA trae un paso secreto: hay que quitarlo a proposito para
+    // probar la ausencia. Premisa que me equivoque al asumir la primera vez.
+    const sinSecretos = script();
+    for (const f of sinSecretos.flows) for (const p of f.steps) delete (p as { secret?: boolean }).secret;
+    const r = emitFromWalk(sinSecretos, domMap(GREEN_REPORTS), CONTRACT);
+    expect(r.required_env).toEqual([]);
+  });
+});
