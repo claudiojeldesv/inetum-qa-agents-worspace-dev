@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+
 import { defineConfig, devices } from '@playwright/test';
 
 import { proxyFromEnv } from './src/proxy-env.ts';
@@ -14,6 +16,33 @@ const storageState = process.env.QA_STORAGE_STATE;
 // no se contaminen. Sin la var → '.work' (comportamiento previo, sin regresión).
 const workDir = process.env.QA_WORK_DIR || '.work';
 
+/**
+ * Politica de sesiones concurrentes MEDIDA del target (`probe-session-policy`). Si la app
+ * no admite dos sesiones del mismo usuario, la suite TIENE que ir en serie: en paralelo se
+ * auto-invalida la sesion compartida a mitad de camino y falla de forma intermitente — y
+ * eso se diagnostica como flakiness, que manda a mirar timings en vez de concurrencia.
+ *
+ * El site-id sale del propio QA_WORK_DIR ('.work/<site-id>'), asi que funciona igual en un
+ * run del command y en un `npx playwright test` a mano. Si el perfil no existe o es
+ * ilegible, no se asume nada y se mantiene el comportamiento anterior.
+ */
+const siteId = workDir.split(/[\/]/).filter(Boolean).pop();
+let serializarPorSesion = process.env.QA_SERIALIZE === '1';
+if (!serializarPorSesion && siteId && siteId !== '.work') {
+  const perfil = `config/site-profile/${siteId}.json`;
+  if (existsSync(perfil)) {
+    try {
+      serializarPorSesion =
+        (JSON.parse(readFileSync(perfil, 'utf8')) as { session?: { serialize?: boolean } })?.session?.serialize === true;
+    } catch {
+      /* perfil ilegible: no se inventa una politica */
+    }
+  }
+}
+if (serializarPorSesion) {
+  console.log('[playwright.config] sesion unica en el target: suite en SERIE (1 worker). Ver config/site-profile/');
+}
+
 export default defineConfig({
   testDir: './tests/e2e',
   // Specs archivados por el checkpoint (Q4: fuera de la selección actual → _archive/, no se
@@ -24,10 +53,10 @@ export default defineConfig({
   // resultados entre corridas → el reporte mezclaría runs viejos, skipped rancios y fallos ya
   // corregidos). Determinista, aplica a todos los commands y runs manuales. No toca .allure-history.
   globalSetup: './playwright.global-setup.ts',
-  fullyParallel: true,
+  fullyParallel: !serializarPorSesion,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: serializarPorSesion ? 1 : process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
     // Reporter JSON opt-in (Fase 4 token-efficiency): run-s4-mecanico.ts setea

@@ -5038,8 +5038,40 @@ class DomWalker {
       await d.dismiss().catch(() => {});
     });
 
+    /**
+     * D42 — AISLAMIENTO ENTRE FLUJOS. Medido en OrangeHRM el 2026-08-22.
+     *
+     * El walker corria TODOS los flujos en un mismo contexto de navegador, y el refiner
+     * emite un prefijo de login en CADA flujo (esta literalmente asi en los guiones de
+     * SauceDemo y ParaBank). En cuanto el primer login funciona de verdad, el `goto` al
+     * login del flujo siguiente cae en un contexto YA autenticado donde no hay formulario,
+     * y sus pasos se reportan «hint irresoluble»: 21 bloqueos falsos de 26 en la bateria de
+     * sonda. Estaba oculto porque en ParaBank y SauceDemo los hints en espanol nunca
+     * resolvian, asi que nunca habia sesion — un defecto tapaba al otro.
+     *
+     * NO se aisla si el caller paso `storageState`: ahi la sesion esta pensada para
+     * compartirse (proyecto de auth) y limpiarla romperia el reuso a proposito.
+     *
+     * Y el aislamiento es SECUENCIAL, no concurrente: un re-login por flujo es seguro
+     * incluso en aplicaciones que no admiten dos sesiones simultaneas del mismo usuario.
+     */
+    const aislarFlujos =
+      (this.contract as { walker?: { isolate_flows?: boolean } }).walker?.isolate_flows !== false && !storageState;
+    let flujosVistos = 0;
+
     try {
       for (const flow of this.script.flows) {
+        if (aislarFlujos && flujosVistos > 0) {
+          await this.context.clearCookies().catch(() => {});
+          // string, NO referencia de funcion: esbuild envuelve las funciones con __name,
+          // inexistente en la pagina (mismo motivo que settleScript, ver K0.13).
+          await this.page
+            .evaluate('try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}')
+            .catch(() => {});
+          console.log(`[dom-walker] sesion reiniciada antes de '${flow.flow}' (aislamiento entre flujos)`);
+        }
+        flujosVistos += 1;
+
         const keys = ['__entry', ...flow.steps.map((s) => s.id)].map((id) => `${flow.flow}/${id}`);
         // flujo 100% completado en un run anterior: se salta (sesión restaurada de walk-session.json)
         if (keys.every((k) => this.state.completed.includes(k))) continue;
