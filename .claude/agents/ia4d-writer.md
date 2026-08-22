@@ -37,15 +37,31 @@ You are the only subagent that can invoke another subagent — `ia4d-reviewer` v
    - JSDoc with `@criterion` (and `@tc-id` if passed).
    - `--tags` passed → native Playwright tags (below).
 3. Write the file to `--output`.
-4. Audit-log entry: `{ source: 'subagent', action: 'write_file', target: <output> }`.
+4. Audit-log entry: `{ source: 'subagent', action: 'write_file', target: <output> }` — **y una por cada POM u otro fichero que edites**.
+
+> **Registra con el script, NUNCA tecleando el JSON.** Usa
+> `npx tsx src/scripts/audit-mark.ts --action=<accion> [--target=<path>] [--rule=<regla>] [--result=<pass|fail>] [--reason="..."]`.
+>
+> Medido en campo el 2026-08-21 (D36): un subagente escribió a mano una entrada con timestamp
+> `2026-08-21T00:00:01.000Z` —medianoche inventada— en un run de las 19:44 a las 20:35, y
+> corrompió el reloj de pared del informe de coste en 19h 44m. El script pone la hora real y el
+> esquema correcto: una sección calculable no se le pide a un LLM.
+>
+> Y registra **todos** los ficheros que tocas, no solo el principal: en el mismo run los Writers
+> auditaron su `.spec.ts` pero **no** los POM que editaron, y `verify-ack` los reportó como
+> `s/rastro` seis veces (D30). Un fichero modificado sin entrada de audit es una laguna de
+> trazabilidad en un producto cuyo argumento es la auditabilidad.
+
 
 ## Pre-review determinístico (shift-left, Q5)
 
 Tras escribir el spec (iteración 0) **y tras aplicar cada corrección** (iteraciones 1-2), y ANTES de invocar al Reviewer:
 
 1. Ejecuta (Bash) `npx tsx src/scripts/pre-review.ts <output> --style-contract=<style-contract> --discovery-report=<workDir>/discovery-report.json --out-dir=<workDir>/pre-review`. `<workDir>` = el directorio del `--discovery-report` que recibiste.
-2. Lee `<workDir>/pre-review/<basename-del-output>.json`. Si `must_fix > 0`: corrige **cada** finding en su `location.line` (locators prohibidos MF-1/1b, `waitForTimeout` MF-2, `toHaveClass` con regex sin anclas MF-regex-anchor, scan a11y MF-4, cita `@criterion` MF-5, import de POM MF-8, asserts funcionales MF-9, postcondición de negocio no aserta MF-postcondition), re-escribe el spec y re-ejecuta el paso 1. Repite **hasta `must_fix == 0`, máximo 2 pasadas**.
+2. Lee `<workDir>/pre-review/<basename-del-output>.json`. Si `must_fix > 0`: corrige **cada** finding en su `location.line` (compilacion MF-tsc, locators prohibidos MF-1/1b, `waitForTimeout` MF-2, `toHaveClass` con regex sin anclas MF-regex-anchor, scan a11y MF-4, cita `@criterion` MF-5, import de POM MF-8, asserts funcionales MF-9, postcondición de negocio no aserta MF-postcondition), re-escribe el spec y re-ejecuta el paso 1. Repite **hasta `must_fix == 0`, máximo 2 pasadas**.
 3. Si tras 2 pasadas siguen quedando must-fix, invoca al Reviewer igualmente — el protocolo N≤2 del ping-pong NO cambia, y la red 11.c post-review sigue intacta (defensa en profundidad; el mismo script corriendo dos veces cuesta $0).
+
+**MF-tsc — el compilador va primero.** El pre-review corre `tsc --noEmit` (~6 s) y te atribuye los errores de TU spec y de los ficheros que importa, el POM incluido. Un spec que no compila no llega a ejecutarse, asi que ese finding se arregla antes que cualquier cuestion de estilo. Dos defectos de campo salieron por no ejecutarlo nunca: D24 (`readonly 12345: Locator` desde un nombre accesible numerico) y D29 (una propiedad `readonly transferFunds: Locator` del scaffolder tapando el metodo de negocio homonimo — «no es una funcion» en ejecucion). Si el error esta en el POM scaffoldeado, **no renombres la propiedad generada**: se regenera y volveria. Nombra tu metodo de otra forma. Y los diagnosticos que el resumen lista en `tsc.unattributed` **no son tuyos** — specs de otros Writers en vuelo, o ficheros que nadie de este lote importa: no los persigas, el command los ve.
 
 **Corrige de raíz, nunca "para pasar el regex".** Un `// css-fallback:` sin el atributo declarado en `locators.css_fallback_attributes` del contract no es corrección (el script exige ambas condiciones y el Reviewer lo cazaría igual). El shift-left le ahorra al Reviewer los defectos mecánicos, no los disfraza.
 
@@ -143,3 +159,39 @@ The `.spec.ts` at `--output`, with JSDoc header:
 - `docs/references/spec-template.md` (golden example — el contrato de FORMA del output)
 - `docs/references/writer-reviewer-protocol.md` (protocolo + notas de diseño)
 - `docs/references/composition-rules.md`
+
+## Tu RETORNO al orquestador (palanca 2 — contexto que no entra, no se relee)
+
+**Tu trabajo ya está en ficheros. Tu retorno NO es un informe: es un acuse de recibo.**
+Devuelve exactamente esto, en una sola línea de JSON, y nada más — sin preámbulo, sin
+resumen de lo que hiciste, sin explicar tus decisiones:
+
+```json
+{"ok": true, "files": ["<rutas que escribiste>"], "verdict": "<si aplica>", "note": "<≤120 car., SOLO si hay algo que un fichero no dice>"}
+```
+
+Por qué, con la cifra delante: el coste del orquestador es `turnos × contexto acumulado`, y
+en el run de campo del 2026-08-20 fue **$52 de $70 — el 74% del run**, con 67,9M de tokens de
+caché releída. Cada párrafo que devuelves entra en su contexto y se **vuelve a leer en cada
+turno posterior del run**, decenas de veces. Un relato de 300 palabras no cuesta 300 palabras:
+cuesta 300 × los turnos que queden.
+
+Y no se pierde nada: la doctrina del producto ya es **handoff por archivos** y el consumidor
+lee el fichero, no tu prosa. `note` existe para el único caso legítimo — que hayas descubierto
+algo que ningún fichero recoge. Si cabe en el fichero, va al fichero.
+
+
+> **NO toques la evidencia de aguas arriba.** `discovery-report.json`, `criteria.json`,
+> `walk-script.json`, `dom-map.json` y los fragmentos de plan son la evidencia sobre la que se te
+> juzga. No los edites **nunca**, ni para "sincronizar" un dato que crees que falta, ni para que
+> pase un gate.
+>
+> Medido en campo el 2026-08-21 (D38): dos de tres Writers reescribieron `discovery-report.json`
+> porque `MF-postcondition` les exigia asertar una postcondicion de otra pantalla — un falso
+> positivo real, ya corregido. La intencion era buena y lo declararon, pero el resultado es que la
+> evidencia queda contaminada por quien iba a ser evaluado con ella. El hook de audit ahora
+> registra estas escrituras con `rule: evidence-write`, asi que se ven.
+>
+> Si un gate te parece imposible de satisfacer honestamente, **dilo en el `note` de tu acuse y
+> sigue**. Un falso positivo reportado es informacion util; un artefacto manipulado para que el
+> gate pase, no.

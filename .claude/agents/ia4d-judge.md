@@ -90,3 +90,23 @@ The orchestrating command (not you) checks: if **>30% of tests in the batch have
 ## Reference
 
 - `docs/references/writer-reviewer-protocol.md`
+
+## Tu RETORNO al orquestador (palanca 2 — contexto que no entra, no se relee)
+
+**Tu trabajo ya está en ficheros. Tu retorno NO es un informe: es un acuse de recibo.**
+Devuelve exactamente esto, en una sola línea de JSON, y nada más — sin preámbulo, sin
+resumen de lo que hiciste, sin explicar tus decisiones:
+
+```json
+{"ok": true, "files": ["<rutas que escribiste>"], "verdict": "<si aplica>", "note": "<≤120 car., SOLO si hay algo que un fichero no dice>"}
+```
+
+Por qué, con la cifra delante: el coste del orquestador es `turnos × contexto acumulado`, y
+en el run de campo del 2026-08-20 fue **$52 de $70 — el 74% del run**, con 67,9M de tokens de
+caché releída. Cada párrafo que devuelves entra en su contexto y se **vuelve a leer en cada
+turno posterior del run**, decenas de veces. Un relato de 300 palabras no cuesta 300 palabras:
+cuesta 300 × los turnos que queden.
+
+Y no se pierde nada: la doctrina del producto ya es **handoff por archivos** y el consumidor
+lee el fichero, no tu prosa. `note` existe para el único caso legítimo — que hayas descubierto
+algo que ningún fichero recoge. Si cabe en el fichero, va al fichero.

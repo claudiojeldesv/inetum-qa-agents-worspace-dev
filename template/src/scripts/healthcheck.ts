@@ -102,6 +102,8 @@ dirCountCheck('Agentes nativos Playwright en .claude/agents', '.claude/agents', 
 fileCheck('Hook compliance pre-flight', 'hooks/pre-flight.ts');
 fileCheck('Hook PII/anti-fixme post-write', 'hooks/pii-post.ts');
 fileCheck('Hook audit-write', 'hooks/audit-write.ts');
+// D30: el rastro de cada escritura es mecanico, no depende de que un subagente se acuerde.
+fileCheck('Hook de rastro por escritura (D30)', 'hooks/audit-file-write.ts');
 fileCheck('settings.json cablea hooks', '.claude/settings.json');
 // Lógica determinística
 fileCheck('POM scaffolder', 'src/pom-scaffolder.ts');
@@ -122,6 +124,15 @@ fileCheck('Orquestación mecánica S4 (run-s4-mecanico)', 'src/scripts/run-s4-me
 fileCheck('Guarda de locators del discovery (verify-locators)', 'src/scripts/verify-locators.ts');
 // Q3 quality-greens: protocolo post-heal mecánico del command /ia4d-qa-automator:heal
 fileCheck('Orquestación mecánica del Healer (run-heal-mecanico)', 'src/scripts/run-heal-mecanico.ts');
+// Palancas 2+3 (medicion del 2026-08-21): el punto 2 del PRESUPUESTO DE TURNOS de los cuatro
+// commands invoca verify-ack tras cada acuse de subagente, y el punto 5 marca cada Task con
+// audit-mark. Si faltan, esas instrucciones fallan en medio del run — que es justo lo que este
+// healthcheck existe para evitar.
+fileCheck('Verificación de acuses de subagente (verify-ack)', 'src/scripts/verify-ack.ts');
+fileCheck('Marcador de audit para los Task (audit-mark)', 'src/scripts/audit-mark.ts');
+fileCheck('Contabilidad de coste del run (run-cost)', 'src/scripts/run-cost.ts');
+// Sesion unica del target: propiedad medida que decide si la suite va en serie.
+fileCheck('Sonda de politica de sesiones (probe-session-policy)', 'src/scripts/probe-session-policy.ts');
 // Config declarativa
 fileCheck('allowed-targets (compliance)', 'config/allowed-targets.yaml');
 fileCheck('MCP playwright-test configurado (.mcp.json)', '.mcp.json');

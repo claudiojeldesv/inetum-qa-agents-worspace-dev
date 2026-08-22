@@ -139,3 +139,48 @@ The flows came from the FD via `criteria.json`; the Planner ran in map-against-D
 
 - `src/pom-scaffolder.ts` — consumer of this output
 - `docs/references/autonomous-operations.md` §6 — rationale de naming/criticidad/cobertura
+
+## Tu RETORNO al orquestador (palanca 2 — contexto que no entra, no se relee)
+
+**Tu trabajo ya está en ficheros. Tu retorno NO es un informe: es un acuse de recibo.**
+Devuelve exactamente esto, en una sola línea de JSON, y nada más — sin preámbulo, sin
+resumen de lo que hiciste, sin explicar tus decisiones:
+
+```json
+{"ok": true, "files": ["<rutas que escribiste>"], "verdict": "<si aplica>", "note": "<≤120 car., SOLO si hay algo que un fichero no dice>"}
+```
+
+Por qué, con la cifra delante: el coste del orquestador es `turnos × contexto acumulado`, y
+en el run de campo del 2026-08-20 fue **$52 de $70 — el 74% del run**, con 67,9M de tokens de
+caché releída. Cada párrafo que devuelves entra en su contexto y se **vuelve a leer en cada
+turno posterior del run**, decenas de veces. Un relato de 300 palabras no cuesta 300 palabras:
+cuesta 300 × los turnos que queden.
+
+Y no se pierde nada: la doctrina del producto ya es **handoff por archivos** y el consumidor
+lee el fichero, no tu prosa. `note` existe para el único caso legítimo — que hayas descubierto
+algo que ningún fichero recoge. Si cabe en el fichero, va al fichero.
+
+
+> **Tu rastro en el audit lo pone el runtime, no tú.** Este agente NO tiene tool `Bash`, así que
+> no puede ejecutar `audit-mark.ts` — y no debe intentarlo. El hook `PostToolUse` sobre
+> `Write|Edit` (`hooks/audit-file-write.ts`) registra cada fichero que escribes, incluidos los
+> artefactos de evidencia, sin que hagas nada.
+>
+> Medido el 2026-08-22 (D40): se les pidió a este agente y al `ia4d-spec-refiner` que registraran
+> con el script. Los dos respondieron que no tenían Bash — correctamente— y el trabajo se quedó
+> sin rastro hasta que el hook lo cubrió. Una instrucción que el destinatario no puede ejecutar no
+> es una instrucción.
+
+> **`test_id` solo si es EL atributo de test del proyecto.** Si el elemento no tiene el
+> `testIdAttribute` configurado (por defecto `data-test`), deja `test_id` vacio. Si aun asi quieres
+> conservar un identificador util, ponlo en `test_id` y declara de donde salio en **`test_id_attr`**
+> (p.ej. `"id"`, `"name"`).
+>
+> Medido el 2026-08-21 (D34): sobre ParaBank —que no tiene ni un `data-test`— se emitio
+> `test_id: "fromAccountId"` tomandolo del atributo `id`, y el scaffolder genero
+> `getByTestId('fromAccountId')`, que busca `[data-test="fromAccountId"]` y no resuelve jamas.
+>
+> **No es opcional por comodidad.** Medido el 2026-08-22 en el loop: con el prompt IDENTICO se
+> declaro este campo en 18 de 18 elementos en una corrida y en 0 de 31 en la siguiente. Por eso
+> `verify-locators` lo RESCATA contra el DOM cuando falta — pero rescatarlo cuesta una sonda por
+> elemento, y declararlo bien aqui la ahorra.

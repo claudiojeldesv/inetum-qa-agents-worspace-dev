@@ -92,7 +92,7 @@ The discovery-report comes annotated by `verify-locators` (deterministic pass ag
      concurrente sobre un único `review-feedback.json` corrompe el JSON.
    Deriva `<workDir>` del `--discovery-report` que recibes (vive en el mismo work dir) o de `$QA_WORK_DIR`;
    default `.work/`. El command consolida estos ficheros en `<workDir>/review-feedback.json` al final (no lo hagas tú).
-5. Append `audit-log` entry: `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.
+5. Append `audit-log` entry (con el script, ver nota abajo): `{ source: 'subagent', action: 'review_decision', target: <test-file>, result: 'iteration_N' | 'pass' }`.
 
 ## Decision rules
 
@@ -114,3 +114,37 @@ The discovery-report comes annotated by `verify-locators` (deterministic pass ag
 
 - `docs/references/writer-reviewer-protocol.md`
 - `docs/references/composition-rules.md`
+
+## Tu RETORNO al orquestador (palanca 2 — contexto que no entra, no se relee)
+
+**Tu trabajo ya está en ficheros. Tu retorno NO es un informe: es un acuse de recibo.**
+Devuelve exactamente esto, en una sola línea de JSON, y nada más — sin preámbulo, sin
+resumen de lo que hiciste, sin explicar tus decisiones:
+
+```json
+{"ok": true, "files": ["<rutas que escribiste>"], "verdict": "<si aplica>", "note": "<≤120 car., SOLO si hay algo que un fichero no dice>"}
+```
+
+Por qué, con la cifra delante: el coste del orquestador es `turnos × contexto acumulado`, y
+en el run de campo del 2026-08-20 fue **$52 de $70 — el 74% del run**, con 67,9M de tokens de
+caché releída. Cada párrafo que devuelves entra en su contexto y se **vuelve a leer en cada
+turno posterior del run**, decenas de veces. Un relato de 300 palabras no cuesta 300 palabras:
+cuesta 300 × los turnos que queden.
+
+Y no se pierde nada: la doctrina del producto ya es **handoff por archivos** y el consumidor
+lee el fichero, no tu prosa. `note` existe para el único caso legítimo — que hayas descubierto
+algo que ningún fichero recoge. Si cabe en el fichero, va al fichero.
+
+
+> **Registra con el script, NUNCA tecleando el JSON.** Usa
+> `npx tsx src/scripts/audit-mark.ts --action=<accion> [--target=<path>] [--rule=<regla>] [--result=<pass|fail>] [--reason="..."]`.
+>
+> Medido en campo el 2026-08-21 (D36): un subagente escribió a mano una entrada con timestamp
+> `2026-08-21T00:00:01.000Z` —medianoche inventada— en un run de las 19:44 a las 20:35, y
+> corrompió el reloj de pared del informe de coste en 19h 44m. El script pone la hora real y el
+> esquema correcto: una sección calculable no se le pide a un LLM.
+>
+> Y registra **todos** los ficheros que tocas, no solo el principal: en el mismo run los Writers
+> auditaron su `.spec.ts` pero **no** los POM que editaron, y `verify-ack` los reportó como
+> `s/rastro` seis veces (D30). Un fichero modificado sin entrada de audit es una laguna de
+> trazabilidad en un producto cuyo argumento es la auditabilidad.

@@ -74,3 +74,23 @@ yours.
 - `docs/references/fd-criteria-schema.md` — the `criteria.json` contract (shared with S3)
 - [`.claude/agents/ia4d-spec-refiner.md`](ia4d-spec-refiner.md) — the S3 analog (FD prose → same contract)
 - [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer; adds the `criteria_mapping` block (RF-NNN ↔ scenario)
+
+## Tu RETORNO al orquestador (palanca 2 — contexto que no entra, no se relee)
+
+**Tu trabajo ya está en ficheros. Tu retorno NO es un informe: es un acuse de recibo.**
+Devuelve exactamente esto, en una sola línea de JSON, y nada más — sin preámbulo, sin
+resumen de lo que hiciste, sin explicar tus decisiones:
+
+```json
+{"ok": true, "files": ["<rutas que escribiste>"], "verdict": "<si aplica>", "note": "<≤120 car., SOLO si hay algo que un fichero no dice>"}
+```
+
+Por qué, con la cifra delante: el coste del orquestador es `turnos × contexto acumulado`, y
+en el run de campo del 2026-08-20 fue **$52 de $70 — el 74% del run**, con 67,9M de tokens de
+caché releída. Cada párrafo que devuelves entra en su contexto y se **vuelve a leer en cada
+turno posterior del run**, decenas de veces. Un relato de 300 palabras no cuesta 300 palabras:
+cuesta 300 × los turnos que queden.
+
+Y no se pierde nada: la doctrina del producto ya es **handoff por archivos** y el consumidor
+lee el fichero, no tu prosa. `note` existe para el único caso legítimo — que hayas descubierto
+algo que ningún fichero recoge. Si cabe en el fichero, va al fichero.

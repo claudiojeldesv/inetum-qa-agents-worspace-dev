@@ -153,3 +153,34 @@ When in doubt, lower `confidence`, add a `gap`, and write the question. A criter
 
 - `docs/references/fd-criteria-schema.md` — the contract you produce
 - [`.claude/agents/ia4d-discovery-analyzer.md`](ia4d-discovery-analyzer.md) — downstream consumer; adds the `criteria_mapping` block (RF-NNN ↔ scenario)
+
+## Tu RETORNO al orquestador (palanca 2 — contexto que no entra, no se relee)
+
+**Tu trabajo ya está en ficheros. Tu retorno NO es un informe: es un acuse de recibo.**
+Devuelve exactamente esto, en una sola línea de JSON, y nada más — sin preámbulo, sin
+resumen de lo que hiciste, sin explicar tus decisiones:
+
+```json
+{"ok": true, "files": ["<rutas que escribiste>"], "verdict": "<si aplica>", "note": "<≤120 car., SOLO si hay algo que un fichero no dice>"}
+```
+
+Por qué, con la cifra delante: el coste del orquestador es `turnos × contexto acumulado`, y
+en el run de campo del 2026-08-20 fue **$52 de $70 — el 74% del run**, con 67,9M de tokens de
+caché releída. Cada párrafo que devuelves entra en su contexto y se **vuelve a leer en cada
+turno posterior del run**, decenas de veces. Un relato de 300 palabras no cuesta 300 palabras:
+cuesta 300 × los turnos que queden.
+
+Y no se pierde nada: la doctrina del producto ya es **handoff por archivos** y el consumidor
+lee el fichero, no tu prosa. `note` existe para el único caso legítimo — que hayas descubierto
+algo que ningún fichero recoge. Si cabe en el fichero, va al fichero.
+
+
+> **Tu rastro en el audit lo pone el runtime, no tú.** Este agente NO tiene tool `Bash`, así que
+> no puede ejecutar `audit-mark.ts` — y no debe intentarlo. El hook `PostToolUse` sobre
+> `Write|Edit` (`hooks/audit-file-write.ts`) registra cada fichero que escribes, incluidos los
+> artefactos de evidencia, sin que hagas nada.
+>
+> Medido el 2026-08-22 (D40): se les pidió a este agente y al `ia4d-spec-refiner` que registraran
+> con el script. Los dos respondieron que no tenían Bash — correctamente— y el trabajo se quedó
+> sin rastro hasta que el hook lo cubrió. Una instrucción que el destinatario no puede ejecutar no
+> es una instrucción.

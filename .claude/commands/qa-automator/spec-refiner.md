@@ -7,6 +7,66 @@ argument-hint: "--fd=<path> --url=<URL> [--style=<contract.yaml>]"
 
 > **Pre-check (workspace).** Este comando corre DENTRO de un workspace desplegado del agente. Antes de continuar, verifica que en el directorio actual existen `config/allowed-targets.yaml` y `playwright.config.ts`. Si falta alguno, NO sigas: indica al usuario que ejecute `/ia4d-qa-automator:init <carpeta>` (o abra su workspace ya desplegado) y detente.
 
+> ## PRESUPUESTO DE TURNOS (no negociable — es el 74% del coste del run)
+>
+> Medido el 2026-08-20: de $70 de un run, **$52 fueron el orquestador**, con 67,9M de tokens
+> de caché releída. Tu coste no es lo que piensas: es `turnos × contexto acumulado`. Cada
+> turno relee TODO lo anterior, así que un turno que no decide nada no es gratis — es el
+> contexto entero otra vez.
+>
+> **1. PROHIBIDO SONDEAR EN BUCLE.** Lanza el subagente, **termina tu turno** y actúa cuando
+> llegue su notificación. Nada de «espero», «sigo esperando», «aún sin cambios»: en el run 3
+> hubo ~15-20 de esos turnos y **ninguno produjo una decisión**. Si de verdad sospechas que un
+> subagente murió sin notificar (pasó una vez: una re-review se cortó en un cambio de sesión),
+> permitido **UN latido cada ~5 min**, nunca un bucle. Excepción explícita:
+> `<workDir>/walk/assist-pending.json` cuando hay un panel esperando a una persona — ese
+> fichero existe justo para eso.
+>
+> **2. EL RETORNO DEL SUBAGENTE ES UN ACUSE, NO UNA FUENTE — Y SE VERIFICA.** Los `ia4d-*`
+> devuelven `{ok, files, verdict, note}`. La verdad está en el fichero que escribieron.
+> **No le pidas a un subagente que te resuma lo que hizo** ni lo reinvoques para preguntarle:
+> abre su fichero. Y **antes de darlo por hecho, comprueba el acuse contra el disco**:
+>
+> ```
+> npx tsx src/scripts/verify-ack.ts --files=<los files del acuse, separados por comas> --label=<agente-TC>
+> ```
+>
+> Exit 2 = el acuse **miente** (algo declarado no existe o está vacío): reanuda al subagente con
+> el hecho —«declaraste X, no existe»— y exígele Read-after-Write; no lo reintentes a ciegas ni
+> escribas tú el fichero. Medido el 2026-08-21 (D28): un Writer devolvió `{"ok":true}` sobre un
+> fichero que no existía en ningún sitio y sin entrada en el audit; salió tres actos más tarde y
+> costó una reanudación (~$7) y ~4 turnos. **El acuse compacto ahorra contexto solo si se
+> verifica**: el check cuesta un subproceso y cero tokens de LLM. Agrúpalo con el resto de
+> comandos deterministas del punto 4.
+>
+> **3. NO RELEAS.** Un fichero leído se queda en tu contexto para siempre y se relee en cada
+> turno posterior. Lee `criteria.json`, el `dom-map` o el audit-log **una vez**, quédate con la
+> conclusión, y no vuelvas salvo que algo lo haya reescrito. Si necesitas un dato puntual de un
+> JSON grande, extráelo con `node -e` en vez de volcarlo entero.
+>
+> **4. AGRUPA LOS COMANDOS DETERMINISTAS.** Varios pasos de shell consecutivos sin decisión en
+> medio van en UNA llamada (`&&` / `;`), no en cuatro turnos. Los gates ask-first y las
+> invocaciones LLM sí llevan turno propio: ahí el turno se paga porque hay juicio.
+>
+> **5. MARCA CADA `Task` AL LANZARLO Y AL RECOGERLO.** Justo antes de invocar un subagente y
+> justo después de su acuse:
+>
+> ```
+> npx tsx src/scripts/audit-mark.ts --task-start=<label>    # antes del Task
+> npx tsx src/scripts/audit-mark.ts --task-end=<label> --result=pass   # tras el acuse
+> ```
+>
+> No es burocracia: el audit-log solo se escribe cuando alguien toca un fichero, así que un hueco
+> de 14 min entre dos entradas es **indistinguible** de un orquestador ocioso y de un subagente
+> trabajando. Sin estas marcas, `run-cost` los cuenta todos como espera y publicó un «95,5% del
+> activo en esperas» que hubo que retirar —el hueco mayor era un Writer produciendo—. Con ellas,
+> el reloj se atribuye a quien lo consumió y sale gratis el tiempo por subagente. Agrupa la marca
+> de inicio con los comandos deterministas que ya ibas a lanzar (punto 4): no gasta un turno.
+> **Y usa este script en vez de teclear el JSON del audit a mano**, aquí y en cada «registra al
+> audit-log» de este command: en el run 3 el orquestador se inventó nombres de campo escribiendo
+> a mano y el consumidor de `heal` lo cazó con `reds: []`.
+
+
 Módulo **S3 Spec-refiner (Forma B)** del agente `ia4d-qa-automator`. Entrada = **FD en markdown libre + URL de staging**. El FD da el *qué* (criterios RF-NNN, flujos); la URL da el *cómo* (DOM real, locators, run verde). Reusa el motor S4 validado (discovery, POM scaffolder, Writer↔Reviewer↔Judge, los 3 componentes de Fase C); las únicas piezas propias de S3 son la ingestión del FD (`ia4d-spec-refiner`), el planner en modo **mapear-contra-DOM** y el **diff de drift**.
 
 Valor diferenciador sobre S4: (1) **trazabilidad real** — el `@criterion` cita un RF-NNN del FD, no prosa del discovery; (2) **detección de drift** — un flujo que el FD declara y staging no expone se **reporta como gap, NO se fabrica el test**.
@@ -235,6 +295,26 @@ El Judge y el reporte leen el consolidado. (Evita la race de *append* concurrent
 16. (Solo si el Judge corrió) Lee scores. Si >30% < 0.5 → pausa ask-first.
 17. Genera `<workDir>/qa-automator-run-summary.json` con: tests generados (+ su RF), scores (o `judge: skipped`), verdicts, axe results, **criterios bloqueados (pendientes de respuesta QA)** y **drift** (RF declarados sin cobertura).
 
+**17.b — El coste del run, calculado (no teclado).** Cierra SIEMPRE con:
+
+```sh
+QA_WORK_DIR=<workDir> npx tsx src/scripts/run-cost.ts
+```
+
+Lee el audit-log, escribe `<workDir>/run-cost.json` y **funde el bloque `cost` en el
+run-summary por código**. Enseña al QA las tres cifras: **tiempo activo** (reloj menos las
+pausas humanas), **esperas del orquestador** con su % sobre el activo, y el desglose de tokens.
+
+No lo escribas tú a mano. Existe porque tras tres runs de campo «¿cuánto costó?» solo se podía
+responder reconstruyéndolo desde un transcript, y porque en el run 3 el run-summary escrito a
+mano llevaba nombres de campo inventados que el consumidor de `heal` cazó con `reds: []`. Una
+sección calculable no se le pide a un LLM.
+
+Las **esperas** son el hallazgo que este informe pone arriba solo: en el run 3 fueron el 80% del
+tiempo activo. Si sale una espera grande tras invocar un subagente, es D13; si sale un corte
+seco, mira si fue el tope de la tool (D23).
+
+
 ## Outputs (consolidados)
 
 - `criteria.json` + `refinement-questions.md` (ingestión del FD)
@@ -265,7 +345,8 @@ Idéntico a S4 (`autonomous.md`): ejecuta `npx playwright test tests/e2e/<site-i
 - **Planner por-flujo (paso 8) + guarda por-flujo (8.5)**: un flujo por vez, secuencial; reintento ×1; si falla, el QA decide (no-mapeado / rescate MCP / abortar).
 - No se fabrica drift ni el `then` ambiguo. Un flujo no mapeado se reporta; un criterio ambiguo no se genera.
 - Writer+Reviewer activos (igual que S4); el **Judge es opcional, off por defecto** (`QA_ENABLE_JUDGE`).
-- **Writers SIEMPRE en foreground: pasa `run_in_background: false` EXPLÍCITO en cada Task/Agent** (en algunos harness el default es background — el default NO es seguro). PROHIBIDO background y ScheduleWakeup para esperar subagents (F2/Q1/Q2). Paralelo ≠ background.
+- **Writers en foreground SI el harness lo expone: pasa `run_in_background: false` EXPLÍCITO en cada Task/Agent** (en algunos harness el default es background — el default NO es seguro). Paralelo ≠ background.
+  **Reconciliación de dos medidas que parecían chocar** (F2/Q1 vs. el run del 2026-08-20): el enemigo NO es el background, es el **bucle de sondeo** que suele venir detrás. Foreground = un turno bloqueado (barato). Background + esperar la notificación = un turno al lanzar y otro al volver (también barato). Background + «sigo esperando» ×20 = el contexto entero releído veinte veces, que es lo que costó el 74% del run. Si el harness no expone el parámetro —medido: pasó en el run 2— el background es inevitable y entonces manda el punto 1 del PRESUPUESTO DE TURNOS: lanzar y **terminar el turno**, nunca sondear. `ScheduleWakeup` para esperar subagents sigue prohibido.
 - Guarda de locators (10.b) antes del scaffold: `verified:false` prohibido para el Writer sin TODO o evidencia del plan.
 - Cada invocación de subagent y cada decisión (ingest, drift, bloqueo, judge omitido) registra al audit-log.
 - Writers del Acto 4 escalonados: el primero solo (escribe la caché del prefijo compartido), el resto en paralelo — solo criterios no bloqueados.

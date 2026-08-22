@@ -1,6 +1,6 @@
 {
   "name": "ia4d-qa-automator",
-  "version": "0.4.0-beta.5",
+  "version": "0.4.0-beta.12",
   "description": "Agente QA Inetum multi-modo para generación de tests E2E con compliance regulado, marco QA propio y Quality layer Writer+Reviewer+Judge.",
   "private": true,
   "type": "module",
@@ -21,7 +21,10 @@
     "qa:fix": "tsx src/scripts/healthcheck.ts --fix",
     "build:template": "node src/scripts/build-template.mjs",
     "build:plugin": "node src/scripts/build-plugin.mjs",
-    "build:hooks:copilot": "esbuild copilot/hooks/pre-flight.ts copilot/hooks/audit-write.ts --bundle --platform=node --format=esm --outdir=copilot/hooks/dist --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\""
+    "build:hooks:copilot": "esbuild copilot/hooks/pre-flight.ts copilot/hooks/audit-write.ts --bundle --platform=node --format=esm --outdir=copilot/hooks/dist --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "qa:cost": "tsx src/scripts/run-cost.ts",
+    "qa:ack": "tsx src/scripts/verify-ack.ts",
+    "qa:mark": "tsx src/scripts/audit-mark.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",
