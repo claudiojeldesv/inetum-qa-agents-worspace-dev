@@ -5,6 +5,7 @@ import {
   pathnameOf,
   findLoginForm,
   credentialsFromContract,
+  rescatarAtributoDeTestId,
 } from '../../src/scripts/verify-locators.ts';
 
 describe('verify-locators locatorSpecFor (misma prioridad que el scaffolder)', () => {
@@ -124,5 +125,73 @@ describe('verify-locators credentialsFromContract', () => {
 
   it('null sin fixtures', () => {
     expect(credentialsFromContract({})).toBeNull();
+  });
+});
+
+/**
+ * D34, segunda vuelta — el DOM dice de que atributo salio el `test_id`.
+ *
+ * Par falsable medido en la iteracion 2 del loop (2026-08-22): el discovery-analyzer, con
+ * el prompt IDENTICO, declaro `test_id_attr` en 18 de 18 elementos en una corrida y en
+ * **0 de 31** en la siguiente. El arreglo del lado productor era prosa, y la prosa se
+ * cumple segun la tirada. Este rescate no depende de que nadie se acuerde.
+ */
+describe('verify-locators — rescate del atributo de test_id contra el DOM', () => {
+  /** Sonda falsa: el test declara que selector resuelve y a cuantos elementos. */
+  const sonda = (mapa: Record<string, number>) => ({
+    locator: (sel: string) => ({ count: async () => mapa[sel] ?? 0 }),
+  });
+
+  it('EL PAR FALSABLE: un test_id que venia de `id` se rescata como `id`', async () => {
+    // el caso ParaBank: test_id 'fromAccountId' tomado del atributo id
+    const r = await rescatarAtributoDeTestId(
+      sonda({ '[id="fromAccountId"]': 1 }),
+      'fromAccountId',
+      'data-test',
+    );
+    expect(r).toEqual({ attr: 'id' });
+  });
+
+  it('rescata tambien desde `name` (el login legacy de ParaBank)', async () => {
+    const r = await rescatarAtributoDeTestId(sonda({ '[name="username"]': 1 }), 'username', 'data-test');
+    expect(r).toEqual({ attr: 'name' });
+  });
+
+  it('NO propone el atributo que ya fallo', async () => {
+    // si el configurado es data-test y resolviera, no estariamos aqui: se excluye
+    const r = await rescatarAtributoDeTestId(sonda({ '[data-test="x"]': 1 }), 'x', 'data-test');
+    expect(r).toBeNull();
+  });
+
+  it('dos coincidencias no identifican nada: no se rescata', async () => {
+    const r = await rescatarAtributoDeTestId(sonda({ '[id="item"]': 3 }), 'item', 'data-test');
+    expect(r).toBeNull();
+  });
+
+  it('si ningun atributo resuelve, devuelve null y el elemento queda not-found', async () => {
+    const r = await rescatarAtributoDeTestId(sonda({}), 'fantasma', 'data-test');
+    expect(r).toBeNull();
+  });
+
+  it('prefiere `id` sobre el resto cuando varios resolverian', async () => {
+    const r = await rescatarAtributoDeTestId(
+      sonda({ '[id="x"]': 1, '[name="x"]': 1, '[data-qa="x"]': 1 }),
+      'x',
+      'data-test',
+    );
+    expect(r).toEqual({ attr: 'id' });
+  });
+
+  it('un selector invalido no rompe el rescate: sigue con el siguiente candidato', async () => {
+    const explota = {
+      locator: (sel: string) => ({
+        count: async () => {
+          if (sel.startsWith('[id=')) throw new Error('selector invalido');
+          if (sel === '[name="x"]') return 1;
+          return 0;
+        },
+      }),
+    };
+    expect(await rescatarAtributoDeTestId(explota, 'x', 'data-test')).toEqual({ attr: 'name' });
   });
 });

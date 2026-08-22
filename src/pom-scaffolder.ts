@@ -17,7 +17,14 @@ import { resolve, dirname, relative } from 'node:path';
 export interface InteractiveElement {
   role: string;                       // 'button' | 'textbox' | 'link' | 'checkbox' | etc.
   name?: string;                      // accessible name if available
-  test_id?: string;                   // data-test attr if present
+  test_id?: string;                   // valor del atributo de test
+  /**
+   * DE QUE atributo salió `test_id`. Sin esto el consumidor no puede saber si el valor
+   * sirve para `getByTestId` o si el productor metió ahí un `id` cualquiera — que es
+   * exactamente lo que pasó en campo (D34, ParaBank 2026-08-21). Opcional: los reports
+   * antiguos no lo traen y se siguen tratando como antes.
+   */
+  test_id_attr?: string;
   label?: string;
   verified?: boolean | null;          // anotado por verify-locators (Q2.1): true = resuelve único contra el DOM real
   verify_reason?: string;             // 'not-found' | 'ambiguous(n)' | ... cuando verified !== true
@@ -45,6 +52,8 @@ export interface ScaffoldOptions {
   basePage?: boolean;                 // default: true — emit BasePage and have pages extend it
   components?: DiscoveryComponent[];  // shared components to generate (default: none)
   componentsDir?: string;             // default: 'tests/components'
+  /** `testIdAttribute` del proyecto (playwright.config). Default 'data-test'. Ver D34. */
+  testIdAttribute?: string;
 }
 
 export interface ScaffoldResult {
@@ -100,13 +109,35 @@ function componentsImportBase(options: ScaffoldOptions): string {
   return rel.startsWith('.') ? rel : `./${rel}`;
 }
 
-function renderLocator(el: InteractiveElement): string {
+/**
+ * Renderiza el locator de un elemento.
+ *
+ * `test_id` NO se cree a ciegas (D34, medido en campo el 2026-08-21). El
+ * discovery-analyzer rellenó `test_id: "fromAccountId"` a partir del atributo `id` de
+ * un `<select>` de ParaBank —una app sin un solo `data-test`— y este scaffolder emitió
+ * `getByTestId('fromAccountId')`, que con `testIdAttribute: 'data-test'` busca
+ * `[data-test="fromAccountId"]` y no resuelve jamás. El Writer tuvo que corregirlo a
+ * mano. Familia D2: el productor mete una cosa en un campo que significa otra, y el
+ * consumidor se lo cree.
+ *
+ * Regla: `getByTestId` solo si el elemento NO declara de qué atributo salió, o si lo
+ * declara y coincide con el `testIdAttribute` del proyecto. Si declara otro, se emite
+ * un selector de atributo acotado con su tag `// css-fallback:` — la forma que el
+ * pre-review (MF-1) acepta cuando el contract lo tiene en `css_fallback_attributes`.
+ */
+function renderLocator(el: InteractiveElement, testIdAttribute = 'data-test'): string {
   // K0.4: elemento dentro de iframes → encadenar frameLocator por segmento
   const scope = el.frame_path?.length
     ? 'this.page' + el.frame_path.map((s) => `.frameLocator('${s.replace(/'/g, "\\'")}')`).join('')
     : 'this.page';
   if (el.test_id) {
-    return `${scope}.getByTestId('${el.test_id}')`;
+    const attr = el.test_id_attr;
+    if (!attr || attr === testIdAttribute) {
+      return `${scope}.getByTestId('${el.test_id}')`;
+    }
+    const valor = el.test_id.replace(/'/g, "\\'");
+    const sel = attr === 'id' ? `#${valor}` : `[${attr}="${valor}"]`;
+    return `${scope}.locator('${sel}') /* css-fallback: ${attr} — el discovery lo tomó de '${attr}', no de '${testIdAttribute}' */`;
   }
   // business_text de expect_text (K0.2): texto plano sin rol ARIA
   if (el.role === 'text' && el.name) {
@@ -126,7 +157,10 @@ function renderLocator(el: InteractiveElement): string {
  * Naming: test_id → camelCase(test_id); else name → camelCase(name); else role+index
  * (e.g. `button0`) instead of the old anonymous `element0`.
  */
-function locatorAssignments(elements: InteractiveElement[]): Array<{ key: string; locator: string }> {
+function locatorAssignments(
+  elements: InteractiveElement[],
+  testIdAttribute?: string,
+): Array<{ key: string; locator: string }> {
   const seenKeys = new Set<string>();
   return elements.map((el, idx) => {
     const base = el.test_id
@@ -144,8 +178,8 @@ function locatorAssignments(elements: InteractiveElement[]): Array<{ key: string
     // scaffoldea igual (puede ser un estado condicional), pero con la advertencia para el Writer.
     const locator =
       el.verified === false
-        ? `${renderLocator(el)} /* verify-locators: ${el.verify_reason ?? 'not-found'} en el estado por defecto — usar solo con evidencia del plan o TODO */`
-        : renderLocator(el);
+        ? `${renderLocator(el, testIdAttribute)} /* verify-locators: ${el.verify_reason ?? 'not-found'} en el estado por defecto — usar solo con evidencia del plan o TODO */`
+        : renderLocator(el, testIdAttribute);
     return { key: unique, locator };
   });
 }
@@ -192,10 +226,11 @@ export class BasePage {
 /** Component object — shared interactive region reused across screens (nav/header/footer). */
 export function scaffoldComponent(
   component: DiscoveryComponent,
+  options: ScaffoldOptions = {},
 ): { className: string; fileName: string; content: string } {
   const className = componentClassName(component.name);
   const fileName = fileNameFor(component.name, 'component');
-  const assignments = locatorAssignments(component.interactive_elements ?? []);
+  const assignments = locatorAssignments(component.interactive_elements ?? [], options.testIdAttribute);
 
   const fieldDeclarations = assignments.map(({ key }) => `  readonly ${key}: Locator;`).join('\n');
   const fieldInits = assignments.map(({ key, locator }) => `    this.${key} = ${locator};`).join('\n');
@@ -228,18 +263,35 @@ export function scaffoldPage(
   const className = toPascalCase(screen.name) + suffix;
   const fileName = fileNameFor(screen.name, 'page');
 
-  const assignments = locatorAssignments(screen.interactive_elements ?? []);
+  const assignments = locatorAssignments(screen.interactive_elements ?? [], options.testIdAttribute);
   const usedComponents = screen.components ?? [];
+
+  /**
+   * Los componentes comparten el espacio de nombres de la clase con los locators, asi que
+   * si colisionan hay que desempatar. Medido en la iteracion 2 del loop (2026-08-22): el
+   * discovery-analyzer extrajo `cancel` como componente compartido Y lo mantuvo como
+   * elemento de las dos pantallas de checkout; el POM salio con `readonly cancel: Locator`
+   * y `readonly cancel: CancelComponent`, y no compilaba. Familia de D29 (colision en el
+   * POM generado), eje nuevo: elemento contra componente.
+   *
+   * Gana el LOCATOR, porque es el nombre que el Writer escribe en el spec; el componente
+   * pasa a `<nombre>Component`. Renombrar el locator moveria el nombre que el test usa.
+   */
+  const clavesDeLocator = new Set(assignments.map(({ key }) => key));
+  const componentField = (c: string): string => {
+    const base = toCamelCase(c);
+    return clavesDeLocator.has(base) ? `${base}Component` : base;
+  };
 
   const locatorFieldDeclarations = assignments.map(({ key }) => `  readonly ${key}: Locator;`);
   const componentFieldDeclarations = usedComponents.map(
-    (c) => `  readonly ${toCamelCase(c)}: ${componentClassName(c)};`,
+    (c) => `  readonly ${componentField(c)}: ${componentClassName(c)};`,
   );
   const fieldDeclarations = [...locatorFieldDeclarations, ...componentFieldDeclarations].join('\n');
 
   const locatorInits = assignments.map(({ key, locator }) => `    this.${key} = ${locator};`);
   const componentInits = usedComponents.map(
-    (c) => `    this.${toCamelCase(c)} = new ${componentClassName(c)}(page);`,
+    (c) => `    this.${componentField(c)} = new ${componentClassName(c)}(page);`,
   );
   const ctorOpen = useBase ? '    super(page);' : '    this.page = page;';
   const fieldInits = [ctorOpen, ...locatorInits, ...componentInits].join('\n');
@@ -309,7 +361,7 @@ export function scaffold(
 
   if (useBase) emit(outDir, scaffoldBasePage());
   for (const component of options.components ?? []) {
-    emit(componentsDir, scaffoldComponent(component));
+    emit(componentsDir, scaffoldComponent(component, options));
   }
   for (const screen of screens) {
     emit(outDir, scaffoldPage(screen, options));

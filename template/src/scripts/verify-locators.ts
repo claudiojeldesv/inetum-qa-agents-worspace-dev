@@ -46,6 +46,15 @@ export interface DiscoveryElement {
   verified?: boolean | null;
   verify_reason?: string;
   dom_matches?: number;
+  /**
+   * Atributo del que salio `test_id`. Lo declara el discovery-analyzer y, si no lo hizo o
+   * lo hizo mal, lo RESCATA esta herramienta preguntandole al DOM (D34, iteracion 2 del
+   * loop): el analyzer declaro el campo en 18/18 elementos con un prompt y en 0/31 con el
+   * mismo prompt en la corrida siguiente.
+   */
+  test_id_attr?: string;
+  /** De donde salio `test_id_attr`: util para auditar quien acerto. */
+  test_id_attr_source?: string;
 }
 
 interface DiscoveryScreen {
@@ -175,10 +184,64 @@ async function settle(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => undefined);
 }
 
-async function checkElement(page: Page, el: DiscoveryElement): Promise<void> {
+/**
+ * Atributos candidatos cuando un `test_id` no resuelve como testId. Orden deliberado:
+ * los dos que el scaffolder sabe emitir como css-fallback primero.
+ */
+const ATRIBUTOS_CANDIDATOS = ['id', 'name', 'data-testid', 'data-test', 'data-qa', 'data-cy'];
+
+/**
+ * El DOM dice de qué atributo salió realmente el `test_id`.
+ *
+ * D34 volvió en la iteración 2 del loop (2026-08-22) y por un motivo importante: el arreglo
+ * del lado productor era PROSA en el prompt del discovery-analyzer, y con el prompt idéntico
+ * declaró `test_id_attr` en 18 de 18 elementos en una corrida y en **0 de 31** en la
+ * siguiente. Una instrucción que se cumple o no según la tirada no es un arreglo.
+ *
+ * Aquí no hace falta que nadie se acuerde: si `getByTestId(x)` no encuentra nada pero
+ * `[id="x"]` encuentra exactamente uno, el atributo de origen es `id` y se anota. El
+ * scaffolder ya respeta `test_id_attr`, así que la cadena se autocorrige sola.
+ *
+ * Solo se acepta un candidato que resuelva a UN elemento: dos coincidencias no identifican
+ * nada y volverían a producir un locator ambiguo.
+ */
+/** Lo minimo que hace falta para sondear el DOM. `Page` de Playwright lo satisface. */
+export interface SondaDom {
+  locator(selector: string): { count(): Promise<number> };
+}
+
+export async function rescatarAtributoDeTestId(
+  page: SondaDom,
+  valor: string,
+  testIdAttribute: string,
+): Promise<{ attr: string } | null> {
+  for (const attr of ATRIBUTOS_CANDIDATOS) {
+    if (attr === testIdAttribute) continue; // ese es el que ya falló
+    const sel = `[${attr}="${valor.replace(/"/g, '\\"')}"]`;
+    try {
+      if ((await page.locator(sel).count()) === 1) return { attr };
+    } catch {
+      /* selector inválido para este valor: se prueba el siguiente */
+    }
+  }
+  return null;
+}
+
+async function checkElement(page: Page, el: DiscoveryElement, testIdAttribute: string): Promise<void> {
   const spec = locatorSpecFor(el);
   try {
-    const count = await applyLocator(page, spec).count();
+    let count = await applyLocator(page, spec).count();
+
+    // D34: el test_id no resuelve como testId → preguntarle al DOM de dónde salió
+    if (count === 0 && el.test_id && spec.kind === 'testId') {
+      const rescate = await rescatarAtributoDeTestId(page, el.test_id, testIdAttribute);
+      if (rescate) {
+        el.test_id_attr = rescate.attr;
+        el.test_id_attr_source = 'verify-locators: resuelto contra el DOM real';
+        count = 1;
+      }
+    }
+
     el.dom_matches = count;
     if (count === 1) {
       el.verified = true;
@@ -203,6 +266,8 @@ function markUnknown(els: DiscoveryElement[], reason: string): void {
 interface VerifyOptions {
   baseUrl: string;
   credentials: Credentials | null;
+  /** El del playwright.config del workspace: define que atributo SI vale para getByTestId. */
+  testIdAttribute: string;
 }
 
 export interface VerifySummary {
@@ -287,14 +352,14 @@ async function verifyDiscovery(
     }
 
     screen.dom_verified = true;
-    for (const el of els) await checkElement(page, el);
+    for (const el of els) await checkElement(page, el, opts.testIdAttribute);
 
     // Components referenciados por esta pantalla: se verifican aquí (primera pantalla que los usa)
     for (const compName of screen.components ?? []) {
       if (!componentsPending.has(compName)) continue;
       componentsPending.delete(compName);
       const comp = components.find((c) => c.name === compName)!;
-      for (const el of comp.interactive_elements ?? []) await checkElement(page, el);
+      for (const el of comp.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute);
     }
   }
 
@@ -356,6 +421,7 @@ async function main(): Promise<void> {
     bootstrap = await verifyDiscovery(report, page, {
       baseUrl,
       credentials: credentialsFromContract(contract),
+      testIdAttribute,
     });
   } finally {
     await browser.close();

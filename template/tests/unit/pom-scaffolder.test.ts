@@ -289,3 +289,107 @@ describe('pom-scaffolder — frame_path y business_text (kernel v2 K0)', () => {
     expect(result.content).not.toContain(`getByRole('text'`);
   });
 });
+
+/**
+ * D34 — `test_id` no se cree a ciegas.
+ *
+ * Par falsable literal de campo (ParaBank, 2026-08-21): el discovery-analyzer puso
+ * `test_id: "fromAccountId"` tomandolo del atributo `id` de un `<select>`, en una app
+ * que no tiene ni un `data-test`. El scaffolder emitio `getByTestId('fromAccountId')`,
+ * que con `testIdAttribute: 'data-test'` busca `[data-test="fromAccountId"]` y no
+ * resuelve jamas. Lo tuvo que corregir el Writer a mano.
+ */
+describe('pom-scaffolder — D34: el atributo del que salio test_id manda', () => {
+  const pantalla = (el: Record<string, unknown>) => ({
+    name: 'transfer-funds',
+    interactive_elements: [el as never],
+  });
+
+  it('EL PAR FALSABLE: test_id que vino de `id` NO se emite como getByTestId', () => {
+    const r = scaffoldPage(
+      pantalla({ role: 'combobox', name: 'From Account', test_id: 'fromAccountId', test_id_attr: 'id' }),
+      { testIdAttribute: 'data-test' },
+    );
+    expect(r.content).not.toContain("getByTestId('fromAccountId')");
+    expect(r.content).toContain("locator('#fromAccountId')");
+    expect(r.content).toContain('css-fallback: id');
+  });
+
+  it('un atributo que no es `id` se emite como selector de atributo acotado', () => {
+    const r = scaffoldPage(
+      pantalla({ role: 'textbox', name: 'Usuario', test_id: 'username', test_id_attr: 'name' }),
+      { testIdAttribute: 'data-test' },
+    );
+    expect(r.content).toContain('locator(\'[name="username"]\')');
+    expect(r.content).toContain('css-fallback: name');
+  });
+
+  it('cuando el atributo SI es el configurado, getByTestId sigue siendo lo correcto', () => {
+    const r = scaffoldPage(
+      pantalla({ role: 'button', name: 'Enviar', test_id: 'submit-btn', test_id_attr: 'data-test' }),
+      { testIdAttribute: 'data-test' },
+    );
+    expect(r.content).toContain("getByTestId('submit-btn')");
+  });
+
+  it('sin `test_id_attr` (reports antiguos) no hay regresion: se sigue confiando', () => {
+    const r = scaffoldPage(pantalla({ role: 'button', name: 'Enviar', test_id: 'submit-btn' }), {});
+    expect(r.content).toContain("getByTestId('submit-btn')");
+  });
+
+  it('respeta un testIdAttribute distinto del default', () => {
+    const r = scaffoldPage(
+      pantalla({ role: 'button', name: 'Enviar', test_id: 'x', test_id_attr: 'data-qa' }),
+      { testIdAttribute: 'data-qa' },
+    );
+    expect(r.content).toContain("getByTestId('x')");
+  });
+});
+
+/**
+ * D41 — un componente y un locator no pueden llamarse igual en la misma clase.
+ *
+ * Par falsable medido en la iteracion 2 del loop (2026-08-22): el discovery-analyzer
+ * extrajo `cancel` como componente compartido Y lo mantuvo como elemento de las dos
+ * pantallas de checkout. El POM salio con las dos declaraciones y no compilaba:
+ *
+ *   error TS2300: Duplicate identifier 'cancel'.
+ *   error TS2717: Property 'cancel' must be of type 'Locator', but here has type 'CancelComponent'.
+ *
+ * Familia de D29 (colision de nombres en el POM generado), eje nuevo: elemento vs componente.
+ */
+describe('pom-scaffolder — D41: colision entre locator y componente', () => {
+  const pantalla = {
+    name: 'checkout-step-one',
+    interactive_elements: [
+      { role: 'button', name: 'Continue', test_id: 'continue', test_id_attr: 'data-test' },
+      { role: 'button', name: 'Cancel', test_id: 'cancel', test_id_attr: 'data-test' },
+    ],
+    components: ['cancel'],
+  };
+
+  it('EL PAR FALSABLE: no se declara dos veces el mismo miembro', () => {
+    const r = scaffoldPage(pantalla as never, { testIdAttribute: 'data-test' });
+    const declaraciones = r.content
+      .split('\n')
+      .filter((l) => l.trim().startsWith('readonly '))
+      .map((l) => l.trim().replace(/^readonly\s+/, '').split(/[:?]/)[0].trim());
+    expect(new Set(declaraciones).size).toBe(declaraciones.length);
+  });
+
+  it('gana el LOCATOR: es el nombre que el Writer escribe en el spec', () => {
+    const r = scaffoldPage(pantalla as never, { testIdAttribute: 'data-test' });
+    expect(r.content).toContain('readonly cancel: Locator;');
+    expect(r.content).toContain('readonly cancelComponent: CancelComponent;');
+    expect(r.content).toContain('this.cancelComponent = new CancelComponent(page);');
+  });
+
+  it('sin colision el componente conserva su nombre natural', () => {
+    const r = scaffoldPage(
+      { name: 'inventory', interactive_elements: [{ role: 'link', name: 'Cart', test_id: 'cart' }], components: ['nav'] } as never,
+      { testIdAttribute: 'data-test' },
+    );
+    expect(r.content).toContain('readonly nav: NavComponent;');
+    expect(r.content).not.toContain('navComponent');
+  });
+});

@@ -9,6 +9,13 @@
  * en el título (should-fix de naming) y los checks de FORMA de spec-template.md (SF-generated-by,
  * SF-step-lang, SF-steps, SF-a11y-step — should-fix: tres runs produjeron tres dialectos).
  *
+ * Desde 2026-08 incluye MF-tsc: el veredicto del COMPILADOR, atribuido por spec. Nada en el
+ * flujo corria tsc (verificado: cero invocaciones en commands y agentes) y dos defectos de
+ * campo salieron por ahi — D24 (un nombre accesible numerico generaba `readonly 12345: Locator`)
+ * y D29 (una propiedad `readonly transferFunds: Locator` del scaffolder tapaba el metodo de
+ * negocio del mismo nombre: «no es una funcion» en ejecucion). Los dos los caza `tsc --noEmit`
+ * en 6 s. D29 costo una reanudacion de Writer y ~4 turnos de orquestador por no ejecutarlo.
+ *
  * NO es un gate ni sustituye al Reviewer: es la red determinística que corre tras el Writer+Reviewer
  * (Acto 4, junto a verify-a11y) y garantiza que ningún must-fix objetivo llegó al final del run.
  * El juicio (calidad de la post-condición de negocio, datos sintéticos, estado compartido,
@@ -16,12 +23,13 @@
  * habría consumido este output fue DESCARTADO por A/B en la Fase 3 (ver token-efficiency-plan.md).
  *
  * Uso:  tsx src/scripts/pre-review.ts <spec.ts|dir>... [--style-contract=<path>]
- *       [--discovery-report=<path>] [--out-dir=<dir>]
+ *       [--discovery-report=<path>] [--out-dir=<dir>] [--no-tsc]
  *       (--discovery-report activa MF-postcondition, K0.7: exige assert sobre el
  *        texto de resultado que el walker observó — sin él, el check no aplica)
  * Output: un JSON por spec en <out-dir>/<basename>.json (default: $QA_WORK_DIR/pre-review/ o
  * .work/pre-review/) + resumen JSON por stdout. Exit 0 siempre (informa, no bloquea).
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -51,7 +59,8 @@ export interface PreReviewFinding {
     | 'a11y-missing'
     | 'criterion-not-cited'
     | 'pom-violation'
-    | 'style-contract';
+    | 'style-contract'
+    | 'compile';
   severity: 'must-fix' | 'should-fix';
   location: { line: number };
   description: string;
@@ -133,7 +142,130 @@ export function assertsSomePostcondition(source: string, posts: BusinessPostcond
   });
 }
 
-export function loadPreReviewContract(contractPath?: string): PreReviewContract {
+/** Un diagnostico de `tsc --noEmit`. `file` vacio = error global del proyecto (sin fichero). */
+export interface TscDiagnostic {
+  file: string;
+  line: number;
+  column: number;
+  code: string;
+  message: string;
+}
+
+const TSC_CON_FICHERO = /^(.+?)\((\d+),(\d+)\):\s*error\s+(TS\d+):\s*(.*)$/;
+const TSC_GLOBAL = /^error\s+(TS\d+):\s*(.*)$/;
+
+/**
+ * Parsea la salida de `tsc --noEmit --pretty false`. Los errores globales (TS18003
+ * «no inputs were found», TS5083 config ilegible) se conservan con `file` vacio: no
+ * pertenecen a ningun spec pero significan que el typecheck NO cubrio nada, y
+ * descartarlos produciria un verde falso.
+ */
+export function parseTscOutput(raw: string): TscDiagnostic[] {
+  const out: TscDiagnostic[] = [];
+  for (const linea of raw.split(/\r?\n/)) {
+    const l = linea.trim();
+    if (!l) continue;
+    const m = TSC_CON_FICHERO.exec(l);
+    if (m) {
+      out.push({
+        file: m[1].replace(/\\/g, '/'),
+        line: Number(m[2]),
+        column: Number(m[3]),
+        code: m[4],
+        message: m[5],
+      });
+      continue;
+    }
+    const g = TSC_GLOBAL.exec(l);
+    if (g) out.push({ file: '', line: 1, column: 1, code: g[1], message: g[2] });
+  }
+  return out;
+}
+
+/** Imports relativos del spec: por ahi entra el POM, que es donde vivian D24 y D29. */
+export function relativeImportsOf(source: string, specPath: string): string[] {
+  const dir = resolve(specPath, '..');
+  const out: string[] = [];
+  for (const m of source.matchAll(/from\s*['"](\.[^'"]*)['"]/g)) {
+    const base = resolve(dir, m[1]);
+    for (const cand of [base, base + '.ts', base.replace(/\.js$/, '.ts'), join(base, 'index.ts')]) {
+      out.push(cand.replace(/\\/g, '/'));
+    }
+  }
+  return out;
+}
+
+/**
+ * Reparte los diagnosticos de tsc entre los specs. Un spec se lleva los errores de su
+ * propio fichero Y los de los ficheros que importa: si el POM que usa no compila, el
+ * spec no corre, y el Writer que lo escribio es quien puede arreglarlo — atribuirlo a
+ * un fichero que nadie esta revisando lo deja huerfano, que es como D29 llego a la
+ * ejecucion.
+ */
+export function attributeDiagnostics(
+  specPath: string,
+  source: string,
+  diagnostics: TscDiagnostic[],
+): TscDiagnostic[] {
+  const propio = resolve(specPath).replace(/\\/g, '/');
+  const suyos = new Set<string>([propio, ...relativeImportsOf(source, specPath)]);
+  return diagnostics.filter((d) => d.file && suyos.has(resolve(d.file).replace(/\\/g, '/')));
+}
+
+/**
+ * Corre el compilador UNA vez por invocacion, no una por spec: `tsc` es de proyecto y
+ * tarda ~6 s. Se invoca el binario local con `process.execPath` en vez de `npx` porque
+ * el shim de npx falla segun la shell (medido en este mismo ciclo, git-bash en Windows).
+ *
+ * Si tsc no puede correr, se DECLARA. Un typecheck ausente reportado como limpio es
+ * exactamente la mentira que este check viene a matar.
+ */
+export function runTsc(cwd: string = process.cwd()): {
+  diagnostics: TscDiagnostic[];
+  ran: boolean;
+  note?: string;
+} {
+  const bin = resolve(cwd, 'node_modules/typescript/bin/tsc');
+  if (!existsSync(bin)) {
+    return {
+      diagnostics: [],
+      ran: false,
+      note: 'typescript no esta instalado en el workspace (npm install) — MF-tsc no aplica',
+    };
+  }
+  try {
+    execFileSync(process.execPath, [bin, '--noEmit', '--pretty', 'false'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 300_000,
+    });
+    return { diagnostics: [], ran: true };
+  } catch (err) {
+    const e = err as { stdout?: string; stderr?: string };
+    const diagnostics = parseTscOutput((e.stdout ?? '') + '\n' + (e.stderr ?? ''));
+    // exit != 0 CON diagnosticos es el caso normal de un typecheck que encuentra errores
+    if (diagnostics.length > 0) return { diagnostics, ran: true };
+    return {
+      diagnostics: [],
+      ran: false,
+      note: 'tsc no pudo correr: ' + String(err instanceof Error ? err.message.split('\n')[0] : err),
+    };
+  }
+}
+
+/**
+ * Un resultado se persiste salvo que se haya saltado Y este limpio. Vive aparte y
+ * exportado porque la condicion contraria (`if (r.skipped) continue`) descarto en
+ * campo los findings de MF-tsc de un `.setup.ts`: se calculaban y se tiraban, que es
+ * el patron D2. Cazado en el run de verificacion del 2026-08-21.
+ */
+export function debeEscribirse(r: Pick<PreReviewResult, 'skipped' | 'clean'>): boolean {
+  return !(r.skipped && r.clean);
+}
+
+export function loadPreReviewContract(
+contractPath?: string): PreReviewContract {
   const defaults: PreReviewContract = {
     forbid_css_selectors: true,
     forbid_xpath: true,
@@ -183,11 +315,156 @@ const BOUNDED_ATTR = /^\[([a-zA-Z_-]+)\s*=\s*(?:"[^"]*"|'[^']*')\]$/;
 const NATURE_IN_TITLE = /\b(happy[- ]?path|happy|negative|smoke)\b/i;
 const TITLE_CALL = /\btest(?:\.describe)?(?:\.only|\.fixme)?\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
 
+/**
+ * MF-wait-budget — una espera de DISPONIBILIDAD tiene que declarar su presupuesto.
+ *
+ * Medido en campo el 2026-08-21 (D35): TC-002 pasó en la primera pasada y falló en la
+ * segunda. El Writer había manejado bien la carga asíncrona —escribió un helper
+ * `waitForAccountsLoaded()` citando la línea del plan donde el planner midió que los
+ * combos llegan por XHR— pero lo dejó con el presupuesto por defecto:
+ *
+ *     Expected: not 0 | Received: 0 | Timeout: 5000ms
+ *     13 x locator resolved to 0 elements
+ *
+ * El select estuvo vacío los 5 s enteros. La aserción no era débil: el presupuesto era
+ * el default de Playwright, pensado para local, heredado en silencio porque
+ * `playwright.config.ts` no declara `expect.timeout`. Una espera que existe justamente
+ * porque el contenido tarda no puede heredar un presupuesto que nadie eligió.
+ *
+ * Dos formas, las dos mecánicas:
+ *  - `not.toHaveCount(0)` es una guarda de disponibilidad por construcción — nadie
+ *    asserta «no cero» como postcondición de negocio.
+ *  - un método `waitFor*` cuyo cuerpo asserta sin declarar `timeout`.
+ *
+ * Se busca en el spec Y en los POM que importa, porque el helper vive en el POM: dejar
+ * el check solo en el spec lo habría dejado pasar en el caso real que lo motivó.
+ */
+const GUARDA_NO_CERO = /\.not\s*\.\s*toHaveCount\s*\(\s*0\s*\)/g;
+const METODO_ESPERA = /\basync\s+(waitFor\w*)\s*\(/g;
+
+/** El texto del statement que rodea a `index`, para mirar si declara `timeout`. */
+function statementAlrededor(source: string, index: number): string {
+  let ini = index;
+  while (ini > 0 && !';{}\n'.includes(source[ini - 1])) ini -= 1;
+  let fin = source.indexOf(';', index);
+  if (fin < 0) fin = source.length;
+  return source.slice(ini, fin + 1);
+}
+
+/** Cuerpo de la función que arranca en la primera `{` tras `desde`, balanceando llaves. */
+function cuerpoDesde(source: string, desde: number): string {
+  const abre = source.indexOf('{', desde);
+  if (abre < 0) return '';
+  let nivel = 0;
+  for (let i = abre; i < source.length; i++) {
+    if (source[i] === '{') nivel += 1;
+    else if (source[i] === '}') {
+      nivel -= 1;
+      if (nivel === 0) return source.slice(abre, i + 1);
+    }
+  }
+  return source.slice(abre);
+}
+
+export interface GuardaSinPresupuesto {
+  line: number;
+  description: string;
+}
+
+/**
+ * Guardas de disponibilidad sin presupuesto explícito en un fichero.
+ * @param etiqueta cómo nombrar el fichero en el finding (vacío = el propio spec).
+ */
+export function scanReadinessGuards(source: string, etiqueta = ''): GuardaSinPresupuesto[] {
+  const out: GuardaSinPresupuesto[] = [];
+  const donde = etiqueta ? ` [en ${etiqueta}, importado por este spec]` : '';
+
+  for (const m of source.matchAll(GUARDA_NO_CERO)) {
+    const stmt = statementAlrededor(source, m.index!);
+    if (/timeout\s*:/.test(stmt)) continue;
+    out.push({
+      line: lineOf(source, m.index!),
+      description:
+        `guarda de disponibilidad 'not.toHaveCount(0)' sin timeout explícito: hereda el default ` +
+        `de Playwright (5 s), que no es un presupuesto elegido. Declara { timeout: N } acorde a lo ` +
+        `que tarda la carga asíncrona que estás esperando${donde}`,
+    });
+  }
+
+  for (const m of source.matchAll(METODO_ESPERA)) {
+    const cuerpo = cuerpoDesde(source, m.index!);
+    if (!/\bexpect\s*\(/.test(cuerpo)) continue;
+    if (/timeout\s*:/.test(cuerpo)) continue;
+    // ya reportado por la regla anterior sobre la misma línea: no se duplica
+    if (GUARDA_NO_CERO.test(cuerpo)) {
+      GUARDA_NO_CERO.lastIndex = 0;
+      continue;
+    }
+    GUARDA_NO_CERO.lastIndex = 0;
+    out.push({
+      line: lineOf(source, m.index!),
+      description:
+        `'${m[1]}()' es una espera de disponibilidad y asserta sin declarar timeout: hereda los 5 s ` +
+        `por defecto. Si existe es porque el contenido tarda — dale un presupuesto explícito${donde}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * D37 — las postcondiciones que se le pueden exigir a un spec son las de SU pantalla.
+ *
+ * Medido en campo el 2026-08-21: `assertsSomePostcondition` comparaba contra las
+ * postcondiciones de TODO el discovery, de cualquier pantalla. Cuando el analizador
+ * emitió una pantalla `error` con el heading «Error!», el check se activó por primera
+ * vez —hasta entonces no había ninguna postcondición y la guarda lo saltaba— y empezó a
+ * exigirle al spec de login que asertara «Transfer Complete!» o «Error!». Dos Writers
+ * independientes lo reportaron como falso positivo, y dos **editaron el discovery-report**
+ * para poder pasarlo (D38). Un gate que no se puede satisfacer honestamente enseña a
+ * manipular la evidencia.
+ *
+ * El acotado usa el dato que ya existe: el spec importa los POM de las pantallas que
+ * toca, y el nombre del fichero se deriva del nombre de la pantalla con la misma regla
+ * que el scaffolder (`fileNameFor`). Si no se puede acotar a ninguna pantalla, el check
+ * **no aplica** — misma disciplina que con el discovery ausente: no se inventan
+ * exigencias.
+ */
+export function screenFileName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.page.ts';
+}
+
+export function postconditionsForSpec(
+  source: string,
+  specPath: string,
+  todas: BusinessPostcondition[],
+): BusinessPostcondition[] {
+  if (todas.length === 0) return [];
+  const importados = new Set(relativeImportsOf(source, specPath).map((p) => basename(p)));
+  return todas.filter((p) => importados.has(screenFileName(p.screen)));
+}
+
+/**
+ * MF-auth-landing (D39) — el setup de autenticación asserta la URL de destino.
+ *
+ * Medido en campo el 2026-08-21: `auth.setup.ts` pasó en VERDE contra una aplicación que
+ * devolvía HTTP 500. El `success_signal` del contract era el enlace `Log Out`, que
+ * ParaBank pinta en su barra de navegación **también en la página de error**. El gate dio
+ * por buena una sesión inservible y el fallo salió tres pasos más tarde, en cada spec.
+ *
+ * Una señal de éxito que también aparece en la pantalla de fallo no es una señal de
+ * éxito. Lo que sí distingue las dos pantallas es la URL, y eso es mecánico: el setup
+ * debe asertar dónde aterrizó, no solo que hay un enlace en el menú.
+ */
+export function assertsLandingUrl(source: string): boolean {
+  return /\btoHaveURL\s*\(/.test(source) || /\bwaitForURL\s*\(/.test(source);
+}
+
 export function preReviewSpec(
   filePath: string,
   contract: PreReviewContract,
   a11yContractPath?: string,
   postconditions: BusinessPostcondition[] = [],
+  tscDiagnostics: TscDiagnostic[] = [],
 ): PreReviewResult {
   const file = filePath.replace(/\\/g, '/');
   const source = readFileSync(filePath, 'utf8');
@@ -200,8 +477,50 @@ export function preReviewSpec(
     findings.push(f);
   };
 
+  /**
+   * MF-tsc — el compilador va PRIMERO. Un spec que no compila no llega a ejecutarse y
+   * analizarle el estilo es ruido. Se evalua tambien en los `.setup.ts`, que se saltan
+   * los checks de contenido pero cuyo fallo de compilacion tumba el proyecto entero.
+   */
+  for (const d of attributeDiagnostics(filePath, source, tscDiagnostics)) {
+    const mismo = resolve(d.file).replace(/\\/g, '/') === resolve(filePath).replace(/\\/g, '/');
+    add({
+      criterion_id: 'MF-tsc',
+      category: 'compile',
+      severity: 'must-fix',
+      location: { line: d.line },
+      description: d.code + ': ' + d.message + (mismo ? '' : ' [en ' + d.file + ', importado por este spec]'),
+    });
+  }
+
   if (/\.setup\.ts$/.test(file) || /import\s*\{\s*test\s+as\s+setup\s*\}/.test(source)) {
-    return { test_file: file, source: 'pre-review-deterministic', skipped: true, findings: [], must_fix: 0, should_fix: 0, clean: true };
+    /**
+     * MF-auth-landing (D39) — el unico check de contenido que SI aplica a un setup.
+     * Un setup que solo asserta un locator de navegacion pasa en verde sobre la pantalla
+     * de error de la app; la URL es lo que distingue aterrizar de fallar.
+     */
+    if (!assertsLandingUrl(source)) {
+      add({
+        criterion_id: 'MF-auth-landing',
+        category: 'assert-quality',
+        severity: 'must-fix',
+        location: { line: 1 },
+        description:
+          'el setup de autenticacion no asserta la URL de destino (toHaveURL / waitForURL): ' +
+          'una senal basada solo en un locator de navegacion se satisface tambien en la pantalla ' +
+          'de error de la app — medido, paso en verde contra un HTTP 500',
+      });
+    }
+    // los checks de CONTENIDO restantes no aplican a un setup; los de compilacion si
+    return {
+      test_file: file,
+      source: 'pre-review-deterministic',
+      skipped: true,
+      findings,
+      must_fix: findings.length,
+      should_fix: 0,
+      clean: findings.length === 0,
+    };
   }
 
   // MF-1 / MF-1b — locators CSS bruto / XPath en llamadas .locator('...')
@@ -230,6 +549,32 @@ export function preReviewSpec(
       });
     } else {
       add({ criterion_id: 'MF-1', category: 'locator-strategy', severity: 'must-fix', location: { line }, description: `Selector CSS bruto prohibido: ${selector}` });
+    }
+  }
+
+  /**
+   * MF-wait-budget (D35) — el spec y los POM que importa. El helper de espera vive en el
+   * POM, asi que mirar solo el spec habria dejado pasar el caso real que motivo el check.
+   */
+  const ficherosDeEspera: Array<[string, string]> = [['', source]];
+  for (const imp of relativeImportsOf(source, filePath)) {
+    if (!existsSync(imp)) continue;
+    if (ficherosDeEspera.some(([e]) => e === imp)) continue;
+    try {
+      ficherosDeEspera.push([imp, readFileSync(imp, 'utf8')]);
+    } catch {
+      /* ilegible: no se inventa un finding sobre lo que no se pudo leer */
+    }
+  }
+  for (const [etiqueta, texto] of ficherosDeEspera) {
+    for (const g of scanReadinessGuards(texto, etiqueta ? basename(etiqueta) : '')) {
+      add({
+        criterion_id: 'MF-wait-budget',
+        category: 'wait-strategy',
+        severity: 'must-fix',
+        location: { line: etiqueta ? 1 : g.line },
+        description: g.description,
+      });
     }
   }
 
@@ -311,12 +656,14 @@ export function preReviewSpec(
    * order!"). Pasa verde y no verifica el resultado. Con la evidencia disponible
    * en el discovery, no asertarla es un must-fix, no una preferencia.
    */
-  if (contract.require_business_postcondition && postconditions.length > 0) {
-    if (!assertsSomePostcondition(source, postconditions)) {
-      const sample = postconditions
+  const postsDeEsteSpec = postconditionsForSpec(source, filePath, postconditions);
+  if (contract.require_business_postcondition && postsDeEsteSpec.length > 0) {
+    if (!assertsSomePostcondition(source, postsDeEsteSpec)) {
+      const sample = postsDeEsteSpec
         .slice(0, 3)
         .map((p) => `"${p.text}"${p.test_id ? ` (${p.test_id})` : ''}`)
         .join(', ');
+      const total = postsDeEsteSpec.length;
       add({
         criterion_id: 'MF-postcondition',
         category: 'assert-quality',
@@ -324,7 +671,7 @@ export function preReviewSpec(
         location: { line: 1 },
         description:
           `ningún assert sobre la postcondición de negocio observada por el walker — ` +
-          `disponibles y verificadas: ${sample}${postconditions.length > 3 ? ` (+${postconditions.length - 3})` : ''}. ` +
+          `disponibles y verificadas EN LAS PANTALLAS DE ESTE SPEC: ${sample}${total > 3 ? ` (+${total - 3})` : ''}. ` +
           `Asertar estado/chrome en vez del resultado deja el test verde sin verificar el negocio`,
       });
     }
@@ -422,9 +769,41 @@ function main(): void {
   const outDir = resolve(process.cwd(), outDirArg || join(process.env.QA_WORK_DIR || '.work', 'pre-review'));
   mkdirSync(outDir, { recursive: true });
 
-  const results = specs.map((s) => preReviewSpec(s, contract, contractPath, postconditions));
+  /**
+   * El compilador, UNA vez para todos los specs. Se puede omitir con --no-tsc para el
+   * caso en que el typecheck esta roto por algo ajeno a los specs y no se quiere que
+   * ahogue el resto de checks; la omision se DECLARA en el resumen, no se disfraza.
+   */
+  const tsc = args.includes('--no-tsc')
+    ? { diagnostics: [] as TscDiagnostic[], ran: false, note: 'omitido por --no-tsc' }
+    : runTsc();
+
+  const results = specs.map((s) => preReviewSpec(s, contract, contractPath, postconditions, tsc.diagnostics));
+
+  /**
+   * Diagnosticos de tsc que no pertenecen a ningun spec revisado ni a nada que estos
+   * importen: un POM huerfano que nadie usa, un helper roto, o un error global de
+   * proyecto. No los arregla ningun Writer de este lote, asi que se REPORTAN aparte.
+   * Descartarlos silenciosamente convertiria un proyecto que no compila en un
+   * "specs_clean: N" tranquilizador.
+   */
+  const atribuidos = new Set<string>();
+  for (let i = 0; i < specs.length; i++) {
+    const src = readFileSync(specs[i], 'utf8');
+    for (const d of attributeDiagnostics(specs[i], src, tsc.diagnostics)) {
+      atribuidos.add(d.file + ':' + d.line + ':' + d.code);
+    }
+  }
+  const huerfanos = tsc.diagnostics.filter((d) => !atribuidos.has(d.file + ':' + d.line + ':' + d.code));
   for (const r of results) {
-    if (r.skipped) continue;
+    /**
+     * Se omite el fichero solo si el spec se salto Y esta limpio. Un `.setup.ts` es
+     * `skipped` para los checks de CONTENIDO pero puede traer findings de MF-tsc, y
+     * descartarlos aqui los tiraria a la basura despues de calcularlos — el patron
+     * D2 (declarado y nadie lo consume). Cazado en el run de verificacion del
+     * 2026-08-21, en codigo escrito ese mismo dia.
+     */
+    if (!debeEscribirse(r)) continue;
     writeFileSync(join(outDir, `${basename(r.test_file)}.json`), JSON.stringify(r, null, 2), 'utf8');
     appendAuditEntry({
       source: 'command',
@@ -443,6 +822,23 @@ function main(): void {
     JSON.stringify(
       {
         out_dir: outDir.replace(/\\/g, '/'),
+        tsc: {
+          ran: tsc.ran,
+          ...(tsc.note ? { note: tsc.note } : {}),
+          diagnostics_total: tsc.diagnostics.length,
+          ...(huerfanos.length > 0
+            ? {
+                unattributed: huerfanos.slice(0, 10).map((d) => ({
+                  file: d.file || '(proyecto)',
+                  line: d.line,
+                  code: d.code,
+                  message: d.message,
+                })),
+                unattributed_note:
+                  'errores de compilacion que NO pertenecen a los specs revisados: nadie de este lote los arregla, pero el proyecto no compila',
+              }
+            : {}),
+        },
         specs_total: active.length,
         specs_clean: active.filter((r) => r.clean).length,
         must_fix_total: active.reduce((n, r) => n + r.must_fix, 0),
