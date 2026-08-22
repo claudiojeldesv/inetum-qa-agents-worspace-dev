@@ -11,14 +11,16 @@ import { resolve } from 'node:path';
 import { appendAuditEntry } from '../src/audit-log.ts';
 
 async function main(): Promise<number> {
-  const logPath = resolve(process.cwd(), '.work/audit-log.json');
+  // QA_WORK_DIR: en un run namespaciado el log vive en .work/<site-id>/. Sin esto el
+  // resumen de cierre se escribia en otro fichero y el run se cerraba sin cerrarse.
+  const logPath = resolve(process.cwd(), `${process.env.QA_WORK_DIR || '.work'}/audit-log.json`);
   if (!existsSync(logPath)) {
     appendAuditEntry({
       source: 'audit-write',
       action: 'invoke',
       result: 'pass',
       metadata: { note: 'session ended with no prior audit entries' },
-    });
+    }, logPath);
     return 0;
   }
 
@@ -31,7 +33,7 @@ async function main(): Promise<number> {
       total_entries: lines.length,
       session_closed: true,
     },
-  });
+  }, logPath);
   return 0;
 }
 

@@ -20,6 +20,10 @@
           {
             "type": "command",
             "command": "node node_modules/tsx/dist/cli.mjs hooks/pii-post.ts"
+          },
+          {
+            "type": "command",
+            "command": "node node_modules/tsx/dist/cli.mjs hooks/audit-file-write.ts"
           }
         ]
       }
