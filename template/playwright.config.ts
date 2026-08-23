@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
 import { proxyFromEnv } from './src/proxy-env.ts';
+import { resolveBaseUrl } from './src/session-policy.ts';
 
 // auth-handler (v0.2 Fase C): cuando el contract tiene auth.enabled, el command
 // autonomous setea QA_STORAGE_STATE con la ruta del storageState. Eso activa un setup
@@ -27,21 +28,37 @@ const workDir = process.env.QA_WORK_DIR || '.work';
  * ilegible, no se asume nada y se mantiene el comportamiento anterior.
  */
 const siteId = workDir.split(/[\/]/).filter(Boolean).pop();
-let serializarPorSesion = process.env.QA_SERIALIZE === '1';
-if (!serializarPorSesion && siteId && siteId !== '.work') {
+interface PerfilSitio {
+  target_url?: string;
+  session?: { serialize?: boolean };
+}
+let perfilSitio: PerfilSitio | null = null;
+if (siteId && siteId !== '.work') {
   const perfil = `config/site-profile/${siteId}.json`;
   if (existsSync(perfil)) {
     try {
-      serializarPorSesion =
-        (JSON.parse(readFileSync(perfil, 'utf8')) as { session?: { serialize?: boolean } })?.session?.serialize === true;
+      perfilSitio = JSON.parse(readFileSync(perfil, 'utf8')) as PerfilSitio;
     } catch {
-      /* perfil ilegible: no se inventa una politica */
+      /* perfil ilegible: no se inventa nada */
     }
   }
 }
+
+const serializarPorSesion = process.env.QA_SERIALIZE === '1' || perfilSitio?.session?.serialize === true;
 if (serializarPorSesion) {
   console.log('[playwright.config] sesion unica en el target: suite en SERIE (1 worker). Ver config/site-profile/');
 }
+
+// D45 — precedencia de la baseURL: env > perfil MEDIDO del sitio > default. La regla y el
+// porque viven en src/session-policy.ts (resolveBaseUrl), con sus tests.
+const resuelta = resolveBaseUrl({
+  ...(process.env.QA_BASE_URL ? { envUrl: process.env.QA_BASE_URL } : {}),
+  perfil: perfilSitio,
+  ...(siteId ? { siteId } : {}),
+  fallback: 'https://www.saucedemo.com/',
+});
+const baseURL = resuelta.baseUrl;
+if (resuelta.warning) console.log(`[playwright.config] AVISO: ${resuelta.warning}`);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -70,8 +87,21 @@ export default defineConfig({
   ],
   use: {
     // baseURL parametrizable por run (v0.2 Fase B): el command autonomous lo setea
-    // con el --url del target. Default SauceDemo para no romper specs históricos.
-    baseURL: process.env.QA_BASE_URL || 'https://www.saucedemo.com/',
+    // con el --url del target. Precedencia: QA_BASE_URL > site-profile.target_url >
+    // default SauceDemo (ver D45 arriba).
+    baseURL,
+    /**
+     * D48 — el idioma con el que se le habla a la aplicacion.
+     *
+     * Medido en el demo de Dolibarr (2026-08-23): la MISMA URL sirve la interfaz en
+     * castellano con `Accept-Language: es-ES` y en ingles con `en-US`. Si el plan se
+     * midio en un idioma y la suite pide otro, ningun literal casa — y el fallo se lee
+     * como locator roto, no como diferencia de idioma.
+     *
+     * Sin la var no se toca nada (Playwright usa el idioma del navegador), asi que no
+     * hay regresion para los sitios monolingues.
+     */
+    ...(process.env.QA_LOCALE ? { locale: process.env.QA_LOCALE } : {}),
     // trace parametrizable (evidence.level: full → el command exporta QA_TRACE='on').
     // Sin la var → on-first-retry (comportamiento previo). Allure embebe el trace navegable.
     trace: (process.env.QA_TRACE as 'on' | 'off' | 'on-first-retry' | 'retain-on-failure') || 'on-first-retry',

@@ -96,6 +96,39 @@ export interface PerfilDeSitio {
 }
 
 /**
+ * D45 — de dónde sale la `baseURL` de la suite, y por qué el default es peligroso.
+ *
+ * `playwright.config.ts` caía directo en `https://www.saucedemo.com/` cuando faltaba
+ * `QA_BASE_URL`. Medido en la iteración 2 del loop de OrangeHRM (2026-08-22): se me olvidó
+ * exportarla, los tres specs de OrangeHRM navegaron a saucedemo, la página salió en blanco y
+ * el fallo fue «locator.fill: Test timeout» sobre `getByPlaceholder('Username')`. El POM era
+ * byte a byte el de la iteración 1, que estaba verde: el mensaje mandaba a mirar el locator y
+ * la causa era que la suite corría contra otra aplicación.
+ *
+ * El default se queda —los labs de saucedemo dependen de él— pero deja de ser lo primero:
+ * si el sitio tiene perfil medido, su `target_url` manda. Y caer al default con un site-id
+ * que no es ese sitio produce un aviso: correr contra otra app en silencio no es aceptable.
+ */
+export function resolveBaseUrl(input: {
+  envUrl?: string;
+  perfil?: { target_url?: string } | null;
+  siteId?: string;
+  fallback: string;
+}): { baseUrl: string; source: 'env' | 'site-profile' | 'default'; warning?: string } {
+  if (input.envUrl) return { baseUrl: input.envUrl, source: 'env' };
+  if (input.perfil?.target_url) return { baseUrl: input.perfil.target_url, source: 'site-profile' };
+  const base = { baseUrl: input.fallback, source: 'default' as const };
+  // sin site-id no hay nada que contradiga al default: es el workspace genérico
+  if (!input.siteId || input.siteId === '.work') return base;
+  return {
+    ...base,
+    warning:
+      `sin QA_BASE_URL y sin config/site-profile/${input.siteId}.json — la suite corre contra ` +
+      `el default ${input.fallback}. Si '${input.siteId}' no es ese sitio, exporta QA_BASE_URL.`,
+  };
+}
+
+/**
  * Qué política manda. Si el contract la declara, gana: el QA suele saberlo y sondear es
  * intrusivo. Si dice `unknown`, manda la medición. Si no hay ninguna de las dos, se
  * serializa — no se asume concurrencia sin evidencia.

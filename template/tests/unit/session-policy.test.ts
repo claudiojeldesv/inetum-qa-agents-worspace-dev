@@ -16,6 +16,7 @@ import {
   effectiveSessionPolicy,
   shouldProbe,
   huellaDeConflictoDeSesion,
+  resolveBaseUrl,
 } from '../../src/session-policy.ts';
 
 describe('classifySessionPolicy — tabla de verdad de las tres observaciones', () => {
@@ -151,5 +152,60 @@ describe('huellaDeConflictoDeSesion — la red para cuando NO se sondeó', () =>
       huellaDeConflictoDeSesion({ setupOk: true, specsTotal: 4, specsFallados: 0, fallosConRedireccionALogin: 0 })
         .sospecha,
     ).toBe(false);
+  });
+});
+
+/**
+ * D45 — la baseURL por defecto apunta a OTRO SITIO.
+ *
+ * Medido en la iteración 2 del loop de OrangeHRM (2026-08-22): faltó `QA_BASE_URL`, los tres
+ * specs de OrangeHRM corrieron contra saucedemo, la página salió en blanco y Playwright dijo
+ * «locator.fill: Test timeout» sobre `getByPlaceholder('Username')`. El POM era el mismo que
+ * el de la iteración 1, que estaba verde. El mensaje mandaba a mirar el locator; la causa era
+ * que la suite entera apuntaba a otra aplicación.
+ */
+describe('resolveBaseUrl — de dónde sale la URL contra la que corre la suite', () => {
+  const DEFECTO = 'https://www.saucedemo.com/';
+
+  it('la env-var manda sobre todo: es el override explícito del run', () => {
+    const r = resolveBaseUrl({
+      envUrl: 'https://staging.mio/',
+      perfil: { target_url: 'https://otro/' },
+      siteId: 'mio',
+      fallback: DEFECTO,
+    });
+    expect(r.baseUrl).toBe('https://staging.mio/');
+    expect(r.source).toBe('env');
+    expect(r.warning).toBeUndefined();
+  });
+
+  it('EL PAR FALSABLE: sin env-var manda el perfil MEDIDO, no el default', () => {
+    const r = resolveBaseUrl({
+      perfil: { target_url: 'https://opensource-demo.orangehrmlive.com/' },
+      siteId: 'orangehrm',
+      fallback: DEFECTO,
+    });
+    expect(r.baseUrl).toBe('https://opensource-demo.orangehrmlive.com/');
+    expect(r.source).toBe('site-profile');
+    expect(r.warning).toBeUndefined();
+  });
+
+  it('caer al default con un site-id que no es ese sitio AVISA', () => {
+    const r = resolveBaseUrl({ perfil: null, siteId: 'orangehrm', fallback: DEFECTO });
+    expect(r.baseUrl).toBe(DEFECTO);
+    expect(r.source).toBe('default');
+    expect(r.warning).toContain('orangehrm');
+    expect(r.warning).toContain('QA_BASE_URL');
+  });
+
+  it('sin site-id el default es lo esperado y no se avisa: es el workspace genérico', () => {
+    expect(resolveBaseUrl({ perfil: null, fallback: DEFECTO }).warning).toBeUndefined();
+    expect(resolveBaseUrl({ perfil: null, siteId: '.work', fallback: DEFECTO }).warning).toBeUndefined();
+  });
+
+  it('un perfil sin target_url no se cuela como URL vacía', () => {
+    const r = resolveBaseUrl({ perfil: { target_url: '' }, siteId: 'x', fallback: DEFECTO });
+    expect(r.baseUrl).toBe(DEFECTO);
+    expect(r.source).toBe('default');
   });
 });
