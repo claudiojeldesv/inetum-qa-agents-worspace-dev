@@ -34,6 +34,13 @@ Inputs incluidos en esta carpeta (para las puertas S2/S3, opcionales en este lab
 - [`orangehrm.feature`](orangehrm.feature) — Gherkin maduro: login válido, login inválido, campos
   obligatorios y presencia de la navegación lateral. Input de **S2**.
 - [`orangehrm-fd.md`](orangehrm-fd.md) — FD en prosa libre, sin RF-NNN. Input de **S3**.
+- [`orangehrm-fd-citado.md`](orangehrm-fd-citado.md) — el **mismo** FD, pero citando entre comillas
+  los literales de pantalla medidos contra el DOM (en inglés, que es el idioma de la app; la prosa
+  sigue en castellano). Input alternativo de **S3**, y la mitad interesante del experimento: el
+  refiner emite los `hint` del walk-script en el idioma del FD, así que con literales citados el
+  walker resolvió **22/22 pasos y 0 bloqueados** en Login/PIM/Leave, contra 6/23 en un lab
+  equivalente sin citar. Si trabajas con un FD de cliente, pedirle que cite los literales de
+  pantalla es la palanca más barata que tiene este producto.
 
 ## Paso 1 — S4 autónomo acotado por módulos
 

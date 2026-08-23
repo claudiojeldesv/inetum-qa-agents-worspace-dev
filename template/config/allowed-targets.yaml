@@ -18,6 +18,11 @@ patterns:
   - 'https://demo.playwright.dev/*'
   - 'https://todomvc.com/*'                  # lab-desafío (brief abierto)
 
+  # Gira de dominio (2026-08-23) — aplicaciones de NEGOCIO reales sobre las que se
+  # mide el producto. Demos públicos, sin datos personales.
+  - 'https://demo.mifos.io/*'                # Mifos X web-app (core banking Angular sobre Fineract)
+  - 'https://demo.dolibarr.org/*'            # Dolibarr ERP/CRM 23.x (PHP legacy), demo publico
+
   # Entornos no productivos (cualquier subdominio) — añade los tuyos
   - 'https://*.qa.*'
   - 'https://*.test.*'
@@ -54,6 +59,15 @@ allowed_test_credentials:
   - username: john
     password: demo
     source: 'parabank.parasoft.com - Parasoft demo account, publicly documented'
+  - username: demo
+    password: demo
+    source: 'demo.dolibarr.org - IMPRESAS EN LA PROPIA PANTALLA DE ACCESO del demo
+      ("Login: demo / demo", verificado en el DOM 2026-08-23, Dolibarr 23.0.1)'
+  - username: mifos
+    password: password
+    source: 'demo.mifos.io - credenciales por defecto documentadas en el README oficial de
+      openMF/web-app, sección "Default Login Credentials" (verificado 2026-08-23). La pantalla
+      de acceso del demo NO las imprime.'
   - username: Admin
     password: admin123
     source: 'opensource-demo.orangehrmlive.com - OrangeHRM demo account, publicly documented on login page'

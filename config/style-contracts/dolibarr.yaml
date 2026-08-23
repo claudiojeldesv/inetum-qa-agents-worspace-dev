@@ -1,0 +1,143 @@
+# Style Contract — demo.dolibarr.org — Dolibarr ERP/CRM 23.0.1 (PHP heredado)
+# Schema docs: docs/references/style-contract-schema.md
+#
+# Por qué este sitio: es el sitio de REGRESIÓN de D46. El derivador de locators emisibles
+# (el walker saca un `css=[name="x"]` del elemento que el peldaño anclado ya resolvió) se
+# midió en ParaBank y solo en ParaBank. Un arreglo de esa clase no se da por bueno hasta
+# verlo en otra codebase heredada distinta, y Dolibarr es PHP con formularios de marcado
+# viejo: mismo patrón, otro origen.
+#
+# locale — D48, medido el 2026-08-23 y la razón por la que este campo existe:
+# la MISMA URL sirve la interfaz en castellano con `Accept-Language: es-ES` y en inglés
+# con `en-US`. Y Playwright SIN locale explícito la ve en INGLÉS. Es decir: el navegador
+# que explora y el que ejecuta pueden estar mirando dos aplicaciones distintas sin que
+# nadie se entere, y el síntoma sería «hint irresoluble» — que manda a mirar el hint.
+# Se fija en inglés porque es lo que ve Playwright por defecto y lo que mide el planner.
+locale: en-US
+
+version: 1
+project: dolibarr
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByRole
+    - getByLabel
+    - getByPlaceholder
+    - getByText
+    - getByTestId
+  forbid_css_selectors: true
+  forbid_xpath: true
+  # Dolibarr es PHP heredado: campos por `name`, tablas y menús por `id`, y cero
+  # atributos de test. Es exactamente la excepción declarativa para la que existe la
+  # whitelist, y lo que hace de este sitio la regresión de D46.
+  css_fallback_attributes:
+    - name
+    - id
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/dolibarr.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false        # WARNING auditable; un ERP PHP de 2003 va a tener de todo
+
+# D51 — el manejador de auth del producto NO sirve para este target, y se declara.
+#
+# `auth.enabled: true` monta un setup project que navega a `auth.login_path`, rellena las
+# credenciales y persiste un storageState. Eso da por hecho que **la pantalla de acceso se
+# alcanza por una URL**. En Dolibarr no: la portada es un selector de perfiles de demo y hay
+# que PULSAR uno para llegar al login — navegar directo al `index.php` del perfil rebota al
+# selector (medido el 2026-08-23). No es una rareza de este demo: es la misma forma que
+# tienen los aterrizajes SSO y los selectores de tenant de banca y seguros.
+#
+# Con `enabled: false` no hay setup project ni storageState, y cada spec hace su propio
+# recorrido de entrada — que es lo que el plan describe caso por caso. Es la descripción
+# HONESTA de este target, no un apaño: aquí no existe una sesión reutilizable por URL.
+auth:
+  enabled: false
+  # D51 — LA RUTA DE ENTRADA DECLARADA. Aquí el login no vive en una URL: hay que pulsar
+  # un perfil en la portada. Sin esto `verify-locators` no cruza el muro y los 82 locators
+  # llegan al Writer sin contrastar contra el DOM — que en la iteración 1 costó 6 specs en
+  # rojo por un rol que el plan afirmaba y el DOM no tiene, y por dos ambigüedades.
+  #
+  # La gramática es la que el producto ya usa (`css=<sel>` o `getBy*`), no un lenguaje nuevo.
+  # `$credentials.*` sale de synthetic_fixtures[credentials_ref].
+  entry_steps:
+    - goto: /
+    - click: 'css=a[href^="/index.php?urlfrom=%2Fpublic%2Fdemo%2Findex.php&disablemodules=adherent,contrat,don,"]'
+    # D52 — la pantalla de login solo existe DURANTE la ruta: se verifica aquí o no se
+    # verifica nunca. Es donde vivía el `heading` inexistente que tumbó 4 specs.
+    - verify_screen: login
+    - fill: 'css=input#username'
+      value: $credentials.username
+    # el campo llega PRECARGADO con otro valor; `fill` vacía antes de escribir
+    - fill: 'css=input#password'
+      value: $credentials.password
+    - click: 'css=input[type="submit"]'
+  # Se conservan MEDIDOS, aunque el manejador esté apagado: valen para el día que exista
+  # un enganche de entrada por flujo, y para que nadie los vuelva a averiguar.
+  # login_path: /            (portada = selector de perfiles; el login está detrás del clic)
+  # storage_state: playwright/.auth/dolibarr.json
+  # credentials_ref: 0
+  # D39 — medido por el planner el 2026-08-23, no inventado: tras el login la barra
+  # superior expone los enlaces "Home", "Third parties", "Products", "MRP", "Projects",
+  # "Commerce", "Billing | Payment", y NINGUNO existe en la pantalla de acceso.
+  #
+  # Salvedad declarada: un enlace de navegación es justo la clase de señal que en
+  # ParaBank dio verde contra un HTTP 500, porque la app pintaba la barra también en su
+  # página de error. Aquí no está descartado. Por eso NO va sola: el gate `MF-auth-landing`
+  # exige además que el setup asserte la URL de destino, y son las dos juntas las que
+  # hacen la comprobación.
+  # success_signal:
+  #   type: locator
+  #   value: "getByRole('link', { name: 'Third parties' })"
+
+evidence:
+  screenshots: on
+
+# Credenciales IMPRESAS EN LA PROPIA PANTALLA DE ACCESO del demo ("Login: demo / demo",
+# verificado en el DOM el 2026-08-23). Instancia compartida y restringida: el propio sitio
+# advierte de ello, así que los tests son de SOLO LECTURA — nada de crear, editar ni borrar.
+synthetic_fixtures:
+  credentials:
+    - username: demo
+      password: demo
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  coverage:
+    negatives_by_flow: {}
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath
