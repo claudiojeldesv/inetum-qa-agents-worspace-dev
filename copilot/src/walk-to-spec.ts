@@ -41,7 +41,11 @@ import { parse as parseYaml } from 'yaml';
 
 import { appendAuditEntry } from '../../src/audit-log.ts';
 import { fileNameFor } from '../../src/pom-scaffolder.ts';
-import { parseLocatorChain, resolveFixtureRef } from './walk-core.ts';
+import { parseLocatorChain, primerSegmentoNoExpresable, resolveFixtureRef } from './walk-core.ts';
+// D46 — la regla de "esto es codigo emisible" vive en walk-core porque ahora la usan DOS:
+// este emisor y el walker, que la consulta para saber si tiene que derivar un emit_locator.
+// Se re-exporta para no romper a quien la importaba de aqui.
+export { primerSegmentoNoExpresable };
 import type { DomMap, StepReport, WalkFlow, WalkScript, WalkStep } from './walk-types.ts';
 
 // ------------------------------------------------------------- contrato
@@ -186,33 +190,6 @@ export function flowEligibility(
  * Con `.nth(N)` no se filtra: el índice se calculó sobre el DOM completo y
  * filtrar antes lo cambiaría.
  */
-/**
- * D20 — los ÚNICOS prefijos de la gramática que producen código. Lista blanca y no
- * negra a propósito: con una lista negra, cada peldaño nuevo que emitiera notación
- * propia volvería a colarse verbatim, que es exactamente cómo llegó `anchored(...)`
- * al fichero generado sin que nada se quejara.
- */
-const PREFIJOS_EMISIBLES = [
-  'getByTestId(',
-  'getByRole(',
-  'getByLabel(',
-  'getByPlaceholder(',
-  'getByText(',
-  'getByTitle(',
-  'getByAltText(',
-  'locator(',
-  'css=',
-  'frameLocator(',
-];
-
-/** Primer segmento de la cadena que NO es código Playwright, o `null` si todos lo son. */
-export function primerSegmentoNoExpresable(chain: string): string | null {
-  for (const { segment } of parseLocatorChain(chain)) {
-    if (!PREFIJOS_EMISIBLES.some((p) => segment.startsWith(p))) return segment;
-  }
-  return null;
-}
-
 export function chainToCode(chain: string): string {
   // Cinturón: `flowEligibility` ya descarta el flujo, pero esta función es exportada
   // y el fallo silencioso es lo que produjo un POM que no parseaba y 0 tests.

@@ -619,6 +619,34 @@ export function parseLocatorChain(src: string): Array<{ segment: string; nth?: n
   });
 }
 
+/**
+ * D20 — los ÚNICOS prefijos de la gramática que producen código. Lista blanca y no
+ * negra a propósito: con una lista negra, cada peldaño nuevo que emitiera notación
+ * propia volvería a colarse verbatim, que es exactamente cómo llegó `anchored(...)`
+ * al fichero generado sin que nada se quejara.
+ */
+const PREFIJOS_EMISIBLES = [
+  'getByTestId(',
+  'getByRole(',
+  'getByLabel(',
+  'getByPlaceholder(',
+  'getByText(',
+  'getByTitle(',
+  'getByAltText(',
+  'locator(',
+  'css=',
+  'frameLocator(',
+];
+
+/** Primer segmento de la cadena que NO es código Playwright, o `null` si todos lo son. */
+export function primerSegmentoNoExpresable(chain: string): string | null {
+  for (const { segment } of parseLocatorChain(chain)) {
+    if (!PREFIJOS_EMISIBLES.some((p) => segment.startsWith(p))) return segment;
+  }
+  return null;
+}
+
+
 // -------------------------------------------------- modo asistido (K0.10)
 
 /**

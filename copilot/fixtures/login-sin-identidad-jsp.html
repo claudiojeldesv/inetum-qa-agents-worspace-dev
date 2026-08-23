@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+  D46 — fiel al login real de ParaBank (JSP clásico), medido el 2026-08-22.
+
+  Lo que importa reproducir, y por qué:
+  - los inputs NO tienen `id`, `label for`, `aria-label` ni `placeholder`: su nombre
+    accesible es VACÍO. Por eso el único peldaño que los resuelve es `anchored`, y por
+    eso `locator_candidates` sale vacío en el dom-map real.
+  - la etiqueta visible ("Username") es una celda hermana, no un <label>.
+  - los inputs SÍ tienen `name`, que es justamente lo que el contract de parabank
+    declara en `css_fallback_attributes` desde hace meses y el walker no leía.
+  - el señuelo: un segundo formulario (búsqueda) con un input `name="username"`
+    DUPLICADO pero oculto. Sin comprobar unicidad contra la página, la derivación
+    produciría un locator que revienta en strict mode la primera vez que se ejecute.
+-->
+<html lang="en">
+  <head><meta charset="utf-8" /><title>ParaBank-like login</title></head>
+  <body>
+    <div id="leftPanel">
+      <form>
+        <table>
+          <tr><td>Username</td><td><input type="text" name="username" /></td></tr>
+          <tr><td>Password</td><td><input type="password" name="password" /></td></tr>
+          <tr><td colspan="2"><input type="submit" class="button" value="Log In" /></td></tr>
+        </table>
+      </form>
+    </div>
+
+    <!-- señuelo: mismo `name`, oculto. La unicidad se cuenta sobre lo VISIBLE. -->
+    <div style="display:none">
+      <form><input type="text" name="username" /></form>
+    </div>
+
+    <!-- control con un `name` que sí es único y visible, para el par positivo -->
+    <div>
+      <table>
+        <tr><td>Amount</td><td><input type="text" name="amount" /></td></tr>
+      </table>
+    </div>
+  </body>
+</html>

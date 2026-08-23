@@ -1,5 +1,5 @@
 # Style Contract — parabank.parasoft.com — v0.2 Fase B, sitio 3
-# Schema docs: references/style-contract-schema.md
+# Schema docs: docs/references/style-contract-schema.md
 # Nota Fase B: ParaBank es banca demo JSP clásica (sin data-test). Inputs por
 # name (username/password), comboboxes para account #, botones por texto.
 # La prioridad de locators invierte el orden de los sitios anteriores:
@@ -76,9 +76,15 @@ auth:
   login_path: /parabank/index.htm
   storage_state: playwright/.auth/john.json
   credentials_ref: 0
+  # D39 — la señal de éxito tiene que existir SOLO en la pantalla de destino.
+  # Medido el 2026-08-21: con `getByRole('link', { name: 'Log Out' })` el setup de auth
+  # pasó en VERDE contra una app que devolvía HTTP 500, porque ParaBank pinta su barra de
+  # navegación (y con ella el 'Log Out') también en la página de error. El gate dio por
+  # buena una sesión que no servía y el fallo salió tres pasos más tarde en cada spec.
+  # 'Accounts Overview' es el título de la pantalla de destino y está citado en el FD.
   success_signal:
     type: locator
-    value: "getByRole('link', { name: 'Log Out' })"
+    value: "getByRole('heading', { name: 'Accounts Overview' })"
 
 # Evidencia visual para el reporte Allure: captura el estado final de cada test
 # (pase o falle). El command lo mapea a QA_SCREENSHOT en el Verification step.
