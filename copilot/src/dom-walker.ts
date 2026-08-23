@@ -89,6 +89,7 @@ import {
   aliasPromotionVerdict,
   type LocatorAttempt,
   urlEstable,
+  primerSegmentoNoExpresable,
 } from './walk-core.ts';
 // el marcador de peldaños (K0.27a) ya sabe leer una cadena de locator: reimplementar
 // esa clasificación aquí sería tener dos verdades sobre qué peldaño resolvió el paso
@@ -1069,6 +1070,10 @@ class DomWalker {
   private readonly script: WalkScript;
   private readonly contract: StyleContract;
   private readonly priority: string[];
+  /** D46 — atributos con los que se puede derivar un locator emisible. Ver el constructor. */
+  private readonly cssFallbackAttrs: string[];
+  /** D48 — idioma que se le pide a la aplicacion. Ver el constructor. */
+  private readonly locale: string | undefined;
   private readonly auditPath: string;
   private state: WalkState;
   private page!: Page;
@@ -1172,6 +1177,25 @@ class DomWalker {
     this.script = script;
     this.contract = contract;
     this.priority = contract.locators?.priority ?? ['getByTestId', 'getByRole', 'getByLabel', 'getByText'];
+    /**
+     * D46 — la whitelist de atributos con la que se puede FABRICAR un locator emisible
+     * cuando el elemento no tiene identidad semántica. El contract ya la declaraba
+     * (`locators.css_fallback_attributes`, con enum [name, id]) y el walker no la leía.
+     */
+    this.cssFallbackAttrs = (contract.locators as { css_fallback_attributes?: string[] } | undefined)
+      ?.css_fallback_attributes ?? [];
+    /**
+     * D48 — el idioma que sirve la aplicacion depende de una cabecera que hasta ahora
+     * nadie fijaba. Medido en el demo de Dolibarr el 2026-08-23: la MISMA URL devuelve
+     * la interfaz en castellano con `Accept-Language: es-ES` y en ingles con `en-US`.
+     * Un plan con literales medidos en un idioma y un run que pide otro no fallan por
+     * el producto: fallan porque son dos aplicaciones distintas para el buscador de
+     * texto, y el diagnostico que sale ("hint irresoluble") manda a mirar el hint.
+     *
+     * Sin declarar, no se toca nada: Playwright usa el idioma del navegador y el
+     * comportamiento es el de siempre.
+     */
+    this.locale = (contract as { locale?: string }).locale ?? process.env.QA_LOCALE ?? undefined;
     this.auditPath = resolve(opts.workDir, 'audit-log.json');
     this.state = state;
     this.state.step_reports = this.state.step_reports ?? [];
@@ -2385,7 +2409,63 @@ class DomWalker {
    * null (→ rescate / open_question). El walker nunca decide equivalencias:
    * el alias viene de un rescate ya verificado; el normalizado es una función.
    */
-  private async resolveHint(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
+  /**
+   * D46 — el peldaño que RESUELVE pero no deja nada que emitir.
+   *
+   * Medido en ParaBank el 2026-08-22, con el FD citado: el walker hizo 17/18 pasos y
+   * `walk-to-spec` emitió **cero** specs. Los tres flujos se encolaron para el Writer
+   * por el mismo motivo — `anchored(label:'Username')` es notación de diagnóstico, no
+   * código Playwright. O sea: el peldaño que existe precisamente para el legacy
+   * corporativo hace que el camino determinista no entregue nada justo ahí.
+   *
+   * `StepReport.emit_locator` estaba DECLARADO en `walk-types.ts` con su docstring,
+   * lo CONSUMÍA `walk-to-spec` y lo probaba un test... con el campo puesto a mano en
+   * el fixture. **Nadie lo producía.** Es la familia D2 en su forma más pura: un test
+   * que le da al consumidor la salida del productor prueba el consumidor y crea la
+   * ilusión de que la función existe.
+   *
+   * Esto lo produce. Del elemento ya resuelto se lee el primer atributo de la
+   * whitelist del contract (`locators.css_fallback_attributes`, que el contract de
+   * ParaBank declara como [name, id] desde hace meses) y se acepta SOLO si identifica
+   * a exactamente un elemento. Si no, se queda ausente y `walk-to-spec` sigue
+   * rehusando con motivo — que es mejor que emitir un fichero que no compila.
+   *
+   * No toca `resolved_via`: la medición del peldaño anclado es una de las cifras del
+   * producto y meterle CSS la falsearía.
+   */
+  private async derivarEmitLocator(loc: Locator): Promise<string | undefined> {
+    if (this.cssFallbackAttrs.length === 0) return undefined;
+    for (const attr of this.cssFallbackAttrs) {
+      const valor = await loc.getAttribute(attr).catch(() => null);
+      if (!valor || /["\\]/.test(valor)) continue; // un valor con comillas rompería el selector
+      const selector = `[${attr}="${valor}"]`;
+      // unicidad comprobada CONTRA LA PÁGINA, no supuesta: un `name` repetido
+      // (radios, tablas) produciría un locator que resuelve a varios y un spec
+      // que revienta en strict mode la primera vez que se ejecuta.
+      const n = await this.page
+        .locator(selector)
+        .filter({ visible: true })
+        .count()
+        .catch(() => 0);
+      if (n !== 1) continue;
+      this.audit('allow', `locator emisible derivado por atributo '${attr}': css=${selector}`, { phase: 'emit-locator' });
+      return `css=${selector}`;
+    }
+    return undefined;
+  }
+
+  private async resolveHint(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[]; emit?: string } | null> {
+    const r = await this.resolveHintRaw(step);
+    if (!r) return null;
+    // solo cuando la notación del peldaño NO es código: la regla la manda
+    // `walk-to-spec` (misma función), para que no haya dos definiciones de
+    // "emisible" que puedan separarse.
+    if (!primerSegmentoNoExpresable(r.via)) return r;
+    const emit = await this.derivarEmitLocator(r.locator);
+    return emit ? { ...r, emit } : r;
+  }
+
+  private async resolveHintRaw(step: WalkStep): Promise<{ locator: Locator; via: string; frame_path: string[] } | null> {
     this.ultimaAmbiguedad = null; // por-llamada: nunca arrastrar el motivo de otro paso
     this.ultimoAmbitoFallido = null;
     const scopes = await this.scopes();
@@ -3597,9 +3677,14 @@ class DomWalker {
 
     const browser = this.page.context().browser();
     if (!browser) return { ok: false, reason: 'sin navegador para el replay de verificación' };
-    const ctx = await browser.newContext(
-      this.opts.storageState && existsSync(this.opts.storageState) ? { storageState: this.opts.storageState } : {},
-    );
+    const ctx = await browser.newContext({
+      ...(this.opts.storageState && existsSync(this.opts.storageState)
+        ? { storageState: this.opts.storageState }
+        : {}),
+      // D48 — el replay tiene que hablar el MISMO idioma que el run, o verificaria
+      // el parche contra una pagina traducida y concluiria que no resuelve.
+      ...(this.locale ? { locale: this.locale } : {}),
+    });
     const page = await ctx.newPage();
     const mainPage = this.page;
     try {
@@ -4120,6 +4205,8 @@ class DomWalker {
           ...report,
           outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet',
           resolved_via: resolved.via,
+          // D46 — el locator EMISIBLE, cuando la notacion del peldano no es codigo.
+          ...(resolved.emit ? { emit_locator: resolved.emit } : {}),
         });
         return;
       }
@@ -4293,7 +4380,7 @@ class DomWalker {
         const prior = this.state.rescues.find(
           (r) => r.flow === flow.flow && r.step === step.id && r.resolved && r.locator,
         );
-        let resolved: { locator: Locator; via: string; frame_path: string[] } | null = null; // reasignable: la asistencia puede sustituirlo (K0.11d)
+        let resolved: { locator: Locator; via: string; frame_path: string[]; emit?: string } | null = null; // reasignable: la asistencia puede sustituirlo (K0.11d)
         if (prior?.locator) {
           const loc = this.locatorFromChain(this.page, prior.locator);
           if (loc && (await loc.count().catch(() => 0)) >= 1) {
@@ -4727,6 +4814,8 @@ class DomWalker {
           settle: obs,
           retried,
           resolved_via: resolved.via,
+          // D46 — el locator EMISIBLE, cuando la notacion del peldano no es codigo.
+          ...(resolved.emit ? { emit_locator: resolved.emit } : {}),
           ...(retryReason ? { retry_reason: retryReason } : {}),
           ...(retryRefused ? { retry_refused: retryRefused } : {}),
         });
@@ -5013,6 +5102,7 @@ class DomWalker {
     this.context = await browser.newContext({
       ...(storageState ? { storageState } : {}),
       ...(animProfile.disable_animations ? { reducedMotion: 'reduce' as const } : {}),
+      ...(this.locale ? { locale: this.locale } : {}),
     });
     if (animProfile.disable_animations) {
       // string, no referencia de función — mismo motivo que settleScript: esbuild

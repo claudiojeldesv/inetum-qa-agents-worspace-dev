@@ -55,6 +55,14 @@ interface FieldSpec {
 const SCHEMA: Record<string, FieldSpec> = {
   version: { type: 'number' },
   project: { type: 'string' },
+  /**
+   * D48 — idioma con el que se le habla a la aplicacion (`Accept-Language` del contexto
+   * del navegador, p.ej. 'es-ES'). Medido en el demo de Dolibarr el 2026-08-23: la MISMA
+   * URL sirve la interfaz en castellano o en ingles segun la cabecera. Si el plan cita
+   * literales en un idioma y la suite pide otro, no casa NADA — y el diagnostico que sale
+   * es "hint irresoluble", que manda a mirar el hint. Sin declarar, no se toca nada.
+   */
+  locale: { type: 'string' },
   pom: {
     type: 'object',
     fields: {

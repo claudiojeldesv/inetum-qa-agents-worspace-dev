@@ -198,3 +198,43 @@ describe('contract-validator — healing (regla #10, Q3)', () => {
     expect(onRow?.origin).toBe('contract');
   });
 });
+
+/**
+ * D48 — el idioma que sirve la aplicacion depende de una cabecera que nadie fijaba.
+ *
+ * Medido contra el demo de Dolibarr el 2026-08-23: la MISMA URL devuelve la interfaz en
+ * castellano con `Accept-Language: es-ES` y en ingles con `en-US`. Un plan cuyos literales
+ * se midieron en un idioma, ejecutado por una suite que pide otro, no falla por el
+ * producto: para el buscador de texto son dos aplicaciones distintas. Y el diagnostico que
+ * sale — «hint irresoluble» — manda a mirar el hint.
+ *
+ * Es el reverso del A/B ParaBank/SauceDemo/OrangeHRM: alli la variable era el idioma del
+ * DOCUMENTO; aqui es el de la APLICACION, y lo decide el cliente HTTP.
+ */
+describe('D48 — `locale` en el contract', () => {
+  it('EL PAR FALSABLE: un contract que declara locale es valido y no genera error', () => {
+    const yaml = `
+version: 1
+project: dolibarr
+locale: es-ES
+`;
+    expect(errs(yaml).filter((i) => JSON.stringify(i).includes('locale'))).toEqual([]);
+  });
+
+  it('sin `locale` el contract sigue siendo valido: el campo es opcional', () => {
+    const yaml = `
+version: 1
+project: dolibarr
+`;
+    expect(errs(yaml).filter((i) => JSON.stringify(i).includes('locale'))).toEqual([]);
+  });
+
+  it('un `locale` que no es texto se reporta como error de tipo', () => {
+    const yaml = `
+version: 1
+project: dolibarr
+locale: 42
+`;
+    expect(errs(yaml).filter((i) => JSON.stringify(i).includes('locale')).length).toBeGreaterThan(0);
+  });
+});

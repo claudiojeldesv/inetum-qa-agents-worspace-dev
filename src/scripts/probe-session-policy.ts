@@ -186,7 +186,10 @@ async function main(): Promise<number> {
     browser = await chromium.launch();
     console.log(`[probe-session] sondeando ${baseUrl} (usuario '${creds!.username}')`);
 
-    ctxA = await browser.newContext();
+    // D48 — misma app, mismo idioma: si A y B hablan idiomas distintos, `estaAutenticada`
+    // busca un formulario que no existe con ese nombre y la sonda concluye cualquier cosa.
+    const LOCALE = (contract.locale as string | undefined) ?? process.env.QA_LOCALE ?? undefined;
+    ctxA = await browser.newContext(LOCALE ? { locale: LOCALE } : {});
     const pageA = await ctxA.newPage();
     const loginA = await iniciarSesion(pageA);
     if (!loginA.ok) {
@@ -198,7 +201,7 @@ async function main(): Promise<number> {
     }
     console.log('  sesión A: autenticada');
 
-    ctxB = await browser.newContext();
+    ctxB = await browser.newContext(LOCALE ? { locale: LOCALE } : {});
     const pageB = await ctxB.newPage();
     const loginB = await iniciarSesion(pageB);
     console.log(`  sesión B: ${loginB.ok ? 'autenticada' : `rechazada${loginB.rechazo ? ` («${loginB.rechazo}»)` : ''}`}`);
