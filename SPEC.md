@@ -6,6 +6,8 @@
 
 `ia4d-qa-automator` es un agente Claude Code que genera tests E2E en Playwright TypeScript con marco QA propio, aplicando convenciones declaradas por el QA, gates de compliance, verificación de accesibilidad y un Quality layer Writer+Reviewer+Judge que materializa "QA es juez independiente".
 
+**Lead de venta**: *"Tu Ingeniero QA pasa de un flujo funcional (o solo URL) a tests Playwright estructurados con POM, A11y baked-in y trazabilidad auditable, en minutos, con un Reviewer independiente que audita al Writer antes de exponer el código"*. Velocidad + estructura como impacto demostrable.
+
 ### Argumento estructural
 
 `ia4d-testing-core` es la herramienta del dev que escribe tests sobre su propio código (whitebox, fase 07 estricta, dev-céntrico). **`ia4d-qa-automator` es la herramienta del juez QA independiente** (greybox o black-box, multi-modo según input, transversal por disciplina QA). Misión incompatible, no perspectiva distinta. Dev no puede ser juez y parte. Las herramientas QA tienen **otra forma de operar**.

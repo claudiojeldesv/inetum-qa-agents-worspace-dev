@@ -273,7 +273,7 @@ Ejemplo:
 | Dimensión | ia4d-testing-core | ia4d-qa-automator |
 |---|---|---|
 | Perspectiva | Dev sobre su propio código (whitebox total) | Ingeniero QA externo o juez QA (greybox o black-box, multi-modo) |
-| Fase AISD | 07 (Testing) estricta | Transversal por disciplina QA propia (toca 01, 04, 07, 08) |
+| Fase AISD | 07 (Testing) estricta | Transversal por disciplina QA propia: fase 01 (S3 refina DF), fase 04 (S2 consume OpenAPI), fase 07 (modo Testing principal), fase 08 (evidencia para Validación) |
 | Misión | "Test su propio código" | "Juez independiente sobre la app" |
 | Quality layer | LLM-as-judge unilateral | Writer + Reviewer obligatorios (iteración explícita N≤2) + Judge opcional |
 | Compliance | No central | Pre-flight sin override + PII detector banca-ES opcional (reactivable) |
