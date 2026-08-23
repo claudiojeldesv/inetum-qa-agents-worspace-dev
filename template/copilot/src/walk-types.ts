@@ -322,6 +322,16 @@ export interface WalkFlow {
   flow: string;                  // id del flujo (coincide con criteria[].flow)
   criteria?: string[];           // RF-NNN que este flujo cubre (trazabilidad)
   steps: WalkStep[];
+  /**
+   * D44 — el flujo corre a propósito SIN sesión (pantalla pública, portada, login
+   * con credenciales inválidas). Lo lee `check-walk-script` para eximir al flujo de
+   * la coherencia con `auth.enabled` del contract.
+   *
+   * Por defecto TODO flujo tiene que ser autocontenido: el walker aísla la sesión
+   * entre flujos (D42) y vuelve a `entry` antes de cada uno, así que un flujo que
+   * dé por hecha la sesión del anterior está roto por construcción.
+   */
+  unauthenticated?: boolean;
 }
 
 export interface WalkScript {

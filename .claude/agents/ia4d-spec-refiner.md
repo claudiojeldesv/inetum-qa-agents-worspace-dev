@@ -83,6 +83,15 @@ You are the **Spec Refiner** of the S3 module. You take a Functional Design docu
    `version`, `site_id`, `entry` and a non-empty `flows[]` are all **required at the root**.
    `entry` is the same value you put in `brief.entry` — a path, not a full URL.
 
+   **Every flow must be SELF-CONTAINED.** The walker wipes cookies and storage and returns to
+   `entry` before each flow, on purpose — otherwise a flow inherits the previous one's leftovers.
+   So a flow that starts with `click "PIM"` because the flow above it logged in is broken by
+   construction: it will run against the login screen. If the Style Contract has
+   `auth.enabled: true`, repeat the login steps inside **each** flow, using the same
+   `$fixtures.credentials...` refs. The only exception is a flow that is meant to run without a
+   session (a public page, or a login with invalid credentials): mark it `"unauthenticated": true`
+   and say so. `check-walk-script.ts --contract=…` enforces this and will hand the file back.
+
    Per step:
    - `action`: `goto` · `fill` · `click` · `select` · `check` · `press` · `expect_text` ·
      `expect_value` · `expect_count`.

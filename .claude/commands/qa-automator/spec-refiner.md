@@ -111,8 +111,14 @@ borrar el `criteria.json` recién generado. Runs de sitios distintos no se conta
 se pidió `--walk-output`.
 
 ```sh
-npx tsx copilot/src/check-walk-script.ts <workDir>/walk-script.json
+npx tsx copilot/src/check-walk-script.ts <workDir>/walk-script.json --contract=<style-contract.yaml>
 ```
+
+`--contract` no es opcional en la práctica: sin él la coherencia con `auth.enabled` **no se
+comprueba**, y el script lo dice en la salida (`aviso: sin --contract...`). Es la que caza que un
+flujo dé por hecha la sesión del anterior — el walker la reinicia entre flujos (D42), así que ese
+guion falla con el navegador ya arrancado y con un «hint irresoluble» que manda a mirar el hint
+cuando lo que pasa es que la pantalla es la de login (D44, iteración 2 del loop de OrangeHRM).
 
 Exit 0 = válido, sigue. Exit 2 = inválido: **no lo arregles tú** (el guion es artefacto del
 refiner; reescribirlo aquí esconde el defecto y lo repite el próximo run). Pasa la salida del
