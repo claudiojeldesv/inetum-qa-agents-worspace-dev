@@ -217,3 +217,8 @@ del planner porque ahí no hay nada que lo impida.
 - **Contradicción sin resolver**: el discovery marca el enlace del perfil `not-found`; una
   re-comprobación en vivo da 1 coincidencia. El Writer la declaró y no tocó el informe.
 - **Mifos X**, pendiente de que vuelva el backend.
+
+De la conclusión del §4 sale un plan con diseño, coste medido e iteraciones de comprobación falsables:
+[plan-gate-locators-medidos.md](../tasks/plan-gate-locators-medidos.md) — lleva la regla dura del walker
+al camino del planner. Cubre el nombre accesible y el `EQUIVOCADO` de TC-003; NO cubre `toHaveURL`
+sobre estado compartido ni el fixture del negativo, que siguen abiertos aquí.
