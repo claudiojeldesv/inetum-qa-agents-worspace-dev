@@ -55,6 +55,15 @@ export interface DiscoveryElement {
   test_id_attr?: string;
   /** De donde salio `test_id_attr`: util para auditar quien acerto. */
   test_id_attr_source?: string;
+  /**
+   * G3 (plan gate-locators-medidos) — los nombres accesibles REALES que el DOM ofrece
+   * cuando el locator por (rol, nombre) no resuelve o resuelve a varios. Sin esto el
+   * informe dice `not-found` y ahi muere el hilo: el Writer prueba `exact: true`, falla,
+   * y hacen falta dos iteraciones (TC-004 de Dolibarr: el plan cito el caption visible
+   * `Ref.` y el nombre accesible real no es exactamente ese). Con el nombre real delante
+   * es un intento.
+   */
+  accessible_names_found?: string[];
 }
 
 interface DiscoveryScreen {
@@ -227,8 +236,55 @@ export async function rescatarAtributoDeTestId(
   return null;
 }
 
-async function checkElement(page: Page, el: DiscoveryElement, testIdAttribute: string): Promise<void> {
+/**
+ * G3 — nombres accesibles de un rol en un aria-snapshot de Playwright. El snapshot es
+ * YAML con lineas `- <rol> "<nombre>"`; los nombres pueden llevar comillas escapadas.
+ * Pura: se testea sin navegador con snapshots sinteticos.
+ */
+export function nombresAccesiblesDelRol(snapshot: string, role: string): string[] {
+  const rolEscapado = role.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`^\\s*-\\s+${rolEscapado}\\s+"((?:[^"\\\\]|\\\\.)*)"`, 'gm');
+  const out: string[] = [];
+  for (const m of snapshot.matchAll(re)) out.push(m[1].replace(/\\(.)/g, '$1'));
+  return out;
+}
+
+/**
+ * G3 — que nombres del rol merecen ir al informe cuando el locator fallo.
+ *
+ * - `ambiguous(n)`: los que CONTIENEN el nombre pedido (la semantica substring de
+ *   `getByRole(...,{name})`, que es exactamente como se produjo la colision) — esos son
+ *   los colisionadores reales. `Ref.` en Dolibarr lista `Ref.`, `Ref. customer`,
+ *   `Project ref.` y el Writer ve con que esta chocando.
+ * - `not-found`: los que comparten alguna palabra (≥3 chars) con el pedido — candidatos
+ *   a "el nombre real no es exactamente el caption". Sin filtro, una pantalla de
+ *   navegacion con 100 links inundaria el informe.
+ *
+ * Tope de 8: es un diagnostico, no un volcado.
+ */
+export function candidatosParaInforme(nombres: string[], pedido: string, ambiguo: boolean): string[] {
+  const p = pedido.toLowerCase();
+  let cand: string[];
+  if (ambiguo) {
+    cand = nombres.filter((n) => n.toLowerCase().includes(p));
+  } else {
+    const palabras = p.split(/\s+/).filter((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length >= 3);
+    cand = palabras.length === 0 ? [] : nombres.filter((n) => {
+      const nl = n.toLowerCase();
+      return palabras.some((w) => nl.includes(w));
+    });
+  }
+  return [...new Set(cand)].slice(0, 8);
+}
+
+async function checkElement(
+  page: Page,
+  el: DiscoveryElement,
+  testIdAttribute: string,
+  snapshotDelArbol?: () => Promise<string>,
+): Promise<void> {
   const spec = locatorSpecFor(el);
+  delete el.accessible_names_found; // el informe se muta in-place: nada rancio de otro run
   try {
     let count = await applyLocator(page, spec).count();
 
@@ -249,11 +305,32 @@ async function checkElement(page: Page, el: DiscoveryElement, testIdAttribute: s
     } else {
       el.verified = false;
       el.verify_reason = count === 0 ? 'not-found' : `ambiguous(${count})`;
+      /**
+       * G3 — con el fallo ya dictaminado, decir QUE nombres reales hay. Solo para
+       * (rol, nombre): es la pareja donde vive la clase TC-004/TC-005 y donde el
+       * nombre accesible real desbloquea al Writer en un intento. Coste: un
+       * aria-snapshot por pantalla (cacheado por el caller), solo en el camino de fallo.
+       */
+      if (spec.kind === 'roleName' && snapshotDelArbol) {
+        const snapshot = await snapshotDelArbol().catch(() => '');
+        const nombres = nombresAccesiblesDelRol(snapshot, spec.role);
+        const candidatos = candidatosParaInforme(nombres, spec.name, count > 1);
+        if (candidatos.length > 0) el.accessible_names_found = candidatos;
+      }
     }
   } catch (err) {
     el.verified = false;
     el.verify_reason = `invalid-locator: ${err instanceof Error ? err.message.split('\n')[0] : err}`;
   }
+}
+
+/** Aria-snapshot perezoso y cacheado: una captura por pantalla aunque fallen N locators. */
+function crearSnapshotPerezoso(page: Page): () => Promise<string> {
+  let capturado: Promise<string> | null = null;
+  return () => {
+    capturado ??= page.locator('body').ariaSnapshot();
+    return capturado;
+  };
 }
 
 function markUnknown(els: DiscoveryElement[], reason: string): void {
@@ -266,6 +343,8 @@ function markUnknown(els: DiscoveryElement[], reason: string): void {
 interface VerifyOptions {
   baseUrl: string;
   credentials: Credentials | null;
+  /** D51 — ruta de entrada declarada (`auth.entry_steps` del contract). Ver seguirRutaDeEntrada. */
+  entrySteps?: EntryStep[];
   /** El del playwright.config del workspace: define que atributo SI vale para getByTestId. */
   testIdAttribute: string;
 }
@@ -277,6 +356,106 @@ export interface VerifySummary {
   screens: Array<{ name: string; reachable: boolean | null; elements: number; verified: number; unverified: number }>;
   components_verified_on: Record<string, string>;
   totals: { elements: number; verified: number; unverified: number; unknown: number };
+}
+
+/**
+ * D51 — LA RUTA DE ENTRADA DECLARADA, para aplicaciones cuyo login NO vive en una URL.
+ *
+ * `bootstrapSession` da por hecho que la pantalla de acceso se alcanza navegando a su
+ * `url_pattern`. Medido en el demo de Dolibarr el 2026-08-23: no. La portada es un
+ * selector de perfiles y hay que PULSAR uno para llegar al formulario; navegar directo
+ * rebota. Resultado: el bootstrap falla, ninguna pantalla se verifica, y los 82 locators
+ * del informe llegan al Writer sin que nadie los haya contrastado con el DOM.
+ *
+ * Lo que costó eso, medido en la iteracion 1: 6 de 6 specs en rojo. Cuatro por un rol
+ * que el plan afirmaba y el DOM no tiene (`heading` sobre un elemento `generic`), y dos
+ * por ambiguedad (`List` resuelve a 2 enlaces, `Ref.` a 3 columnas). Las seis las habria
+ * cazado esta funcion si hubiera podido entrar.
+ *
+ * No es una rareza de este demo: es la forma que tienen los aterrizajes SSO y los
+ * selectores de tenant de banca y seguros.
+ *
+ * El vocabulario es DELIBERADAMENTE minusculo y reutiliza la gramatica de locators que
+ * el producto ya tiene (`getByRole(...)`, `css=...`) — un lenguaje nuevo aqui seria otra
+ * cosa que mantener y otra que se puede desincronizar.
+ */
+export interface EntryStep {
+  goto?: string;
+  click?: string;
+  fill?: string;
+  value?: string;
+  /**
+   * D52 — «estamos AQUÍ»: verifica los elementos de esta pantalla en este punto de la ruta.
+   *
+   * Sin esto, una pantalla que solo existe DURANTE la entrada —la de login, tipicamente—
+   * no se verifica jamas: no tiene URL a la que navegar, y para cuando termina la ruta ya
+   * la hemos dejado atras. Medido en la iteracion 1 de Dolibarr: 4 de 6 specs murieron en
+   * `getByRole('heading', { name: 'Enter login details' })`, un rol que el plan afirmaba y
+   * que el DOM no tiene (el elemento es `generic`). Era el unico defecto que ninguna
+   * comprobacion podia cazar, justo porque vivia en la pantalla no verificable.
+   */
+  verify_screen?: string;
+}
+
+/** Resuelve `$credentials.username` / `$credentials.password`; lo demas es literal. */
+export function resolveEntryValue(value: string | undefined, creds: Credentials | null): string {
+  if (!value) return '';
+  if (value === '$credentials.username') return creds?.username ?? '';
+  if (value === '$credentials.password') return creds?.password ?? '';
+  return value;
+}
+
+/** Locator desde la gramatica del producto: `css=<sel>` o una expresion `getBy*`. */
+function locatorDesdeGramatica(page: Page, chain: string) {
+  if (chain.startsWith('css=')) return page.locator(chain.slice('css='.length));
+  const role = /^getByRole\('([^']+)',\s*\{\s*name:\s*'(.+?)'\s*\}\)$/.exec(chain);
+  if (role) return page.getByRole(role[1] as never, { name: role[2] });
+  const porTexto = /^getByText\('(.+?)'\)$/.exec(chain);
+  if (porTexto) return page.getByText(porTexto[1]);
+  const porPlaceholder = /^getByPlaceholder\('(.+?)'\)$/.exec(chain);
+  if (porPlaceholder) return page.getByPlaceholder(porPlaceholder[1]);
+  const porLabel = /^getByLabel\('(.+?)'\)$/.exec(chain);
+  if (porLabel) return page.getByLabel(porLabel[1]);
+  throw new Error(`entry_steps: gramatica no soportada '${chain}' (usa css=<sel> o getByRole/getByText/getByPlaceholder/getByLabel)`);
+}
+
+/** Reproduce la ruta de entrada declarada. Lanza si algun paso no resuelve: un bootstrap
+ *  a medias es peor que ninguno — verificaria contra la pantalla equivocada. */
+export async function seguirRutaDeEntrada(
+  page: Page,
+  pasos: EntryStep[],
+  creds: Credentials | null,
+  baseUrl: string,
+  alPasarPorPantalla?: (nombre: string) => Promise<void>,
+): Promise<void> {
+  for (const [i, paso] of pasos.entries()) {
+    const donde = `entry_steps[${i}]`;
+    if (paso.verify_screen !== undefined) {
+      if (alPasarPorPantalla) await alPasarPorPantalla(paso.verify_screen);
+      continue;
+    }
+    if (paso.goto !== undefined) {
+      await page.goto(resolveAppUrl(baseUrl, paso.goto), { waitUntil: 'load', timeout: 20000 });
+      continue;
+    }
+    if (paso.click !== undefined) {
+      const loc = locatorDesdeGramatica(page, paso.click).first();
+      await loc.waitFor({ state: 'visible', timeout: 15000 });
+      await loc.click({ timeout: 10000 });
+      await page.waitForLoadState('load', { timeout: 20000 }).catch(() => undefined);
+      continue;
+    }
+    if (paso.fill !== undefined) {
+      const loc = locatorDesdeGramatica(page, paso.fill).first();
+      await loc.waitFor({ state: 'visible', timeout: 15000 });
+      // `fill` vacia antes de escribir: es justo lo que hace falta cuando el campo
+      // llega PRECARGADO con otro valor (medido en este mismo login).
+      await loc.fill(resolveEntryValue(paso.value, creds), { timeout: 10000 });
+      continue;
+    }
+    throw new Error(`${donde}: paso sin accion (goto | click | fill)`);
+  }
+  await page.waitForLoadState('load', { timeout: 20000 }).catch(() => undefined);
 }
 
 async function bootstrapSession(page: Page, form: LoginForm, creds: Credentials, screens: DiscoveryScreen[], baseUrl: string): Promise<void> {
@@ -299,8 +478,38 @@ async function verifyDiscovery(
   const componentsPending = new Set(components.map((c) => c.name));
   let bootstrap: VerifySummary['session_bootstrap'] = 'none';
 
+  /**
+   * D51 — si el contract declara la ruta de entrada, se sigue ANTES de nada. No se espera
+   * a una redireccion para dispararla: hay aplicaciones (Dolibarr, medido) que sirven el
+   * muro de login en la propia URL pedida, sin redirigir, asi que el disparador por
+   * redireccion nunca salta y el bootstrap no llega a intentarse.
+   */
+  const verificadasEnRuta = new Set<string>();
+  if (opts.entrySteps && opts.entrySteps.length > 0) {
+    try {
+      await seguirRutaDeEntrada(page, opts.entrySteps, opts.credentials, opts.baseUrl, async (nombre) => {
+        const pantalla = screens.find((sc) => sc.name === nombre);
+        if (!pantalla) {
+          console.error(`[verify-locators] entry_steps: verify_screen '${nombre}' no existe en el informe`);
+          return;
+        }
+        const snapshotEntrada = crearSnapshotPerezoso(page);
+        for (const el of pantalla.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute, snapshotEntrada);
+        pantalla.dom_verified = true;
+        pantalla.dom_final_url = page.url();
+        verificadasEnRuta.add(nombre);
+      });
+      bootstrap = 'applied';
+    } catch (e) {
+      bootstrap = 'failed';
+      console.error(`[verify-locators] ruta de entrada declarada FALLÓ: ${(e as Error).message}`);
+    }
+  }
+
   for (const screen of screens) {
     const els = screen.interactive_elements ?? [];
+    // D52 — ya se verifico al pasar por ella durante la ruta de entrada: no se pisa.
+    if (verificadasEnRuta.has(screen.name)) continue;
     if (!screen.url_pattern) {
       screen.dom_verified = null;
       markUnknown(els, 'no-url-pattern');
@@ -352,14 +561,46 @@ async function verifyDiscovery(
     }
 
     screen.dom_verified = true;
-    for (const el of els) await checkElement(page, el, opts.testIdAttribute);
+    const snapshotPantalla = crearSnapshotPerezoso(page);
+    for (const el of els) await checkElement(page, el, opts.testIdAttribute, snapshotPantalla);
+
+    /**
+     * D50 — EL MURO DE LOGIN QUE NO REDIRIGE.
+     *
+     * Medido en el demo de Dolibarr el 2026-08-23: sin sesion, `GET /societe/list.php`
+     * devuelve **200 y se queda en esa misma URL**, pero lo que pinta es el formulario
+     * de acceso. La guarda de ruta de arriba (`landedPath !== expectedPath`) no lo caza
+     * porque la aplicacion NO redirige, asi que se verificaron 74 locators contra la
+     * pantalla de login y salieron 74 `unverified`.
+     *
+     * Y ese numero miente en la direccion cara: `unverified` se lee como «estos
+     * locators estan mal» y manda al QA a arreglar locators correctos, cuando la verdad
+     * es «nunca llegamos a esa pantalla». `unknown` es el veredicto honesto.
+     *
+     * La regla es post-hoc y por eso no necesita saber cual es la pantalla de login: si
+     * NO resolvio ni uno solo de los elementos esperados y ademas hay un campo de
+     * contrasena a la vista, estamos delante de un muro. En la pantalla de login de
+     * verdad sus propios elementos SI resuelven, asi que no se dispara.
+     */
+    if (bootstrap !== 'applied' && els.length > 0 && els.every((e) => e.verified !== true)) {
+      const hayPassword = await page
+        .locator('input[type="password"]')
+        .filter({ visible: true })
+        .count()
+        .catch(() => 0);
+      if (hayPassword > 0) {
+        screen.dom_verified = false;
+        markUnknown(els, 'login-wall: la pantalla devolvio 200 en su propia URL pero muestra el formulario de acceso');
+        continue;
+      }
+    }
 
     // Components referenciados por esta pantalla: se verifican aquí (primera pantalla que los usa)
     for (const compName of screen.components ?? []) {
       if (!componentsPending.has(compName)) continue;
       componentsPending.delete(compName);
       const comp = components.find((c) => c.name === compName)!;
-      for (const el of comp.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute);
+      for (const el of comp.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute, snapshotPantalla);
     }
   }
 
@@ -417,10 +658,23 @@ async function main(): Promise<void> {
   const browser = await chromium.launch({ headless: true, proxy: proxyFromEnv() });
   let bootstrap: VerifySummary['session_bootstrap'] = 'none';
   try {
-    const page = await browser.newPage();
+    /**
+     * D48 — el idioma con el que se verifica tiene que ser el MISMO con el que se
+     * midio el plan. Medido en Dolibarr: la misma URL sirve la interfaz en castellano
+     * o en ingles segun `Accept-Language`, asi que verificar un locator ingles contra
+     * una pagina traducida lo marcaria `unverified` y mandaria a arreglar un locator
+     * que estaba bien.
+     */
+    const localeDeclarado =
+      (contract as { locale?: string } | undefined)?.locale ?? process.env.QA_LOCALE ?? undefined;
+    const page = await browser.newPage(localeDeclarado ? { locale: localeDeclarado } : {});
     bootstrap = await verifyDiscovery(report, page, {
       baseUrl,
       credentials: credentialsFromContract(contract),
+      // D51 — ruta de entrada declarada en el contract, para logins que no viven en una URL.
+      ...(Array.isArray((contract as { auth?: { entry_steps?: EntryStep[] } }).auth?.entry_steps)
+        ? { entrySteps: (contract as { auth?: { entry_steps?: EntryStep[] } }).auth!.entry_steps! }
+        : {}),
       testIdAttribute,
     });
   } finally {

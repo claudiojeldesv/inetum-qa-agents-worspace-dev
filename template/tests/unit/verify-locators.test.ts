@@ -6,6 +6,8 @@ import {
   findLoginForm,
   credentialsFromContract,
   rescatarAtributoDeTestId,
+  nombresAccesiblesDelRol,
+  candidatosParaInforme,
 } from '../../src/scripts/verify-locators.ts';
 
 describe('verify-locators locatorSpecFor (misma prioridad que el scaffolder)', () => {
@@ -193,5 +195,69 @@ describe('verify-locators — rescate del atributo de test_id contra el DOM', ()
       }),
     };
     expect(await rescatarAtributoDeTestId(explota, 'x', 'data-test')).toEqual({ attr: 'name' });
+  });
+});
+
+/**
+ * G3 (plan gate-locators-medidos) — el informe dice QUE nombres reales hay cuando el
+ * (rol, nombre) falla. Los snapshots son sinteticos con el formato de ariaSnapshot;
+ * el formato real lo valida la iteracion de campo I4 contra Dolibarr.
+ */
+describe('G3 — nombresAccesiblesDelRol', () => {
+  const SNAPSHOT = [
+    '- table:',
+    '  - rowgroup:',
+    '    - row "Ref. Ref. customer Type":',
+    '      - columnheader "Ref."',
+    '      - columnheader "Ref. customer"',
+    '      - columnheader "Project ref."',
+    '      - columnheader "Type"',
+    '- link "List"',
+    '- link "New invoice"',
+    '- button "Say \\"hola\\""',
+  ].join('\n');
+
+  it('extrae los nombres del rol pedido y solo de ese rol', () => {
+    expect(nombresAccesiblesDelRol(SNAPSHOT, 'columnheader')).toEqual([
+      'Ref.', 'Ref. customer', 'Project ref.', 'Type',
+    ]);
+    expect(nombresAccesiblesDelRol(SNAPSHOT, 'link')).toEqual(['List', 'New invoice']);
+  });
+
+  it('un rol con caracteres de regex no revienta y las comillas escapadas se des-escapan', () => {
+    expect(nombresAccesiblesDelRol(SNAPSHOT, 'button')).toEqual(['Say "hola"']);
+    expect(nombresAccesiblesDelRol(SNAPSHOT, 'row(')).toEqual([]);
+  });
+
+  it('un rol sin nombre (linea sin comillas) no cuenta', () => {
+    expect(nombresAccesiblesDelRol(SNAPSHOT, 'table')).toEqual([]);
+  });
+});
+
+describe('G3 — candidatosParaInforme', () => {
+  const NOMBRES = ['Ref.', 'Ref. customer', 'Project ref.', 'Type', 'Third party'];
+
+  it('ambiguo: lista los que CONTIENEN el pedido (la colision substring real de Dolibarr)', () => {
+    // getByRole matchea case-insensitive por substring: 'Ref.' choca con los tres
+    expect(candidatosParaInforme(NOMBRES, 'Ref.', true)).toEqual([
+      'Ref.', 'Ref. customer', 'Project ref.',
+    ]);
+  });
+
+  it('not-found: comparte palabra con el pedido — el caption que no es el nombre real', () => {
+    expect(candidatosParaInforme(['Reference number', 'Type'], 'Ref. number', false)).toEqual([
+      'Reference number',
+    ]);
+  });
+
+  it('not-found con pedido sin palabras utiles (todo <3 chars) no inunda: vacio', () => {
+    expect(candidatosParaInforme(NOMBRES, 'a b', false)).toEqual([]);
+  });
+
+  it('dedup y tope de 8: es un diagnostico, no un volcado', () => {
+    const muchos = Array.from({ length: 20 }, (_, i) => `Item ${i}`).concat(['Item 0']);
+    const r = candidatosParaInforme(muchos, 'Item', true);
+    expect(r).toHaveLength(8);
+    expect(new Set(r).size).toBe(8);
   });
 });

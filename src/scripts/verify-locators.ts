@@ -55,6 +55,15 @@ export interface DiscoveryElement {
   test_id_attr?: string;
   /** De donde salio `test_id_attr`: util para auditar quien acerto. */
   test_id_attr_source?: string;
+  /**
+   * G3 (plan gate-locators-medidos) — los nombres accesibles REALES que el DOM ofrece
+   * cuando el locator por (rol, nombre) no resuelve o resuelve a varios. Sin esto el
+   * informe dice `not-found` y ahi muere el hilo: el Writer prueba `exact: true`, falla,
+   * y hacen falta dos iteraciones (TC-004 de Dolibarr: el plan cito el caption visible
+   * `Ref.` y el nombre accesible real no es exactamente ese). Con el nombre real delante
+   * es un intento.
+   */
+  accessible_names_found?: string[];
 }
 
 interface DiscoveryScreen {
@@ -227,8 +236,55 @@ export async function rescatarAtributoDeTestId(
   return null;
 }
 
-async function checkElement(page: Page, el: DiscoveryElement, testIdAttribute: string): Promise<void> {
+/**
+ * G3 — nombres accesibles de un rol en un aria-snapshot de Playwright. El snapshot es
+ * YAML con lineas `- <rol> "<nombre>"`; los nombres pueden llevar comillas escapadas.
+ * Pura: se testea sin navegador con snapshots sinteticos.
+ */
+export function nombresAccesiblesDelRol(snapshot: string, role: string): string[] {
+  const rolEscapado = role.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`^\\s*-\\s+${rolEscapado}\\s+"((?:[^"\\\\]|\\\\.)*)"`, 'gm');
+  const out: string[] = [];
+  for (const m of snapshot.matchAll(re)) out.push(m[1].replace(/\\(.)/g, '$1'));
+  return out;
+}
+
+/**
+ * G3 — que nombres del rol merecen ir al informe cuando el locator fallo.
+ *
+ * - `ambiguous(n)`: los que CONTIENEN el nombre pedido (la semantica substring de
+ *   `getByRole(...,{name})`, que es exactamente como se produjo la colision) — esos son
+ *   los colisionadores reales. `Ref.` en Dolibarr lista `Ref.`, `Ref. customer`,
+ *   `Project ref.` y el Writer ve con que esta chocando.
+ * - `not-found`: los que comparten alguna palabra (≥3 chars) con el pedido — candidatos
+ *   a "el nombre real no es exactamente el caption". Sin filtro, una pantalla de
+ *   navegacion con 100 links inundaria el informe.
+ *
+ * Tope de 8: es un diagnostico, no un volcado.
+ */
+export function candidatosParaInforme(nombres: string[], pedido: string, ambiguo: boolean): string[] {
+  const p = pedido.toLowerCase();
+  let cand: string[];
+  if (ambiguo) {
+    cand = nombres.filter((n) => n.toLowerCase().includes(p));
+  } else {
+    const palabras = p.split(/\s+/).filter((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length >= 3);
+    cand = palabras.length === 0 ? [] : nombres.filter((n) => {
+      const nl = n.toLowerCase();
+      return palabras.some((w) => nl.includes(w));
+    });
+  }
+  return [...new Set(cand)].slice(0, 8);
+}
+
+async function checkElement(
+  page: Page,
+  el: DiscoveryElement,
+  testIdAttribute: string,
+  snapshotDelArbol?: () => Promise<string>,
+): Promise<void> {
   const spec = locatorSpecFor(el);
+  delete el.accessible_names_found; // el informe se muta in-place: nada rancio de otro run
   try {
     let count = await applyLocator(page, spec).count();
 
@@ -249,11 +305,32 @@ async function checkElement(page: Page, el: DiscoveryElement, testIdAttribute: s
     } else {
       el.verified = false;
       el.verify_reason = count === 0 ? 'not-found' : `ambiguous(${count})`;
+      /**
+       * G3 — con el fallo ya dictaminado, decir QUE nombres reales hay. Solo para
+       * (rol, nombre): es la pareja donde vive la clase TC-004/TC-005 y donde el
+       * nombre accesible real desbloquea al Writer en un intento. Coste: un
+       * aria-snapshot por pantalla (cacheado por el caller), solo en el camino de fallo.
+       */
+      if (spec.kind === 'roleName' && snapshotDelArbol) {
+        const snapshot = await snapshotDelArbol().catch(() => '');
+        const nombres = nombresAccesiblesDelRol(snapshot, spec.role);
+        const candidatos = candidatosParaInforme(nombres, spec.name, count > 1);
+        if (candidatos.length > 0) el.accessible_names_found = candidatos;
+      }
     }
   } catch (err) {
     el.verified = false;
     el.verify_reason = `invalid-locator: ${err instanceof Error ? err.message.split('\n')[0] : err}`;
   }
+}
+
+/** Aria-snapshot perezoso y cacheado: una captura por pantalla aunque fallen N locators. */
+function crearSnapshotPerezoso(page: Page): () => Promise<string> {
+  let capturado: Promise<string> | null = null;
+  return () => {
+    capturado ??= page.locator('body').ariaSnapshot();
+    return capturado;
+  };
 }
 
 function markUnknown(els: DiscoveryElement[], reason: string): void {
@@ -416,7 +493,8 @@ async function verifyDiscovery(
           console.error(`[verify-locators] entry_steps: verify_screen '${nombre}' no existe en el informe`);
           return;
         }
-        for (const el of pantalla.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute);
+        const snapshotEntrada = crearSnapshotPerezoso(page);
+        for (const el of pantalla.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute, snapshotEntrada);
         pantalla.dom_verified = true;
         pantalla.dom_final_url = page.url();
         verificadasEnRuta.add(nombre);
@@ -483,7 +561,8 @@ async function verifyDiscovery(
     }
 
     screen.dom_verified = true;
-    for (const el of els) await checkElement(page, el, opts.testIdAttribute);
+    const snapshotPantalla = crearSnapshotPerezoso(page);
+    for (const el of els) await checkElement(page, el, opts.testIdAttribute, snapshotPantalla);
 
     /**
      * D50 — EL MURO DE LOGIN QUE NO REDIRIGE.
@@ -521,7 +600,7 @@ async function verifyDiscovery(
       if (!componentsPending.has(compName)) continue;
       componentsPending.delete(compName);
       const comp = components.find((c) => c.name === compName)!;
-      for (const el of comp.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute);
+      for (const el of comp.interactive_elements ?? []) await checkElement(page, el, opts.testIdAttribute, snapshotPantalla);
     }
   }
 
