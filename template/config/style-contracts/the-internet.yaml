@@ -7,10 +7,11 @@
 # boilerplate, cero mecanismos nuevos.
 #
 # MEDICIÓN DE LA PREDICCIÓN (2026-08-24): declaraciones que este sitio necesitó que
-# Dolibarr no hubiera necesitado ya: CERO. Sin locale (sirve un solo idioma), sin
-# entry_steps (el login vive en /login, alcanzable por URL), sin css_fallback (HTML
-# semántico simple), sin política de sesión especial. Solo el alta del target y la
-# credencial impresa en la propia página /login.
+# Dolibarr no hubiera necesitado ya: UNA — css_fallback_attributes: [id], porque el
+# combobox de /dropdown no tiene nombre accesible y solo es identificable por
+# id="dropdown" (medido por el planner y confirmado por verify-locators). Sin locale
+# (un solo idioma), sin entry_steps (el login vive en /login), sin política de sesión.
+# La predicción era "cero o una": cumplida en el borde.
 
 version: 1
 project: the-internet
@@ -29,7 +30,11 @@ locators:
     - getByTestId
   forbid_css_selectors: true
   forbid_xpath: true
-  css_fallback_attributes: []
+  # UNA excepción medida: el combobox de /dropdown no tiene nombre accesible; el
+  # discovery lo identifica por id="dropdown" (D34: el scaffolder emite el fallback
+  # comentado y MF-1 exige que el atributo esté en esta whitelist).
+  css_fallback_attributes:
+    - id
 
 naming:
   language: es
