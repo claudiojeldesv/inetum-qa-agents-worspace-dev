@@ -98,7 +98,7 @@ import {
 // el marcador de peldaños (K0.27a) ya sabe leer una cadena de locator: reimplementar
 // esa clasificación aquí sería tener dos verdades sobre qué peldaño resolvió el paso
 import { classifyVia } from './walk-scoreboard.ts';
-import { candidatosParaInforme } from '../../src/locator-candidates.ts';
+import { candidatosParaInforme, resultadosOrdenados } from '../../src/locator-candidates.ts';
 import {
   EXIT_ERROR,
   EXIT_OK,
@@ -289,7 +289,11 @@ function extractionHelpers(testidAttrs: string[], cssFallbackAttrs: string[] = [
     const ATTRS = ${JSON.stringify(testidAttrs)};
     const CSS_FALLBACK_ATTRS = ${JSON.stringify(cssFallbackAttrs)};
     const ASSIST_HOST = '${ASSIST_HOST_ATTR}';
-    const ROLE_BY_TAG = { a: 'link', button: 'button', select: 'combobox', textarea: 'textbox', nav: 'navigation', main: 'main', header: 'banner', footer: 'contentinfo', form: 'form', dialog: 'dialog', summary: 'button', h1: 'heading', h2: 'heading', h3: 'heading' };
+    // h1..h6 son TODOS 'heading' en ARIA. Faltaban h4-h6 y no era teorico: los rotulos
+    // de OrangeHRM son h5/h6, asi que su cubo de texto de negocio salia VACIO y el
+    // panel llegaba a afirmar "esta pantalla no muestra ningun resultado" sobre una
+    // pantalla con dos titulos. Medido el 2026-08-24 montando el ejercicio del panel.
+    const ROLE_BY_TAG = { a: 'link', button: 'button', select: 'combobox', textarea: 'textbox', nav: 'navigation', main: 'main', header: 'banner', footer: 'contentinfo', form: 'form', dialog: 'dialog', summary: 'button', h1: 'heading', h2: 'heading', h3: 'heading', h4: 'heading', h5: 'heading', h6: 'heading' };
     const BUSINESS_ROLES = ['heading', 'alert', 'status'];
     const LANDMARK_ROLES_JS = ['navigation', 'banner', 'main', 'contentinfo', 'search', 'form', 'region'];
     const INPUT_ROLE = { checkbox: 'checkbox', radio: 'radio', submit: 'button', button: 'button', reset: 'button', search: 'searchbox', number: 'spinbutton', range: 'slider' };
@@ -422,7 +426,7 @@ function captureScript(testidAttrs: string[], cssFallbackAttrs: string[] = []): 
   return `(() => {
     ${extractionHelpers(testidAttrs, cssFallbackAttrs)}
     const forms = Array.from(document.querySelectorAll('form'));
-    const sel = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], nav, main, header, footer, form, h1, h2, h3';
+    const sel = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], nav, main, header, footer, form, h1, h2, h3, h4, h5, h6';
     const out = [];
     for (const el of document.querySelectorAll(sel)) {
       if (!isVisible(el)) continue;
@@ -3222,10 +3226,12 @@ class DomWalker {
     const pedido = pedidoDelPaso(step.hint);
     const esResultado = step.action === 'expect_text';
     try {
-      const nombres = await this.nombresDePantalla(esResultado);
+      const nombres = await this.nombresDePantalla(esResultado, esResultado ? undefined : step.hint?.role);
       if (esResultado) {
         const valor = step.value ?? pedido;
-        return textoAsistencia({ causa: 'resultado-ausente', pedido: valor, candidatos: candidatosParaInforme(nombres, valor, false) });
+        // Ordenados, NO filtrados: aquí la pregunta es qué dice la pantalla, y un
+        // resultado que no se parece a lo esperado sigue siendo la respuesta.
+        return textoAsistencia({ causa: 'resultado-ausente', pedido: valor, candidatos: resultadosOrdenados(nombres, valor) });
       }
       const n = step.hint ? await this.countMatches(this.page, step.hint) : 0;
       const causa = n > 1 ? 'ambiguo' : n === 1 ? 'unico-pero-falla' : 'ausente';
@@ -3245,15 +3251,31 @@ class DomWalker {
    * negocio (heading/alert/status), que ya distinguen resultado de mueble; para una
    * acción, los elementos con los que se puede interactuar.
    */
-  private async nombresDePantalla(resultado: boolean): Promise<string[]> {
+  private async nombresDePantalla(resultado: boolean, rol?: string): Promise<string[]> {
     const raw = (await this.page.evaluate(captureScript(TESTID_ATTR_CANDIDATES, this.cssFallbackAttrs))) as RawElement[];
-    const out: string[] = [];
+    const vivos: RawElement[] = [];
     for (const el of raw) {
       if (!el.name) continue;
       if (resultado ? !el.business : el.business || el.landmark) continue;
-      out.push(el.name);
+      vivos.push(el);
     }
-    return [...new Set(out)];
+    /**
+     * Si el plan dice «botón», una celda de la tabla NO es un candidato.
+     *
+     * Medido montando el ejercicio de OrangeHRM: pidiendo el botón «Search Employee»
+     * la lista salía con 8 entradas y 5 eran **nombres de empleados** del listado,
+     * colados porque comparten la palabra «employee». Es exactamente el criterio de
+     * muerte que el plan puso a P2 («si los candidatos salen ruidosos, la lista no
+     * sirve») asomando a la primera en una app real.
+     *
+     * Acotar por rol es la poda barata y principiada: el rol lo declara el propio
+     * plan. Si no queda ninguno del rol pedido, se devuelve todo — más vale una lista
+     * ruidosa que una vacía cuando el rol del plan estaba equivocado, que es
+     * justamente uno de los motivos por los que el paso se plantó.
+     */
+    const delRol = rol ? vivos.filter((el) => el.role === rol) : [];
+    const elegidos = delRol.length > 0 ? delRol : vivos;
+    return [...new Set(elegidos.map((el) => el.name as string))];
   }
 
   private hintText(step: WalkStep): string {

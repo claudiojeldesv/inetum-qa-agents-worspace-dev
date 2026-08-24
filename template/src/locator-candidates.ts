@@ -40,6 +40,28 @@ export function candidatosParaInforme(nombres: string[], pedido: string, ambiguo
   return [...new Set(cand)].slice(0, 8);
 }
 
+/**
+ * Los textos de RESULTADO de una pantalla, ordenados por parecido con lo que el plan
+ * esperaba — pero **sin descartar ninguno**.
+ *
+ * La diferencia con `candidatosParaInforme` no es cosmética. Allí se filtra porque la
+ * pregunta es «¿con qué está chocando este locator?» y un enlace del menú no es una
+ * respuesta. Aquí la pregunta es otra: **«¿qué dice de verdad esta pantalla?»**, y para
+ * eso hay que enseñar lo que hay aunque no se parezca a nada — que la aplicación diga
+ * algo distinto de lo esperado ES la respuesta.
+ *
+ * Filtrar aquí producía además una afirmación falsa: con la lista vacía el panel
+ * concluía «esta pantalla no muestra NINGÚN resultado», cuando lo cierto podía ser
+ * «muestra tres, y ninguno se parece». Son dos diagnósticos distintos y llevan a
+ * decisiones distintas (defecto vs. plan viejo). Se vio diseñando el ejercicio de
+ * OrangeHRM, antes de que llegara a un QA.
+ */
+export function resultadosOrdenados(nombres: string[], esperado: string): string[] {
+  const parecidos = new Set(candidatosParaInforme(nombres, esperado, false));
+  const resto = nombres.filter((n) => !parecidos.has(n));
+  return [...new Set([...parecidos, ...resto])].slice(0, 8);
+}
+
 /** Sin espacios, guiones ni puntuación: `"Log In"` y `"login"` son la misma palabra. */
 function limpio(v: string): string {
   return v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');

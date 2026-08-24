@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "site_id": "orangehrm",
+  "entry": "/web/index.php/auth/login",
+  "flows": [
+    {
+      "flow": "cp01-acceso",
+      "criteria": ["CP-01"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/web/index.php/auth/login", "screen": "login" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s3", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s4", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard" },
+        { "id": "s5", "action": "expect_text", "value": "Dashboard" }
+      ]
+    },
+    {
+      "flow": "cp02-buscar-empleado",
+      "criteria": ["CP-02"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/web/index.php/auth/login", "screen": "login" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s3", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s4", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard" },
+        { "id": "s5", "action": "click", "hint": { "role": "link", "name": "PIM" }, "expect_transition": true, "screen": "pim" },
+        { "id": "s6", "action": "click", "hint": { "role": "button", "name": "Search Employee" } }
+      ]
+    },
+    {
+      "flow": "cp03-abrir-ausencias",
+      "criteria": ["CP-03"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/web/index.php/auth/login", "screen": "login" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s3", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s4", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard" },
+        { "id": "s5", "action": "click", "hint": { "role": "link", "name": "Ausencias" }, "expect_transition": true, "screen": "leave" }
+      ]
+    },
+    {
+      "flow": "cp04-filtrar-tipo-ausencia",
+      "criteria": ["CP-04"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/web/index.php/auth/login", "screen": "login" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s3", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s4", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard" },
+        { "id": "s5", "action": "click", "hint": { "role": "link", "name": "Leave" }, "expect_transition": true, "screen": "leave" },
+        { "id": "s6", "action": "click", "hint": { "text": "-- Select --" } }
+      ]
+    },
+    {
+      "flow": "cp05-resultado-ausencias",
+      "criteria": ["CP-05"],
+      "steps": [
+        { "id": "s1", "action": "goto", "target": "/web/index.php/auth/login", "screen": "login" },
+        { "id": "s2", "action": "fill", "hint": { "role": "textbox", "name": "Username" }, "value": "$fixtures.credentials[0].username" },
+        { "id": "s3", "action": "fill", "hint": { "role": "textbox", "name": "Password" }, "value": "$fixtures.credentials[0].password", "secret": true },
+        { "id": "s4", "action": "click", "hint": { "role": "button", "name": "Login" }, "expect_transition": true, "screen": "dashboard" },
+        { "id": "s5", "action": "click", "hint": { "role": "link", "name": "Leave" }, "expect_transition": true, "screen": "leave" },
+        { "id": "s6", "action": "expect_text", "value": "Solicitudes encontradas" }
+      ]
+    }
+  ]
+}

@@ -16,7 +16,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { textoAsistencia, pedidoDelPaso } from '../src/walk-core.ts';
-import { candidatosParaInforme } from '../../src/locator-candidates.ts';
+import { candidatosParaInforme, resultadosOrdenados } from '../../src/locator-candidates.ts';
 
 /** Palabras del motor. Ninguna puede llegar a la pantalla del QA. */
 const JERGA = [
@@ -99,6 +99,40 @@ describe('la postcondición que no aparece habla de resultados, no de aserciones
     expect(t).toContain('NINGÚN resultado');
     expect(t).toContain('defecto');
     expect(t).not.toContain('plan se quedó viejo');
+  });
+});
+
+describe('los resultados se ORDENAN, no se filtran', () => {
+  /**
+   * Se vio diseñando el ejercicio de OrangeHRM, antes de que llegara a un QA:
+   * filtrar aquí hacía que el panel afirmara «esta pantalla no muestra NINGÚN
+   * resultado» cuando lo cierto era «muestra tres, y ninguno se parece». Son dos
+   * diagnósticos distintos y llevan a decisiones distintas: defecto vs. plan viejo.
+   */
+  it('lo parecido va primero, pero lo que no se parece TAMBIÉN se enseña', () => {
+    const pantalla = ['No Records Found', 'Leave List', 'Leave'];
+    const r = resultadosOrdenados(pantalla, 'Records encontrados');
+    expect(r[0]).toBe('No Records Found');   // comparte "records"
+    expect(r).toContain('Leave List');       // no se parece y aun así se enseña
+    expect(r).toHaveLength(3);
+  });
+
+  it('EL PAR: sin NADA parecido sigue devolviendo lo que hay — la lista vacía significa pantalla muda', () => {
+    const pantalla = ['Leave', 'Leave List'];
+    expect(resultadosOrdenados(pantalla, 'Solicitudes encontradas')).toEqual(['Leave', 'Leave List']);
+    expect(resultadosOrdenados([], 'Solicitudes encontradas')).toEqual([]);
+  });
+
+  it('y el mensaje solo dice «ningún resultado» cuando de verdad no hay ninguno', () => {
+    const conAlgo = textoAsistencia({ causa: 'resultado-ausente', pedido: 'X', candidatos: resultadosOrdenados(['Leave'], 'X') });
+    const sinNada = textoAsistencia({ causa: 'resultado-ausente', pedido: 'X', candidatos: resultadosOrdenados([], 'X') });
+    expect(conAlgo).not.toContain('NINGÚN resultado');
+    expect(sinNada).toContain('NINGÚN resultado');
+  });
+
+  it('CONTROL: tope de 8, igual que el informe', () => {
+    const muchos = Array.from({ length: 30 }, (_, i) => `Resultado ${i}`);
+    expect(resultadosOrdenados(muchos, 'nada que ver')).toHaveLength(8);
   });
 });
 
