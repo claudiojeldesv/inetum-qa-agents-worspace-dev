@@ -1,0 +1,32 @@
+# Receta de campo — SauceDemo (e-commerce limpio)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: saucedemo
+url: 'https://www.saucedemo.com/'
+allowlist_pattern: 'https://www.saucedemo.com/*'
+style_contract: config/style-contracts/saucedemo.yaml
+mode: S4                       # también S2/S3: hay Gherkin y FD en examples/01-saucedemo
+flows: [inicio-sesion, pago]
+
+auth:
+  needed: true
+  note: 'standard_user / secret_sauce (y locked_out_user, problem_user, performance_glitch_user)'
+
+inputs:
+  gherkin: examples/01-saucedemo/saucedemo.feature
+  gherkin_25: examples/01-saucedemo/saucedemo-25casos.feature
+  fd: examples/01-saucedemo/saucedemo-fd.md
+
+last_run:
+  date: 2026-08-22
+  iteration: null
+  verdict: 'ver findings (loop de convergencia)'
+  payload: '0.4.0-beta.10 (sin sellar — anterior al comando de despliegue)'
+  findings:
+    - docs/findings/loop-convergencia-saucedemo.md
+
+notes: |
+  Referencia del reporte Allure PRO: su contract es el ejemplo de `evidence.level: full`
+  (test.step() + screenshot por paso). Encarece el run; es la vitrina, no el día a día.
+  Corpus VERDE para I2 del gate: 3/3 specs sin falsos positivos — y el que destapó que
+  la vía de escape del protocolo Q2 era necesaria (los POMs ya traían la anotación
+  `verify-locators:` sancionada, y sin la vía el gate se mataba por su propio umbral).

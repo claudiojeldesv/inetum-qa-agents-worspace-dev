@@ -1,0 +1,28 @@
+# Receta de campo — the-internet (Sinatra), sitio de práctica QA
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: the-internet
+url: 'https://the-internet.herokuapp.com/'
+allowlist_pattern: 'https://the-internet.herokuapp.com/*'
+style_contract: config/style-contracts/the-internet.yaml
+mode: S4
+flows: [inicio-sesion, checkboxes, dropdown, carga-dinamica, tablas]
+
+auth:
+  needed: true
+  note: 'tomsmith / SuperSecretPassword! — impresas en la propia página /login (verificado 2026-08-24)'
+
+last_run:
+  date: 2026-08-24
+  iteration: 2
+  verdict: 'iter1 4/6 · iter2 6/6 con doble pasada verde'
+  payload: '0.4.0-beta.15 + G1 + G3'
+  findings:
+    - docs/findings/i6-the-internet.md
+
+notes: |
+  Primer sitio dado de alta con G1 y G3 ya puestos: I6 del plan del gate.
+  La predicción de genericidad se cumplió en el borde — UNA declaración nueva
+  (`css_fallback_attributes: [id]`) y ningún cambio de motor.
+  Matiz honesto: G1 dio 0 must-fix aquí porque los locators problemáticos NO se
+  escribieron, no porque cazara fantasmas. La potencia de bloqueo está en el corpus de Dolibarr.
+  Defectos abiertos que salieron aquí: D53 (no-elusión en el prompt por-flujo) y D54 (MF-postcondition).

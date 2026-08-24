@@ -19,6 +19,7 @@
     "qa:tokens": "node src/scripts/token-usage.mjs",
     "qa:healthcheck": "tsx src/scripts/healthcheck.ts",
     "qa:fix": "tsx src/scripts/healthcheck.ts --fix",
+    "field:deploy": "tsx src/scripts/field-deploy.ts",
     "build:hooks:copilot": "esbuild copilot/hooks/pre-flight.ts copilot/hooks/audit-write.ts --bundle --platform=node --format=esm --outdir=copilot/hooks/dist --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "qa:cost": "tsx src/scripts/run-cost.ts",
     "qa:ack": "tsx src/scripts/verify-ack.ts",

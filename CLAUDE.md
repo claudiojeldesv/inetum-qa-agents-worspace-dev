@@ -41,7 +41,7 @@ Peer subagents en `.claude/agents/` (nativos Microsoft + `ia4d-*` propios), orqu
 
 ## Estado actual
 
-Historial completo de fases, releases y hallazgos en [`docs/STATUS.md`](docs/STATUS.md) (las entradas nuevas se añaden ARRIBA allí; aquí solo las 3-4 más recientes, comprimidas). Los defectos D-NN están catalogados en [`docs/references/indice-defectos.md`](docs/references/indice-defectos.md) — 54 a fecha 2026-08-24, con guarda mecánica.
+Historial completo de fases, releases y hallazgos en [`docs/STATUS.md`](docs/STATUS.md) (las entradas nuevas se añaden ARRIBA allí; aquí solo las 3-4 más recientes, comprimidas). Los defectos D-NN están catalogados en [`docs/references/indice-defectos.md`](docs/references/indice-defectos.md) — 55 a fecha 2026-08-24, con guarda mecánica.
 
 - **G1/G3 + I6 · el gate de locators medidos, y D10/D23 (2026-08-24)** — la regla dura del walker llevada al camino del planner (`MF-locator-no-medido` en pre-review) y el verificador reportando el nombre accesible real. Medido: 6/6 del corpus rojo marcados, 0 falsos positivos en 5 specs verdes. En sitio nuevo (the-internet) iter1 4/6 e iter2 6/6 doble verde, contra 0/6 y 3/6 de Dolibarr sin gate. Y lo grabado por el QA ya sobrevive al panel y al proceso (D10/D23, verificado en campo). Qué implementar ahora y en qué orden: [`docs/tasks/continuacion-2026-08-24.md`](docs/tasks/continuacion-2026-08-24.md).
 - **D46/D47 — re-test ParaBank (beta.14)**: D46 cerrado (el productor de `emit_locator` que faltaba; 0→2 specs con el mismo dom-map) y primera pasada doble verde de ParaBank (2/2 ×2). El efecto del idioma del FD reproducido en segundo sitio (2/7 sin citar vs 17/18 citado). D47 abierto por diseño. Detalle: [`docs/findings/run-beta-parabank-6.md`](docs/findings/run-beta-parabank-6.md).
@@ -61,7 +61,8 @@ Carga **lazy** (Claude lee cuando la tarea lo pide):
 |---|---|
 | [`SPEC.md`](SPEC.md) | Definición del agente: objective, posicionamiento, modos, commands, structure, code style, boundaries, roadmap |
 | [`docs/STATUS.md`](docs/STATUS.md) | Historial completo de fases, releases y hallazgos (la vieja sección "Estado actual") |
-| [`docs/references/indice-defectos.md`](docs/references/indice-defectos.md) | **El catálogo D1–D52**: qué es cada defecto, dónde se midió, dónde vive el arreglo, estado. Primer sitio donde buscar un D-número |
+| [`docs/references/indice-defectos.md`](docs/references/indice-defectos.md) | **El catálogo D1–D55**: qué es cada defecto, dónde se midió, dónde vive el arreglo, estado. Primer sitio donde buscar un D-número |
+| [`docs/references/field-sites-schema.md`](docs/references/field-sites-schema.md) | **Montar un workspace de campo**: `npm run field:deploy -- --site=<sitio> --dest=<ruta>`. Recetas en `config/field-sites/`, sello `FIELD.json`, y por qué el desplegador verifica el allowlist pero JAMAS lo escribe |
 | [`docs/SPEC-kernel-v2.md`](docs/SPEC-kernel-v2.md) | Spec congelado del kernel v2 (K0.1–K0.17: escalera de resolución, walk-script, aliases) |
 | [`docs/SPEC-caos-corporativo.md`](docs/SPEC-caos-corporativo.md) | Spec de la gira de stacks corporativos (K0.18–K0.41, un ciclo por sección; usa un D1..D4 LOCAL por ciclo) |
 | [`docs/findings/`](docs/findings/) | Informes de campo, uno por run o loop: `run-beta-parabank[-N].md` (6 runs), `loop-convergencia-saucedemo.md`, `loop-orangehrm.md`, `gira-dominio-mifos-dolibarr.md`, `genericidad-del-motor.md`, `coste-tokens-qa-automator.md`, `gates-off-by-default.md` |
@@ -93,7 +94,7 @@ Distinguir según audiencia:
 - **Internamente / arquitectura**: subagent, command, hook, MCP. Cuatro módulos S1/S2/S3/S4. Capa transversal. Quality layer. Regla suavizada.
 - **No mezclar dentro del mismo documento.** Crea esquizofrenia.
 
-Los **D-números** (D1–D52…) son defectos de campo — catálogo en [`docs/references/indice-defectos.md`](docs/references/indice-defectos.md). Los **K0.x** son ciclos del kernel v2 y de la gira de stacks. Ojo con las dos colisiones documentadas en la cabecera del índice.
+Los **D-números** (D1–D55…) son defectos de campo — catálogo en [`docs/references/indice-defectos.md`](docs/references/indice-defectos.md). Los **K0.x** son ciclos del kernel v2 y de la gira de stacks. Ojo con las dos colisiones documentadas en la cabecera del índice.
 
 ## Preferencias de trabajo con Claude
 

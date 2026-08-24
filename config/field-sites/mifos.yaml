@@ -1,0 +1,33 @@
+# Receta de campo — Mifos X web-app (core banking Angular sobre Fineract)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: mifos
+url: 'https://demo.mifos.io/'
+allowlist_pattern: 'https://demo.mifos.io/*'
+style_contract: config/style-contracts/mifos.yaml
+mode: S4
+flows: null                    # sin medir: el run no llegó a generar specs
+
+auth:
+  needed: true
+  note: |
+    mifos / password — credenciales por defecto del README oficial de openMF/web-app,
+    sección "Default Login Credentials" (verificado 2026-08-23). La pantalla de acceso
+    del demo NO las imprime, a diferencia de Dolibarr y the-internet.
+
+availability:
+  # Regla operativa que costó dos runs: un 200 en `/` solo mide el shell Angular.
+  check: 'https://demo.mifos.io/fineract-provider/actuator/info'
+  note: 'comprobar el BACKEND con presupuesto de espera, no la raíz'
+
+last_run:
+  date: 2026-08-23
+  iteration: null
+  verdict: 'NO EJECUTADO — backend caído'
+  payload: '0.4.0-beta.15'
+  findings:
+    - docs/findings/gira-dominio-mifos-dolibarr.md
+
+notes: |
+  Pendiente de campo: esperando que vuelva el backend. Es el sitio más parecido a un core
+  bancario real de la gira, así que su valor de medición es alto.
+  No hay flows medidos: declararlos aquí sin haberlos corrido sería inventar la receta.

@@ -41,6 +41,33 @@ persistencia en `assist-pending.json` en cada gesto, recuperación con tres cerr
 **La puerta de entrada** (commits `0cf943e`, `ace80ec`, `c686fd7`) — `CLAUDE.md` de 105 KB a 14 KB
 restaurando una convención que el propio repo declaraba; índice de defectos D1–D54 con guarda.
 
+## El workspace de campo ya es reproducible (2026-08-24, tarde)
+
+**El problema no era la portabilidad, era la reproducibilidad.** Medido: los siete directorios de
+campo de esta máquina ocupaban 1,1 GB y eran 99% reproducibles (node_modules + payload), pero
+`loop-dolibarr` y `loop-the-internet` declaraban los dos `0.4.0-beta.15` con distinto
+`pre-review.ts`. El número de versión no discriminaba y **ninguna medición de campo era
+reproducible, tampoco en esta máquina**.
+
+Ahora hay un comando: `npm run field:deploy -- --site=<sitio> --dest=<ruta>`.
+
+- Recetas versionadas en [`config/field-sites/`](../../config/field-sites/) — seis sitios con URL,
+  contract, modo, flujos medidos, credenciales de test declaradas y el veredicto del último run.
+  Schema en [field-sites-schema.md](../references/field-sites-schema.md).
+- Sella `FIELD.json`: commit, rama, árbol limpio o no, y **hash del payload** (lo que distingue dos
+  despliegues que dicen la misma versión).
+- **Verifica compliance con `runPreflight`, el mismo código que el hook**, y jamás escribe el
+  allowlist: un desplegador que da de alta targets sería el override que no existe.
+- Comprobado extremo a extremo: despliegue → `npm install` → `playwright install` →
+  **healthcheck 32/32** en un destino nuevo.
+
+Pares falsables de la herramienta, los tres corridos: receta con `https://prod.…` → bloqueo por
+regla C2, exit 1 y **el destino no llega a existir**; `demo.dolibarr.org` → aviso W1 declarado y
+continúa (igual que el hook); destino de 199 caracteres → avisa de MAX_PATH.
+
+**Los siete `loop-*` son basura acumulada, no un activo.** Copias inconsistentes del producto. Lo
+honesto es borrarlos y regenerar el que haga falta.
+
 ## Qué hay que implementar
 
 Dos planes, en este orden. El primero hace la herramienta usable hoy; el segundo la hace repetible
@@ -74,6 +101,10 @@ residuo que lo justifique. No construirlo sin una necesidad medida.
 - **D54**: `MF-postcondition` cuenta headings de mueble como postcondición exigible (falso positivo
   medido en TC-004 de the-internet). `BUSINESS_ROLES` incluye `heading` sin distinguir mueble de
   resultado. Pariente de D37.
+- **D55** (nuevo): el índice posicional sobre roles SIN nombre (`.first()`/`.nth()` sin ancla medida)
+  aterriza en la barra de paginación. **Ningún gate lo ve**: G1 por diseño (K0.41) y G2 tampoco. La
+  regla `MF-indice-sin-ancla` está diseñada y **su par falsable ya existe en el corpus** — debe
+  marcar los dos POMs rojos de Dolibarr y NO marcar el verde de productos.
 - **Dos instancias latentes de D45** (default silencioso que apunta a otro sitio):
   `src/scripts/run-s4-mecanico.ts:63` y `copilot/src/lean-run.ts:43`. El segundo es peor: de un solo
   default derivan contract, url y workDir. Contexto en
@@ -86,7 +117,10 @@ residuo que lo justifique. No construirlo sin una necesidad medida.
 - **`automationexercise.com`** — último sitio de la gira de cuatro.
 - **Mifos X** — esperando que vuelva el backend. Comprobar
   `/fineract-provider/actuator/info`, **no la raíz** (un 200 en `/` solo mide el shell Angular).
-- Los tres rojos de la iteración 2 de Dolibarr, con causa identificada y sin arreglar.
+- Los tres rojos de la iteración 2 de Dolibarr: **causa volcada** en
+  [dolibarr-iter2-tres-rojos.md](../findings/dolibarr-iter2-tres-rojos.md). Son **dos** clases, no
+  tres: D55 (índice posicional ciego al mueble) ×2 y `exact: true` contra un nombre con espacio
+  inicial ×1. Sin arreglar, y al redesplegar con el producto de hoy los specs se regeneran.
 
 ## Reglas operativas que estas dos sesiones pagaron por aprender
 
@@ -96,12 +130,18 @@ residuo que lo justifique. No construirlo sin una necesidad medida.
   vez y aparecía siete o nueve. Contar primero; la aserción antes de escribir salva el fichero.
 - `npx` **no funciona en git-bash** en esta máquina (bad interpreter) — usar PowerShell.
 - **No pasar ficheros UTF-8 por `Get-Content | Set-Content`**: destroza el encoding.
+- **Un heredoc de python con `\n` dentro de una cadena lo colapsa en salto de línea real** y rompe
+  el fichero (`Unterminated string literal`). Cuarta vez que muerde esta clase. Construir el
+  backslash con `chr(92)` o usar Write.
+- **MAX_PATH en el destino de un despliegue**: una ruta de ~250 caracteres copia sin queja y luego
+  `npm install` muere en el postinstall de esbuild con un `ENOENT` que **no menciona la ruta**. La
+  misma receta en 27 caracteres da healthcheck 32/32. `field:deploy` ya avisa.
 - Heredocs de bash con contenido complejo (comillas, `\`) fallan — usar Write o python con
   `encoding='utf-8'`.
 - **Exportar `QA_BASE_URL` siempre** al correr specs a mano (D45 costó dos runs).
 - Comprobaciones de disponibilidad **con presupuesto de espera** y contra el backend, no la raíz.
-- El workspace de campo es OTRA carpeta (`Demos/Presentacion/11-08/qa-automator/*`); este repo es el
-  producto. `npm run build:template` **preserva `config/`**: los contracts y el allowlist no viajan
+- El workspace de campo es OTRA carpeta; este repo es el producto. **Ya no se monta a mano**:
+  `npm run field:deploy -- --site=<sitio> --dest=<ruta>`. `npm run build:template` **preserva `config/`**: los contracts y el allowlist no viajan
   solos, hay que copiarlos a mano y **el allowlist del repo tiene URLs de cliente — no copiarlo entero
   al payload**.
 - **Cada workspace desplegado tiene su propio `allowed-targets.yaml`** y el pre-flight lee el del
@@ -114,7 +154,10 @@ residuo que lo justifique. No construirlo sin una necesidad medida.
 - Suite completa: **843/848 bajo carga**, y los 5 fallos son **timeouts** de ficheros con navegador que
   **pasan 23/23 en solitario** — D33, no regresión. La suite no da verde fiable de una pasada.
 - Healthcheck 32/32. Payload propagado (`template/` y `plugin/`).
-- Árbol limpio. **12 commits locales SIN SUBIR** en `design/kernel-v2`.
+- **Nada sin subir**: los 9 commits de estos dos días están en el remoto (`04e0496..015358b`). El
+  conteo que arrastraban las notas anteriores (12 o 13) era falso: eran 9.
+- Las nueve ramas locales sin remoto están **contenidas** en `design/kernel-v2` (cero commits fuera),
+  igual que los 25 de `develop`. Son punteros viejos, no trabajo: no se pierde nada si no viajan.
 - Plugin **sin publicar** a ningún marketplace remoto (regla vigente).
 
 ## Diseño de referencia

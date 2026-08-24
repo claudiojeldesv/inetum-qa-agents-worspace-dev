@@ -91,6 +91,12 @@ for (const f of readdirSync(resolve(repo, '.claude/agents'))) {
 // 3. Los builders no viajan al template (el QA no reconstruye template ni plugin).
 rmSync(resolve(tpl, 'src/scripts/build-template.mjs'), { force: true });
 rmSync(resolve(tpl, 'src/scripts/build-plugin.mjs'), { force: true });
+// field-deploy tampoco: es del lado del repo (necesita `template/` y `config/field-sites/`).
+// En un workspace desplegado seria un script muerto, y un script muerto en el payload es
+// exactamente lo que este proyecto llama familia D2.
+rmSync(resolve(tpl, 'src/scripts/field-deploy.ts'), { force: true });
+// Y su schema: documenta un comando del repo que en un workspace desplegado no existe.
+rmSync(resolve(tpl, 'docs/references/field-sites-schema.md'), { force: true });
 
 // 4. package.json: deps/scripts/engines del repo, identity del template.
 const repoPkg = JSON.parse(readFileSync(resolve(repo, 'package.json'), 'utf8'));

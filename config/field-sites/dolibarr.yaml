@@ -1,0 +1,29 @@
+# Receta de campo — Dolibarr ERP/CRM 23.x (PHP legacy)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: dolibarr
+url: 'https://demo.dolibarr.org/'
+allowlist_pattern: 'https://demo.dolibarr.org/*'
+style_contract: config/style-contracts/dolibarr.yaml
+mode: S4                       # autónomo, acotado por flows
+flows: [inicio-sesion, terceros, productos, pedidos, facturas]
+
+auth:
+  needed: true
+  # D51: no hay URL de login — hay que PULSAR un perfil (forma de SSO/tenant).
+  # D52: la pantalla que solo existe durante la entrada se verifica con `verify_screen:`.
+  note: 'perfil Manufacturing vía auth.entry_steps; credenciales demo/demo impresas en la propia pantalla'
+
+last_run:
+  date: 2026-08-23
+  iteration: 2
+  verdict: '3 verdes / 3 rojos'
+  payload: '0.4.0-beta.15 (PRE-G1 — no reproducible con el producto de hoy)'
+  findings:
+    - docs/findings/gira-dominio-mifos-dolibarr.md
+    - docs/findings/dolibarr-iter2-tres-rojos.md
+
+notes: |
+  Sitio de referencia para el corpus rojo: I1 del gate marcó 6/6 specs.
+  Los tres rojos abiertos son dos clases (D55 paginación ×2, `Ref.` con espacio inicial ×1),
+  con caso de control verde en el mismo run. Ver el findings de iter2.
+  Al redesplegar con el producto actual los specs se regeneran: los rojos habrá que remedirlos.

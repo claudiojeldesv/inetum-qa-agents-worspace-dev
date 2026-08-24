@@ -1,0 +1,32 @@
+# Receta de campo — ParaBank (banca demo JSP legacy, auth + estado)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: parabank
+url: 'https://parabank.parasoft.com/'
+allowlist_pattern: 'https://parabank.parasoft.com/*'
+style_contract: config/style-contracts/parabank.yaml
+mode: S4                       # también S2/S3: hay Gherkin y FD en examples/02-parabank
+flows: [login, bill-pay]
+
+auth:
+  needed: true
+  note: 'john / demo — cuenta demo de Parasoft, públicamente documentada'
+
+inputs:                        # para S2 y S3, si se lanzan en vez del autónomo
+  gherkin: examples/02-parabank/parabank.feature
+  fd: examples/02-parabank/parabank-fd.md
+  fd_citado: examples/02-parabank/parabank-fd-citado.md
+
+last_run:
+  date: 2026-08-21
+  iteration: 6
+  verdict: 'ver findings (seis runs de beta)'
+  payload: '0.4.0-beta.1x (sin sellar — anterior al comando de despliegue)'
+  findings:
+    - docs/findings/run-beta-parabank-6.md
+    - docs/findings/run-beta-parabank-5-verificacion.md
+
+notes: |
+  El sitio donde nació el vocabulario D-NN: D1–D39, D46 y D47 se midieron aquí.
+  D39 en particular es el que enseñó que una señal de éxito de auth puede satisfacerse
+  con una página de error (`Log Out` también se pinta en el HTTP 500).
+  Corpus VERDE para I2 del gate: 0 falsos positivos junto con SauceDemo.

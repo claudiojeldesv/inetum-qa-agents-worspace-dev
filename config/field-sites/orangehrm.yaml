@@ -1,0 +1,27 @@
+# Receta de campo — OrangeHRM (portal HR, SPA Vue con sesión persistente)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: orangehrm
+url: 'https://opensource-demo.orangehrmlive.com/'
+allowlist_pattern: 'https://opensource-demo.orangehrmlive.com/*'
+style_contract: config/style-contracts/orangehrm.yaml
+mode: S4
+flows: [login, view-employee-list, view-leave-list]
+
+auth:
+  needed: true
+  # auth.enabled: true → setup project + storageState. Mata la race sin --workers=1.
+  note: 'Admin / admin123 documentadas en la página de acceso; sesión persistente vía storageState'
+
+last_run:
+  date: 2026-08-22
+  iteration: null
+  verdict: 'ver findings'
+  payload: '0.4.0-beta.1x (sin sellar — anterior al comando de despliegue)'
+  findings:
+    - docs/findings/loop-orangehrm.md
+
+notes: |
+  Sitio donde se midieron D42–D45. La instancia latente de D45 en `copilot/src/lean-run.ts:43`
+  sigue abierta: de un solo default silencioso derivan contract, url y workDir.
+  K0.37 se midió aquí: el plan pedía `Records Found`, la pantalla decía `(0) No Records Found`,
+  el literal aparecía y el caso salió VERDE. Nunca se juzgan negaciones.
