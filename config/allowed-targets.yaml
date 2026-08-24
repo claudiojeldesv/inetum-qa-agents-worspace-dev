@@ -44,6 +44,7 @@ patterns:
   # tiene un cliente de banca/seguros, no contra una galeria de componentes.
   - 'https://demo.mifos.io/*'    # sitio A: Mifos X web-app (core banking Angular sobre Fineract), autorizado QA 2026-08-23
   - 'https://demo.dolibarr.org/*'    # sitio B: Dolibarr ERP/CRM 23.x (PHP legacy), demo publico; autorizado QA 2026-08-23
+  - 'https://the-internet.herokuapp.com/*'    # sitio C: the-internet (Sinatra, paginas de practica QA), demo publico; autorizado QA 2026-08-24. Ademas es I6 del plan gate-locators-medidos
 
   # Entornos no productivos (cualquier subdominio)
   - 'https://*.qa.*'
@@ -96,6 +97,9 @@ allowed_test_credentials:
     source: 'demo.mifos.io - credenciales por defecto documentadas en el README oficial de openMF/web-app,
       seccion "Default Login Credentials" (verificado 2026-08-23). NOTA: el README las presenta para el
       servidor de desarrollo; la pantalla de acceso del demo NO las imprime.'
+  - username: tomsmith
+    password: 'SuperSecretPassword!'
+    source: 'the-internet.herokuapp.com - impresas en la propia pagina /login del sitio (verificado en el HTML 2026-08-24)'
   - username: admin@vaadin.com
     password: admin
     source: 'bakery-flow.demo.vaadin.com - impresas en la propia pantalla de acceso del demo (verificado en captura 2026-08-16)'

@@ -22,6 +22,7 @@ patterns:
   # mide el producto. Demos públicos, sin datos personales.
   - 'https://demo.mifos.io/*'                # Mifos X web-app (core banking Angular sobre Fineract)
   - 'https://demo.dolibarr.org/*'            # Dolibarr ERP/CRM 23.x (PHP legacy), demo publico
+  - 'https://the-internet.herokuapp.com/*'    # sitio de practica QA (Sinatra), demo publico; autorizado QA 2026-08-24
 
   # Entornos no productivos (cualquier subdominio) — añade los tuyos
   - 'https://*.qa.*'
@@ -44,6 +45,9 @@ forbidden_patterns:
 
 # Credenciales declaradas como test (no PII real, ver synthetic_fixtures en style-contract)
 allowed_test_credentials:
+  - username: tomsmith
+    password: 'SuperSecretPassword!'
+    source: 'the-internet.herokuapp.com - impresas en la propia pagina /login (verificado 2026-08-24)'
   - username: standard_user
     password: secret_sauce
     source: 'saucedemo.com - publicly documented'
