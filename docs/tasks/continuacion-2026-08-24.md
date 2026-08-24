@@ -6,7 +6,7 @@ Branch `design/kernel-v2`. Versión `0.4.0-beta.15` + los parches de estos dos d
 ## Por dónde empezar
 
 1. [`CLAUDE.md`](../../CLAUDE.md) — es un mapa (~3,5k tokens), no un compendio. Léelo entero.
-2. [`docs/references/indice-defectos.md`](../references/indice-defectos.md) — catálogo D1–D54, con
+2. [`docs/references/indice-defectos.md`](../references/indice-defectos.md) — catálogo D1–D55, con
    guarda mecánica. Primer sitio donde buscar cualquier D-número.
 3. El plan de lo que toca implementar, según lo que se ataque (§«Qué hay que implementar»).
 
@@ -39,7 +39,7 @@ persistencia en `assist-pending.json` en cada gesto, recuperación con tres cerr
 **Verificado en campo** con navegador real, que es lo que D10 nunca tuvo.
 
 **La puerta de entrada** (commits `0cf943e`, `ace80ec`, `c686fd7`) — `CLAUDE.md` de 105 KB a 14 KB
-restaurando una convención que el propio repo declaraba; índice de defectos D1–D54 con guarda.
+restaurando una convención que el propio repo declaraba; índice de defectos D1–D55 con guarda.
 
 ## El workspace de campo ya es reproducible (2026-08-24, tarde)
 
