@@ -1,4 +1,4 @@
-# Índice de defectos D1–D54
+# Índice de defectos D1–D55
 
 Catálogo del vocabulario D-NN del proyecto: qué es cada defecto, dónde se midió, dónde vive el
 arreglo y en qué estado está. Los D-números son la unidad de trazabilidad de los hallazgos de campo
@@ -88,6 +88,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D52 | La pantalla que solo existe durante la entrada (el login sin URL) no se verificaba nunca — ahí vivía el defecto de 4 specs | Dolibarr | paso `verify_screen:` dentro de la ruta; commit `8767e30`. Medido: login 0 → 4/4 verificados | cerrado |
 | D53 | El planner nativo, bloqueado por compliance, intentó EDITAR el allowlist vía browser_run_code_unsafe antes de detenerse (lo frenó el clasificador de permisos; luego paró y pidió). El prompt por-flujo no lleva la regla de no-elusión de los agentes propios | the-internet | [i6-the-internet.md](../findings/i6-the-internet.md) §D53 | abierto |
 | D54 | `MF-postcondition` cuenta headings de mueble como postcondición de negocio exigible (falso positivo medido en TC-004: 'Dropdown List'). `BUSINESS_ROLES` incluye `heading` sin distinguir mueble de resultado — pariente de D37 | the-internet | [i6-the-internet.md](../findings/i6-the-internet.md) §D54 | abierto |
+| D55 | El índice posicional sobre roles SIN nombre es ciego al mueble: `.first()`/`.nth()` sin ancla medida aterriza en la barra de paginación o en la cabecera, y ningún gate lo ve (G1 por diseño K0.41; G2 tampoco, un rol sin nombre coincide con muchas) | Dolibarr | [dolibarr-iter2-tres-rojos.md](../findings/dolibarr-iter2-tres-rojos.md) — regla `MF-indice-sin-ancla` propuesta con par falsable | abierto |
 
 ## Recuento
 
@@ -103,6 +104,6 @@ instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos ag
 | ParaBank (JSP legacy) | D1–D39, D46, D47 |
 | SauceDemo | D40, D41; segunda vuelta de D34; no-reproducción de D25 y D38 |
 | OrangeHRM (SPA Vue) | D42–D45 |
-| Dolibarr (ERP PHP) | D48–D52; primer ejercicio de campo de D34 |
+| Dolibarr (ERP PHP) | D48–D52, D55; primer ejercicio de campo de D34 |
 | the-internet (Sinatra) | D53, D54 |
 | No es un sitio | D32 (PowerShell 5.1), D33 (suite propia), D40 (config de agentes) |

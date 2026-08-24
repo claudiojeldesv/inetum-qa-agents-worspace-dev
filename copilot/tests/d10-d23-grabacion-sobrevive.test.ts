@@ -158,6 +158,6 @@ describe('D10 en navegador: la navegación se lleva el panel, no lo grabado', ()
 
     // y el marcador se retira al cerrar la espera (no queda basura que resucite luego)
     expect(existsSync(resolve(workDir, 'assist-pending.json'))).toBe(false);
-    expect(map.open_questions.length + map.step_reports.length).toBeGreaterThan(0);
+    expect((map.open_questions?.length ?? 0) + (map.step_reports?.length ?? 0)).toBeGreaterThan(0);
   }, 180_000);
 });
