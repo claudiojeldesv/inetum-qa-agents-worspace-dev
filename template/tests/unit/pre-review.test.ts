@@ -10,6 +10,10 @@ import {
   parseTscOutput,
   attributeDiagnostics,
   runTsc,
+  extractGetByAnchors,
+  candidatosDeAncla,
+  veredictoDeAncla,
+  loadDiscoveryMeasurements,
   debeEscribirse,
   scanReadinessGuards,
   postconditionsForSpec,
@@ -809,5 +813,156 @@ describe('pre-review — D39: MF-auth-landing', () => {
     writeFileSync(f, SPEC_LIMPIO, 'utf8');
     const r = preReviewSpec(f, BASE, undefined, [], []);
     expect(r.findings.find((x) => x.criterion_id === 'MF-auth-landing')).toBeUndefined();
+  });
+});
+
+/**
+ * G1 (plan gate-locators-medidos) — MF-locator-no-medido: cada fila de la tabla de
+ * veredictos del plan §3, como par falsable. El corpus real lo ejercita I1/I2.
+ */
+describe('G1 — extractGetByAnchors', () => {
+  it('extrae role+name, getBy simples, y detecta desambiguadores', () => {
+    const src = [
+      "page.getByRole('columnheader', { name: 'Ref.' });",
+      "page.getByRole('link', { name: 'List' }).first();",
+      "page.getByRole('button', { name: 'Login', exact: true });",
+      "page.getByPlaceholder('Username');",
+      "page.getByTestId('complete-header');",
+    ].join('\n');
+    const anclas = extractGetByAnchors(src);
+    expect(anclas).toHaveLength(5);
+    expect(anclas[0]).toMatchObject({ kind: 'role' as const, role: 'columnheader', name: 'Ref.', disambiguated: false });
+    expect(anclas[1]).toMatchObject({ name: 'List', disambiguated: true });
+    expect(anclas[2]).toMatchObject({ name: 'Login', disambiguated: true });
+    expect(anclas[3]).toMatchObject({ kind: 'placeholder', name: 'Username' });
+    expect(anclas[4]).toMatchObject({ kind: 'testid', name: 'complete-header' });
+  });
+
+  it('fuera de alcance: rol pelado (K0.41), name regex y templates dinamicos', () => {
+    const src = [
+      "page.getByRole('row').filter({ has: link });",   // rol pelado → G2
+      "page.getByRole('tab', { name: /Product/ });",     // regex → dinamico
+      "page.getByText(`Total ${n}`);",                    // template → dinamico
+    ].join('\n');
+    expect(extractGetByAnchors(src)).toEqual([]);
+  });
+});
+
+const MEDICION = {
+  elementos: [
+    { screen: 'login', role: 'textbox', name: 'Login', verified: true },
+    { screen: 'invoices', role: 'columnheader', name: 'Ref.', verified: false, verify_reason: 'ambiguous(3)', accessible_names_found: ['Ref.', 'Ref. customer', 'Project ref.'] },
+    { screen: 'thirds', role: 'link', name: 'List', verified: false, verify_reason: 'not-found' },
+    { screen: 'home', role: 'link', name: 'Billing | Payment', verified: null, verify_reason: 'screen-unreachable' },
+  ],
+  pantallas: new Map([['login', true], ['invoices', true], ['thirds', true], ['home', null]]),
+};
+const ancla = (over: Record<string, unknown>) => ({ kind: 'role' as const, role: 'link', name: 'x', disambiguated: false, sanctioned: false, line: 1, ...over });
+
+describe('G1 — veredictoDeAncla (la tabla del plan)', () => {
+  it('verified:true → pasa', () => {
+    expect(veredictoDeAncla(ancla({ role: 'textbox', name: 'Login' }), MEDICION, new Set(['login']))).toBeNull();
+  });
+
+  it('ambiguous(n) → must-fix con la regla dura y los nombres reales (G3)', () => {
+    const v = veredictoDeAncla(ancla({ role: 'columnheader', name: 'Ref.' }), MEDICION, new Set(['invoices']));
+    expect(v?.severity).toBe('must-fix');
+    expect(v?.description).toContain('ambiguous(3)');
+    expect(v?.description).toContain('Ref. customer');
+  });
+
+  it('not-found → must-fix', () => {
+    const v = veredictoDeAncla(ancla({ name: 'List' }), MEDICION, new Set(['thirds']));
+    expect(v?.severity).toBe('must-fix');
+    expect(v?.description).toContain('not-found');
+  });
+
+  it('medida previa + desambiguador → must-fix ARREGLO SIN REMEDIR (TC-004)', () => {
+    const v = veredictoDeAncla(ancla({ role: 'columnheader', name: 'Ref.', disambiguated: true }), MEDICION, new Set(['invoices']));
+    expect(v?.severity).toBe('must-fix');
+    expect(v?.description).toContain('ARREGLO SIN REMEDIR');
+  });
+
+  it('unknown → should-fix (hueco del verificador, no del Writer)', () => {
+    const v = veredictoDeAncla(ancla({ name: 'Billing | Payment' }), MEDICION, new Set(['home']));
+    expect(v?.severity).toBe('should-fix');
+    expect(v?.description).toContain('DESCONOCIDO');
+  });
+
+  it('ausente + todas las pantallas del spec medidas → must-fix ANCLA NO MEDIDA (el heading de Dolibarr)', () => {
+    const v = veredictoDeAncla(ancla({ role: 'heading', name: 'Enter login details' }), MEDICION, new Set(['login']));
+    expect(v?.severity).toBe('must-fix');
+    expect(v?.description).toContain('ANCLA NO MEDIDA');
+  });
+
+  it('ausente + alguna pantalla sin medir → should-fix, nunca verde silencioso', () => {
+    const v = veredictoDeAncla(ancla({ role: 'heading', name: 'Dashboard' }), MEDICION, new Set(['home']));
+    expect(v?.severity).toBe('should-fix');
+    expect(v?.description).toContain('hueco de cobertura');
+  });
+
+  it('ausente sin atribucion de pantalla → should-fix (no se inventan exigencias)', () => {
+    const v = veredictoDeAncla(ancla({ role: 'heading', name: 'Dashboard' }), MEDICION, new Set());
+    expect(v?.severity).toBe('should-fix');
+  });
+
+  it('la coincidencia respeta la semantica substring de getByRole', () => {
+    // 'Ref' es substring de 'Ref.': casa con el elemento medido, no cae en "ausente"
+    const v = veredictoDeAncla(ancla({ role: 'columnheader', name: 'Ref' }), MEDICION, new Set(['invoices']));
+    expect(v?.description).toContain('ambiguous(3)');
+  });
+});
+
+describe('G1 — emparejamiento en dos niveles (defecto destapado por I1)', () => {
+  const MED = {
+    elementos: [
+      { screen: 'invoices', role: 'columnheader', name: 'Ref.', verified: false, verify_reason: 'ambiguous(3)' },
+      { screen: 'invoices', role: 'columnheader', name: 'Ref. customer', verified: true },
+      { screen: 'thirds', role: 'link', name: 'List', verified: false, verify_reason: 'not-found' },
+    ],
+    pantallas: new Map([['invoices', true], ['thirds', true]]),
+  };
+  const a = (over: Record<string, unknown>) => ({ kind: 'role' as const, role: 'columnheader', name: 'x', disambiguated: false, sanctioned: false, line: 1, ...over });
+
+  it("'Ref. customer' (verified) NO avala a 'Ref.' (ambiguous): gana el igual exacto", () => {
+    const v = veredictoDeAncla(a({ name: 'Ref.' }), MED, new Set(['invoices']));
+    expect(v?.severity).toBe('must-fix');
+    expect(v?.description).toContain('ambiguous(3)');
+  });
+
+  it("'Back to list' no casa contra 'List' de otra pantalla como igual: cae a substring y lo declara", () => {
+    const v = veredictoDeAncla(a({ role: 'link', name: 'Back to list' }), MED, new Set(['invoices']));
+    // sin igual exacto, el substring 'List' es el unico candidato: se reporta SU veredicto
+    expect(v?.severity).toBe('must-fix');
+    expect(v?.description).toContain('not-found');
+  });
+
+  it('sin igual exacto, un verified por substring sigue pasando (semantica real de getByRole)', () => {
+    const v = veredictoDeAncla(a({ name: 'customer' }), MED, new Set(['invoices']));
+    expect(v).toBeNull(); // 'Ref. customer' verified contiene 'customer'
+  });
+});
+
+describe('G1 — la via de escape del protocolo Q2 (medida en I2)', () => {
+  const MED = {
+    elementos: [{ screen: 'login', role: 'button', name: 'Error', verified: false, verify_reason: 'not-found' }],
+    pantallas: new Map([['login', true]]),
+  };
+  const a = (over: Record<string, unknown>) => ({ kind: 'role' as const, role: 'button', name: 'Error', disambiguated: false, sanctioned: false, line: 1, ...over });
+
+  it('uso declarado (tag/TODO en la linea) baja a should-fix, nunca a silencio', () => {
+    const v = veredictoDeAncla(a({ sanctioned: true }), MED, new Set(['login']));
+    expect(v?.severity).toBe('should-fix');
+    expect(v?.description).toContain('uso declarado');
+  });
+
+  it('sin declarar, el mismo ancla sigue siendo must-fix', () => {
+    expect(veredictoDeAncla(a({}), MED, new Set(['login']))?.severity).toBe('must-fix');
+  });
+
+  it('el extractor detecta la anotacion sancionada en la linea', () => {
+    const src = "this.error = this.page.getByTestId('error') /* verify-locators: not-found en el estado por defecto */;";
+    expect(extractGetByAnchors(src)[0].sanctioned).toBe(true);
+    expect(extractGetByAnchors("page.getByTestId('error');")[0].sanctioned).toBe(false);
   });
 });

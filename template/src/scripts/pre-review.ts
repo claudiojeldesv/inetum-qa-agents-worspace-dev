@@ -429,6 +429,254 @@ export function scanReadinessGuards(source: string, etiqueta = ''): GuardaSinPre
  * **no aplica** — misma disciplina que con el discovery ausente: no se inventan
  * exigencias.
  */
+// ---------------------------------------------------------------------------
+// MF-locator-no-medido (G1, plan gate-locators-medidos) — la regla dura del walker
+// en el camino del planner.
+//
+// La iteración 1 de Dolibarr dio SEIS puertas verdes con la suite entera en rojo, y
+// el discovery-report YA contenía el veredicto de las tres causas (`heading` inexistente,
+// `not-found`, `ambiguous(3)`). Nadie lo consultaba al revisar el spec: verify-locators
+// nació declarando «el Writer tiene prohibido usarlos sin TODO» (quality-greens Q2 A.1)
+// y solo se construyó la mitad que mide, nunca la que impide. Esta regla es el consumidor.
+//
+// Fuera del alcance A PROPÓSITO (K0.41): el rol pelado sin nombre (`getByRole('row')`)
+// no lleva palabras del guion — marcarlo sería ruido; es territorio del smoke run (G2).
+// Los nombres dinámicos (regex, template, variable) tampoco se evalúan estáticamente.
+// ---------------------------------------------------------------------------
+
+/** Un elemento del discovery con su pantalla y el veredicto de verify-locators. */
+export interface ElementoMedido {
+  screen: string;
+  role?: string;
+  name?: string;
+  test_id?: string;
+  label?: string;
+  verified?: boolean | null;
+  verify_reason?: string;
+  accessible_names_found?: string[];
+}
+
+export interface MedicionDiscovery {
+  elementos: ElementoMedido[];
+  /** pantalla → dom_verified (true = alcanzada y medida contra el DOM real). */
+  pantallas: Map<string, boolean | null>;
+}
+
+export function loadDiscoveryMeasurements(discoveryPath?: string): MedicionDiscovery | null {
+  if (!discoveryPath) return null;
+  const path = resolve(process.cwd(), discoveryPath);
+  if (!existsSync(path)) return null;
+  let parsed: Record<string, any> | null = null;
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8')) as Record<string, any>;
+  } catch {
+    return null; // discovery ilegible: el check no aplica (no inventamos exigencias)
+  }
+  const elementos: ElementoMedido[] = [];
+  const pantallas = new Map<string, boolean | null>();
+  for (const screen of parsed?.screens ?? []) {
+    pantallas.set(screen.name, screen.dom_verified ?? null);
+    for (const el of screen.interactive_elements ?? []) elementos.push({ ...el, screen: screen.name });
+  }
+  for (const comp of parsed?.components ?? []) {
+    for (const el of comp.interactive_elements ?? []) elementos.push({ ...el, screen: `component:${comp.name}` });
+  }
+  return { elementos, pantallas };
+}
+
+export type AnclaKind = 'role' | 'label' | 'placeholder' | 'text' | 'testid';
+
+export interface AnclaExtraida {
+  kind: AnclaKind;
+  /** Solo para kind 'role'. */
+  role?: string;
+  /** El texto pedido: name de getByRole, o el argumento de los demás getBy*. */
+  name: string;
+  /** exact:true, .first(), .last(), .nth() o .filter() sobre la llamada. */
+  disambiguated: boolean;
+  /**
+   * La línea lleva la anotación sancionada del protocolo Q2 («el Writer usa unverified
+   * solo con TODO o cita de evidencia»): un tag `verify-locators:` o un `TODO`. El uso
+   * DECLARADO de un ancla no medida baja a should-fix — mismo diseño que la excepción
+   * `// css-fallback:` de MF-1. Medido en I2: los tres POM verdes de SauceDemo llevaban
+   * la anotación en cada ancla condicional o plural; sin esta vía, el gate marcaba 3/3
+   * specs verdes y moría por su propio umbral.
+   */
+  sanctioned: boolean;
+  line: number;
+}
+
+const GETBY_CALL = /\.getBy(Role|Label|Placeholder|Text|TestId)\(\s*(['"`])((?:\\.|(?!\2).)*)\2\s*(?:,\s*\{([^}]*)\})?\s*\)/g;
+
+/**
+ * Anclas getBy* evaluables estáticamente en un fuente (spec o POM). Lo que no es un
+ * literal de string (regex, template con `${}`, variable) se omite: no se puede cruzar
+ * contra el informe sin ejecutar, y un falso positivo aquí mata el gate (I2 del plan).
+ */
+export function extractGetByAnchors(source: string): AnclaExtraida[] {
+  const out: AnclaExtraida[] = [];
+  for (const m of source.matchAll(GETBY_CALL)) {
+    const metodo = m[1];
+    const arg = m[3];
+    const opts = m[4] ?? '';
+    if (arg.includes('${')) continue; // template: nombre dinámico
+    const cola = source.slice(m.index! + m[0].length, m.index! + m[0].length + 30);
+    const disambiguated = /^\s*\.(first|last|nth|filter)\s*\(/.test(cola) || /\bexact\s*:\s*true/.test(opts);
+    const line = lineOf(source, m.index!);
+    const sanctioned = /verify-locators:|\bTODO\b/.test(lineText(source, m.index!));
+    if (metodo === 'Role') {
+      const nameM = /\bname\s*:\s*(['"`])((?:\\.|(?!\1).)*)\1/.exec(opts);
+      // Sin name literal: rol pelado (K0.41, fuera de alcance) o name regex/variable (dinámico)
+      if (!nameM || nameM[2].includes('${')) continue;
+      out.push({ kind: 'role', role: arg, name: nameM[2], disambiguated, sanctioned, line });
+    } else {
+      out.push({ kind: metodo.toLowerCase() as AnclaKind, name: arg, disambiguated, sanctioned, line });
+    }
+  }
+  return out;
+}
+
+const normNombre = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase();
+
+/** Igualdad de nombres accesibles normalizada (espacios colapsados, case-insensitive). */
+function nombresIguales(medido: string | undefined, pedido: string): boolean {
+  return medido !== undefined && normNombre(medido) === normNombre(pedido);
+}
+
+/** La semántica de getByRole({name}): substring, case-insensitive, espacios colapsados. */
+function nombresCasan(medido: string | undefined, pedido: string): boolean {
+  if (!medido) return false;
+  const a = normNombre(medido);
+  const b = normNombre(pedido);
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+/**
+ * Emparejamiento en DOS niveles, y no es un detalle: con substring plano, `Ref. customer`
+ * (verified) AVALA a `Ref.` (ambiguous) — un elemento distinto responde por el ancla
+ * pedida, y justo en la colisión que la regla existe para cazar (medido en I1: el
+ * ambiguous(3) de TC-005 desaparecía). Primero igualdad normalizada; substring solo si
+ * no hay ningún igual. Dentro del nivel, los elementos de las pantallas del spec van
+ * primero: su veredicto es el relevante cuando el mismo nombre existe en varias.
+ */
+export function candidatosDeAncla(
+  ancla: AnclaExtraida,
+  med: MedicionDiscovery,
+  pantallasDelSpec: Set<string> = new Set(),
+): ElementoMedido[] {
+  const els = med.elementos;
+  const porNombre = (
+    campo: (e: ElementoMedido) => string | undefined,
+    extra: (e: ElementoMedido) => boolean = () => true,
+  ): ElementoMedido[] => {
+    const exactos = els.filter((e) => extra(e) && nombresIguales(campo(e), ancla.name));
+    const cands = exactos.length > 0 ? exactos : els.filter((e) => extra(e) && nombresCasan(campo(e), ancla.name));
+    return [...cands].sort((a, b) => Number(pantallasDelSpec.has(b.screen)) - Number(pantallasDelSpec.has(a.screen)));
+  };
+  switch (ancla.kind) {
+    case 'role':
+      return porNombre((e) => e.name, (e) => e.role === ancla.role);
+    case 'testid':
+      return els.filter((e) => e.test_id === ancla.name);
+    case 'label': {
+      const porLabel = porNombre((e) => e.label);
+      return porLabel.length > 0 ? porLabel : porNombre((e) => e.name);
+    }
+    case 'placeholder': {
+      // el nombre accesible de un textbox suele SER su placeholder; el discovery no
+      // guarda placeholders como campo propio
+      const porNom = porNombre((e) => e.name);
+      return porNom.length > 0 ? porNom : porNombre((e) => e.label);
+    }
+    case 'text':
+      return porNombre((e) => e.name, (e) => e.role === 'text');
+  }
+}
+
+export interface VeredictoAncla {
+  severity: 'must-fix' | 'should-fix';
+  description: string;
+}
+
+/**
+ * La tabla de veredictos del plan (§3 G1). null = pasa.
+ *
+ * Matiz deliberado sobre la fila «arreglo sin remedir»: solo aplica cuando HAY una
+ * medida previa que el desambiguador invalida (ambiguous/not-found). Sobre un ancla
+ * ausente o unknown, el veredicto de ausencia domina — extender el must-fix ahí
+ * dispararía falsos positivos en pantallas que el verificador no alcanzó (I2).
+ */
+export function veredictoDeAncla(
+  ancla: AnclaExtraida,
+  med: MedicionDiscovery,
+  pantallasDelSpec: Set<string>,
+): VeredictoAncla | null {
+  const v = veredictoCrudo(ancla, med, pantallasDelSpec);
+  /**
+   * La vía de escape del protocolo Q2: el uso DECLARADO (tag `verify-locators:` o TODO
+   * en la línea del ancla) baja a should-fix. Nunca a silencio — el Reviewer sigue
+   * viéndolo — pero no bloquea a quien cumplió el protocolo. Sin esto, I2 midió 3/3
+   * specs VERDES de SauceDemo marcados must-fix por anclas condicionales (el banner de
+   * error que solo existe tras fallar el login) y plurales (los 6 inventory-item):
+   * anotadas todas, y el gate moría por su propio umbral de falsos positivos.
+   */
+  if (v && v.severity === 'must-fix' && ancla.sanctioned) {
+    return { severity: 'should-fix', description: `(uso declarado con TODO/evidencia) ${v.description}` };
+  }
+  return v;
+}
+
+function veredictoCrudo(
+  ancla: AnclaExtraida,
+  med: MedicionDiscovery,
+  pantallasDelSpec: Set<string>,
+): VeredictoAncla | null {
+  const render =
+    ancla.kind === 'role'
+      ? `getByRole('${ancla.role}', { name: '${ancla.name}' })`
+      : `getBy${ancla.kind === 'testid' ? 'TestId' : ancla.kind[0].toUpperCase() + ancla.kind.slice(1)}('${ancla.name}')`;
+
+  const cands = candidatosDeAncla(ancla, med, pantallasDelSpec);
+  if (cands.length > 0) {
+    if (cands.some((c) => c.verified === true)) return null;
+    const medido = cands.find((c) => c.verified === false) ?? cands[0];
+    if (medido.verified === false) {
+      const razon = medido.verify_reason ?? 'sin motivo';
+      const reales = medido.accessible_names_found?.length
+        ? ` Nombres accesibles reales: ${medido.accessible_names_found.map((n) => `"${n}"`).join(', ')}.`
+        : '';
+      if (ancla.disambiguated) {
+        return {
+          severity: 'must-fix',
+          description: `${render} — ARREGLO SIN REMEDIR: el discovery lo midió '${razon}' en '${medido.screen}' y el desambiguador (exact:true/.first()/.filter()) invalida esa medida sin volver a medir. Re-mide o cita evidencia nueva.${reales}`,
+        };
+      }
+      return {
+        severity: 'must-fix',
+        description: `${render} — el discovery lo midió '${razon}' en '${medido.screen}'. Regla dura K0.33: ≥2 coincidencias → plántate; 0 → no afirmes.${reales}`,
+      };
+    }
+    return {
+      severity: 'should-fix',
+      description: `${render} — medido como DESCONOCIDO ('${medido.verify_reason ?? 'unknown'}') en '${medido.screen}': hueco del verificador, no culpa del Writer. Úsalo solo con TODO o evidencia citada.`,
+    };
+  }
+
+  // Ancla ausente del discovery
+  const pantallas = [...pantallasDelSpec];
+  const todasMedidas = pantallas.length > 0 && pantallas.every((p) => med.pantallas.get(p) === true);
+  if (todasMedidas) {
+    return {
+      severity: 'must-fix',
+      description: `${render} — ANCLA NO MEDIDA: las pantallas de este spec están alcanzadas y medidas, y este ancla no aparece en el discovery. Afirmar un (rol, nombre) sin medirlo es la clase que costó 4 specs en Dolibarr (el 'heading' inexistente).`,
+    };
+  }
+  return {
+    severity: 'should-fix',
+    description: `${render} — ancla ausente del discovery y alguna pantalla de este spec sin medir: hueco de cobertura DECLARADO, no verde silencioso. Úsalo solo con TODO o evidencia citada.`,
+  };
+}
+
 export function screenFileName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.page.ts';
 }
@@ -465,6 +713,7 @@ export function preReviewSpec(
   a11yContractPath?: string,
   postconditions: BusinessPostcondition[] = [],
   tscDiagnostics: TscDiagnostic[] = [],
+  medicion: MedicionDiscovery | null = null,
 ): PreReviewResult {
   const file = filePath.replace(/\\/g, '/');
   const source = readFileSync(filePath, 'utf8');
@@ -575,6 +824,33 @@ export function preReviewSpec(
         location: { line: etiqueta ? 1 : g.line },
         description: g.description,
       });
+    }
+  }
+
+  /**
+   * MF-locator-no-medido (G1) — cada ancla getBy* del spec Y de sus POM, cruzada contra
+   * el veredicto de verify-locators. Mira los POM porque ahí viven los locators (medido
+   * sobre el corpus de Dolibarr: los specs casi no contienen ninguno). La línea del
+   * finding es la del fichero donde está el ancla; el fichero va en la descripción.
+   */
+  if (medicion) {
+    const importados = new Set(relativeImportsOf(source, filePath).map((p) => basename(p)));
+    const pantallasDelSpec = new Set<string>();
+    for (const nombre of medicion.pantallas.keys()) {
+      if (importados.has(screenFileName(nombre))) pantallasDelSpec.add(nombre);
+    }
+    for (const [etiqueta, texto] of ficherosDeEspera) {
+      for (const ancla of extractGetByAnchors(texto)) {
+        const v = veredictoDeAncla(ancla, medicion, pantallasDelSpec);
+        if (!v) continue;
+        add({
+          criterion_id: v.severity === 'must-fix' ? 'MF-locator-no-medido' : 'SF-locator-no-medido',
+          category: 'locator-strategy',
+          severity: v.severity,
+          location: { line: ancla.line },
+          description: (etiqueta ? `[${basename(etiqueta)}] ` : '') + v.description,
+        });
+      }
     }
   }
 
@@ -760,6 +1036,7 @@ function main(): void {
   const contract = loadPreReviewContract(contractPath);
   // K0.7: sin discovery el check MF-postcondition no aplica (no se inventan exigencias)
   const postconditions = loadBusinessPostconditions(discoveryArg);
+  const medicion = loadDiscoveryMeasurements(discoveryArg);
   const specs = collectSpecs(targets);
   if (specs.length === 0) {
     console.error(`[pre-review] no se encontraron specs en: ${targets.join(', ')}`);
@@ -778,7 +1055,7 @@ function main(): void {
     ? { diagnostics: [] as TscDiagnostic[], ran: false, note: 'omitido por --no-tsc' }
     : runTsc();
 
-  const results = specs.map((s) => preReviewSpec(s, contract, contractPath, postconditions, tsc.diagnostics));
+  const results = specs.map((s) => preReviewSpec(s, contract, contractPath, postconditions, tsc.diagnostics, medicion));
 
   /**
    * Diagnosticos de tsc que no pertenecen a ningun spec revisado ni a nada que estos
