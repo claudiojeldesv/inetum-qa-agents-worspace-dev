@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Panel de asistencia — maqueta clicable</title>
+<!--
+  Maqueta de UX del panel asistido. Se abre con doble clic, no necesita nada.
+
+  Para qué sirve: decidir la interfaz ANTES de cablearla en assistOverlayScript()
+  (copilot/src/dom-walker.ts). Los colores, el ancho (390px), el arrastre por la
+  cabecera y el tema oscuro son los del panel real, así que lo que se apruebe aquí
+  se traslada casi literal.
+
+  Lo que hay detrás del panel es una app FALSA de seguros. Está para lo único que
+  importa de verdad en este diseño: comprobar que el panel no tapa el contenido con
+  el que el QA tiene que trabajar.
+
+  NO es código de producto. La barra de abajo a la izquierda es de la maqueta.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: #f3f4f6; color: #111827; }
+
+  /* ---- la app falsa que hay detrás ---- */
+  .app-top { background: #0f3d6e; color: #fff; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+  .app-top b { font-weight: 500; }
+  .app-nav { background: #fff; border-bottom: 1px solid #d1d5db; padding: 0 20px; display: flex; gap: 18px; }
+  .app-nav span { padding: 10px 0; font-size: 13px; color: #4b5563; }
+  .app-nav .on { color: #0f3d6e; box-shadow: inset 0 -2px 0 #0f3d6e; }
+  .app-body { padding: 20px; max-width: 900px; }
+  .app-body h1 { font-size: 20px; font-weight: 500; margin: 0 0 14px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #d1d5db; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+  th { background: #f9fafb; font-weight: 500; color: #374151; }
+  .btn-app { background: #0f3d6e; color: #fff; border: 0; padding: 5px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+
+  /* ---- el panel (colores del panel real) ---- */
+  .p { position: fixed; top: 12px; right: 12px; z-index: 100; width: 390px;
+       font: 13px/1.45 system-ui, sans-serif; background: #111827; color: #f9fafb;
+       border: 1px solid #374151; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.4); overflow: hidden; }
+  .p.ghost { opacity: .35; }
+  .h { padding: 8px 10px; background: #1f2937; cursor: move; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .h .ttl { font-weight: 500; }
+  .h .right { display: flex; align-items: center; gap: 8px; }
+  .saved { color: #6ee7b7; font-size: 11px; white-space: nowrap; }
+  .icon { background: #374151; border: 1px solid #4b5563; color: #f9fafb; width: 20px; height: 20px;
+          border-radius: 4px; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
+  .b { padding: 10px; }
+  .ctx { color: #9ca3af; margin-bottom: 8px; }
+  .ctx b { color: #f9fafb; }
+  ul { list-style: none; margin: 8px 0 0; padding: 0; color: #d1d5db; max-height: 190px; overflow: auto; }
+  li { display: flex; align-items: center; gap: 6px; padding: 4px; border-radius: 4px; margin: 1px 0; }
+  li:hover { background: #1f2937; }
+  li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li .via { color: #6b7280; font-size: 11px; }
+  li.nuevo { background: #78350f; color: #fed7aa; }
+  li.add { border: 1px dashed #4b5563; color: #9ca3af; cursor: pointer; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  button.act { font: 12px system-ui; padding: 5px 9px; border-radius: 5px; border: 1px solid #4b5563;
+               background: #374151; color: #f9fafb; cursor: pointer; }
+  button.act:hover { filter: brightness(1.25); }
+  .rec { background: #065f46; border-color: #047857; }
+  .stop { background: #7f1d1d; border-color: #991b1b; }
+  .drift { background: #78350f; border-color: #92400e; }
+  .safe { background: #1e3a8a; border-color: #2563eb; }
+  .cols { display: flex; gap: 8px; margin-bottom: 10px; }
+  .col { flex: 1; border-radius: 6px; padding: 8px; }
+  .col.fd { background: #1f2937; border: 1px solid #374151; }
+  .col.web { background: #78350f; border: 1px solid #92400e; }
+  .col .lbl { font-size: 11px; margin-bottom: 4px; color: #9ca3af; }
+  .col.web .lbl { color: #fed7aa; }
+  input.edit { width: 100%; background: #1f2937; border: 1px solid #4b5563; border-radius: 5px;
+               padding: 7px 8px; color: #f9fafb; font: 13px system-ui; }
+  .grp { border: 1px solid #374151; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+  .grp.oracle { border-color: #92400e; }
+  .grp .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .grp .sub { color: #6b7280; font-size: 11px; margin-top: 4px; }
+  .chg { background: #1f2937; border-radius: 5px; padding: 7px 8px; margin-top: 6px; }
+  .was { color: #f87171; text-decoration: line-through; }
+  .now { color: #6ee7b7; }
+  .chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 5px; display: inline-block; }
+  .chip.viv { background: #1e3a8a; color: #dbeafe; }
+  .chip.org { background: #374151; color: #d1d5db; }
+  .dist { color: #9ca3af; font-size: 11px; display: flex; justify-content: space-between; margin: 10px 0; }
+  .dist b { color: #fed7aa; font-weight: 400; }
+  .done { background: #065f46; border: 1px solid #047857; border-radius: 6px; padding: 8px; color: #d1fae5; font-size: 12px; }
+  /* barra colapsada: una línea, no tapa nada */
+  .bar { position: fixed; top: 12px; right: 12px; z-index: 100; display: none; align-items: center; gap: 10px;
+         background: #111827; color: #f9fafb; border: 1px solid #374151; border-radius: 8px;
+         padding: 6px 10px; font: 12px system-ui; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+
+  /* ---- control de la maqueta (no es producto) ---- */
+  .mock { position: fixed; bottom: 0; left: 0; right: 0; background: #111827; color: #9ca3af;
+          padding: 8px 14px; font: 12px system-ui; display: flex; gap: 10px; align-items: center; z-index: 200; }
+  .mock b { color: #f9fafb; font-weight: 500; }
+  .mock button { font: 12px system-ui; padding: 4px 8px; border-radius: 5px; border: 1px solid #4b5563;
+                 background: #1f2937; color: #f9fafb; cursor: pointer; }
+  .mock button.on { background: #065f46; border-color: #047857; }
+</style>
+</head>
+<body>
+
+<div class="app-top"><b>Seguros — Portal de gestión</b><span>preproducción</span></div>
+<div class="app-nav"><span>Inicio</span><span class="on">Mis pólizas</span><span>Siniestros</span><span>Recibos</span><span>Clientes</span></div>
+<div class="app-body">
+  <h1>Mis pólizas</h1>
+  <table>
+    <thead><tr><th>Referencia</th><th>Tomador</th><th>Producto</th><th>Estado</th><th>Prima</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>POL-4711</td><td>García Ruiz, Ana</td><td>Hogar Confort</td><td>Vigente</td><td>412,00 €</td><td><button class="btn-app">Cancelar</button></td></tr>
+      <tr><td>POL-4712</td><td>Serrano Díaz, Luis</td><td>Auto Todo Riesgo</td><td>Vigente</td><td>689,50 €</td><td><button class="btn-app">Cancelar</button></td></tr>
+      <tr><td>POL-4713</td><td>Molina Cano, Eva</td><td>Vida Ahorro</td><td>Anulada</td><td>1.204,00 €</td><td></td></tr>
+      <tr><td>POL-4714</td><td>Ferrer Nadal, Jordi</td><td>Salud Familiar</td><td>Vigente</td><td>958,20 €</td><td><button class="btn-app">Cancelar</button></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="bar" id="bar"><span>QA</span><span id="barTxt">paso 4/12 · cancelación</span><span style="color:#6ee7b7">guardado</span><span>▸</span></div>
+
+<div class="p" id="panel">
+  <div class="h" id="head">
+    <span class="ttl" id="ttl">paso 4 de 12 · cancelación</span>
+    <span class="right">
+      <span class="saved" id="saved">guardado 14:32 ✓</span>
+      <button class="icon" id="ghost" title="modo fantasma">◎</button>
+      <button class="icon" id="collapse" title="colapsar a barra">–</button>
+    </span>
+  </div>
+  <div class="b" id="body"></div>
+</div>
+
+<div class="mock">
+  <b>Maqueta</b>
+  <button id="s1" class="on">1 · grabando</button>
+  <button id="s2">2 · discrepancia</button>
+  <button id="s3">3 · aprobar</button>
+  <span style="margin-left:auto">Arrastra la cabecera · <b>–</b> colapsa · <b>◎</b> fantasma</span>
+</div>
+
+<script>
+var $ = function (id) { return document.getElementById(id); };
+var panel = $('panel'), body = $('body'), bar = $('bar');
+var pasos = [
+  { n: 'Entrar en Mis pólizas', via: 'rol', st: 'ok' },
+  { n: 'Seleccionar POL-4711', via: 'texto', st: 'ok' },
+  { n: 'Pulsar Cancelar', via: 'rol', st: 'ok' },
+  { n: 'Confirmar en el aviso', via: 'nuevo', st: 'nuevo' }
+];
+var coreo = 6, esperado = 'Anulación en trámite', estado = 1, aprobado = false;
+
+function sello() {
+  var d = new Date();
+  $('saved').textContent = 'guardado ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' ✓';
+}
+
+function pintar() {
+  $('s1').className = estado === 1 ? 'on' : '';
+  $('s2').className = estado === 2 ? 'on' : '';
+  $('s3').className = estado === 3 ? 'on' : '';
+  if (estado === 1) {
+    $('ttl').textContent = 'paso 4 de 12 · cancelación';
+    var filas = pasos.map(function (p, i) {
+      return '<li class="' + (p.st === 'nuevo' ? 'nuevo' : '') + '">'
+        + '<span>' + (p.st === 'nuevo' ? '△' : '✓') + '</span>'
+        + '<span class="nm">' + p.n + '</span><span class="via">' + p.via + '</span>'
+        + '<button class="icon" data-q="' + i + '" title="quitar">×</button></li>';
+    }).join('');
+    body.innerHTML = '<div class="ctx">Señala el botón <b>Cancelar</b> de la póliza</div>'
+      + '<ul>' + filas + '<li class="add" id="add">＋ Añadir paso aquí</li></ul>'
+      + '<div class="row"><button class="act rec">Grabando</button><button class="act">Pausa</button>'
+      + '<button class="act drift">No existe</button><button class="act safe">Solo capturar</button></div>';
+    $('add').onclick = function () {
+      pasos.push({ n: 'Paso grabado ' + (pasos.length + 1), via: 'nuevo', st: 'nuevo' });
+      coreo += 1; sello(); pintar();
+    };
+    Array.prototype.forEach.call(body.querySelectorAll('[data-q]'), function (b) {
+      b.onclick = function () { pasos.splice(Number(b.getAttribute('data-q')), 1); coreo += 1; sello(); pintar(); };
+    });
+  } else if (estado === 2) {
+    $('ttl').textContent = 'paso 9 de 12 · cancelación';
+    body.innerHTML = '<div class="cols">'
+      + '<div class="col fd"><div class="lbl">El FD dice · RF-014</div><div>Solicitud de anulación registrada</div></div>'
+      + '<div class="col web"><div class="lbl">La web muestra</div><div>Anulación en trámite</div></div></div>'
+      + '<div class="lbl" style="color:#9ca3af;font-size:11px;margin-bottom:4px">Resultado esperado (edítalo si hace falta)</div>'
+      + '<input class="edit" id="exp" value="' + esperado + '">'
+      + '<div class="row"><button class="act rec" id="okWeb">La web tiene razón</button>'
+      + '<button class="act stop" id="okFd">Es un defecto</button><button class="act">Luego</button></div>';
+    $('exp').oninput = function () { esperado = this.value; sello(); };
+    $('okWeb').onclick = function () { estado = 3; aprobado = false; sello(); pintar(); };
+    $('okFd').onclick = function () {
+      body.innerHTML = '<div class="done">Registrado como <b>defecto del producto bajo prueba</b> en RF-014. '
+        + 'El plan no cambia. Sale en el informe del run, no como fallo del test.</div>';
+    };
+  } else {
+    $('ttl').textContent = 'Revisar cambios · cancelación';
+    if (aprobado) {
+      body.innerHTML = '<div class="done">Aprobado y firmado.<br>' + (coreo) + ' cambios de recorrido + 1 de resultado esperado.<br>'
+        + 'Queda en el acta con tu nombre, la evidencia y el hash de la decisión.</div>';
+      return;
+    }
+    body.innerHTML = '<div class="grp"><div class="hd"><span>Recorrido · ' + coreo + ' cambios</span>'
+      + '<button class="act" id="all">Aceptar todos</button></div>'
+      + '<div class="sub">Pasos añadidos y reordenados. No cambian qué se considera correcto.</div></div>'
+      + '<div class="grp oracle"><div style="color:#fed7aa">△ Qué se considera correcto · 1 cambio</div>'
+      + '<div class="chg"><div style="color:#9ca3af;font-size:11px">RF-014 · resultado esperado</div>'
+      + '<div class="was">Solicitud de anulación registrada</div><div class="now">' + esperado + '</div>'
+      + '<div style="margin-top:6px"><span class="chip viv">verificado en vivo</span><span class="chip org">origen: web</span></div>'
+      + '</div></div>'
+      + '<div class="dist"><span>Distancia al FD original</span><b>' + (coreo + 1) + ' cambios · 2 sesiones</b></div>'
+      + '<div class="row"><button class="act rec" id="sign">Aprobar y firmar</button><button class="act">Descartar</button></div>';
+    $('all').onclick = function () { this.textContent = 'Aceptados ✓'; this.disabled = true; };
+    $('sign').onclick = function () { aprobado = true; pintar(); };
+  }
+}
+
+$('s1').onclick = function () { estado = 1; pintar(); };
+$('s2').onclick = function () { estado = 2; pintar(); };
+$('s3').onclick = function () { estado = 3; aprobado = false; pintar(); };
+
+$('collapse').onclick = function (e) {
+  e.stopPropagation();
+  panel.style.display = 'none'; bar.style.display = 'flex';
+  $('barTxt').textContent = estado === 3 ? 'revisar cambios' : 'paso ' + (estado === 1 ? '4' : '9') + '/12 · cancelación';
+};
+bar.onclick = function () { bar.style.display = 'none'; panel.style.display = 'block'; };
+$('ghost').onclick = function (e) { e.stopPropagation(); panel.classList.toggle('ghost'); };
+
+// arrastre por la cabecera, como el panel real
+var drag = null;
+$('head').addEventListener('mousedown', function (e) {
+  if (e.target.classList.contains('icon')) return;
+  drag = { x: e.clientX, y: e.clientY, r: panel.getBoundingClientRect() };
+  e.preventDefault();
+});
+document.addEventListener('mousemove', function (e) {
+  if (!drag) return;
+  panel.style.left = (drag.r.left + e.clientX - drag.x) + 'px';
+  panel.style.top = (drag.r.top + e.clientY - drag.y) + 'px';
+  panel.style.right = 'auto';
+});
+document.addEventListener('mouseup', function () { drag = null; });
+
+pintar();
+</script>
+</body>
+</html>
