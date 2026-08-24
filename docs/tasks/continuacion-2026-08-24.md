@@ -79,7 +79,15 @@ El panel decide y la decisión queda firmada. **Lleva diez decisiones ya tomadas
 que volver a discutir** (§1 del plan) — leerlas antes de tocar nada. Fases P0→P6 con su orden y sus
 criterios de parada. P0 está medio cerrado (D10/D23 hechos; falta la pasada de textos del panel).
 
-Empezar por **P1, el acta**, porque todo lo demás escribe ahí.
+**P1 (el acta) está CERRADO** desde el 2026-08-24: `src/decisions.ts` + `record-decision` +
+`check-decisions`, schema en [decisions-schema.md](../references/decisions-schema.md), 28 tests, y el
+validador dentro del healthcheck (32 → 36) verificando la cadena, no la presencia del fichero. Todo lo
+que sigue ya tiene dónde escribir.
+
+Empezar por **P2, la pantalla de discrepancia con candidatos** — la que más valor da y la que el QA
+pidió. Ojo a su **criterio de muerte**, que hay que medir ANTES de pulir interfaz: si los candidatos
+salen ruidosos (más de 5-6 por pantalla en apps reales) la lista no sirve y se va directo a «señálalo
+tú». Medirlo en Dolibarr y ParaBank.
 
 ### 2. [`plan-datos-consumibles.md`](plan-datos-consumibles.md)
 
@@ -150,7 +158,9 @@ residuo que lo justifique. No construirlo sin una necesidad medida.
 
 ## Estado verificado al cierre
 
-- `tsc` limpio. Tests de assist 36/36 sin regresión + 12 nuevos de D10/D23.
+- `tsc` limpio. Tests de assist 36/36 sin regresión + 12 nuevos de D10/D23. Con P1: **suite completa
+  888/888 en una sola pasada** (D33 no mordió esa vez), lint sin errores nuevos —los 12 que salen son
+  previos y de otros ficheros— y payload propagado a `template/` y `plugin/`.
 - Suite completa: **843/848 bajo carga**, y los 5 fallos son **timeouts** de ficheros con navegador que
   **pasan 23/23 en solitario** — D33, no regresión. La suite no da verde fiable de una pasada.
 - Healthcheck 32/32. Payload propagado (`template/` y `plugin/`).

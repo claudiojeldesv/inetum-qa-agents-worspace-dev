@@ -17,6 +17,7 @@ import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { versionDriftVerdict, versionFromPluginPath, DEV_REPO_MARKER } from '../version-drift.ts';
+import { parseDecisions, verifyChain } from '../decisions.ts';
 
 const root = process.cwd();
 const r = (p: string) => resolve(root, p);
@@ -124,6 +125,10 @@ fileCheck('Orquestación mecánica S4 (run-s4-mecanico)', 'src/scripts/run-s4-me
 fileCheck('Guarda de locators del discovery (verify-locators)', 'src/scripts/verify-locators.ts');
 // Q3 quality-greens: protocolo post-heal mecánico del command /ia4d-qa-automator:heal
 fileCheck('Orquestación mecánica del Healer (run-heal-mecanico)', 'src/scripts/run-heal-mecanico.ts');
+// P1 panel-y-acta: el acta de decisiones del QA y su validador de cadena.
+fileCheck('Acta de decisiones (lógica)', 'src/decisions.ts');
+fileCheck('Validador de la cadena del acta (check-decisions)', 'src/scripts/check-decisions.ts');
+fileCheck('Registro de decisiones por flags/pendientes (record-decision)', 'src/scripts/record-decision.ts');
 // Palancas 2+3 (medicion del 2026-08-21): el punto 2 del PRESUPUESTO DE TURNOS de los cuatro
 // commands invoca verify-ack tras cada acuse de subagente, y el punto 5 marca cada Task con
 // audit-mark. Si faltan, esas instrucciones fallan en medio del run — que es justo lo que este
@@ -192,6 +197,37 @@ const drift = versionDriftVerdict({
   sessionVersion: versionFromPluginPath(process.env.CLAUDE_PLUGIN_ROOT),
 });
 checks.push({ label: 'Versión del payload desplegado', ok: drift.ok, detail: drift.detail });
+
+/**
+ * La cadena del acta, verificada de verdad y no por presencia de fichero.
+ *
+ * Aquí está el motivo de que el validador entre en el healthcheck en vez de quedarse
+ * como una utilidad que alguien recuerda correr: en un workspace de campo el acta
+ * lleva decisiones REALES del QA, y un acta manipulada que nadie mira vale lo mismo
+ * que no tenerla. Sin actas (el estado normal antes del primer run) pasa: no se
+ * inventa un fallo por ausencia.
+ */
+const ACTAS_DIR = r('config/decisions');
+let actasDetalle = 'sin actas en config/decisions (normal antes del primer run)';
+let actasOk = true;
+if (existsSync(ACTAS_DIR)) {
+  const ficheros = readdirSync(ACTAS_DIR).filter((f) => f.endsWith('.jsonl'));
+  if (ficheros.length > 0) {
+    const rotas: string[] = [];
+    let decisiones = 0;
+    for (const f of ficheros) {
+      const { entries, malformed } = parseDecisions(readFileSync(resolve(ACTAS_DIR, f), 'utf8'));
+      decisiones += entries.length;
+      const v = verifyChain(entries, malformed);
+      if (!v.ok) rotas.push(`${f}: ${v.issues.find((i) => i.severity === 'error')?.detail ?? 'cadena rota'}`);
+    }
+    actasOk = rotas.length === 0;
+    actasDetalle = actasOk
+      ? `${ficheros.length} acta(s), ${decisiones} decisión(es), cadena coherente`
+      : `CADENA ROTA — ${rotas.join(' | ')} — corre: npx tsx src/scripts/check-decisions.ts`;
+  }
+}
+checks.push({ label: 'Acta de decisiones: cadena íntegra', ok: actasOk, detail: actasDetalle });
 
 const chromium = chromiumInstalled();
 if (chromium === false) {

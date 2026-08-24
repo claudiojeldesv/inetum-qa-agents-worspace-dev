@@ -10,7 +10,8 @@ muro, y a un muro se le pasa por el lado — el QA edita el FD o los tests a man
 herramienta, y la herramienta deja de servir.
 
 **Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
-([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). No implementado salvo P0.
+([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 cerrado salvo la pasada de
+textos; P1 cerrado el 2026-08-24.** El resto sin implementar.
 
 ---
 
@@ -57,7 +58,32 @@ Queda de P0: **pasada de textos del panel**. Los mensajes visibles usan vocabula
 («hint irresoluble», «drift»). Deben usar el del QA («no encuentro este elemento», «no cuadra»).
 Fichero: `assistOverlayScript` en `copilot/src/dom-walker.ts` y los `console.error` de `assistResolve`.
 
-### P1 — El acta de decisiones (la base: todo lo demás escribe aquí)
+### P1 — El acta de decisiones · CERRADO el 2026-08-24
+
+Implementado en [`src/decisions.ts`](../../src/decisions.ts) (núcleo),
+[`src/scripts/record-decision.ts`](../../src/scripts/record-decision.ts) (registro, `npm run qa:decide`) y
+[`src/scripts/check-decisions.ts`](../../src/scripts/check-decisions.ts) (validador, `npm run qa:decisions`).
+Schema y operativa: [decisions-schema.md](../references/decisions-schema.md). 28 tests en
+`tests/unit/decisions.test.ts`; el validador entra en el healthcheck (32 → 36 comprobaciones)
+**verificando la cadena de verdad**, no la presencia del fichero.
+
+Lo medido, no solo escrito:
+
+- Los dos pares falsables del plan, corridos contra los scripts reales: tres decisiones sembradas,
+  alterada la del medio a mano → señalada **la del medio y solo ella**, con su `rf`, su actor y los dos
+  hashes; y una decisión sin `actor` → exit 2. El healthcheck, verde con acta sana y rojo con acta
+  manipulada, nombrando la entrada.
+- **Dos cosas que el plan no pedía y el diseño exigía**: `appendDecision` se **niega** a escribir sobre
+  una cadena rota (encadenar encima sella la manipulación y la vuelve indistinguible de una decisión
+  legítima), y cada decisión queda **anclada en el audit-log** (`rule: "decision-recorded"`). El ancla
+  es lo único que caza la **cola truncada**: borrar las últimas N entradas siempre deja una cadena
+  válida. Hay un test en verde que documenta ese límite en vez de taparlo, y el validador lo dice por
+  pantalla cuando corre sin `--audit`.
+- El fichero de pendientes se reescribe **después de cada firma**, no al final: si el proceso muere a
+  mitad, lo firmado no se vuelve a firmar. Y el `actor` del pendiente manda sobre el de la consola —
+  no se reasigna autoría.
+
+Diseño original, para referencia:
 
 `config/decisions/<site>.jsonl`, append-only, durable como los hint-aliases (`config/` sobrevive a la
 limpieza de `.work/`). Una entrada por decisión:
@@ -74,6 +100,11 @@ limpieza de `.work/`). Una entrada por decisión:
 - `actor` sale de una variable declarada. **Si no hay actor, no hay decisión** (fail-closed).
 - Revisable: `supersedes` apunta a la entrada anterior; manda la última, la traza queda.
 - Reutilizar `hashScript` de `copilot/src/walk-core.ts`.
+  **Desviación al implementar, deliberada**: no se importa. `src/` es la capa baja —
+  `copilot/src/dom-walker.ts` importa de `src/`, no al revés— y meter la dependencia inversa por
+  una línea de crypto ataría el validador al walker entero. `hashJson` de `src/decisions.ts` usa el
+  MISMO algoritmo, y un test de acoplamiento (`hashJson(script) === hashScript(script)`) pone la
+  suite roja si alguna de las dos deriva.
 
 **Comprobación falsable**: sembrar tres decisiones, alterar la del medio a mano, el validador la
 señala. Y una decisión sin `actor` se rechaza.
@@ -155,8 +186,8 @@ convierta en un espejo de la aplicación sin que nadie lo note.
 
 ## 3. Orden y criterios de parada
 
-P0 (falta la pasada de textos) → **P1 primero, porque todo escribe en el acta** → P2 (la pantalla que
-más valor da y la que el QA pidió) → P3 → P5 → P4 → P6.
+P0 (falta la pasada de textos) → ~~P1~~ **hecho** → **P2, lo siguiente** (la pantalla que más valor da
+y la que el QA pidió) → P3 → P5 → P4 → P6.
 
 P4 va después de P5 a propósito: la pantalla de aprobación **ya es** una vista del caso completo, así
 que puede que P4 sobre. Decidirlo con P5 en la mano en vez de construir las dos.
