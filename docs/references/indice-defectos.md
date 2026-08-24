@@ -90,6 +90,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D54 | `MF-postcondition` cuenta headings de mueble como postcondición de negocio exigible (falso positivo medido en TC-004: 'Dropdown List'). `BUSINESS_ROLES` incluye `heading` sin distinguir mueble de resultado — pariente de D37 | the-internet | [i6-the-internet.md](../findings/i6-the-internet.md) §D54 | abierto |
 | D55 | El índice posicional sobre roles SIN nombre es ciego al mueble: `.first()`/`.nth()` sin ancla medida aterriza en la barra de paginación o en la cabecera, y ningún gate lo ve (G1 por diseño K0.41; G2 tampoco, un rol sin nombre coincide con muchas) | Dolibarr | [dolibarr-iter2-tres-rojos.md](../findings/dolibarr-iter2-tres-rojos.md) — regla `MF-indice-sin-ancla` propuesta con par falsable | abierto |
 | D56 | El oráculo que ya era cierto al empezar: una postcondición terminal (`expect_text "Username"` tras el logout) cuyo literal ya está en el `business_text` de la pantalla de ENTRADA del flujo. Verde sin poder discriminante — se cumple igual si el paso no se ejecuta. Familia de D39 con el rol invertido: la regla «la señal de éxito existe SOLO en la pantalla de destino» se aplica a la señal de auth del contract, no a las postcondiciones que emite el refiner | ParaBank (A/B del FD literal, payload sellado) | [ab-fd-literal-parabank-sellado.md](../findings/ab-fd-literal-parabank-sellado.md) §D56 — regla `MF-oraculo-no-discriminante` propuesta, con par falsable disponible en el run | abierto |
+| D57 | El `dom-map` se queda mudo justo donde el sitio es difícil: un campo sin identidad semántica (`<input name="username">` sin label for, sin id, sin aria) sale `{"role":"textbox","cands":[]}` **incluso en el run donde el walker lo resolvió** por el peldaño anclado. `buildLocatorCandidates` solo sabía de test_id/role+name/label/text y no miraba el `css_fallback_attributes` que el contract declara. Afecta a los tres consumidores del mapa: candidatos del panel, POM scaffolder y discovery-analyzer. Forma de D46 (el conocimiento existe y no llega al consumidor) | ParaBank (A/B del FD literal) | `DomElement.css_attr` medido en la página con la MISMA garantía de unicidad-entre-visibles que exige `derivarEmitLocator`; `buildLocatorCandidates` lo emite el último y solo si no hay candidato semántico. Fixture `copilot/fixtures/campo-sin-identidad.html` + 10 tests con cuatro controles | cerrado (medido en campo: 2 campos vacíos → 0 elementos sin candidato, 27/27) |
 
 ## Recuento
 
@@ -106,6 +107,6 @@ instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos ag
 | SauceDemo | D40, D41; segunda vuelta de D34; no-reproducción de D25 y D38 |
 | OrangeHRM (SPA Vue) | D42–D45 |
 | Dolibarr (ERP PHP) | D48–D52, D55; primer ejercicio de campo de D34 |
-| ParaBank (A/B sellado) | D56 |
+| ParaBank (A/B sellado) | D56, D57 |
 | the-internet (Sinatra) | D53, D54 |
 | No es un sitio | D32 (PowerShell 5.1), D33 (suite propia), D40 (config de agentes) |

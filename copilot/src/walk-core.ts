@@ -409,9 +409,18 @@ export function locatorSource(a: LocatorAttempt): string {
   }
 }
 
-/** Locators candidatos de un elemento capturado, ordenados por el priority del contract. */
+/**
+ * Locators candidatos de un elemento capturado, ordenados por el priority del contract.
+ *
+ * El fallback por atributo (`css_attr`) va SIEMPRE el último, pase lo que pase con el
+ * `priority`. No es un peldaño más de la escalera: es la excepción declarada del
+ * contract (`locators.css_fallback_attributes`) para el legacy corporativo, y ponerla
+ * por delante de un locator semántico sería exactamente lo que `forbid_css_selectors`
+ * prohíbe. Solo aparece cuando no hay NINGÚN candidato semántico — si el elemento
+ * tiene identidad, el CSS sobra y meterlo sería ruido que el POM podría preferir.
+ */
 export function buildLocatorCandidates(
-  el: Pick<DomElement, 'role' | 'name' | 'test_id' | 'label'>,
+  el: Pick<DomElement, 'role' | 'name' | 'test_id' | 'label' | 'css_attr'>,
   priority: string[],
 ): string[] {
   const out: string[] = [];
@@ -431,7 +440,19 @@ export function buildLocatorCandidates(
         break;
     }
   }
+  if (out.length === 0 && el.css_attr) out.push(cssAttrLocator(el.css_attr));
   return out;
+}
+
+/**
+ * Forma textual del fallback por atributo. Idéntica a la que emite
+ * `derivarEmitLocator` en el walker (`css=[name="username"]`) y a la que
+ * `pre-review` sanciona contra la whitelist — tres sitios hablando el mismo
+ * dialecto a propósito: si divergen, el candidato del mapa no sería el mismo
+ * texto que el gate acepta.
+ */
+export function cssAttrLocator(a: { attr: string; value: string }): string {
+  return `css=[${a.attr}="${a.value}"]`;
 }
 
 // ------------------------------------------------------------- poda/dedupe

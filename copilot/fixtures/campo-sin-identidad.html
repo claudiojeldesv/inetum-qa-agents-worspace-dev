@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Campo sin identidad — legacy JSP</title></head>
+<body>
+  <!--
+    Reproduce la forma exacta del login de ParaBank, que es donde se midió el
+    defecto: <input name="..."> sin label for, sin id, sin aria, sin data-test.
+    El walker SÍ los resuelve (peldaño anclado por el texto de al lado), pero el
+    dom-map los guardaba como {"role":"textbox","cands":[]}.
+  -->
+  <form>
+    <table>
+      <tr><td>Username</td><td><input type="text" name="username"></td></tr>
+      <tr><td>Password</td><td><input type="password" name="password"></td></tr>
+    </table>
+    <input type="submit" value="Log In">
+  </form>
+
+  <!--
+    CONTROL 1 — atributo repetido. Dos radios con el mismo `name`: el fallback NO
+    puede proponerlo, resolvería a varios y el POM reventaría en strict mode la
+    primera vez que se ejecute. Es la garantía que `derivarEmitLocator` ya exige.
+  -->
+  <fieldset>
+    <input type="radio" name="periodicidad" value="mensual">
+    <input type="radio" name="periodicidad" value="anual">
+  </fieldset>
+
+  <!--
+    CONTROL 2 — identidad semántica presente. Este campo tiene label for, así que
+    hay locator semántico y el CSS sobra: añadirlo sería ruido que el POM podría
+    acabar prefiriendo.
+  -->
+  <label for="importe">Importe</label>
+  <input type="text" id="importe" name="importe">
+
+  <!--
+    CONTROL 3 — id generado por framework. Único, pero no es identidad: mañana es
+    otro. `looksGenerated` lo tiene que descartar. Sin `name` a propósito, para
+    que el único candidato posible fuera el id.
+  -->
+  <input type="text" id="ng-tns-c42-7">
+
+  <!--
+    CONTROL 4 — atributo único pero el elemento está OCULTO. No entra en la
+    captura, así que no debe contarse para la unicidad de nadie.
+  -->
+  <input type="text" name="username_oculto" style="display:none">
+</body>
+</html>

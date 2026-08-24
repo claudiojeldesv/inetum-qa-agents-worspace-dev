@@ -354,6 +354,20 @@ export interface DomElement {
   frame_path?: string[];
   /** Locators candidatos ordenados según locators.priority del contract. */
   locator_candidates: string[];
+  /**
+   * Atributo de la whitelist `locators.css_fallback_attributes` con el que este
+   * elemento SÍ es alcanzable, cuando no tiene identidad semántica ninguna
+   * (ni test-id, ni nombre accesible, ni label). Medido en la página: se anota
+   * solo si identifica a EXACTAMENTE un elemento visible.
+   *
+   * Existe porque el mapa se quedaba mudo justo donde el sitio es difícil: los
+   * dos campos de login de ParaBank (`<input name="username">`, sin label for,
+   * sin id, sin aria) salían `{"role":"textbox","cands":[]}` — y salían así
+   * incluso en el run donde el walker LOS RESOLVIÓ por el peldaño anclado. El
+   * conocimiento existía y no llegaba al mapa que leen el panel, el scaffolder
+   * y el discovery-analyzer.
+   */
+  css_attr?: { attr: string; value: string };
   /** Nº de apariciones deduplicadas (componentes repetidos, p.ej. cards). */
   count?: number;
   disabled?: boolean;

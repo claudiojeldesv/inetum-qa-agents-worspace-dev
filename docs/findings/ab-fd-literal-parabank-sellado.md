@@ -132,6 +132,55 @@ mejor, o `'app'` con evidencia si el oráculo se acepta como está.
 
 ---
 
+## D57 — el mapa se queda mudo donde el sitio es difícil
+
+Salió de mirar los artefactos del run, no de la aplicación. Los dos campos del login
+aparecen así en el `dom-map` de **los dos brazos**:
+
+```
+form "form0"  submit: "Log In"
+  campo: {"role":"textbox","cands":[]}
+  campo: {"role":"textbox","cands":[]}
+```
+
+En el brazo citado esos dos campos **se resolvieron** —`anchored(label:'Username')` y
+`anchored(label:'Password')`— y aun así el mapa los guarda sin nombre y con cero
+candidatos. `buildLocatorCandidates` solo sabía de `test_id`, `role+name`, `label` y
+`text`; el `css_fallback_attributes: [name, id]` que el contract de este sitio declara
+desde hace meses lo usaba el walker como peldaño, pero nadie lo anotaba en el mapa.
+
+Es la **forma de D46**: el conocimiento existe y no llega al consumidor. Y muerde tres
+veces, porque del mapa comen el panel (para ofrecer candidatos), el POM scaffolder y el
+discovery-analyzer.
+
+**Arreglado.** `DomElement.css_attr` se deriva **dentro de la página**, durante la
+captura, con la misma garantía que ya exigía `derivarEmitLocator`: el atributo se anota
+solo si identifica a **exactamente un elemento visible**. Hacerlo en el extractor y no
+desde Node ahorra un viaje de red por elemento. El candidato va **siempre el último** y
+**solo si no hay ninguno semántico** — no es un peldaño más de la escalera, es la
+excepción declarada del contract, y ponerlo por delante sería lo que
+`forbid_css_selectors` prohíbe.
+
+Medido sobre el sitio real, mismo guion, antes y después:
+
+| | campos del login | elementos del mapa sin candidato |
+|---|---|---|
+| antes | `cands: []` ×2 | 1 |
+| después | `css=[name="username"]` / `css=[name="password"]` | **0** (27/27) |
+
+Los cuatro controles del fixture (`copilot/fixtures/campo-sin-identidad.html`) importan
+tanto como el caso positivo: atributo repetido → no se propone (resolvería a varios y el
+POM revienta en strict mode); campo con `label for` → se queda con su locator semántico;
+id generado por framework → descartado aunque sea único; sin whitelist en el contract →
+no se anota nada, porque la excepción es **declarada**.
+
+**Lo que NO arregla**: el mapa sigue sin recoger el peldaño `anchored` que resolvió esos
+mismos campos en el brazo citado. El `resolved_via` vive en `step_reports` y un consumidor
+puede unirlo por paso, pero el elemento del mapa no lo lleva. Se deja escrito en vez de
+darlo por cerrado.
+
+---
+
 ## Lo que este experimento NO decide
 
 - **No dice que el brazo citado esté bien probado.** 12/12 son login y logout. `transfer-funds` y

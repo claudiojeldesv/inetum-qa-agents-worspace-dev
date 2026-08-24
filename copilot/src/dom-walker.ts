@@ -241,6 +241,8 @@ interface RawElement {
   business?: boolean;
   /** El elemento vive dentro de un role=dialog abierto — K0.3 (sub-pantalla). */
   inDialog?: boolean;
+  /** Fallback por atributo declarado, ya comprobado UNICO y visible en la pagina. */
+  css_attr?: { attr: string; value: string };
 }
 
 /** Marcador del host del panel asistido: la captura lo salta (K0.10). */
@@ -279,9 +281,10 @@ const ASSIST_MAX_REINJECTIONS = 3;
  * Expone: clean, isVisible, nameOf, labelOf, roleOf, fieldsOf, ATTRS,
  * BUSINESS_ROLES, LANDMARK_ROLES_JS.
  */
-function extractionHelpers(testidAttrs: string[]): string {
+function extractionHelpers(testidAttrs: string[], cssFallbackAttrs: string[] = []): string {
   return `
     const ATTRS = ${JSON.stringify(testidAttrs)};
+    const CSS_FALLBACK_ATTRS = ${JSON.stringify(cssFallbackAttrs)};
     const ASSIST_HOST = '${ASSIST_HOST_ATTR}';
     const ROLE_BY_TAG = { a: 'link', button: 'button', select: 'combobox', textarea: 'textbox', nav: 'navigation', main: 'main', header: 'banner', footer: 'contentinfo', form: 'form', dialog: 'dialog', summary: 'button', h1: 'heading', h2: 'heading', h3: 'heading' };
     const BUSINESS_ROLES = ['heading', 'alert', 'status'];
@@ -326,6 +329,29 @@ function extractionHelpers(testidAttrs: string[]): string {
       const nm = nameOf(el); if (nm) out.name = nm;
       for (const a of ATTRS) { const v = el.getAttribute(a); if (v) { out.test_id = v; out.test_attr = a; break; } }
       const lab = labelOf(el); if (lab && lab !== nm) out.label = lab;
+      /**
+       * Fallback por atributo declarado (whitelist del contract). SOLO para el
+       * elemento sin identidad semántica ninguna: si tiene test-id, nombre o label,
+       * hay locator semántico y el CSS sobra.
+       *
+       * La unicidad se mide AQUÍ, dentro de la página, contra los elementos
+       * VISIBLES — la misma garantia que exige derivarEmitLocator, y por el mismo
+       * motivo: un "name" repetido (radios, filas de tabla) produciria un candidato
+       * que resuelve a varios y un POM que revienta en strict mode la primera vez.
+       * Hacerlo en el extractor y no desde Node ahorra un viaje de red por elemento.
+       */
+      if (!out.test_id && !out.name && !out.label && CSS_FALLBACK_ATTRS.length) {
+        for (const a of CSS_FALLBACK_ATTRS) {
+          const v = el.getAttribute(a);
+          if (!v || /["\\\\]/.test(v)) continue;          // un valor con comillas rompe el selector
+          if (a === 'id' && looksGenerated(v)) continue;  // un id de framework no es identidad
+          let n = 0;
+          for (const c of document.querySelectorAll('[' + a + '="' + v + '"]')) if (isVisible(c)) n++;
+          if (n !== 1) continue;
+          out.css_attr = { attr: a, value: v };
+          break;
+        }
+      }
       return out;
     };
 
@@ -388,10 +414,10 @@ function extractionHelpers(testidAttrs: string[]): string {
 }
 
 /** Corre DENTRO del frame. Aproximación determinística de rol + accessible name. */
-function captureScript(testidAttrs: string[]): string {
+function captureScript(testidAttrs: string[], cssFallbackAttrs: string[] = []): string {
   // Serializado como string para frame.evaluate — sin closures externas.
   return `(() => {
-    ${extractionHelpers(testidAttrs)}
+    ${extractionHelpers(testidAttrs, cssFallbackAttrs)}
     const forms = Array.from(document.querySelectorAll('form'));
     const sel = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], nav, main, header, footer, form, h1, h2, h3';
     const out = [];
@@ -414,6 +440,7 @@ function captureScript(testidAttrs: string[]): string {
       if (!item.name && f2.name) item.name = f2.name;
       if (f2.test_id) { item.test_id = f2.test_id; item.test_attr = f2.test_attr; }
       if (f2.label && f2.label !== item.name) item.label = f2.label;
+      if (f2.css_attr) item.css_attr = f2.css_attr;
       if (el.disabled === true) item.disabled = true;
       const f = el.closest('form'); if (f) item.formIndex = forms.indexOf(f);
       if (el.closest('[role=dialog], dialog[open]')) item.inDialog = true;
@@ -3970,7 +3997,7 @@ class DomWalker {
     for (const f of this.page.frames()) {
       const path = f === this.page.mainFrame() ? [] : await framePath(f);
       const raw = (await f
-        .evaluate(captureScript(TESTID_ATTR_CANDIDATES))
+        .evaluate(captureScript(TESTID_ATTR_CANDIDATES, this.cssFallbackAttrs))
         .catch(() => [])) as RawElement[];
       rawByFrame.push({ raw, path });
     }
@@ -4000,6 +4027,7 @@ class DomWalker {
           ...(el.label ? { label: el.label } : {}),
           ...(path.length ? { frame_path: path } : {}),
           ...(el.disabled ? { disabled: true } : {}),
+          ...(el.css_attr ? { css_attr: el.css_attr } : {}),
           locator_candidates: [],
         };
         dom.locator_candidates = buildLocatorCandidates(dom, this.priority);
