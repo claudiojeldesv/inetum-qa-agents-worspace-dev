@@ -1186,6 +1186,105 @@ export function fingerprintHash(raw: string): string {
   return createHash('sha256').update(raw).digest('hex').slice(0, 12);
 }
 
+// ------------------------------------------- lo que el panel le dice al QA (D27)
+
+/** Por qué se pide ayuda. No es el mensaje: es el hecho del que sale el mensaje. */
+export type CausaAsistencia =
+  /** Cero coincidencias visibles con lo que el plan pedía. */
+  | 'ausente'
+  /** Más de una. Es la causa que D27 midió disfrazada de ausencia. */
+  | 'ambiguo'
+  /**
+   * Exactamente una, y aun así el paso no salió adelante: está tapada,
+   * deshabilitada, o hace falta algo antes. Decirle «no encuentro» al QA cuando el
+   * elemento está ahí delante es la misma mentira que D27 por el otro lado — lo
+   * manda a buscar lo que ya ve. Salió al escribir el test del cableado.
+   */
+  | 'unico-pero-falla'
+  /** La zona (`scope`) dentro de la que había que buscar no existe en pantalla. */
+  | 'zona-ausente'
+  /** El texto que el plan esperaba ver como resultado no aparece. */
+  | 'resultado-ausente';
+
+export interface DiagnosticoAsistencia {
+  causa: CausaAsistencia;
+  /** Lo que el plan pedía, en palabras del plan. */
+  pedido: string;
+  /** Cuántos elementos visibles coincidían. Solo se enseña si es >1. */
+  coincidencias?: number;
+  /** Nombres de pantalla parecidos, ya rankeados por el llamante. */
+  candidatos?: string[];
+  /** Nombre de la zona, cuando la causa es `zona-ausente`. */
+  zona?: string;
+}
+
+/**
+ * El texto que lee el QA en el panel.
+ *
+ * Existe por D27: el panel recibía la PISTA y no la CAUSA, y en campo un QA
+ * respondió «No existe» a un elemento que existía **tres veces**. Presentar una
+ * ambigüedad como una ausencia no es un mensaje pobre, es un mensaje que induce
+ * la respuesta equivocada — y esa respuesta se promueve a memoria durable.
+ *
+ * Y por la pasada de textos de P0: aquí NO se dice «hint», ni «drift», ni
+ * «irresoluble». Son palabras del motor. El QA no tiene por qué saber que dentro
+ * hay una escalera de locators; tiene que saber qué no cuadra y qué se le pide.
+ *
+ * Puro y sin I/O para poder falsarlo sin navegador.
+ */
+export function textoAsistencia(d: DiagnosticoAsistencia): string {
+  // Sin sangrado: el panel convierte los saltos en <br> y el HTML colapsa los
+  // espacios de cabecera, así que una lista indentada se vería desalineada.
+  const lista = (c: string[]): string => c.map((n) => `· ${n}`).join('\n');
+  const cand = d.candidatos ?? [];
+
+  if (d.causa === 'zona-ausente') {
+    return (
+      `No encuentro la zona «${d.zona ?? d.pedido}» donde tenía que buscar «${d.pedido}».\n` +
+      `Puede que esta pantalla no sea la que el plan esperaba. Enséñame dónde está, o dime que aquí no existe.`
+    );
+  }
+
+  if (d.causa === 'resultado-ausente') {
+    return cand.length > 0
+      ? `El plan esperaba ver «${d.pedido}» y no aparece.\n` +
+          `Los resultados que sí veo en esta pantalla son:\n${lista(cand)}\n` +
+          `Si el bueno es uno de ésos, la aplicación cambió y el plan se quedó viejo. Si no hay ninguno, esto es un defecto.`
+      : `El plan esperaba ver «${d.pedido}» y no aparece.\n` +
+          `Y esta pantalla no muestra NINGÚN resultado — ni el esperado ni otro. Eso apunta a un defecto, no a un plan viejo.`;
+  }
+
+  if (d.causa === 'unico-pero-falla') {
+    return (
+      `Sí veo «${d.pedido}» en esta pantalla, pero no he conseguido usarlo.\n` +
+      `Puede estar tapado por otra cosa, deshabilitado, o hacer falta algún paso antes. ` +
+      `Enséñame el camino que hay que seguir para llegar hasta él.`
+    );
+  }
+
+  if (d.causa === 'ambiguo') {
+    const n = d.coincidencias ?? 0;
+    return (
+      `«${d.pedido}» aparece ${n} veces en esta pantalla y no sé cuál es el bueno.\n` +
+      (cand.length > 0 ? `Estoy dudando entre:\n${lista(cand)}\n` : '') +
+      `No es que no exista: es que hay varios. Señálame el que toca.`
+    );
+  }
+
+  return cand.length > 0
+    ? `No encuentro «${d.pedido}» en esta pantalla.\n` +
+        `Lo más parecido que veo es:\n${lista(cand)}\n` +
+        `Si es alguno de ésos, señálamelo. Si no, enséñame dónde está.`
+    : `No encuentro «${d.pedido}» en esta pantalla, ni nada que se le parezca.\n` +
+        `Si hay que llegar por otro camino, enséñamelo. Si de verdad aquí no está, dilo con «No existe aquí».`;
+}
+
+/** Lo que el plan pedía, en palabras del plan y no del motor. */
+export function pedidoDelPaso(hint: StepHint | undefined): string {
+  const h = hint ?? {};
+  return h.name ?? h.label ?? h.text ?? h.test_id ?? '(el paso no dice qué buscar)';
+}
+
 // ----------------------------------------------------------------- estado
 
 /** Hash estable del script: invalida el checkpoint si el guion cambió. */

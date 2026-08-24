@@ -33,6 +33,7 @@ import { chromium, selectors, type Page } from '@playwright/test';
 import { appendAuditEntry } from '../audit-log.ts';
 import { resolveAppUrl, appPathname } from '../app-url.ts';
 import { proxyFromEnv } from '../proxy-env.ts';
+import { candidatosParaInforme } from '../locator-candidates.ts';
 
 // ---------------------------------------------------------------------------
 // Tipos (espejo de pom-scaffolder + anotaciones de verificación)
@@ -251,31 +252,12 @@ export function nombresAccesiblesDelRol(snapshot: string, role: string): string[
 
 /**
  * G3 — que nombres del rol merecen ir al informe cuando el locator fallo.
- *
- * - `ambiguous(n)`: los que CONTIENEN el nombre pedido (la semantica substring de
- *   `getByRole(...,{name})`, que es exactamente como se produjo la colision) — esos son
- *   los colisionadores reales. `Ref.` en Dolibarr lista `Ref.`, `Ref. customer`,
- *   `Project ref.` y el Writer ve con que esta chocando.
- * - `not-found`: los que comparten alguna palabra (≥3 chars) con el pedido — candidatos
- *   a "el nombre real no es exactamente el caption". Sin filtro, una pantalla de
- *   navegacion con 100 links inundaria el informe.
- *
- * Tope de 8: es un diagnostico, no un volcado.
+ * Movida a `src/locator-candidates.ts` porque el PANEL de asistencia necesita la
+ * misma respuesta (D27): si el informe del verificador y el panel ordenaran distinto,
+ * el QA y el Writer verian pantallas que no cuadran. Se re-exporta para no romper
+ * a quien la importe de aqui.
  */
-export function candidatosParaInforme(nombres: string[], pedido: string, ambiguo: boolean): string[] {
-  const p = pedido.toLowerCase();
-  let cand: string[];
-  if (ambiguo) {
-    cand = nombres.filter((n) => n.toLowerCase().includes(p));
-  } else {
-    const palabras = p.split(/\s+/).filter((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length >= 3);
-    cand = palabras.length === 0 ? [] : nombres.filter((n) => {
-      const nl = n.toLowerCase();
-      return palabras.some((w) => nl.includes(w));
-    });
-  }
-  return [...new Set(cand)].slice(0, 8);
-}
+export { candidatosParaInforme };
 
 async function checkElement(
   page: Page,

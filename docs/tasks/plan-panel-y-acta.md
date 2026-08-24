@@ -54,9 +54,16 @@ persistencia en `assist-pending.json`, recuperación con tres cerrojos de identi
 verificado en campo. **Todo lo demás de este plan se apoya en esto**: sin supervivencia de lo grabado,
 la vía en caliente no vale nada.
 
-Queda de P0: **pasada de textos del panel**. Los mensajes visibles usan vocabulario del motor
-(«hint irresoluble», «drift»). Deben usar el del QA («no encuentro este elemento», «no cuadra»).
-Fichero: `assistOverlayScript` en `copilot/src/dom-walker.ts` y los `console.error` de `assistResolve`.
+**La pasada de textos, cerrada el 2026-08-24.** El panel ya no dice «El FD dice: click sobre texto
+"X"» —que además era falso desde que el texto lo produce el diagnóstico y no el FD— sino qué no
+cuadra y qué se le pide al QA. El aviso del paso que muta también dejó de nombrar `retry_safe`.
+Hay un test que falla si cualquier mensaje del panel contiene jerga del motor.
+
+**Decisión sobre los `console.error` de `assistResolve`**: se quedan como están, a propósito. No los
+lee el QA en el panel: los lee quien lanzó el run, en su terminal. La lección de D10/D12 fue que
+esos mensajes tienen que ser explícitos y accionables («PANEL ABIERTO… el walker está BLOQUEADO…
+escrito assist-pending.json»); suavizarlos para que suenen menos técnicos los empeoraría para su
+único destinatario.
 
 ### P1 — El acta de decisiones · CERRADO el 2026-08-24
 
@@ -111,7 +118,24 @@ señala. Y una decisión sin `actor` se rechaza.
 
 **Registro por flags o fichero de pendientes, NUNCA JSON en línea** (D32: PowerShell 5.1 lo destroza).
 
-### P2 — La pantalla de discrepancia con candidatos
+### P2 — La pantalla de discrepancia con candidatos · MEDIO HECHO el 2026-08-24
+
+Adelantado al cerrar D27, porque era la misma causa: el panel no sabía lo que el walker ya sabía.
+**Ya está**: la causa se mide contra la página antes de abrir el panel y se distinguen cuatro
+(ausente / ambiguo / único-pero-falla / resultado-ausente); los candidatos salen rankeados por
+`candidatosParaInforme`, la misma función que el informe de G3 —movida a `src/locator-candidates.ts`
+para que la compartan—; y la regla dura de «si no hay candidatos, eso ES información» está puesta y
+probada. Los candidatos se leen **en vivo**, no del dom-map: cuando un paso se planta la pantalla
+puede no estar capturada todavía, y un candidato rancio es peor que ninguno.
+
+**Falta**: los tres botones de veredicto (*la aplicación tiene razón* / *es un defecto* / *luego*) y
+la salida «ninguno de estos, lo señalo yo». Eso es lo que enlaza con el acta de P1, y es donde el
+panel pasa de informar a decidir.
+
+**Sigue pendiente el criterio de muerte**: medir si los candidatos salen ruidosos en apps reales
+(más de 5-6 por pantalla). El tope de 8 acota el volcado, pero no sustituye a la medición.
+
+Diseño original:
 
 Cuando un `expect_text` no se cumple, el panel se abre (hoy **no** se abre en `postcondition_unmet`:
 solo en hint irresoluble y acción fallida — eso hay que ampliarlo) y muestra:

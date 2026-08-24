@@ -66,6 +66,8 @@ import {
   effectiveDebounceMs,
   fingerprintHash,
   hashScript,
+  pedidoDelPaso,
+  textoAsistencia,
   hintLocatorPlan,
   isLandmarkRole,
   isRetrySafe,
@@ -96,6 +98,7 @@ import {
 // el marcador de peldaños (K0.27a) ya sabe leer una cadena de locator: reimplementar
 // esa clasificación aquí sería tener dos verdades sobre qué peldaño resolvió el paso
 import { classifyVia } from './walk-scoreboard.ts';
+import { candidatosParaInforme } from '../../src/locator-candidates.ts';
 import {
   EXIT_ERROR,
   EXIT_OK,
@@ -499,6 +502,8 @@ function assistOverlayScript(
         .h{padding:8px 10px;background:#1f2937;cursor:move;font-weight:500;display:flex;justify-content:space-between}
         .b{padding:10px}
         .ctx{color:#9ca3af;margin-bottom:8px}
+        .ctx .ref{color:#6b7280;font-size:11px}
+        .ctx .dx{margin-top:5px;color:#e5e7eb;white-space:pre-line}
         .ctx b{color:#f9fafb}
         .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
         button{font:12px system-ui;padding:5px 9px;border-radius:5px;border:1px solid #4b5563;
@@ -528,7 +533,7 @@ function assistOverlayScript(
       <div class="p">
         <div class="h"><span>Asistencia QA</span><span id="s">esperando</span></div>
         <div class="b">
-          <div class="ctx">Paso <b>\${'${step.id}'}</b> bloqueado.<br>El FD dice: <b>\${${JSON.stringify(
+          <div class="ctx"><b>Necesito que me eches una mano.</b> <span class="ref">paso \${'${step.id}'}</span><div class="dx">\${${JSON.stringify(
             // K0.44 — se embebe con JSON.stringify y no como literal entrecomillado a
             // mano: el escapado manual cubría la comilla y el '<' pero NO el salto de
             // línea, y un motivo multilínea reventaba el panel entero con
@@ -536,13 +541,13 @@ function assistOverlayScript(
             // saber por qué. Lo cazó el aviso de panel perdido de D10, que es el
             // primer motivo de varias líneas que existe.
             hintText.replace(/</g, '&lt;').replace(/\n/g, '<br>'),
-          )}}</b></div>
+          )}}</div></div>
           ${
             mutating
-              ? `<div class="mut">Este paso CAMBIA estado de negocio (<code>${step.action}</code> sin
-                 <code>retry_safe</code>). No pulses el objetivo: pasa el ratón por encima
-                 (1 s) y márcalo con <b>&#9678;</b>. Para capturarlo sin dispararlo, usa
-                 <b>Capturar sin ejecutar</b>.</div>`
+              ? `<div class="mut">Ojo: este paso hace algo de verdad en la aplicación y no se puede
+                 repetir sin consecuencias. <b>No pulses el elemento</b>: pasa el ratón por encima
+                 un segundo y márcalo con <b>&#9678;</b>. Si prefieres capturarlo sin dispararlo,
+                 usa <b>Capturar sin ejecutar</b>.</div>`
               : ''
           }
           <div class="st" id="hint">Explora libre con la grabación PARADA. Cuando sepas el camino, pulsa Grabar y hazlo del tirón.</div>
@@ -3201,6 +3206,56 @@ class DomWalker {
   // -------------------------------------------------- modo asistido (K0.10d)
 
   /** Descripción legible del hint, para que el QA sepa qué le pide el FD. */
+  /**
+   * Qué le decimos al QA cuando se le pide ayuda: la causa medida contra la página
+   * y los nombres de pantalla que se parecen a lo que el plan pedía.
+   *
+   * El ranking sale de `candidatosParaInforme`, la MISMA función que usa el informe
+   * del verificador (G3). Deliberado: si el panel y el informe ordenaran distinto, el
+   * QA y el Writer verían pantallas que no cuadran.
+   *
+   * Nunca lanza. Un diagnóstico es una ayuda; si no se puede medir, el panel se abre
+   * igual con lo que había antes — quedarse sin panel por no poder contar sería
+   * cambiar una molestia por una parada.
+   */
+  private async diagnosticarParaPanel(step: WalkStep): Promise<string> {
+    const pedido = pedidoDelPaso(step.hint);
+    const esResultado = step.action === 'expect_text';
+    try {
+      const nombres = await this.nombresDePantalla(esResultado);
+      if (esResultado) {
+        const valor = step.value ?? pedido;
+        return textoAsistencia({ causa: 'resultado-ausente', pedido: valor, candidatos: candidatosParaInforme(nombres, valor, false) });
+      }
+      const n = step.hint ? await this.countMatches(this.page, step.hint) : 0;
+      const causa = n > 1 ? 'ambiguo' : n === 1 ? 'unico-pero-falla' : 'ausente';
+      return textoAsistencia({ causa, pedido, coincidencias: n, candidatos: candidatosParaInforme(nombres, pedido, n > 1) });
+    } catch {
+      return this.hintText(step);
+    }
+  }
+
+  /**
+   * Nombres visibles de la pantalla actual, leídos EN VIVO y no del dom-map: en el
+   * momento en que un paso se planta, la pantalla puede no estar capturada todavía
+   * (la captura va por transiciones), y un candidato rancio es peor que ninguno.
+   * Reutiliza el mismo extractor que la captura, así que ve exactamente lo mismo.
+   *
+   * `resultado` elige el cubo: para una postcondición interesan los textos de
+   * negocio (heading/alert/status), que ya distinguen resultado de mueble; para una
+   * acción, los elementos con los que se puede interactuar.
+   */
+  private async nombresDePantalla(resultado: boolean): Promise<string[]> {
+    const raw = (await this.page.evaluate(captureScript(TESTID_ATTR_CANDIDATES, this.cssFallbackAttrs))) as RawElement[];
+    const out: string[] = [];
+    for (const el of raw) {
+      if (!el.name) continue;
+      if (resultado ? !el.business : el.business || el.landmark) continue;
+      out.push(el.name);
+    }
+    return [...new Set(out)];
+  }
+
   private hintText(step: WalkStep): string {
     const h = step.hint ?? {};
     const parts = [h.test_id && `test-id "${h.test_id}"`, h.role, h.name && `"${h.name}"`, h.label && `label "${h.label}"`, h.text && `texto "${h.text}"`];
@@ -3394,7 +3449,15 @@ class DomWalker {
     this.audit('llm_call', `asistencia solicitada: ${flow.flow}/${step.id}`, { phase: 'assist', source_hint: this.hintText(step) });
 
     const mutating = !isRetrySafe(step);
-    const baseReason = contextReason ?? this.hintText(step);
+    /**
+     * D27 — el panel recibe la CAUSA, no la pista. Antes esto era `hintText(step)`:
+     * la forma del hint tal cual, sin decir si el elemento faltaba o sobraba. En
+     * campo un QA respondio "No existe" a un elemento que existia TRES veces, y esa
+     * respuesta se promueve a memoria durable. La causa se MIDE contra la pagina
+     * justo antes de abrir el panel; si la medicion falla, se caee al texto de antes
+     * en vez de inventar un diagnostico.
+     */
+    const baseReason = contextReason ?? (await this.diagnosticarParaPanel(step));
     const segundos = Math.round(this.opts.assistTimeoutMs / 1000);
     let endReason = `asistencia sin respuesta en ${segundos}s (timeout)`;
     let reinjections = 0;
