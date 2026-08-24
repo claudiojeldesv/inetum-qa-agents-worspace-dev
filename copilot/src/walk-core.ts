@@ -1374,6 +1374,43 @@ export interface AssistMarker {
   expira: string;
   timeout_s: number;
   que_hacer: string;
+  /**
+   * D10/D23 — LO GRABADO, FUERA DE LA PÁGINA Y FUERA DEL PROCESO.
+   *
+   * Hasta ahora la secuencia del QA vivía dentro del panel, así que moría con él:
+   * una navegación (D10) o un SIGTERM del proceso que lanzó el walker (D23) se la
+   * llevaban, y el arreglo de K0.44 solo sabía AVISAR de la pérdida. El panel
+   * graba clics reales de una persona — es la evidencia más cara del sistema y la
+   * única que no se puede reconstruir sin volver a molestarla.
+   *
+   * Va aquí y no en `walk-state.json` porque el marcador ya se escribe al abrir la
+   * espera y se borra en el único punto de cierre: su ciclo de vida ES el de la
+   * asistencia. Sobre `walk-state` habría que inventar cuándo limpiarlo.
+   */
+  grabado?: PickedElement[];
+  /** Guion al que pertenece lo grabado: si cambia, la grabación no es recuperable. */
+  script_hash?: string;
+}
+
+/**
+ * ¿Se puede recuperar lo grabado de un marcador que quedó huérfano?
+ *
+ * Tres cerrojos, y los tres son de identidad, no de conveniencia: mismo flujo,
+ * mismo paso y mismo guion. Recuperar una secuencia grabada para OTRO paso sería
+ * peor que perderla — el QA vería pasos que no demostró y los daría por suyos.
+ * El hash del guion cierra el caso más sutil: el mismo `flow/step` puede pedir algo
+ * distinto si el guion se reemitió entre medias (y se reemite: D44 lo midió).
+ *
+ * Pura para poder probar los cuatro rechazos sin navegador.
+ */
+export function recuperarGrabacion(
+  marker: Partial<AssistMarker> | null | undefined,
+  actual: { flow: string; step: string; scriptHash: string },
+): PickedElement[] | null {
+  if (!marker?.grabado?.length) return null;
+  if (marker.flow !== actual.flow || marker.step !== actual.step) return null;
+  if (marker.script_hash !== actual.scriptHash) return null;
+  return marker.grabado;
 }
 
 /**
@@ -1396,6 +1433,9 @@ export function assistMarkerPayload(i: {
   mutating: boolean;
   timeoutMs: number;
   now: number;
+  /** D10/D23 — lo grabado hasta ahora, para que sobreviva al panel y al proceso. */
+  grabado?: PickedElement[];
+  scriptHash?: string;
 }): AssistMarker {
   const segundos = Math.round(i.timeoutMs / 1000);
   const aviso = i.mutating
@@ -1416,6 +1456,8 @@ export function assistMarkerPayload(i: {
       `El walker ha abierto un panel en la ventana del navegador y está BLOQUEADO esperando a una ` +
       `persona. Ve a esa ventana: pulsa Grabar, haz en la aplicación lo que pide el paso, y pulsa ` +
       `Parar. Si nadie lo atiende, el paso se bloquea en ${segundos}s y el run sigue sin él.${aviso}`,
+    ...(i.grabado?.length ? { grabado: i.grabado } : {}),
+    ...(i.scriptHash ? { script_hash: i.scriptHash } : {}),
   };
 }
 

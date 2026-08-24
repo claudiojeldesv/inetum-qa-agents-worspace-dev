@@ -73,6 +73,8 @@ import {
   mergeSettle,
   normalizedPlan,
   normalizeText,
+  recuperarGrabacion,
+  type AssistMarker,
   parseJsonLoose,
   parseLocatorChain,
   pruneAriaSnapshot,
@@ -440,7 +442,20 @@ function captureScript(testidAttrs: string[]): string {
  * de negocio. El panel lo dice y ofrece "Capturar sin ejecutar" como salida, porque
  * capturar el locator de un "Finalizar" no puede costar una declaración real.
  */
-function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: string, mutating = false): string {
+function assistOverlayScript(
+  testidAttrs: string[],
+  step: WalkStep,
+  hintText: string,
+  mutating = false,
+  /**
+   * D10/D23 — secuencia con la que NACE el panel: lo conservado a través de una
+   * navegación que lo destruyó, o lo recuperado de una sesión que alguien mató. Los
+   * elementos vienen serializados desde Node, así que no traen su nodo del DOM: la
+   * lista los muestra y se pueden quitar, pero el resaltado al pasar el ratón solo
+   * funciona sobre los que se señalen en ESTA vida del panel. Se dice en la interfaz.
+   */
+  grabado: PickedElement[] = [],
+): string {
   return `(() => {
     ${extractionHelpers(testidAttrs)}
     const prev = document.querySelector('[' + ASSIST_HOST + ']');
@@ -523,8 +538,13 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
     const $ = (id) => root.getElementById(id);
     const list = $('l'), status = $('s'), hintBox = $('hint');
     let recording = false;
-    const seq = [];       // campos capturados
-    const nodes = [];     // el elemento real, para resaltar desde la lista
+    // D10/D23: el panel nace con lo ya grabado. \`nodes\` va en paralelo y arranca
+    // vacío para los recuperados (no hay nodo del DOM al que apuntar tras navegar).
+    const seq = ${JSON.stringify(grabado)};
+    const nodes = seq.map(() => null);
+    // D10/D23: cada cambio de la secuencia sale de la página por el puente, que
+    // sobrevive a la navegación. Si el puente no está (paneles de test), no pasa nada.
+    const track = () => { try { window.__qaAssistTrack && window.__qaAssistTrack(seq.map((s) => { const c = Object.assign({}, s); delete c._q; delete c._editErr; return c; })); } catch (e) {} };
     let hoverTimer = null, hoverEl = null;
     let hl = null;        // caja de resaltado
     let repick = null;    // K0.20-B: índice de la fila que se está re-capturando
@@ -552,6 +572,10 @@ function assistOverlayScript(testidAttrs: string[], step: WalkStep, hintText: st
     const setStatus = (t) => { status.textContent = t; };
 
     const render = () => {
+      // D10/D23: TODAS las mutaciones de la secuencia (añadir, quitar, re-capturar,
+      // editar el locator, limpiar) desembocan aquí, así que este es el único punto
+      // donde hay que persistir — y no se puede olvidar ninguna.
+      track();
       list.innerHTML = '';
       seq.forEach((s, i) => {
         const li = document.createElement('li');
@@ -1161,6 +1185,13 @@ class DomWalker {
   private aliases: HintAliasFile;
   private readonly aliasesPath: string;
   /** Resolver del envío del overlay (K0.10): lo rellena assistResolve por paso. */
+  /**
+   * D10/D23 — lo grabado por el QA, EN NODE. Vive aquí y no en la página porque
+   * el contexto de la página se destruye con cada navegación, y ahí se perdía.
+   */
+  private assistRecorded: PickedElement[] = [];
+  /** Sumidero del puente de grabación: lo pone la espera activa. */
+  private assistTrack: ((seq: PickedElement[]) => void) | null = null;
   private assistPending: ((p: AssistSubmission) => void) | null = null;
   private assistBridgeReady = false;
   private readonly assistPatch: AssistPatch;
@@ -3158,6 +3189,15 @@ class DomWalker {
       pending?.(payload);
     });
     /**
+     * Tercer puente (D10/D23) — escritura al vuelo de lo grabado. Los puentes de
+     * `exposeFunction` SOBREVIVEN a una navegación (la interfaz no), así que este es
+     * el único sitio por donde la evidencia puede salir de la página antes de que la
+     * página desaparezca. El panel lo llama en cada gesto; el walker lo persiste.
+     */
+    await this.page.exposeFunction('__qaAssistTrack', (seq: PickedElement[]) => {
+      this.assistTrack?.(Array.isArray(seq) ? seq : []);
+    });
+    /**
      * Segundo puente (K0.11c): el panel pregunta EN VIVO por la calidad del locator
      * de un elemento recién señalado y el walker responde con tier + fragilidad. Así
      * el QA se entera de que un campo no tiene identidad única con la pantalla
@@ -3249,6 +3289,8 @@ class DomWalker {
         mutating: !isRetrySafe(step),
         timeoutMs: this.opts.assistTimeoutMs,
         now: Date.now(),
+        ...(this.assistRecorded.length ? { grabado: this.assistRecorded } : {}),
+        scriptHash: this.state.script_hash,
       });
       writeFileSync(this.assistMarkerPath, JSON.stringify(payload, null, 2), 'utf8');
     } catch (err) {
@@ -3256,9 +3298,57 @@ class DomWalker {
     }
   }
 
+  /**
+   * D10/D23 — lo grabado, a disco EN EL MOMENTO DEL GESTO.
+   *
+   * El panel llama a este puente cada vez que su secuencia cambia. Se escribe
+   * entero el marcador (es pequeño y los gestos van a ritmo humano: no hay nada
+   * que optimizar) y así lo grabado sobrevive a las dos formas de morir que se
+   * midieron en campo — la navegación que destruye el panel y el SIGTERM que mata
+   * el proceso a los diez minutos. Antes de esto el arreglo de K0.44 solo sabía
+   * avisar de la pérdida; avisar no es conservar.
+   */
+  private trackAssistRecording(flow: WalkFlow, step: WalkStep, motivo: string, seq: PickedElement[]): void {
+    this.assistRecorded = seq;
+    this.writeAssistMarker(flow, step, motivo);
+  }
+
   /** Retira el marcador. Se llama desde el ÚNICO punto de cierre de la espera. */
   private clearAssistMarker(): void {
     rmSync(this.assistMarkerPath, { force: true });
+    this.assistRecorded = [];
+  }
+
+  /**
+   * Lo grabado que dejó una sesión interrumpida, si es de ESTE paso y ESTE guion
+   * (los cerrojos viven en `recuperarGrabacion`, pura y con sus tests). Se anuncia
+   * siempre: resucitar en silencio pasos que el QA no recuerda haber demostrado
+   * sería peor que perderlos.
+   */
+  private recuperarAssistRecording(flow: WalkFlow, step: WalkStep): PickedElement[] {
+    if (!existsSync(this.assistMarkerPath)) return [];
+    let previo: Partial<AssistMarker> | null = null;
+    try {
+      previo = JSON.parse(readFileSync(this.assistMarkerPath, 'utf8')) as Partial<AssistMarker>;
+    } catch {
+      return []; // marcador ilegible: no se recupera nada y no se inventa
+    }
+    const rec = recuperarGrabacion(previo, {
+      flow: flow.flow,
+      step: step.id,
+      scriptHash: this.state.script_hash,
+    });
+    if (!rec) return [];
+    console.error(
+      `[dom-walker] recuperados ${rec.length} paso(s) grabados de una sesión anterior interrumpida ` +
+        `(${flow.flow}/${step.id}). Revísalos en el panel antes de enviar.`,
+    );
+    this.audit('allow', `grabación recuperada tras interrupción en ${flow.flow}/${step.id}: ${rec.length} paso(s)`, {
+      phase: 'assist',
+      source: 'human',
+      recovered: rec.length,
+    });
+    return rec;
   }
 
   /**
@@ -3281,6 +3371,15 @@ class DomWalker {
     const segundos = Math.round(this.opts.assistTimeoutMs / 1000);
     let endReason = `asistencia sin respuesta en ${segundos}s (timeout)`;
     let reinjections = 0;
+
+    /**
+     * D23 — lo grabado en una sesión que alguien mató. El marcador es lo único que
+     * queda de ella, y si es de ESTE paso y ESTE guion se devuelve al panel en vez
+     * de pedirle al QA que vuelva a demostrar lo mismo. Va ANTES de escribir el
+     * marcador de esta espera, que lo sobrescribe.
+     */
+    this.assistRecorded = this.recuperarAssistRecording(flow, step);
+    this.assistTrack = (seq) => this.trackAssistRecording(flow, step, baseReason, seq);
 
     // K0.45 (D12) — el aviso por consola YA existía y aun así el QA no se enteró: quien
     // lanzó el walker canalizó la salida por un `Select-Object`, que no emite hasta que el
@@ -3305,6 +3404,7 @@ class DomWalker {
         clearTimeout(timer);
         clearInterval(watchdog);
         this.assistPending = null;
+        this.assistTrack = null;
         this.clearAssistMarker();
         res(p);
       };
@@ -3313,7 +3413,9 @@ class DomWalker {
 
       const inject = (note: string): Promise<void> =>
         this.page
-          .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, note, mutating))
+          // D10/D23 — el panel nace con lo ya grabado dentro (recuperado de una
+          // sesion interrumpida, o conservado a traves de la navegacion que lo mato).
+          .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, note, mutating, this.assistRecorded))
           .then(() => undefined)
           // K0.44 (D10) — antes esto solo se escribía por consola y la espera seguía
           // viva: el walker aguardaba el timeout entero por un panel que no llegó a
@@ -3338,21 +3440,29 @@ class DomWalker {
             }
             reinjections += 1;
             /**
-             * Lo grabado vivía DENTRO del panel, así que se ha perdido con él. No se
-             * puede reconstruir sin inventar, y decir "sigue grabando" sería mentir.
-             * Y si el paso muta negocio hay que decirlo con todas las letras: volver a
-             * demostrarlo puede dispararlo dos veces, y para eso está "capturar sin
-             * ejecutar" (K0.14), que el propio panel ofrece cuando `mutating`.
+             * D10 — lo grabado YA NO vive dentro del panel: sale por el puente
+             * `__qaAssistTrack` en cada gesto, así que la navegación se lleva la
+             * interfaz y no la evidencia. El panel se reinyecta CON la secuencia
+             * dentro, y el aviso dice lo que de verdad ha pasado.
+             *
+             * Lo que NO cambia: si el paso muta negocio hay que decirlo con todas las
+             * letras, porque la acción demostrada pudo ejecutarse al navegar y
+             * repetirla la dispararía dos veces. Para eso está "capturar sin
+             * ejecutar" (K0.14), que el panel ofrece cuando `mutating`.
              */
+            const conservados = this.assistRecorded.length;
             const nota =
-              `${baseReason}\n\n⚠ La página cambió y el panel se perdió con lo grabado hasta ahora ` +
-              `(intento ${reinjections}/${ASSIST_MAX_REINJECTIONS}). Vuelve a señalar el elemento.` +
+              `${baseReason}\n\n⚠ La página cambió y el panel se ha reabierto` +
+              (conservados
+                ? ` CON los ${conservados} paso(s) que ya habías grabado (se conservan).`
+                : ` (todavía no habías grabado nada).`) +
+              ` Intento ${reinjections}/${ASSIST_MAX_REINJECTIONS}.` +
               (mutating
-                ? ' OJO: este paso modifica datos de negocio — si la acción ya se ejecutó, usa "capturar sin ejecutar" en vez de repetirla.'
+                ? ' OJO: este paso modifica datos de negocio — si la acción ya se ejecutó al navegar, usa "capturar sin ejecutar" en vez de repetirla.'
                 : '');
             console.error(
               `[dom-walker] el panel de asistencia desapareció (la página navegó); re-inyectando ` +
-                `${reinjections}/${ASSIST_MAX_REINJECTIONS} — lo grabado se ha perdido`,
+                `${reinjections}/${ASSIST_MAX_REINJECTIONS} — ${conservados} paso(s) grabados CONSERVADOS`,
             );
             // 'skip' y no 'warn': la unión de acciones del walker no tiene 'warn' y
             // ampliarla es decisión aparte (familia D2). El mensaje lleva el sentido.

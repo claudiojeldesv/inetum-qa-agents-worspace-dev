@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Graba y la página se va</title></head>
+<!--
+  D10 — reproduce la CLASE del defecto con el gesto completo: el QA graba un paso y
+  ENTONCES la página cambia de documento. En campo lo provocó él mismo (demostró el
+  paso pulsando un logout y la navegación se llevó el panel con lo grabado dentro).
+
+  Secuencia, en dos vidas del documento:
+    1ª carga  → el panel se abre (el hint no resuelve), la página manda 'record',
+                hace un clic REAL sobre el objetivo (una fila entra en la secuencia),
+                y a los 700 ms navega. El panel muere.
+    2ª carga  → el vigilante reinyecta el panel. La página NO graba nada más: solo
+                espera y envía 'stop', para que la submission diga qué sobrevivió.
+
+  El testigo del arreglo no es el DOM sino el marcador de disco (assist-pending.json):
+  ahí es donde la evidencia tiene que estar cuando la página ya no está. Y la
+  submission final dice si el panel volvió con la secuencia dentro o vacío.
+-->
+<body>
+  <h1>Zona de cliente</h1>
+  <button id="objetivo" type="button">Confirmar operación</button>
+  <script>
+    var vida = Number(sessionStorage.getItem('qa-vida') || '0');
+    var enviar = function (host, detail) {
+      host.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: detail }));
+    };
+    var espera = setInterval(function () {
+      var host = document.querySelector('[data-qa-assist-host]');
+      if (!host) return;
+      clearInterval(espera);
+      if (vida === 0) {
+        // grabar → clic real (una fila) → navegar y matar el panel
+        enviar(host, 'record');
+        setTimeout(function () {
+          document.getElementById('objetivo').click();
+          setTimeout(function () {
+            sessionStorage.setItem('qa-vida', '1');
+            location.replace(location.pathname + '?v=1');
+          }, 700);
+        }, 250);
+      } else {
+        // segunda vida: no se graba nada nuevo; se cierra para ver qué sobrevivió
+        setTimeout(function () { enviar(host, 'stop'); }, 900);
+      }
+    }, 100);
+  </script>
+</body>
+</html>

@@ -43,7 +43,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D7 | No hay CLI para `appendAuditEntry`: el orquestador escribió tres `.ts` desechables solo para registrar | ParaBank beta.3 | íd. (mitigado parcialmente por `audit-mark`) | abierto |
 | D8 | El command imprimió `--fd=<ruta>` con una ruta inexistente como si fuera ejecutable | ParaBank beta.3 | íd. ("arreglo de un minuto") | abierto |
 | D9 | `--assist` declarado en el contract y aun así se preguntó a mitad de run. Familia D2 | ParaBank beta.3 | íd. | abierto |
-| D10 | El panel de asistencia se inyecta con `page.evaluate` y una navegación lo mata: walker esperando 600 s un botón inexistente | ParaBank beta.3 | K0.44: vigilante 500 ms + re-inyección acotada, `copilot/src/dom-walker.ts` | cerrado — **sin verificación de campo** |
+| D10 | El panel de asistencia se inyecta con `page.evaluate` y una navegación lo mata: walker esperando 600 s un botón inexistente, y **lo grabado moría con el panel** | ParaBank beta.3 | K0.44: vigilante 500 ms + re-inyección acotada. **2026-08-24**: lo grabado sale de la página en cada gesto por el puente `__qaAssistTrack` y el panel se reinyecta CON la secuencia — `copilot/src/dom-walker.ts`, `recuperarGrabacion` en `walk-core.ts` | cerrado — **verificado en campo** (navegador real: 1 paso grabado, navegación, panel reinyectado con él, parche verificado) |
 | D11 | Diagnóstico falso del tier anclado ("no hay label") → rescate MCP innecesario y memoria envenenada | ParaBank beta.4 | [run-beta-parabank-2.md](../findings/run-beta-parabank-2.md) §D11 | abierto |
 | D12 | El panel de asistencia se abre y el QA no se entera (el aviso iba a un stdout bufferizado) | ParaBank beta.4 | K0.45: marcador en disco `assist-pending.json`, `copilot/src/dom-walker.ts` / `walk-core.ts` | cerrado |
 | D13 | Subagentes lanzados en background: ~30 min de espera muerta; la regla "no background" no es imponible | ParaBank beta.4 | instrumentado en `src/run-cost.ts` | abierto |
@@ -56,7 +56,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D20 | La notación de diagnóstico de la escalera (`anchored(...)`) se volcaba verbatim al código emitido → POM muerto, `Total: 0 tests` | ParaBank beta.4 | K0.46: lista blanca fail-closed `copilot/src/walk-core.ts` + campo `emit_locator` (cuyo productor faltó → D46) | cerrado |
 | D21 | Emisión independiente con locators medidos con sesión | ParaBank beta.4 | solo mencionado en la bitácora de estado | abierto |
 | D22 | ~30 s por paso anclado (coste del tier `anchored`) | ParaBank beta.4 | íd. | abierto |
-| D23 | Un SIGTERM a los ~10 min mata el walk asistido — el modo asistido no sobrevive a una pausa humana, su propio caso de uso | ParaBank beta.5 | camino de arreglo escrito (background + `assist-pending.json`); [run-beta-parabank-3.md](../findings/run-beta-parabank-3.md) | abierto |
+| D23 | Un SIGTERM a los ~10 min mata el walk asistido — el modo asistido no sobrevive a una pausa humana, su propio caso de uso | ParaBank beta.5 | **2026-08-24**: lo grabado se persiste en `assist-pending.json` en cada gesto y se recupera al relanzar con tres cerrojos de identidad (flujo, paso, hash del guion) — `recuperarGrabacion` en `copilot/src/walk-core.ts`; la reanudación del walk ya existía (`walk-state.json`) | cerrado — **el SIGTERM externo no se puede evitar; lo que se arregla es que deje de ser destructivo** |
 | D24 | Un nombre accesible numérico mataba el POM entero (`readonly 12345: Locator`) | ParaBank beta.5 (25 links `12345`…) | prefijo de rol en `toIdentifier`, `src/pom-scaffolder.ts:78`; commit `c4de8f9` | cerrado — confirmado en campo |
 | D25 | `verify-locators` asume autenticación por redirección; si la app mantiene la URL y cambia el contenido, se desalinea | ParaBank beta.5 (no reproduce en SauceDemo) | relacionado con D50/D51, que sí cerraron | abierto (al final de la cola) |
 | D26 | El rechazo fail-closed (D20) nombra el segmento culpable pero no ofrece alternativa | ParaBank beta.5 | confirmado sin tocar en run 5 y SauceDemo | abierto |
@@ -91,9 +91,9 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 
 ## Recuento
 
-**31 cerrados** · **22 abiertos** · **1 criterio permanente (D2)**.
+**33 cerrados** · **20 abiertos** · **1 criterio permanente (D2)**.
 
-Cerrados con matiz: D3 y D10 sin verificación de campo; D44 visto una sola vez; D45 con dos
+Cerrados con matiz: D3 sin verificación de campo; D23 arregla el daño, no la causa (el SIGTERM viene de fuera); D44 visto una sola vez; D45 con dos
 instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos agentes.
 
 ## Dónde se midió cada bloque
