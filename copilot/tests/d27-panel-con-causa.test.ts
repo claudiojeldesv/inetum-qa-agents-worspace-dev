@@ -16,7 +16,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { textoAsistencia, pedidoDelPaso } from '../src/walk-core.ts';
-import { candidatosParaInforme, resultadosOrdenados } from '../../src/locator-candidates.ts';
+import { candidatosParaInforme, pedidoSinPalabrasUtiles, resultadosOrdenados } from '../../src/locator-candidates.ts';
 
 /** Palabras del motor. Ninguna puede llegar a la pantalla del QA. */
 const JERGA = [
@@ -264,4 +264,29 @@ describe('D27 contra DOM real — la causa se mide, no se supone', () => {
     expect(t).not.toMatch(/aparece \d+ veces/);
     expect(sinJerga(t)).toEqual([]);
   }, 120_000);
+});
+
+describe('el pedido que no da para comparar, y la ventana que tapa el fondo', () => {
+  /**
+   * El FD de onesait dice literalmente «pulsar el botón de cerrar "X"» tres veces, y
+   * las aplicaciones corporativas lo pintan `×`. Con un pedido de un solo carácter el
+   * emparejamiento por palabras (≥3) no produce NADA nunca, así que el panel concluía
+   * «ni nada que se le parezca» con el botón delante. La lista vacía significaba «no
+   * se puede comparar», no «no hay nada»: afirmar lo segundo es decir algo falso.
+   */
+  it('EL PAR: «X» no da para emparejar, y eso NO es lo mismo que no haber nada', () => {
+    expect(pedidoSinPalabrasUtiles('X')).toBe(true);
+    expect(pedidoSinPalabrasUtiles('×')).toBe(true);
+    expect(pedidoSinPalabrasUtiles('Buscar')).toBe(false);
+    // Con el pedido corto se enseña lo que hay; con uno normal, solo lo parecido.
+    const botones = ['×', 'No, Cancel', 'Yes, Delete'];
+    expect(resultadosOrdenados(botones, 'X')).toEqual(botones);
+    expect(candidatosParaInforme(botones, 'Buscar', false)).toEqual([]);
+  });
+
+  it('CONTROL: dos caracteres tampoco, tres sí — el umbral es el del emparejamiento', () => {
+    expect(pedidoSinPalabrasUtiles('ok')).toBe(true);
+    expect(pedidoSinPalabrasUtiles('Sí')).toBe(true);
+    expect(pedidoSinPalabrasUtiles('Add')).toBe(false);
+  });
 });

@@ -62,6 +62,26 @@ export function resultadosOrdenados(nombres: string[], esperado: string): string
   return [...new Set([...parecidos, ...resto])].slice(0, 8);
 }
 
+/**
+ * ¿El pedido da para emparejar por palabras?
+ *
+ * El emparejamiento exige palabras de ≥3 caracteres, así que un pedido más corto
+ * **no produce candidatos jamás, por construcción**. Y ahí la lista vacía significa
+ * «no se puede comparar», no «no hay nada parecido» — decir lo segundo es afirmar algo
+ * falso, que es peor que callarse.
+ *
+ * No es un caso de laboratorio: el FD de onesait dice literalmente *«pulsar el botón de
+ * cerrar "X"»* tres veces, y las aplicaciones corporativas pintan ese botón como `×`,
+ * `✕` o `✖`. Medido en OrangeHRM el 2026-08-25: el modal tiene su botón de cerrar con
+ * el texto `×`, y el panel respondía «ni nada que se le parezca» con el botón delante.
+ */
+export function pedidoSinPalabrasUtiles(pedido: string): boolean {
+  return pedido
+    .toLowerCase()
+    .split(/\s+/)
+    .every((w) => limpio(w).length < 3);
+}
+
 /** Sin espacios, guiones ni puntuación: `"Log In"` y `"login"` son la misma palabra. */
 function limpio(v: string): string {
   return v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');

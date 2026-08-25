@@ -98,7 +98,7 @@ import {
 // el marcador de peldaños (K0.27a) ya sabe leer una cadena de locator: reimplementar
 // esa clasificación aquí sería tener dos verdades sobre qué peldaño resolvió el paso
 import { classifyVia } from './walk-scoreboard.ts';
-import { candidatosParaInforme, resultadosOrdenados } from '../../src/locator-candidates.ts';
+import { candidatosParaInforme, pedidoSinPalabrasUtiles, resultadosOrdenados } from '../../src/locator-candidates.ts';
 import {
   EXIT_ERROR,
   EXIT_OK,
@@ -3235,7 +3235,17 @@ class DomWalker {
       }
       const n = step.hint ? await this.countMatches(this.page, step.hint) : 0;
       const causa = n > 1 ? 'ambiguo' : n === 1 ? 'unico-pero-falla' : 'ausente';
-      return textoAsistencia({ causa, pedido, coincidencias: n, candidatos: candidatosParaInforme(nombres, pedido, n > 1) });
+      /**
+       * Con un pedido demasiado corto para emparejar por palabras («X», el boton de
+       * cerrar que el FD de onesait nombra tres veces) la lista sale vacia SIEMPRE, y
+       * el panel concluia «ni nada que se le parezca» con el boton delante. Ahi la
+       * lista vacia no es un hallazgo, es una comparacion que no se puede hacer: se
+       * ensena lo que hay del rol pedido y que elija el QA.
+       */
+      const candidatos = pedidoSinPalabrasUtiles(pedido)
+        ? resultadosOrdenados(nombres, pedido)
+        : candidatosParaInforme(nombres, pedido, n > 1);
+      return textoAsistencia({ causa, pedido, coincidencias: n, candidatos });
     } catch {
       return this.hintText(step);
     }
@@ -3273,8 +3283,20 @@ class DomWalker {
      * ruidosa que una vacía cuando el rol del plan estaba equivocado, que es
      * justamente uno de los motivos por los que el paso se plantó.
      */
-    const delRol = rol ? vivos.filter((el) => el.role === rol) : [];
-    const elegidos = delRol.length > 0 ? delRol : vivos;
+    /**
+     * Con una ventana flotante abierta, lo de detrás no se puede pulsar: los
+     * candidatos son los de la ventana. Sin esto la lista se llenaba con los botones
+     * de la pantalla de fondo y el botón de cerrar del modal caía fuera del tope —
+     * medido en OrangeHRM con el modal de confirmación abierto.
+     *
+     * Es el escenario de onesait, donde el caso pasa por cinco ventanas anidadas y
+     * tres de sus pasos son «pulsar el botón de cerrar X» de ventanas distintas.
+     */
+    const enVentana = vivos.filter((el) => el.inDialog);
+    const superficie = enVentana.length > 0 ? enVentana : vivos;
+
+    const delRol = rol ? superficie.filter((el) => el.role === rol) : [];
+    const elegidos = delRol.length > 0 ? delRol : superficie;
     return [...new Set(elegidos.map((el) => el.name as string))];
   }
 
