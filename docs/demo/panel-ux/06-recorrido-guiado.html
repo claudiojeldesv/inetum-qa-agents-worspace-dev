@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Maqueta del panel de asistencia QA. Fuente autorada, extraida del Artifact
+     https://claude.ai/code/artifact/01722b21-89eb-4089-91e9-323dfd3d5708
+     Autocontenida: se abre con doble clic. La unica peticion externa es Google Fonts;
+     sin red el fallback del stack de fuentes la deja legible igual. -->
+</head>
+<body>
+<title>Panel de asistencia QA</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Mundo visual único y deliberado: la aplicación bajo prueba es un portal
+     corporativo claro; el panel es una herramienta oscura, ajena a ella a propósito
+     — nunca debe confundirse con la app. Todo se pinta explícito. */
+  :root {
+    --app-head: #0d3b66; --app-ground: #f7f8fa; --app-surface: #ffffff;
+    --app-line: #e3e6eb; --app-text: #37414f; --app-muted: #6b7684;
+    --tool: #12161d; --tool-head: #1c222c; --tool-line: #39424f;
+    --tool-text: #f4f6f8; --tool-muted: #8d97a5; --tool-sunk: #1a2028;
+    --ok: #2f9e6f; --ok-dim: #1c5f43; --drift: #c2703d; --drift-dim: #6d3c1d;
+    --bad: #b4453f; --bad-dim: #6d2823; --ev: #4a7ab8;
+    --guide: #101823;
+    --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
+    --voz: "IBM Plex Sans", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--app-ground); color: var(--app-text); font: 15px/1.55 var(--ui); }
+  .wrap { position: relative; min-height: 100vh; padding-bottom: 84px; }
+
+  /* ---------- aplicación bajo prueba ---------- */
+  .top { background: var(--app-head); color: #fff; padding: 13px 22px; display: flex; justify-content: space-between; align-items: baseline; }
+  .top .marca { font-weight: 500; letter-spacing: .01em; }
+  .top .env { font-size: 12px; opacity: .8; }
+  .nav { background: var(--app-surface); border-bottom: 1px solid var(--app-line); padding: 0 22px; display: flex; gap: 20px; }
+  .nav span { padding: 11px 0; font-size: 13.5px; color: var(--app-muted); }
+  .nav .on { color: var(--app-head); font-weight: 500; box-shadow: inset 0 -2px 0 var(--app-head); }
+  main { padding: 24px 22px; max-width: 880px; }
+  h1 { font: 500 21px/1.3 var(--ui); margin: 0 0 4px; color: #223; }
+  .sub { color: var(--app-muted); font-size: 13.5px; margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; background: var(--app-surface); border: 1px solid var(--app-line); font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--app-line); }
+  th { background: #fbfcfd; font-weight: 500; color: #4a5462; font-size: 12.5px; letter-spacing: .02em; text-transform: uppercase; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  .est { font-size: 12px; padding: 2px 8px; border-radius: 3px; background: #e8f3ee; color: #1f6a4c; }
+  .est.an { background: #f2eae8; color: #8a4a42; }
+  .cta { background: var(--app-head); color: #fff; border: 0; padding: 5px 11px; border-radius: 4px; font: 12.5px var(--ui); cursor: pointer; }
+  .cta:hover { background: #12507f; }
+  .cta:focus-visible, .icon:focus-visible, button:focus-visible { outline: 2px solid #7aa8d8; outline-offset: 2px; }
+  .flash { background: #fff8e6; border: 1px solid #e8d9a8; color: #6b551d; padding: 10px 12px; border-radius: 4px; margin-bottom: 16px; font-size: 13.5px; }
+  .modal-bg { position: absolute; inset: 0; background: rgba(20,30,45,.42); display: none; align-items: center; justify-content: center; z-index: 60; }
+  .modal { background: #fff; border-radius: 6px; padding: 20px 22px; width: 380px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .modal h3 { font: 500 16px var(--ui); margin: 0 0 8px; }
+  .modal p { font-size: 13.5px; color: var(--app-muted); margin: 0 0 16px; }
+  .modal .fila { display: flex; gap: 8px; justify-content: flex-end; }
+  .ghosted { background: #eceff3; color: #8b95a2; border: 1px solid var(--app-line); padding: 5px 11px; border-radius: 4px; font: 12.5px var(--ui); }
+
+  /* ---------- el panel (la herramienta) ---------- */
+  .p { position: absolute; top: 14px; right: 16px; z-index: 80; width: 396px;
+       background: var(--tool); color: var(--tool-text); border: 1px solid var(--tool-line);
+       border-radius: 9px; box-shadow: 0 10px 34px rgba(10,16,26,.42); overflow: hidden; font-size: 13px; }
+  .p.fantasma { opacity: .3; }
+  .p.oculto { display: none; }
+  .ph { padding: 9px 11px; background: var(--tool-head); cursor: move; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .ph .paso { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .ph .der { display: flex; align-items: center; gap: 8px; }
+  .sello { color: #6fd3a6; font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .icon { background: #2a323d; border: 1px solid var(--tool-line); color: var(--tool-text); width: 21px; height: 21px;
+          border-radius: 4px; cursor: pointer; font: 12px/1 var(--ui); padding: 0; }
+  .icon:hover { background: #37414f; }
+  .pb { padding: 11px; }
+  .pide { color: var(--tool-muted); margin-bottom: 9px; }
+  .pide b { color: var(--tool-text); font-weight: 500; }
+  .aviso { background: var(--drift-dim); color: #f3d9c4; border-radius: 5px; padding: 7px 9px; font-size: 12px; margin-bottom: 9px; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 178px; overflow-y: auto; }
+  li { display: flex; align-items: center; gap: 7px; padding: 5px 6px; border-radius: 4px; background: var(--tool-sunk); }
+  li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li .via { color: var(--tool-muted); font: 11px var(--mono); }
+  li.rec { background: var(--drift-dim); color: #f3d9c4; }
+  li.add { background: transparent; border: 1px dashed var(--tool-line); color: var(--tool-muted); cursor: pointer; justify-content: center; }
+  li.add:hover { border-color: #55606f; color: var(--tool-text); }
+  .fila { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+  .act { font: 12px var(--ui); padding: 6px 10px; border-radius: 5px; border: 1px solid var(--tool-line); background: #2a323d; color: var(--tool-text); cursor: pointer; }
+  .act:hover { filter: brightness(1.22); }
+  .act.grab { background: var(--ok-dim); border-color: var(--ok); }
+  .act.mal { background: var(--bad-dim); border-color: var(--bad); }
+  .act.dr { background: var(--drift-dim); border-color: var(--drift); }
+  .act:disabled { opacity: .45; cursor: default; filter: none; }
+  .dos { display: flex; gap: 8px; margin-bottom: 10px; }
+  .caja { flex: 1; border-radius: 6px; padding: 9px; }
+  .caja.fd { background: var(--tool-sunk); border: 1px solid var(--tool-line); }
+  .caja.web { background: var(--drift-dim); border: 1px solid var(--drift); }
+  .caja .et { font-size: 11px; margin-bottom: 5px; color: var(--tool-muted); letter-spacing: .03em; text-transform: uppercase; }
+  .caja.web .et { color: #f3d9c4; }
+  .et2 { font-size: 11px; color: var(--tool-muted); margin-bottom: 5px; letter-spacing: .03em; text-transform: uppercase; }
+  input.ed { width: 100%; background: var(--tool-sunk); border: 1px solid var(--tool-line); border-radius: 5px;
+             padding: 8px 9px; color: var(--tool-text); font: 13px var(--ui); }
+  input.ed:focus { outline: 2px solid var(--ev); outline-offset: 0; }
+  .grupo { border: 1px solid var(--tool-line); border-radius: 6px; padding: 9px; margin-bottom: 8px; }
+  .grupo.or { border-color: var(--drift); }
+  .grupo .cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .grupo .men { color: var(--tool-muted); font-size: 11.5px; margin-top: 5px; }
+  .cambio { background: var(--tool-sunk); border-radius: 5px; padding: 8px 9px; margin-top: 7px; }
+  .antes { color: #e08b86; text-decoration: line-through; }
+  .desp { color: #6fd3a6; }
+  .chip { font-size: 11px; padding: 2px 7px; border-radius: 4px; margin-right: 5px; display: inline-block; }
+  .chip.ev { background: #24405e; color: #cfe0f2; }
+  .chip.or { background: #2a323d; color: #cbd3dd; }
+  .lejos { color: var(--tool-muted); font-size: 11.5px; display: flex; justify-content: space-between; margin: 11px 0; }
+  .lejos b { color: #f3d9c4; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .cerrado { background: var(--ok-dim); border: 1px solid var(--ok); border-radius: 6px; padding: 10px; color: #cdeadd; font-size: 12.5px; }
+  .cerrado.rojo { background: var(--bad-dim); border-color: var(--bad); color: #f0cfcc; }
+  .barra { position: absolute; top: 14px; right: 16px; z-index: 80; display: none; align-items: center; gap: 11px;
+           background: var(--tool); color: var(--tool-text); border: 1px solid var(--tool-line); border-radius: 9px;
+           padding: 7px 12px; font: 12px var(--ui); cursor: pointer; box-shadow: 0 6px 20px rgba(10,16,26,.35); }
+  .barra:hover { border-color: #55606f; }
+
+  /* ---------- guía del recorrido (no es producto) ---------- */
+  .guia { position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; background: var(--guide); color: #c3ccd8;
+          font: 13.5px/1.5 var(--voz); padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+          border-top: 1px solid #243244; }
+  .guia .n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #24405e; color: #cfe0f2;
+             display: grid; place-items: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .guia .txt { flex: 1; }
+  .guia .txt b { color: #fff; font-weight: 500; }
+  .guia .lib { color: #7d8b9c; font-size: 12px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .p { transition: opacity .18s ease; }
+    li { animation: entra .22s ease; }
+    @keyframes entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+
+<div class="wrap" id="wrap">
+  <div class="top"><span class="marca">Seguros — Portal de gestión</span><span class="env">entorno de preproducción</span></div>
+  <nav class="nav"><span>Inicio</span><span class="on">Mis pólizas</span><span>Siniestros</span><span>Recibos</span><span>Clientes</span></nav>
+  <main id="app"></main>
+
+  <div class="modal-bg" id="mbg">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+      <h3 id="mt">Cancelar la póliza POL-4711</h3>
+      <p>La anulación es irreversible y afecta a la cobertura desde hoy.</p>
+      <div class="fila"><button class="ghosted" id="mno">Volver</button><button class="cta" id="msi">Confirmar anulación</button></div>
+    </div>
+  </div>
+
+  <div class="barra" id="barra"><span>QA</span><span id="barraTxt">asistencia</span><span style="color:#6fd3a6">guardado</span><span>▸</span></div>
+
+  <section class="p" id="panel" aria-label="Panel de asistencia QA">
+    <header class="ph" id="ph">
+      <span class="paso" id="paso">paso 4 de 12 · cancelación</span>
+      <span class="der">
+        <span class="sello" id="sello">guardado 14:32 ✓</span>
+        <button class="icon" id="bf" title="modo fantasma" aria-label="modo fantasma">◎</button>
+        <button class="icon" id="bc" title="colapsar" aria-label="colapsar">–</button>
+      </span>
+    </header>
+    <div class="pb" id="pb"></div>
+  </section>
+
+  <div class="guia">
+    <span class="n" id="gn">1</span>
+    <span class="txt" id="gt"></span>
+    <span class="lib">Arrastra la cabecera · <b>–</b> colapsa · <b>◎</b> fantasma</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var seq = [], beat = 1, esperado = 'Anulación en trámite', coreo = 0, firmado = false;
+
+  var GUIA = {
+    1: 'Estás en el paso 4 del recorrido y el walker no encuentra el botón. <b>Pulsa “Cancelar” en la fila de POL-4711</b> — el panel graba lo que haces en la aplicación.',
+    2: 'Grabado. La aplicación pide confirmación. <b>Pulsa “Confirmar anulación”</b> para grabar el segundo paso.',
+    3: 'La aplicación ha cambiado de página y <b>el panel ha muerto con ella</b>. Míralo volver.',
+    4: 'El panel volvió <b>con tus dos pasos dentro</b>. Y ahora la discrepancia: el documento funcional decía una cosa y la aplicación dice otra. <b>Decide tú.</b>',
+    5: 'Último gesto: revisa lo que has cambiado respecto al documento original y <b>fírmalo</b>.'
+  };
+
+  function sello() {
+    var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+    $('sello').textContent = 'guardado ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + ' ✓';
+  }
+  function guia() { $('gn').textContent = beat; $('gt').innerHTML = GUIA[beat]; }
+
+  function pintarApp(navegada) {
+    $('app').innerHTML = navegada
+      ? '<h1>Anulación de póliza</h1><p class="sub">POL-4711 · García Ruiz, Ana</p>'
+        + '<div class="flash">Anulación en trámite. Recibirás la confirmación por correo.</div>'
+        + '<table><thead><tr><th>Referencia</th><th>Producto</th><th>Estado</th><th>Efecto</th></tr></thead>'
+        + '<tbody><tr><td class="num">POL-4711</td><td>Hogar Confort</td><td><span class="est an">En trámite</span></td><td class="num">24/08/2026</td></tr></tbody></table>'
+      : '<h1>Mis pólizas</h1><p class="sub">4 pólizas · cartera Levante</p>'
+        + '<table><thead><tr><th>Referencia</th><th>Tomador</th><th>Producto</th><th>Estado</th><th>Prima</th><th></th></tr></thead><tbody>'
+        + fila('POL-4711', 'García Ruiz, Ana', 'Hogar Confort', 1, '412,00')
+        + fila('POL-4712', 'Serrano Díaz, Luis', 'Auto Todo Riesgo', 0, '689,50')
+        + '<tr><td class="num">POL-4713</td><td>Molina Cano, Eva</td><td>Vida Ahorro</td><td><span class="est an">Anulada</span></td><td class="num">1.204,00</td><td></td></tr>'
+        + fila('POL-4714', 'Ferrer Nadal, Jordi', 'Salud Familiar', 0, '958,20')
+        + '</tbody></table>';
+    var b = $('cancelar');
+    if (b) b.onclick = function () { if (beat === 1) $('mbg').style.display = 'flex'; };
+  }
+  function fila(ref, tom, prod, vivo, prima) {
+    return '<tr><td class="num">' + ref + '</td><td>' + tom + '</td><td>' + prod + '</td>'
+      + '<td><span class="est">Vigente</span></td><td class="num">' + prima + '</td><td>'
+      + (vivo ? '<button class="cta" id="cancelar">Cancelar</button>' : '<button class="ghosted">Cancelar</button>') + '</td></tr>';
+  }
+
+  function pintarPanel(aviso) {
+    var pb = $('pb');
+    if (beat <= 3) {
+      $('paso').textContent = 'paso 4 de 12 · cancelación';
+      pb.innerHTML = (aviso ? '<div class="aviso">⚠ La página cambió y el panel se ha reabierto <b>con los ' + seq.length
+          + ' paso(s) que ya habías grabado</b>. Se conservan.</div>' : '')
+        + '<div class="pide">' + (beat === 1 ? 'Señala el botón <b>Cancelar</b> de POL-4711' : 'Sigue señalando, o para cuando termines') + '</div>'
+        + '<ul>' + seq.map(function (s, i) {
+            return '<li class="rec"><span>▲</span><span class="nm">' + s.n + '</span><span class="via">' + s.via
+              + '</span><button class="icon" data-q="' + i + '" title="quitar" aria-label="quitar paso">×</button></li>';
+          }).join('')
+        + (seq.length ? '<li class="add" id="mas">＋ Añadir paso a mano</li>' : '') + '</ul>'
+        + '<div class="fila"><button class="act grab">Grabando</button><button class="act">Pausa</button>'
+        + '<button class="act dr">No existe</button><button class="act" id="soloCap" ' + (seq.length ? '' : 'disabled') + '>Solo capturar</button></div>';
+      var mas = $('mas');
+      if (mas) mas.onclick = function () { seq.push({ n: 'Paso añadido a mano', via: 'manual' }); coreo++; sello(); pintarPanel(false); };
+      Array.prototype.forEach.call(pb.querySelectorAll('[data-q]'), function (b) {
+        b.onclick = function () { seq.splice(+b.getAttribute('data-q'), 1); coreo++; sello(); pintarPanel(false); };
+      });
+    } else if (beat === 4) {
+      $('paso').textContent = 'paso 9 de 12 · cancelación';
+      pb.innerHTML = '<div class="dos">'
+        + '<div class="caja fd"><div class="et">El FD dice · RF-014</div><div>Solicitud de anulación registrada</div></div>'
+        + '<div class="caja web"><div class="et">La aplicación muestra</div><div>Anulación en trámite</div></div></div>'
+        + '<div class="et2">Resultado esperado — edítalo si hace falta</div>'
+        + '<input class="ed" id="exp" value="' + esperado + '" aria-label="resultado esperado">'
+        + '<div class="fila"><button class="act grab" id="okWeb">La aplicación tiene razón</button>'
+        + '<button class="act mal" id="okFd">Es un defecto</button><button class="act" id="luego">Luego</button></div>';
+      $('exp').oninput = function () { esperado = this.value; sello(); };
+      $('okWeb').onclick = function () { beat = 5; sello(); guia(); pintarPanel(false); };
+      $('luego').onclick = function () { beat = 5; guia(); pintarPanel(false); };
+      $('okFd').onclick = function () {
+        pb.innerHTML = '<div class="cerrado rojo">Registrado como <b>defecto de la aplicación</b> en RF-014.<br>'
+          + 'El plan de pruebas no cambia. Sale en el informe del run como hallazgo, no como test roto.</div>';
+      };
+    } else {
+      $('paso').textContent = 'Revisar cambios · cancelación';
+      if (firmado) {
+        pb.innerHTML = '<div class="cerrado">Aprobado y firmado.<br>' + (coreo + seq.length) + ' cambios de recorrido · 1 de resultado esperado.<br>'
+          + 'Queda en el acta con tu nombre, la evidencia y el hash de la decisión.</div>';
+        return;
+      }
+      pb.innerHTML = '<div class="grupo"><div class="cab"><span>Recorrido · ' + (coreo + seq.length) + ' cambios</span>'
+        + '<button class="act" id="todos">Aceptar todos</button></div>'
+        + '<div class="men">Pasos grabados, añadidos y reordenados. No cambian qué se considera correcto.</div></div>'
+        + '<div class="grupo or"><div style="color:#f3d9c4">▲ Qué se considera correcto · 1 cambio</div>'
+        + '<div class="cambio"><div class="et2">RF-014 · resultado esperado</div>'
+        + '<div class="antes">Solicitud de anulación registrada</div><div class="desp">' + esperado + '</div>'
+        + '<div style="margin-top:7px"><span class="chip ev">verificado en vivo</span><span class="chip or">origen: aplicación</span></div></div></div>'
+        + '<div class="lejos"><span>Distancia al FD original</span><b>' + (coreo + seq.length + 1) + ' cambios · 2 sesiones</b></div>'
+        + '<div class="fila"><button class="act grab" id="firmar">Aprobar y firmar</button><button class="act">Descartar</button></div>';
+      $('todos').onclick = function () { this.textContent = 'Aceptados ✓'; this.disabled = true; };
+      $('firmar').onclick = function () { firmado = true; pintarPanel(false); };
+    }
+  }
+
+  $('msi').onclick = function () {
+    $('mbg').style.display = 'none';
+    seq.push({ n: 'Confirmar la anulación', via: 'rol+nombre' });
+    sello(); beat = 3; guia(); pintarPanel(false);
+    // el momento D10: la página cambia de documento y el panel muere con ella
+    setTimeout(function () {
+      $('panel').classList.add('oculto');
+      pintarApp(true);
+      setTimeout(function () {
+        beat = 4; guia();
+        $('panel').classList.remove('oculto');
+        pintarPanel(true);
+      }, 900);
+    }, 700);
+  };
+  $('mno').onclick = function () { $('mbg').style.display = 'none'; };
+
+  $('bc').onclick = function (e) {
+    e.stopPropagation();
+    $('panel').style.display = 'none'; $('barra').style.display = 'flex';
+    $('barraTxt').textContent = beat >= 5 ? 'revisar cambios' : 'paso ' + (beat >= 4 ? 9 : 4) + '/12 · cancelación';
+  };
+  $('barra').onclick = function () { $('barra').style.display = 'none'; $('panel').style.display = 'block'; };
+  $('bf').onclick = function (e) { e.stopPropagation(); $('panel').classList.toggle('fantasma'); };
+
+  var arr = null;
+  $('ph').addEventListener('mousedown', function (e) {
+    if (e.target.classList.contains('icon')) return;
+    var r = $('panel').getBoundingClientRect(), w = $('wrap').getBoundingClientRect();
+    arr = { x: e.clientX, y: e.clientY, t: r.top - w.top, l: r.left - w.left };
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!arr) return;
+    var p = $('panel');
+    p.style.left = (arr.l + e.clientX - arr.x) + 'px';
+    p.style.top = (arr.t + e.clientY - arr.y) + 'px';
+    p.style.right = 'auto';
+  });
+  document.addEventListener('mouseup', function () { arr = null; });
+
+  pintarApp(false); pintarPanel(false); guia(); sello();
+  setInterval(function () { if (seq.length) sello(); }, 15000);
+})();
+</script>
+</body>
+</html>

@@ -177,6 +177,9 @@ de pulir la interfaz.
 
 ## 5. Maquetas de referencia
 
+**En el repo**: [`docs/demo/panel-ux/`](../demo/panel-ux/) — las siete, autocontenidas, con su
+[README](../demo/panel-ux/README.md). Los enlaces de abajo son los Artifacts originales.
+
 Auditadas contra el código; lo que enseñan es viable salvo lo marcado como pendiente de acta.
 
 1. Grabando — https://claude.ai/code/artifact/123dacb3-68c4-4119-bdb9-999b1ded216a

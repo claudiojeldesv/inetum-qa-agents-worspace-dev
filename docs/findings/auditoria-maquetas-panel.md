@@ -121,6 +121,11 @@ en castellano puede mostrar literales en inglés, y eso es correcto.
 
 ## Enlaces
 
+**Copia versionada en el repo** (autocontenida, doble clic, sin depender de claude.ai):
+[`docs/demo/panel-ux/`](../demo/panel-ux/) — ver su [README](../demo/panel-ux/README.md).
+
+Los Artifacts originales, que siguen vivos:
+
 1. Grabando un paso — https://claude.ai/code/artifact/123dacb3-68c4-4119-bdb9-999b1ded216a
 2. Caso completo — https://claude.ai/code/artifact/267e9b32-fe2c-48d2-b05e-88cc2ac3ce0b
 3. Discrepancia con el FD — https://claude.ai/code/artifact/6e370136-efdc-4f21-9507-19a4ea69b034

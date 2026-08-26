@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Maqueta del panel de asistencia QA. Fuente autorada, extraida del Artifact
+     https://claude.ai/code/artifact/3e8e3836-d9cc-4344-8a2a-1fe493559342
+     Autocontenida: se abre con doble clic. La unica peticion externa es Google Fonts;
+     sin red el fallback del stack de fuentes la deja legible igual. -->
+</head>
+<body>
+<title>Aprobar y firmar</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  :root{--ahead:#0d3b66;--ground:#f7f8fa;--surf:#fff;--line:#e3e6eb;--txt:#37414f;--mut:#6b7684;
+    --tool:#12161d;--th:#1c222c;--tl:#39424f;--tt:#f4f6f8;--tm:#8d97a5;--ts:#1a2028;
+    --ok:#2f9e6f;--okd:#1c5f43;--dr:#c2703d;--drd:#6d3c1d;--bad:#b4453f;--ev:#4a7ab8;
+    --ui:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,"Cascadia Mono",Menlo,monospace;
+    --voz:"IBM Plex Sans",system-ui,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--txt);font:15px/1.55 var(--ui)}
+  .rot{background:#101823;color:#c3ccd8;font:13.5px/1.5 var(--voz);padding:11px 20px;display:flex;gap:14px;align-items:baseline;border-bottom:1px solid #243244}
+  .rot b{color:#fff;font-weight:500}.rot .q{color:#7d8b9c}
+  .esc{position:relative;min-height:560px;overflow:hidden}
+  .top{background:var(--ahead);color:#fff;padding:13px 22px;font-weight:500}
+  .nav{background:var(--surf);border-bottom:1px solid var(--line);padding:0 22px;display:flex;gap:20px}
+  .nav span{padding:11px 0;font-size:13.5px;color:var(--mut)}
+  .nav .on{color:var(--ahead);font-weight:500;box-shadow:inset 0 -2px 0 var(--ahead)}
+  main{padding:24px 22px;max-width:400px;opacity:.45}
+  h1{font:500 21px/1.3 var(--ui);margin:0 0 12px;color:#223}
+  .lin{height:11px;background:#e7eaee;border-radius:3px;margin-bottom:8px}.lin.c{width:72%}.lin.d{width:90%}
+  .p{position:absolute;top:14px;right:18px;width:430px;background:var(--tool);color:var(--tt);border:1px solid var(--tl);
+     border-radius:9px;box-shadow:0 12px 40px rgba(10,16,26,.48);overflow:hidden;font-size:13px}
+  .ph{padding:9px 11px;background:var(--th);display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .ph .paso{font-weight:500}
+  .der{display:flex;align-items:center;gap:8px}
+  .sello{color:#6fd3a6;font-size:11px;font-variant-numeric:tabular-nums}
+  .ic{background:#2a323d;border:1px solid var(--tl);color:var(--tt);width:21px;height:21px;border-radius:4px;font:12px/1 var(--ui)}
+  .pb{padding:11px}
+  .grupo{border:1px solid var(--tl);border-radius:6px;padding:10px;margin-bottom:9px}
+  .grupo.or{border-color:var(--dr)}
+  .cab{display:flex;justify-content:space-between;align-items:center;gap:9px}
+  .cab .t{display:flex;align-items:center;gap:7px}
+  .men{color:var(--tm);font-size:11.5px;margin-top:6px;line-height:1.45}
+  .mini{list-style:none;margin:8px 0 0;padding:0;color:var(--tm);font-size:11.5px;display:flex;flex-direction:column;gap:3px}
+  .mini li{display:flex;gap:7px}
+  .mini .d{color:#9fd8bd;font-family:var(--mono);font-size:11px}
+  .cambio{background:var(--ts);border-radius:5px;padding:9px 10px;margin-top:8px}
+  .et2{font-size:10.5px;color:var(--tm);letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px}
+  .par{display:grid;grid-template-columns:88px 1fr;gap:9px;align-items:baseline;margin-bottom:3px}
+  .par .lb{color:var(--tm);font-size:11px}
+  .antes{color:#e08b86;text-decoration:line-through}
+  .desp{color:#6fd3a6}
+  .chip{font-size:11px;padding:2px 7px;border-radius:4px;margin-right:5px;display:inline-block}
+  .chip.ev{background:#24405e;color:#cfe0f2}
+  .chip.or{background:#2a323d;color:#cbd3dd}
+  .lejos{color:var(--tm);font-size:11.5px;display:flex;justify-content:space-between;margin:12px 0;padding-top:10px;border-top:1px solid #232b35}
+  .lejos b{color:#f3d9c4;font-weight:400;font-variant-numeric:tabular-nums}
+  .fila{display:flex;gap:7px;flex-wrap:wrap}
+  .act{font:12px var(--ui);padding:6px 10px;border-radius:5px;border:1px solid var(--tl);background:#2a323d;color:var(--tt)}
+  .act.grab{background:var(--okd);border-color:var(--ok)}
+  .act.mini{font-size:11px;padding:4px 8px}
+  .leyenda{background:#101823;color:#8d97a5;font:12px/1.6 var(--voz);padding:12px 20px;display:flex;flex-wrap:wrap;gap:18px}
+  .leyenda b{color:#c3ccd8;font-weight:500}
+</style>
+
+<div class="rot"><b>4 · Aprobar y firmar</b><span class="q">Los cambios de camino, en bloque. Los que cambian lo que el test comprueba, uno a uno.</span></div>
+
+<div class="esc">
+  <div class="top">Seguros — Portal de gestión</div>
+  <nav class="nav"><span>Inicio</span><span class="on">Mis pólizas</span><span>Siniestros</span></nav>
+  <main><h1>Mis pólizas</h1><div class="lin"></div><div class="lin c"></div><div class="lin d"></div></main>
+
+  <section class="p">
+    <header class="ph">
+      <span class="paso">Revisar cambios · cancelación de póliza</span>
+      <span class="der"><span class="sello">guardado 14:41:09 ✓</span><button class="ic">–</button></span>
+    </header>
+    <div class="pb">
+      <div class="grupo">
+        <div class="cab"><span class="t">6 pasos del recorrido cambian</span><button class="act mini">Aceptar todos</button></div>
+        <div class="men">Solo cambia por dónde pasa el test. No cambia lo que comprueba.</div>
+        <ul class="mini">
+          <li><span class="d">+</span><span>Abrir menú Cartera antes de listar</span></li>
+          <li><span class="d">+</span><span>Confirmar en el aviso de irreversibilidad</span></li>
+          <li><span class="d">+</span><span>Abrir la ficha de la póliza (pantalla nueva)</span></li>
+          <li><span class="d">~</span><span>Reordenados los pasos 6 y 7</span></li>
+          <li><span class="d">−</span><span>Quitado “refrescar el listado”</span></li>
+          <li><span class="d">~</span><span>El botón Cancelar ahora se busca dentro de su fila</span></li>
+        </ul>
+      </div>
+
+      <div class="grupo or">
+        <div class="cab"><span class="t" style="color:#f3d9c4">▲ 1 resultado esperado cambia</span></div>
+        <div class="men">Aquí cambia lo que el test comprueba. Míralo antes de firmar.</div>
+        <div class="cambio">
+          <div class="et2">Paso 9 · lo que el test comprueba</div>
+          <div class="par"><span class="lb">El plan dice</span><span class="antes">Solicitud de anulación registrada</span></div>
+          <div class="par"><span class="lb">Aparece esto</span><span class="desp">Anulación en trámite</span></div>
+          <div style="margin-top:9px"><span class="chip ev">comprobado en la app, sin repetir desde cero</span><span class="chip or">lo dice la app, no el plan</span></div>
+        </div>
+      </div>
+
+      <div class="lejos"><span>El plan se ha movido</span><b>7 cambios · 2 sesiones</b></div>
+      <div class="fila"><button class="act grab">Aprobar y firmar</button><button class="act">Revisar de nuevo</button><button class="act">Descartar</button></div>
+    </div>
+  </section>
+</div>
+
+<div class="leyenda">
+  <span><b>Aceptar todos</b> — los seis de golpe, sin perder la traza de ninguno</span>
+  <span><b>Comprobado en la app</b> — se vio de verdad, pero no se pudo repetir desde cero. Y lo dice</span>
+  <span><b>El plan se ha movido</b> — cuenta acumulada, no de esta sesión. Evita alejarse sin darse cuenta</span>
+  <span><b>Firmar</b> — queda con tu nombre, la evidencia y un sello que detecta si alguien lo toca luego</span>
+  <span><b>Ya se puede</b>: el grado de evidencia — el producto ya distingue “repetido desde cero” de “visto en vivo” y lo dice</span>
+  <span><b>Falta el acta</b>: esta pantalla entera. La lista de cambios necesita comparar contra el guion original, y la firma necesita dónde guardarla</span>
+</div>
+</body>
+</html>

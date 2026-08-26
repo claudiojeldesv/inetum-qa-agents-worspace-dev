@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Maqueta del panel de asistencia QA. Fuente autorada, extraida del Artifact
+     https://claude.ai/code/artifact/5ab90e14-396c-4f3f-9bef-8f83781dfcb2
+     Autocontenida: se abre con doble clic. La unica peticion externa es Google Fonts;
+     sin red el fallback del stack de fuentes la deja legible igual. -->
+</head>
+<body>
+<title>Posturas del panel</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  :root{--ahead:#0d3b66;--ground:#f7f8fa;--surf:#fff;--line:#e3e6eb;--txt:#37414f;--mut:#6b7684;
+    --tool:#12161d;--th:#1c222c;--tl:#39424f;--tt:#f4f6f8;--tm:#8d97a5;--ts:#1a2028;
+    --ok:#2f9e6f;--okd:#1c5f43;--dr:#c2703d;--drd:#6d3c1d;--bad:#b4453f;--ev:#4a7ab8;
+    --ui:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,"Cascadia Mono",Menlo,monospace;
+    --voz:"IBM Plex Sans",system-ui,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--txt);font:15px/1.55 var(--ui)}
+  .rot{background:#101823;color:#c3ccd8;font:13.5px/1.5 var(--voz);padding:11px 20px;display:flex;gap:14px;align-items:baseline;border-bottom:1px solid #243244}
+  .rot b{color:#fff;font-weight:500}.rot .q{color:#7d8b9c}
+  .tres{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0}
+  .celda{border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .cab{background:#101823;color:#c3ccd8;font:12.5px/1.5 var(--voz);padding:9px 14px;display:flex;gap:9px;align-items:baseline}
+  .cab b{color:#fff;font-weight:500}
+  .cab .via{color:#7d8b9c;font-size:11.5px;margin-left:auto;font-family:var(--mono)}
+  .esc{position:relative;height:330px;overflow:hidden;background:var(--ground)}
+  .top{background:var(--ahead);color:#fff;padding:10px 14px;font:500 13px var(--ui)}
+  .nav{background:var(--surf);border-bottom:1px solid var(--line);padding:0 14px;display:flex;gap:14px}
+  .nav span{padding:9px 0;font-size:12px;color:var(--mut)}
+  .nav .on{color:var(--ahead);font-weight:500;box-shadow:inset 0 -2px 0 var(--ahead)}
+  .cont{padding:14px}
+  .cont h2{font:500 15px var(--ui);margin:0 0 10px;color:#223}
+  table{border-collapse:collapse;width:100%;background:var(--surf);border:1px solid var(--line);font-size:12px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{background:#fbfcfd;font-weight:500;color:#4a5462;font-size:11px;text-transform:uppercase}
+  td.n{font-family:var(--mono)}tr:last-child td{border-bottom:0}
+  .est{font-size:11px;padding:1px 6px;border-radius:3px;background:#e8f3ee;color:#1f6a4c}
+  .cta{background:var(--ahead);color:#fff;border:0;padding:3px 8px;border-radius:3px;font:11px var(--ui)}
+  /* panel comun */
+  .p{position:absolute;top:10px;right:12px;width:276px;background:var(--tool);color:var(--tt);border:1px solid var(--tl);
+     border-radius:8px;box-shadow:0 8px 26px rgba(10,16,26,.42);overflow:hidden;font-size:12px}
+  .p.fant{opacity:.28}
+  .ph{padding:7px 9px;background:var(--th);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .ph .paso{font-weight:500;font-size:11.5px;font-variant-numeric:tabular-nums}
+  .der{display:flex;gap:6px;align-items:center}
+  .sello{color:#6fd3a6;font-size:10px;font-variant-numeric:tabular-nums}
+  .ic{background:#2a323d;border:1px solid var(--tl);color:var(--tt);width:18px;height:18px;border-radius:3px;font:11px/1 var(--ui)}
+  .pb{padding:9px}
+  .aviso{background:var(--drd);color:#f3d9c4;border-radius:5px;padding:7px 8px;font-size:11px;margin-bottom:8px;line-height:1.45}
+  .aviso b{color:#fff;font-weight:500}
+  ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  li{display:flex;gap:6px;padding:4px 5px;border-radius:3px;background:var(--ts);font-size:11.5px;align-items:center}
+  li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  li.cons{background:var(--drd);color:#f3d9c4}
+  .fila{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .act{font:11px var(--ui);padding:4px 8px;border-radius:4px;border:1px solid var(--tl);background:#2a323d;color:var(--tt)}
+  .act.grab{background:var(--okd);border-color:var(--ok)}
+  /* barra colapsada */
+  .barra{position:absolute;top:10px;right:12px;display:flex;align-items:center;gap:9px;background:var(--tool);
+         color:var(--tt);border:1px solid var(--tl);border-radius:8px;padding:6px 10px;font:11.5px var(--ui);
+         box-shadow:0 5px 16px rgba(10,16,26,.35)}
+  .barra .v{color:#6fd3a6}
+  .senal{position:absolute;border:2px solid var(--ok);border-radius:4px;pointer-events:none}
+  .leyenda{background:#101823;color:#8d97a5;font:12px/1.6 var(--voz);padding:12px 20px;display:flex;flex-wrap:wrap;gap:18px}
+  .leyenda b{color:#c3ccd8;font-weight:500}
+</style>
+
+<div class="rot"><b>5 · Posturas del panel</b><span class="q">El mismo panel de tres formas. La pregunta que responden: cuánto estorba mientras trabajas.</span></div>
+
+<div class="tres">
+  <div class="celda">
+    <div class="cab"><b>Colapsado</b><span>no tapa nada</span><span class="via">–</span></div>
+    <div class="esc">
+      <div class="top">Seguros — Portal de gestión</div>
+      <nav class="nav"><span>Inicio</span><span class="on">Mis pólizas</span><span>Recibos</span></nav>
+      <div class="cont">
+        <h2>Mis pólizas</h2>
+        <table><thead><tr><th>Ref.</th><th>Tomador</th><th>Estado</th><th></th></tr></thead><tbody>
+          <tr><td class="n">POL-4711</td><td>García Ruiz</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+          <tr><td class="n">POL-4712</td><td>Serrano Díaz</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+          <tr><td class="n">POL-4714</td><td>Ferrer Nadal</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+        </tbody></table>
+      </div>
+      <div class="barra"><span>QA</span><span>paso 4/12</span><span class="v">guardado</span><span>▸</span></div>
+    </div>
+  </div>
+
+  <div class="celda">
+    <div class="cab"><b>Fantasma</b><span>ves debajo, no captura clics</span><span class="via">◎</span></div>
+    <div class="esc">
+      <div class="top">Seguros — Portal de gestión</div>
+      <nav class="nav"><span>Inicio</span><span class="on">Mis pólizas</span><span>Recibos</span></nav>
+      <div class="cont">
+        <h2>Mis pólizas</h2>
+        <table><thead><tr><th>Ref.</th><th>Tomador</th><th>Estado</th><th></th></tr></thead><tbody>
+          <tr><td class="n">POL-4711</td><td>García Ruiz</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+          <tr><td class="n">POL-4712</td><td>Serrano Díaz</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+          <tr><td class="n">POL-4714</td><td>Ferrer Nadal</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+        </tbody></table>
+      </div>
+      <section class="p fant">
+        <header class="ph"><span class="paso">paso 4 de 12</span><span class="der"><span class="sello">14:32 ✓</span><button class="ic">◎</button><button class="ic">–</button></span></header>
+        <div class="pb">
+          <ul><li><span>▸</span><span class="nm">Abrir menú Cartera</span></li><li><span>◎</span><span class="nm">Cancelar (POL-4711)</span></li></ul>
+          <div class="fila"><button class="act grab">Grabando</button><button class="act">Parar</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="celda">
+    <div class="cab"><b>Recuperado</b><span>volvió con lo que habías grabado</span><span class="via">tras cambiar de página</span></div>
+    <div class="esc">
+      <div class="top">Seguros — Portal de gestión</div>
+      <nav class="nav"><span>Inicio</span><span>Mis pólizas</span><span class="on">Anulación</span></nav>
+      <div class="cont">
+        <h2>Anulación de póliza</h2>
+        <table><thead><tr><th>Ref.</th><th>Producto</th><th>Estado</th></tr></thead><tbody>
+          <tr><td class="n">POL-4711</td><td>Hogar Confort</td><td><span class="est" style="background:#f2eae8;color:#8a4a42">En trámite</span></td></tr>
+        </tbody></table>
+      </div>
+      <section class="p">
+        <header class="ph"><span class="paso">paso 4 de 12</span><span class="der"><span class="sello">14:34 ✓</span><button class="ic">◎</button><button class="ic">–</button></span></header>
+        <div class="pb">
+          <div class="aviso">⚠ La página cambió y el panel se ha reabierto <b>con los 2 pasos que ya habías grabado</b>. Se conservan. Intento 1/3.</div>
+          <ul><li class="cons"><span>▸</span><span class="nm">Abrir menú Cartera</span></li><li class="cons"><span>◎</span><span class="nm">Cancelar (POL-4711)</span></li></ul>
+          <div class="fila"><button class="act grab">Grabando</button><button class="act">Solo capturar</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="leyenda">
+  <span><b>Colapsado y fantasma</b> — para cuando necesitas ver y clicar la aplicación, no el panel</span>
+  <span><b>Recuperado</b> es la única de las tres que ya funciona hoy en el producto</span>
+  <span><b>Solo capturar</b> sale ahí porque el clic pudo ejecutarse de verdad al cambiar de página: repetirlo lo dispararía dos veces</span>
+</div>
+</body>
+</html>

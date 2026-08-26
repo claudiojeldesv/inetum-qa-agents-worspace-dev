@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Maqueta del panel de asistencia QA. Fuente autorada, extraida del Artifact
+     https://claude.ai/code/artifact/123dacb3-68c4-4119-bdb9-999b1ded216a
+     Autocontenida: se abre con doble clic. La unica peticion externa es Google Fonts;
+     sin red el fallback del stack de fuentes la deja legible igual. -->
+</head>
+<body>
+<title>Grabando un paso</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  :root{--ahead:#0d3b66;--ground:#f7f8fa;--surf:#fff;--line:#e3e6eb;--txt:#37414f;--mut:#6b7684;
+    --tool:#12161d;--th:#1c222c;--tl:#39424f;--tt:#f4f6f8;--tm:#8d97a5;--ts:#1a2028;
+    --ok:#2f9e6f;--okd:#1c5f43;--dr:#c2703d;--drd:#6d3c1d;--bad:#b4453f;--badd:#6d2823;--ev:#4a7ab8;
+    --ui:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,"Cascadia Mono",Menlo,monospace;
+    --voz:"IBM Plex Sans",system-ui,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--txt);font:15px/1.55 var(--ui)}
+  .rot{background:#101823;color:#c3ccd8;font:13.5px/1.5 var(--voz);padding:11px 20px;display:flex;gap:14px;align-items:baseline;border-bottom:1px solid #243244}
+  .rot b{color:#fff;font-weight:500}
+  .rot .q{color:#7d8b9c}
+  .esc{position:relative;min-height:520px;overflow:hidden}
+  .top{background:var(--ahead);color:#fff;padding:13px 22px;display:flex;justify-content:space-between;align-items:baseline}
+  .top .m{font-weight:500}.top .e{font-size:12px;opacity:.8}
+  .nav{background:var(--surf);border-bottom:1px solid var(--line);padding:0 22px;display:flex;gap:20px}
+  .nav span{padding:11px 0;font-size:13.5px;color:var(--mut)}
+  .nav .on{color:var(--ahead);font-weight:500;box-shadow:inset 0 -2px 0 var(--ahead)}
+  main{padding:24px 22px;max-width:760px}
+  h1{font:500 21px/1.3 var(--ui);margin:0 0 4px;color:#223}
+  .sub{color:var(--mut);font-size:13.5px;margin:0 0 18px}
+  table{border-collapse:collapse;width:100%;background:var(--surf);border:1px solid var(--line);font-size:13.5px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line)}
+  th{background:#fbfcfd;font-weight:500;color:#4a5462;font-size:12.5px;letter-spacing:.02em;text-transform:uppercase}
+  td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:0}
+  .est{font-size:12px;padding:2px 8px;border-radius:3px;background:#e8f3ee;color:#1f6a4c}
+  .cta{background:var(--ahead);color:#fff;border:0;padding:5px 11px;border-radius:4px;font:12.5px var(--ui)}
+  /* El halo NO senala lo que el walker busca (no lo encuentra: por eso pregunta).
+     Senala el elemento de la fila que tienes bajo el raton en la lista — eso ya existe. */
+  .halo2{outline:2px solid var(--ev);outline-offset:3px;border-radius:5px}
+  li.hov{box-shadow:inset 2px 0 0 var(--ev),0 0 0 1px var(--ev)}
+  .p{position:absolute;top:14px;right:18px;width:396px;background:var(--tool);color:var(--tt);border:1px solid var(--tl);
+     border-radius:9px;box-shadow:0 10px 34px rgba(10,16,26,.42);overflow:hidden;font-size:13px}
+  .ph{padding:9px 11px;background:var(--th);display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .ph .paso{font-weight:500;font-variant-numeric:tabular-nums}
+  .der{display:flex;align-items:center;gap:8px}
+  .sello{color:#6fd3a6;font-size:11px;font-variant-numeric:tabular-nums}
+  .ic{background:#2a323d;border:1px solid var(--tl);color:var(--tt);width:21px;height:21px;border-radius:4px;font:12px/1 var(--ui)}
+  .espina{display:flex;gap:3px;padding:8px 11px;background:#161c25;border-bottom:1px solid var(--tl);align-items:center}
+  .espina i{width:14px;height:5px;border-radius:2px;background:#2f3a47;display:block}
+  .espina i.hecho{background:var(--okd)}
+  .espina i.aqui{background:var(--ok);height:8px}
+  .espina i.drift{background:var(--dr)}
+  .espina .et{margin-left:auto;color:var(--tm);font-size:11px;cursor:pointer;text-decoration:underline dotted}
+  .pb{padding:11px}
+  .pide{color:var(--tm);margin-bottom:9px}.pide b{color:var(--tt);font-weight:500}
+  ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  li{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:4px;background:var(--ts)}
+  li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  li .via{color:var(--tm);font:11px var(--mono)}
+  li.tgt{background:#22303f;box-shadow:inset 2px 0 0 var(--ev)}
+  li.asr{background:#1e2a24;box-shadow:inset 2px 0 0 var(--ok)}
+  li.add{background:transparent;border:1px dashed var(--tl);color:var(--tm);justify-content:center}
+  .fila{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+  .act{font:12px var(--ui);padding:6px 10px;border-radius:5px;border:1px solid var(--tl);background:#2a323d;color:var(--tt)}
+  .act.grab{background:var(--okd);border-color:var(--ok)}
+  .act.dr{background:var(--drd);border-color:var(--dr)}
+  .leyenda{background:#101823;color:#8d97a5;font:12px/1.6 var(--voz);padding:12px 20px;display:flex;flex-wrap:wrap;gap:18px}
+  .leyenda b{color:#c3ccd8;font-weight:500}
+</style>
+
+<div class="rot"><b>1 · Grabando un paso</b><span class="q">El panel pequeño, la aplicación clicable. Aquí solo decides una cosa: cuál es el botón.</span></div>
+
+<div class="esc">
+  <div class="top"><span class="m">Seguros — Portal de gestión</span><span class="e">entorno de preproducción</span></div>
+  <nav class="nav"><span>Inicio</span><span class="on">Mis pólizas</span><span>Siniestros</span><span>Recibos</span><span>Clientes</span></nav>
+  <main>
+    <h1>Mis pólizas</h1>
+    <p class="sub">4 pólizas · cartera Levante</p>
+    <table>
+      <thead><tr><th>Referencia</th><th>Tomador</th><th>Producto</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        <tr><td class="n">POL-4711</td><td>García Ruiz, Ana</td><td>Hogar Confort</td><td><span class="est">Vigente</span></td><td><button class="cta halo2">Cancelar</button></td></tr>
+        <tr><td class="n">POL-4712</td><td>Serrano Díaz, Luis</td><td>Auto Todo Riesgo</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+        <tr><td class="n">POL-4714</td><td>Ferrer Nadal, Jordi</td><td>Salud Familiar</td><td><span class="est">Vigente</span></td><td><button class="cta">Cancelar</button></td></tr>
+      </tbody>
+    </table>
+  </main>
+
+  <section class="p">
+    <header class="ph">
+      <span class="paso">paso 4 de 12 · cancelación</span>
+      <span class="der"><span class="sello">guardado 14:32:07 ✓</span><button class="ic">◎</button><button class="ic">–</button></span>
+    </header>
+    <div class="espina" title="los 12 pasos del caso">
+      <i class="hecho"></i><i class="hecho"></i><i class="hecho"></i><i class="aqui"></i><i></i><i></i><i class="drift"></i><i></i><i></i><i></i><i></i><i></i>
+      <span class="et">ver el caso entero</span>
+    </div>
+    <div class="pb">
+      <div class="pide">Señala el botón <b>Cancelar</b> de POL-4711</div>
+      <ul>
+        <li><span>▸</span><span class="nm">Abrir menú Cartera</span><span class="via">para llegar</span><button class="ic">×</button></li>
+        <li class="tgt hov"><span>◎</span><span class="nm">Cancelar (fila POL-4711)</span><span class="via">es el paso</span><button class="ic">×</button></li>
+        <li class="asr"><span>✓</span><span class="nm">Aviso “La anulación es irreversible”</span><span class="via">comprueba</span><button class="ic">×</button></li>
+        <li class="add">＋ Añadir comprobación de texto</li>
+      </ul>
+      <div class="fila">
+        <button class="act grab">Grabando</button><button class="act">Pausa</button>
+        <button class="act dr">No existe</button><button class="act">Solo capturar</button><button class="act">Parar</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="leyenda">
+  <span><b>La tira de arriba</b> — los 12 pasos del caso: hechos, dónde estás, lo que queda, y en ámbar el que no cuadra</span>
+  <span><b>es el paso</b> — de todo lo que has grabado, cuál es el paso de verdad. El resto solo sirve para llegar</span>
+  <span><b>comprueba</b> — esa fila no pulsa nada: mira que aparezca algo</span>
+  <span><b>guardado 14:32:07</b> — cada clic tuyo ya está a salvo en disco. Ya funciona</span>
+  <span><b>El recuadro azul en la app</b> — es el elemento de la fila que tienes bajo el ratón, no una pista de dónde pulsar: el panel pregunta porque NO sabe dónde está</span>
+  <span><b>＋ comprobación de texto</b> — se añade escribiendo, porque un texto no necesita locator. Un paso de acción sí, y para eso hay que señalar</span>
+</div>
+</body>
+</html>
