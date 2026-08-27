@@ -129,6 +129,13 @@ fileCheck('Orquestación mecánica del Healer (run-heal-mecanico)', 'src/scripts
 fileCheck('Acta de decisiones (lógica)', 'src/decisions.ts');
 fileCheck('Validador de la cadena del acta (check-decisions)', 'src/scripts/check-decisions.ts');
 fileCheck('Registro de decisiones por flags/pendientes (record-decision)', 'src/scripts/record-decision.ts');
+// El ancla de una decision en el audit-log, COMPARTIDA: es lo unico que caza la cola
+// truncada del acta, y tenerla duplicada la haria derivar (familia D2).
+fileCheck('Ancla de decisiones en el audit-log', 'src/decisions-audit.ts');
+// La aprobacion del parche del panel: sin ella, lo que el QA resuelve en el modal se
+// queda en assist-patch.json y el siguiente run vuelve a tropezar con lo mismo.
+fileCheck('Fusion del parche del panel (nucleo)', 'copilot/src/walk-merge.ts');
+fileCheck('Aprobacion y fusion del parche (merge-assist-patch)', 'copilot/src/merge-assist-patch.ts');
 // Palancas 2+3 (medicion del 2026-08-21): el punto 2 del PRESUPUESTO DE TURNOS de los cuatro
 // commands invoca verify-ack tras cada acuse de subagente, y el punto 5 marca cada Task con
 // audit-mark. Si faltan, esas instrucciones fallan en medio del run — que es justo lo que este

@@ -30,7 +30,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { appendAuditEntry } from '../audit-log.ts';
+import { anclarDecisionEnAudit } from '../decisions-audit.ts';
 import {
   appendDecision,
   claveDecision,
@@ -122,28 +122,6 @@ function reescribirPendientes(path: string, restantes: Pendiente[]): void {
   writeFileSync(resolve(path), restantes.map((p) => JSON.stringify(p)).join('\n') + (restantes.length ? '\n' : ''), 'utf8');
 }
 
-/** El rastro externo: sin esto, truncar la cola del acta es invisible. */
-function anclarEnAudit(entry: DecisionEntry, site: string, auditPath: string): void {
-  appendAuditEntry(
-    {
-      source: 'command',
-      action: 'allow',
-      target: `decision:${site}`,
-      rule: 'decision-recorded',
-      reason: `${entry.rf} · ${entry.paso}: ${entry.decision} (${entry.evidencia}) por ${entry.actor}`,
-      result: 'pass',
-      metadata: {
-        hash: entry.hash,
-        rf: entry.rf,
-        paso: entry.paso,
-        decision: entry.decision,
-        evidencia: entry.evidencia,
-        ...(entry.supersedes ? { supersedes: entry.supersedes } : {}),
-      },
-    },
-    auditPath,
-  );
-}
 
 function main(): void {
   const site = flag('site');
@@ -196,7 +174,7 @@ function main(): void {
           actaPath,
         );
         firmadas.push(entry);
-        anclarEnAudit(entry, site, auditPath);
+        anclarDecisionEnAudit(entry, site, auditPath);
         restantes = restantes.slice(1);
         reescribirPendientes(pendingsPath, restantes);
       }
@@ -237,7 +215,7 @@ function main(): void {
         actaPath,
       );
       firmadas.push(entry);
-      anclarEnAudit(entry, site, auditPath);
+      anclarDecisionEnAudit(entry, site, auditPath);
     }
   } catch (err) {
     console.error(`[record-decision] RECHAZADA: ${err instanceof Error ? err.message : String(err)}`);

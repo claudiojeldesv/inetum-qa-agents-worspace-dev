@@ -25,7 +25,8 @@
     "qa:ack": "tsx src/scripts/verify-ack.ts",
     "qa:mark": "tsx src/scripts/audit-mark.ts",
     "qa:decisions": "tsx src/scripts/check-decisions.ts",
-    "qa:decide": "tsx src/scripts/record-decision.ts"
+    "qa:decide": "tsx src/scripts/record-decision.ts",
+    "qa:merge": "tsx copilot/src/merge-assist-patch.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",
