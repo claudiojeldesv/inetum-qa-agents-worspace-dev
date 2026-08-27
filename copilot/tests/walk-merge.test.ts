@@ -376,3 +376,39 @@ describe('re-aplicar el mismo parche', () => {
     expect(fundirGuion(manipulado, p).rechazos[0].motivo).toMatch(/reescribió/);
   });
 });
+
+describe('lo que cambia el significado no entra si no se nombra (decisión 8)', () => {
+  const conComprobacion = () =>
+    parche([abridor('Menú'), objetivo('click', { name: 'Comprar' }), comprobacion('Pedido confirmado')], {
+      original_hint: { name: 'Comprar' },
+    });
+
+  it('EL PAR: --aplicar a secas mete el camino pero NO la comprobación', () => {
+    const r = fundirGuion(guion({ id: 's6', action: 'click', hint: { name: 'Comprar' } }), conComprobacion());
+    const ids = r.script.flows[0].steps.map((s) => s.id);
+    expect(ids, 'el camino sí entra: se acepta en bloque').toContain('s6#a1');
+    expect(ids, 'la comprobación NO entra sin nombrarla').not.toContain('s6#v1');
+  });
+
+  it('...y nombrándola, entra', () => {
+    const r = fundirGuion(guion({ id: 's6', action: 'click', hint: { name: 'Comprar' } }), conComprobacion(), {
+      oraculos: ['s6#v1'],
+    });
+    expect(r.script.flows[0].steps.map((s) => s.id)).toContain('s6#v1');
+  });
+
+  it('EL PAR: si el objetivo es OTRO elemento, la entrada entera se salta sin permiso', () => {
+    const p = parche([objetivo('click', { name: 'Delete' })], { original_hint: { name: 'papelera' } });
+    const g = guion({ id: 's6', action: 'click', hint: { name: 'papelera' } });
+    const r = fundirGuion(g, p);
+    expect(pasoDe(r, 's6')?.hint?.name, 'no se ha fundido').toBe('papelera');
+    expect(r.avisos.some((a) => /se aprueba nombrándolo/.test(a.texto))).toBe(true);
+  });
+
+  it('...y con el permiso, se funde', () => {
+    const p = parche([objetivo('click', { name: 'Delete' })], { original_hint: { name: 'papelera' } });
+    const g = guion({ id: 's6', action: 'click', hint: { name: 'papelera' } });
+    const r = fundirGuion(g, p, { elementos: ['s6'] });
+    expect(pasoDe(r, 's6')?.hint?.name).toBe('Delete');
+  });
+});

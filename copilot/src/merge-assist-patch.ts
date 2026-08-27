@@ -193,7 +193,8 @@ function main(): void {
   // --------------------------------------------------------- fusión en memoria
   const seleccion: Seleccion = {
     ...(has('sin-coreografia') ? { coreografia: false } : {}),
-    ...(flags('oraculo').length ? { oraculos: flags('oraculo') } : {}),
+    oraculos: flags('oraculo'),
+    elementos: flags('elemento'),
   };
   const r = fundirGuion(script, patch, seleccion);
 
@@ -209,9 +210,12 @@ function main(): void {
   }
   if (g.oraculo.length) {
     console.log(`\n  QUÉ SIGNIFICA CORRECTO — ${g.oraculo.length} cambio(s), uno a uno`);
+    console.log('    Estos NO entran si no los nombras: cambian qué se considera correcto.');
     for (const c of g.oraculo) {
-      console.log(`    · ${c.flow}/${c.paso}  ${c.descripcion}   [${c.grado}]`);
-      console.log(`        aprobar solo éste:  --oraculo=${c.paso}`);
+      const bandera = c.clase === 'elemento-distinto' ? `--elemento=${c.paso}` : `--oraculo=${c.paso}`;
+      const marca = seleccionado(c, seleccion) ? 'APROBADO' : 'sin aprobar';
+      console.log(`    · ${c.flow}/${c.paso}  ${c.descripcion}   [${c.grado}] — ${marca}`);
+      console.log(`        para aprobarlo:  ${bandera}`);
     }
   }
   if (r.conservados.length) {
@@ -286,7 +290,7 @@ function main(): void {
   };
 
   try {
-    for (const gesto of gestosDeAprobacion(g.coreografia, g.oraculo)) {
+    for (const gesto of gestosDeAprobacion(g.coreografia, g.oraculo.filter((c) => seleccionado(c, seleccion)))) {
       const rf = rfDe(gesto.flow);
       const previa = vigentes.get(claveDecision(rf, `${gesto.flow}/${gesto.paso}`));
       const { entry } = appendDecision(
@@ -324,6 +328,13 @@ function main(): void {
   console.log(`  Comprueba:  npx tsx copilot/src/check-walk-script.ts ${scriptPath} --contract=<style.yaml>`);
   console.log(`              npm run qa:decisions -- --site=${site} --audit=${auditPath}\n`);
   process.exit(EXIT_OK);
+}
+
+/** ¿Este cambio de oráculo lo aprobó el QA nombrándolo? */
+function seleccionado(c: Cambio, sel: Seleccion): boolean {
+  return c.clase === 'elemento-distinto'
+    ? (sel.elementos ?? []).includes(c.paso)
+    : (sel.oraculos ?? []).includes(c.paso);
 }
 
 /**
