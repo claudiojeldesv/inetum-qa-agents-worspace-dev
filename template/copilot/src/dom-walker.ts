@@ -100,6 +100,26 @@ import {
 import { classifyVia } from './walk-scoreboard.ts';
 import { candidatosParaInforme, pedidoSinPalabrasUtiles, resultadosOrdenados } from '../../src/locator-candidates.ts';
 import {
+  appendDecision,
+  claveDecision,
+  decisionsPathFor,
+  effectiveDecisions,
+  huellaDeArtefacto,
+  normalizeActor,
+  parseDecisions,
+  verifyChain,
+} from '../../src/decisions.ts';
+import { anclarDecisionEnAudit } from '../../src/decisions-audit.ts';
+import {
+  faltaParaFirmar,
+  motivoConVeredicto,
+  porQueNoSeAbre,
+  veredictoADecision,
+  pararRelojes,
+  type Relojes,
+  type VerdictSubmission,
+} from './walk-verdict.ts';
+import {
   EXIT_ERROR,
   EXIT_OK,
   EXIT_RESCUE_NEEDED,
@@ -176,6 +196,20 @@ interface WalkerOptions {
   assistTimeoutMs: number;
   /** Minimizar el parche por replay (K0.11e). Off con --no-minimize. */
   assistMinimize: boolean;
+  /**
+   * Fase B — lo que hace falta para poder FIRMAR un veredicto del QA sobre una
+   * postcondición incumplida. Los tres son fail-closed: sin ellos el panel de
+   * veredicto no se abre y el paso se bloquea como siempre. No se inventan defaults
+   * (D45): una decisión de auditoría con un actor o un criterio fabricados no vale
+   * nada, y firmar contra un FD desconocido tampoco.
+   */
+  actor?: string;
+  /** Huella del FD contra el que se decide, o 'sin-fd' declarado (modo S4). */
+  fdHash?: string;
+  /** Criterio explícito, para flujos que no declaran exactamente uno. */
+  rf?: string;
+  /** Acta del sitio. Default `config/decisions/<site_id>.jsonl`, como los hint-aliases. */
+  decisionsPath?: string;
   /** Override global de settle por CLI/env (K0.13). Pisa contract y script, no el paso. */
   settleOverride?: SettleProfile;
   /** Perfil de tiempos durable. Default config/timing-profiles/<site_id>.json */
@@ -273,6 +307,14 @@ const ASSIST_WATCHDOG_MS = 500;
  * página que redirige sola dejaría al QA en un bucle infinito de paneles.
  */
 const ASSIST_MAX_REINJECTIONS = 3;
+
+/**
+ * Cuántas veces se le puede devolver el panel al QA porque su veredicto no era una
+ * decisión (un «la aplicación tiene razón» sin decir qué dice, por ejemplo). Acotado
+ * porque el bucle vive con un navegador abierto y una persona delante: si a la
+ * tercera sigue sin salir, algo va mal en la pregunta, no en la respuesta.
+ */
+const VERDICT_MAX_RECHAZOS = 3;
 
 /**
  * Helpers de extracción in-page, COMPARTIDOS por la captura del dom-map y el
@@ -868,6 +910,233 @@ function assistOverlayScript(
   })()`;
 }
 
+/**
+ * El panel de VEREDICTO: el que se abre cuando una postcondición del FD no se
+ * cumple (fase B de `docs/tasks/plan-panel-y-acta.md`).
+ *
+ * Es otro panel, no un modo del de asistencia, y la diferencia no es cosmética:
+ * allí el QA **demuestra un camino** para que el walker construya un locator; aquí
+ * el QA **dicta quién tiene razón**, la aplicación o el FD. No hay secuencia que
+ * grabar ni locator que construir — hay un literal que adoptar, o no.
+ *
+ * Lo que la interfaz tiene que conseguir, por orden:
+ *
+ *  1. Que se vea **lo que la pantalla sí dice**, medido en vivo. Sin eso, «la
+ *     aplicación tiene razón» es una casilla que se marca a ciegas.
+ *  2. Que se pueda **señalar** un texto que la lista no trajo. La lista sale de los
+ *     textos de negocio (heading/alert/status) y un resultado puede vivir fuera de
+ *     ese cubo; sin salida, el QA se queda atrapado entre opciones equivocadas.
+ *  3. Que los tres botones estén **al mismo nivel**. Si «la aplicación tiene razón»
+ *     fuera el botón grande y verde, el panel estaría empujando a adoptar la
+ *     aplicación, y la suite se convertiría en un espejo de la app — que es
+ *     exactamente lo que P6 existe para contar.
+ *
+ * La validación NO está aquí. La hace `veredictoADecision` en Node y, si rechaza,
+ * el panel se reinyecta con el motivo delante. Un solo juez: duplicar la regla en
+ * la página para «avisar antes» es la familia D2 con otro nombre.
+ */
+function verdictOverlayScript(
+  testidAttrs: string[],
+  step: WalkStep,
+  esperado: string,
+  diagnostico: string,
+  candidatos: string[],
+  rechazo?: string,
+): string {
+  return `(() => {
+    ${extractionHelpers(testidAttrs)}
+    const prev = document.querySelector('[' + ASSIST_HOST + ']');
+    if (prev) prev.remove();
+    const host = document.createElement('div');
+    host.setAttribute(ASSIST_HOST, '1');
+    host.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;';
+    document.documentElement.appendChild(host);
+    const root = host.attachShadow({ mode: 'closed' });
+    root.innerHTML = \`
+      <style>
+        .p{font:13px/1.45 system-ui,sans-serif;background:#111827;color:#f9fafb;border:1px solid #374151;
+           border-radius:8px;width:400px;box-shadow:0 6px 24px rgba(0,0,0,.4);overflow:hidden}
+        .h{padding:8px 10px;background:#1f2937;cursor:move;font-weight:500;display:flex;justify-content:space-between}
+        .b{padding:10px}
+        .ctx{color:#9ca3af;margin-bottom:8px}
+        .ctx .ref{color:#6b7280;font-size:11px}
+        .ctx .dx{margin-top:5px;color:#e5e7eb;white-space:pre-line}
+        .ctx b{color:#f9fafb}
+        .err{margin-bottom:8px;padding:6px 8px;border-radius:5px;background:#7f1d1d;color:#fecaca;font-size:12px}
+        .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+        button{font:12px system-ui;padding:5px 9px;border-radius:5px;border:1px solid #4b5563;
+               background:#374151;color:#f9fafb;cursor:pointer}
+        button:hover{background:#4b5563}
+        button:disabled{opacity:.45;cursor:default}
+        .pick.on{background:#1e3a8a;border-color:#2563eb}
+        ul{list-style:none;margin:8px 0 0;padding:0;color:#d1d5db;max-height:170px;overflow:auto}
+        li{display:flex;align-items:center;gap:6px;padding:4px 5px;border-radius:4px;margin:1px 0;cursor:pointer}
+        li:hover{background:#1f2937}
+        li.sel{background:#064e3b;outline:1px solid #059669}
+        li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .none{color:#fca5a5;font-size:12px;margin-top:8px}
+        .chosen{margin-top:8px;padding:6px 8px;border-radius:5px;background:#064e3b;color:#d1fae5;font-size:12px;
+                word-break:break-word}
+        .st{margin-top:8px;color:#9ca3af;font-size:11px}
+      </style>
+      <div class="p">
+        <div class="h"><span>Veredicto QA</span><span id="s">esperando</span></div>
+        <div class="b">
+          \${${JSON.stringify(
+            rechazo ? `<div class="err">${rechazo.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</div>` : '',
+          )}}
+          <div class="ctx"><b>Esto no cuadra y no lo puedo decidir yo.</b>
+            <span class="ref">paso \${'${step.id}'}</span>
+            <div class="dx">\${${JSON.stringify(
+              // Mismo escapado que el panel de asistencia y por el mismo motivo (K0.44):
+              // un motivo multilinea sin escapar revienta el panel entero con un
+              // SyntaxError, o sea, sin panel y sin saber por que.
+              diagnostico.replace(/</g, '&lt;').replace(/\n/g, '<br>'),
+            )}}</div></div>
+          <ul id="l"></ul>
+          <div id="empty" class="none" style="display:none">Esta pantalla no muestra ningun texto de resultado.
+            Eso no es un fallo de la lista: es un dato, y empuja a «Es un defecto».</div>
+          <div class="row"><button id="pk" class="pick">Ninguno de estos, lo senalo yo</button></div>
+          <div id="ch" class="chosen" style="display:none"></div>
+          <div class="st" id="hint">Elige que dice de verdad la pantalla, o declara que la aplicacion esta mal.</div>
+          <div class="row">
+            <button id="va">La aplicacion tiene razon</button>
+            <button id="vf">Es un defecto</button>
+            <button id="vl">Luego</button>
+          </div>
+        </div>
+      </div>\`;
+    const $ = (id) => root.getElementById(id);
+    const cands = ${JSON.stringify(candidatos)};
+    const status = $('s'), hintBox = $('hint'), chosenBox = $('ch');
+    let elegido = null;      // literal adoptado
+    let origen = null;       // 'candidato' | 'senalado'
+    let picking = false;
+    let hl = null;
+
+    const pintarElegido = () => {
+      if (elegido === null) { chosenBox.style.display = 'none'; return; }
+      chosenBox.style.display = 'block';
+      chosenBox.textContent = 'Adoptado: ' + JSON.stringify(elegido);
+    };
+    const render = () => {
+      const list = $('l');
+      list.innerHTML = '';
+      for (let i = 0; i < cands.length; i += 1) {
+        const li = document.createElement('li');
+        if (origen === 'candidato' && elegido === cands[i]) li.className = 'sel';
+        const nm = document.createElement('span');
+        nm.className = 'nm';
+        nm.textContent = cands[i];
+        nm.title = cands[i];
+        li.appendChild(nm);
+        li.onclick = () => { elegido = cands[i]; origen = 'candidato'; pintarElegido(); render(); };
+        list.appendChild(li);
+      }
+      $('empty').style.display = cands.length ? 'none' : 'block';
+      pintarElegido();
+    };
+
+    // --- senalar un texto en la pagina -------------------------------------
+    // Se registra en CAPTURA y no se cancela el evento: el panel observa, no
+    // secuestra. Cancelar el clic dejaria la app en un estado que el QA no ve.
+    const onPick = (e) => {
+      if (!picking) return;
+      const el = e.target;
+      if (!el || el.closest('[' + ASSIST_HOST + ']')) return;
+      const txt = (nameOf(el) || clean(el.textContent) || '').trim();
+      if (!txt) {
+        hintBox.textContent = 'Ese elemento no tiene texto legible. Senala el texto del resultado.';
+        return;
+      }
+      elegido = txt; origen = 'senalado'; picking = false;
+      $('pk').className = 'pick';
+      if (hl) { hl.remove(); hl = null; }
+      hintBox.textContent = 'Texto tomado de la pantalla. Comprueba que es el resultado y no un rotulo.';
+      render();
+    };
+    const onOver = (e) => {
+      if (!picking) return;
+      const el = e.target;
+      if (!el || el.closest('[' + ASSIST_HOST + ']')) return;
+      if (!hl) {
+        hl = document.createElement('div');
+        hl.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483646;border:2px solid #2563eb;background:rgba(37,99,235,.12)';
+        document.documentElement.appendChild(hl);
+      }
+      const r = el.getBoundingClientRect();
+      hl.style.left = r.left + 'px'; hl.style.top = r.top + 'px';
+      hl.style.width = r.width + 'px'; hl.style.height = r.height + 'px';
+    };
+    document.addEventListener('click', onPick, true);
+    document.addEventListener('mouseover', onOver, true);
+
+    const togglePick = () => {
+      picking = !picking;
+      $('pk').className = picking ? 'pick on' : 'pick';
+      hintBox.textContent = picking
+        ? 'Pulsa sobre el texto de la pantalla que dice el resultado de verdad.'
+        : 'Elige que dice de verdad la pantalla, o declara que la aplicacion esta mal.';
+      if (!picking && hl) { hl.remove(); hl = null; }
+    };
+
+    const submit = (verdict) => {
+      document.removeEventListener('click', onPick, true);
+      document.removeEventListener('mouseover', onOver, true);
+      if (hl) hl.remove();
+      $('va').disabled = true; $('vf').disabled = true; $('vl').disabled = true; $('pk').disabled = true;
+      status.textContent = 'firmando...';
+      hintBox.textContent = 'Registrando la decision en el acta.';
+      window.__qaVerdictSubmit({
+        step: '${step.id}',
+        verdict,
+        // El literal viaja SOLO con 'app'. Un "es un defecto" que ademas propone
+        // texto son dos decisiones contradictorias en una firma.
+        value: verdict === 'app' && elegido !== null ? elegido : undefined,
+        source: verdict === 'app' && origen !== null ? origen : undefined,
+      });
+    };
+
+    $('pk').onclick = togglePick;
+    $('va').onclick = () => submit('app');
+    $('vf').onclick = () => submit('fd');
+    $('vl').onclick = () => submit('defer');
+
+    // El walker responde aqui cuando la decision queda firmada, y luego cierra.
+    window.__qaVerdictResult = (msg, ok) => {
+      status.textContent = ok ? 'firmado' : 'sin firmar';
+      hintBox.className = ok ? 'st' : 'st none';
+      hintBox.textContent = msg;
+      setTimeout(() => host.remove(), ok ? 1400 : 3500);
+    };
+
+    // Mismo canal de comandos que el panel de asistencia: el shadow root es CERRADO,
+    // asi que sin esto los tests no podrian pulsar nada.
+    host.addEventListener('qa-assist-cmd', (ev) => {
+      const cmd = ev && ev.detail;
+      if (cmd === 'app') submit('app');
+      else if (cmd === 'fd') submit('fd');
+      else if (cmd === 'defer') submit('defer');
+      else if (cmd === 'pick') togglePick();
+      else if (cmd && cmd.choose !== undefined) {
+        if (cands[cmd.choose] !== undefined) { elegido = cands[cmd.choose]; origen = 'candidato'; render(); }
+      }
+    });
+
+    const head = root.querySelector('.h');
+    let drag = null;
+    head.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, r: host.getBoundingClientRect() }; e.preventDefault(); });
+    document.addEventListener('mousemove', (e) => {
+      if (!drag) return;
+      host.style.left = (drag.r.left + e.clientX - drag.x) + 'px';
+      host.style.top = (drag.r.top + e.clientY - drag.y) + 'px';
+      host.style.right = 'auto';
+    });
+    document.addEventListener('mouseup', () => { drag = null; });
+    render();
+  })()`;
+}
+
 // ------------------------------------------------------------- frame paths
 
 async function framePath(frame: Frame): Promise<string[]> {
@@ -1274,6 +1543,8 @@ class DomWalker {
   /** Sumidero del puente de grabación: lo pone la espera activa. */
   private assistTrack: ((seq: PickedElement[]) => void) | null = null;
   private assistPending: ((p: AssistSubmission) => void) | null = null;
+  /** Sumidero del panel de VEREDICTO (fase B). Aparte del de asistencia: otro payload. */
+  private verdictPending: ((p: VerdictSubmission) => void) | null = null;
   private assistBridgeReady = false;
   private readonly assistPatch: AssistPatch;
   /** El flujo en curso se detiene (K0.14: capturar sin ejecutar). Se resetea por flujo. */
@@ -3267,17 +3538,30 @@ class DomWalker {
    * igual con lo que había antes — quedarse sin panel por no poder contar sería
    * cambiar una molestia por una parada.
    */
+  /**
+   * Lo que dice la pantalla cuando una postcondición no se cumple: la prosa del panel
+   * y la lista elegible, **de una sola lectura**.
+   *
+   * Que salgan juntas no es comodidad. El panel de veredicto enseña las dos a la vez
+   * —la frase «lo que hay es…» arriba y la lista debajo—, y con dos capturas podían
+   * discrepar: entre una y otra la aplicación sigue viva, un spinner termina, un
+   * toast se desvanece. Un panel que dice una cosa en la frase y otra en la lista
+   * destruye la confianza que necesita para que su firma valga algo.
+   *
+   * Ordenados, NO filtrados: aquí la pregunta es qué dice la pantalla, y un resultado
+   * que no se parece a lo esperado sigue siendo la respuesta.
+   */
+  private async diagnosticoDeResultado(esperado: string): Promise<{ texto: string; candidatos: string[] }> {
+    const candidatos = resultadosOrdenados(await this.nombresDePantalla(true), esperado);
+    return { texto: textoAsistencia({ causa: 'resultado-ausente', pedido: esperado, candidatos }), candidatos };
+  }
+
   private async diagnosticarParaPanel(step: WalkStep): Promise<string> {
     const pedido = pedidoDelPaso(step.hint);
     const esResultado = step.action === 'expect_text';
     try {
-      const nombres = await this.nombresDePantalla(esResultado, esResultado ? undefined : step.hint?.role);
-      if (esResultado) {
-        const valor = step.value ?? pedido;
-        // Ordenados, NO filtrados: aquí la pregunta es qué dice la pantalla, y un
-        // resultado que no se parece a lo esperado sigue siendo la respuesta.
-        return textoAsistencia({ causa: 'resultado-ausente', pedido: valor, candidatos: resultadosOrdenados(nombres, valor) });
-      }
+      if (esResultado) return (await this.diagnosticoDeResultado(step.value ?? pedido)).texto;
+      const nombres = await this.nombresDePantalla(false, step.hint?.role);
       const n = step.hint ? await this.countMatches(this.page, step.hint) : 0;
       const causa = n > 1 ? 'ambiguo' : n === 1 ? 'unico-pero-falla' : 'ausente';
       /**
@@ -3367,6 +3651,17 @@ class DomWalker {
      */
     await this.page.exposeFunction('__qaAssistTrack', (seq: PickedElement[]) => {
       this.assistTrack?.(Array.isArray(seq) ? seq : []);
+    });
+    /**
+     * Fase B — el puente del panel de VEREDICTO. Aparte del de asistencia a
+     * propósito: aquel transporta una secuencia de elementos para construir un
+     * locator, éste un veredicto sobre quién tiene razón. Compartir el canal
+     * obligaría a cada consumidor a comprobar cuál de las dos formas le ha llegado.
+     */
+    await this.page.exposeFunction('__qaVerdictSubmit', (payload: VerdictSubmission) => {
+      const pending = this.verdictPending;
+      this.verdictPending = null;
+      pending?.(payload);
     });
     /**
      * Segundo puente (K0.11c): el panel pregunta EN VIVO por la calidad del locator
@@ -3867,6 +4162,277 @@ class DomWalker {
   }
 
   /** Devuelve el resultado al panel para que el QA lo vea antes de que se cierre. */
+  // ------------------------------------- veredicto sobre una postcondición (fase B)
+
+  /** Ruta del acta durable del sitio. `config/` sobrevive a la limpieza de `.work/`. */
+  private get actaPath(): string {
+    return this.opts.decisionsPath ?? decisionsPathFor(this.script.site_id);
+  }
+
+  /**
+   * El criterio contra el que se decide. Uno solo declarado en el flujo, o el que
+   * pase el operador. **Nunca se fabrica**: una decisión de auditoría con un `rf`
+   * inventado no vale nada, y un flujo que cubre tres criterios no dice cuál de los
+   * tres se acaba de incumplir.
+   */
+  private rfDelFlujo(flow: WalkFlow): string | null {
+    if (this.opts.rf?.trim()) return this.opts.rf.trim();
+    return flow.criteria?.length === 1 ? flow.criteria[0] : null;
+  }
+
+  /**
+   * ¿Se puede encadenar en el acta? `appendDecision` se niega igualmente sobre una
+   * cadena rota, pero eso ocurriría DESPUÉS de que el QA haya decidido: su veredicto
+   * se perdería con una excepción. Se comprueba en la puerta.
+   */
+  private actaEncadenable(): boolean {
+    const p = this.actaPath;
+    if (!existsSync(p)) return true;
+    try {
+      const { entries, malformed } = parseDecisions(readFileSync(p, 'utf8'));
+      return verifyChain(entries, malformed).ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Abre el panel de veredicto y devuelve lo que el QA pulsó, o null si la espera
+   * se agotó o el panel no se pudo mantener en pantalla.
+   *
+   * Misma maquinaria de supervivencia que la asistencia —marcador en disco y
+   * vigilante de reinyección— porque las dos formas de morir que se midieron en
+   * campo son las mismas: la página que navega y se lleva la interfaz, y el proceso
+   * que alguien mata. Lo que NO hay aquí es conservación de lo grabado: no hay nada
+   * grabado que conservar, solo un botón que pulsar.
+   */
+  private async esperarVeredicto(
+    flow: WalkFlow,
+    step: WalkStep,
+    args: { esperado: string; diagnostico: string; candidatos: string[]; rechazo?: string; deadline: number },
+  ): Promise<VerdictSubmission | null> {
+    const restante = args.deadline - Date.now();
+    if (restante <= 0) return null;
+
+    this.writeAssistMarker(flow, step, args.diagnostico);
+    let reinjections = 0;
+
+    const sub = await new Promise<VerdictSubmission | null>((res) => {
+      let done = false;
+      const relojes: Relojes = {};
+      const finish = (p: VerdictSubmission | null): void => {
+        if (done) return;
+        done = true;
+        pararRelojes(relojes);
+        this.verdictPending = null;
+        res(p);
+      };
+      relojes.espera = setTimeout(() => finish(null), restante);
+      this.verdictPending = (p) => finish(p);
+
+      const inject = (rechazo?: string): Promise<void> =>
+        this.page
+          .evaluate(
+            verdictOverlayScript(TESTID_ATTR_CANDIDATES, step, args.esperado, args.diagnostico, args.candidatos, rechazo),
+          )
+          .then(() => undefined)
+          // K0.44/D10 — si el panel no llega a existir, la espera NO puede seguir
+          // viva: el walker aguardaría el timeout entero por una interfaz que no
+          // está. El silencio es peor que el fallo.
+          .catch((err) => {
+            console.error(`[dom-walker] no se pudo inyectar el panel de veredicto: ${String(err).split('\n')[0]}`);
+            finish(null);
+          });
+      void inject(args.rechazo);
+
+      relojes.vigilante = setInterval(() => {
+        if (done) return;
+        void this.page
+          .locator(`[${ASSIST_HOST_ATTR}]`)
+          .count()
+          .then((n) => {
+            if (done || n > 0) return;
+            if (reinjections >= ASSIST_MAX_REINJECTIONS) {
+              finish(null);
+              return;
+            }
+            reinjections += 1;
+            console.error(
+              `[dom-walker] el panel de veredicto desapareció (la página navegó); re-inyectando ` +
+                `${reinjections}/${ASSIST_MAX_REINJECTIONS}`,
+            );
+            this.audit('skip', `panel de veredicto perdido por navegación en ${flow.flow}/${step.id}`, {
+              phase: 'verdict',
+              source: 'human',
+              reinjection: reinjections,
+            });
+            void inject(args.rechazo);
+          })
+          .catch(() => undefined);
+      }, ASSIST_WATCHDOG_MS);
+    });
+
+    this.clearAssistMarker();
+    return sub;
+  }
+
+  /**
+   * FASE B — la postcondición incumplida deja de morir en el informe.
+   *
+   * Hasta aquí, un `expect_text` que no se cumplía llamaba a `blockStep` y volvía.
+   * Era el único drift que no podía llegar al acta, y es el que más falta hace que
+   * llegue: un literal que no aparece no es un problema de locator, es el negocio
+   * diciendo algo distinto de lo que el FD escribió. Quién tiene razón lo decide el
+   * QA (decisión 1 del plan), y aquí se le pregunta con la pantalla delante.
+   *
+   * Devuelve el motivo de bloqueo AMPLIADO con el veredicto, o `null` si no hubo
+   * decisión — y en los dos casos **el paso sigue bloqueado**. Esto es deliberado y
+   * es la parte que más fácil sería estropear: un veredicto `app` NO pinta el paso
+   * de verde. Lo que se midió es que el texto del FD no está; que el QA adopte otro
+   * literal no cambia lo medido, cambia el criterio del PRÓXIMO run (fase C). Darlo
+   * por bueno aquí sería fabricar exactamente el verde falso que este trabajo existe
+   * para cazar.
+   *
+   * Los tres veredictos continúan el run, igual que antes: bloquear un paso nunca
+   * abortó el flujo.
+   */
+  private async veredictoSobrePostcondicion(
+    flow: WalkFlow,
+    step: WalkStep,
+    motivoOriginal: string,
+    esperado: string,
+  ): Promise<string | null> {
+    if (!this.opts.assist || this.verifying) return null;
+
+    // ---- cerrojos EN LA PUERTA. Mismo principio que la fusión de parches: pedirle
+    // un veredicto al QA para descubrir después que no se puede firmar tira su
+    // trabajo y pierde la decisión en silencio, que es lo que el acta impide.
+    const actor = normalizeActor(this.opts.actor ?? process.env.QA_ACTOR);
+    const rf = this.rfDelFlujo(flow);
+    const faltan = faltaParaFirmar({
+      actor,
+      fdHash: this.opts.fdHash ?? null,
+      rf,
+      actaSana: this.actaEncadenable(),
+    });
+    if (faltan.length) {
+      console.error(porQueNoSeAbre(faltan));
+      this.audit('skip', `panel de veredicto NO abierto en ${flow.flow}/${step.id}: ${faltan.join('; ')}`, {
+        phase: 'verdict',
+      });
+      return null;
+    }
+
+    await this.ensureAssistBridge();
+    /**
+     * La prosa y la lista salen de UNA lectura de la pantalla, para que no puedan
+     * discrepar. Y se leen EN VIVO, no del dom-map (P2): cuando un paso se planta la
+     * pantalla puede no estar capturada todavía, y un candidato rancio es peor que
+     * ninguno. Si la lectura falla, el panel se abre igual con lo que se sepa —
+     * quedarse sin panel por no poder listar sería cambiar una molestia por una parada.
+     */
+    const { texto: diagnostico, candidatos } = await this.diagnosticoDeResultado(esperado).catch(() => ({
+      texto: `El plan esperaba '${esperado}' y no aparece en esta pantalla.`,
+      candidatos: [] as string[],
+    }));
+
+    const segundos = Math.round(this.opts.assistTimeoutMs / 1000);
+    console.error(
+      `[dom-walker] VEREDICTO ${flow.flow}/${step.id}: PANEL ABIERTO en la ventana del navegador. ` +
+        `La postcondición del FD no se cumple y hay que decidir quién tiene razón. El walker está ` +
+        `BLOQUEADO hasta entonces, o ${segundos}s. Escrito assist-pending.json.`,
+    );
+    this.audit('llm_call', `veredicto solicitado: ${flow.flow}/${step.id}`, { phase: 'verdict', esperado });
+
+    const ctx = {
+      rf: rf!,
+      flow: flow.flow,
+      step: step.id,
+      fdHash: this.opts.fdHash!,
+      scriptHash: this.state.script_hash,
+      actor: actor!,
+      esperado,
+    };
+    const deadline = Date.now() + this.opts.assistTimeoutMs;
+
+    /**
+     * El bucle de rechazo. `veredictoADecision` es el ÚNICO juez —duplicar su regla
+     * dentro del panel para «avisar antes» sería la familia D2—, así que cuando
+     * rechaza, el panel se reabre con el motivo delante y el QA corrige sin salir.
+     * Acotado por intentos Y por el mismo reloj de la espera: un rechazo sistemático
+     * no puede convertirse en un bucle infinito con un navegador abierto.
+     */
+    let rechazo: string | undefined;
+    for (let intento = 0; intento < VERDICT_MAX_RECHAZOS; intento += 1) {
+      const sub = await this.esperarVeredicto(flow, step, { esperado, diagnostico, candidatos, rechazo, deadline });
+      if (!sub) {
+        this.audit('skip', `veredicto sin respuesta en ${flow.flow}/${step.id}`, { phase: 'verdict', source: 'human' });
+        return null;
+      }
+      const r = veredictoADecision(sub, ctx);
+      if (!r.ok) {
+        rechazo = r.motivo;
+        console.error(`[dom-walker] veredicto no admitido: ${r.motivo.split('\n')[0]}`);
+        continue;
+      }
+
+      /**
+       * Firmar y ANCLAR, en ese orden y sin nada en medio. El ancla en el audit-log
+       * es lo único que caza la cola truncada del acta (ver `decisions-audit.ts`).
+       * Si la firma falla, el paso queda bloqueado como siempre y se dice por qué:
+       * lo que no puede pasar es que el QA crea que decidió y no haya decisión.
+       */
+      try {
+        const previa = effectiveDecisions(
+          existsSync(this.actaPath) ? parseDecisions(readFileSync(this.actaPath, 'utf8')).entries : [],
+        ).get(claveDecision(ctx.rf, `${ctx.flow}/${ctx.step}`));
+        const { entry } = appendDecision(
+          { ...r.input, ...(previa ? { supersedes: previa.hash } : {}) },
+          this.actaPath,
+        );
+        anclarDecisionEnAudit(entry, this.script.site_id, this.auditPath, { origen: 'panel-veredicto' });
+        await this.verdictTell(`Decisión firmada: ${entry.decision} (${entry.evidencia}). El paso queda como hallazgo.`, true);
+        console.error(`[dom-walker] veredicto '${entry.decision}' firmado en ${this.actaPath} (${entry.hash})`);
+        this.audit('allow', `veredicto '${entry.decision}' firmado en ${flow.flow}/${step.id}`, {
+          phase: 'verdict',
+          source: 'human',
+          hash: entry.hash,
+          ...(entry.valor_nuevo !== undefined ? { valor_nuevo: entry.valor_nuevo } : {}),
+        });
+        return motivoConVeredicto(motivoOriginal, r.nota, entry.hash);
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err);
+        await this.verdictTell(`No se pudo firmar: ${m.split('\n')[0]}`, false);
+        console.error(`[dom-walker] la firma del veredicto FALLÓ, el paso queda bloqueado: ${m}`);
+        this.audit('block', `firma del veredicto fallida en ${flow.flow}/${step.id}: ${m.split('\n')[0]}`, {
+          phase: 'verdict',
+        });
+        return null;
+      }
+    }
+
+    await this.verdictTell('No se registró ninguna decisión. El paso queda bloqueado.', false);
+    this.audit('skip', `veredicto descartado tras ${VERDICT_MAX_RECHAZOS} intentos en ${flow.flow}/${step.id}`, {
+      phase: 'verdict',
+      source: 'human',
+    });
+    return null;
+  }
+
+  /** Habla con el panel de veredicto (que se cierra solo tras enseñar el mensaje). */
+  private async verdictTell(message: string, ok: boolean): Promise<void> {
+    await this.page
+      .evaluate(
+        ([m, o]) =>
+          (window as unknown as { __qaVerdictResult?: (a: string, b: boolean) => void }).__qaVerdictResult?.(
+            m as string,
+            o as boolean,
+          ),
+        [message, ok] as const,
+      )
+      .catch(() => {});
+  }
+
   private async assistTell(message: string, ok: boolean): Promise<void> {
     await this.page
       .evaluate(([m, o]) => (window as unknown as { __qaAssistResult?: (a: string, b: boolean) => void }).__qaAssistResult?.(m as string, o as boolean), [message, ok] as const)
@@ -4414,7 +4980,16 @@ class DomWalker {
           // K0.35 — y si la pantalla es un volcado de excepción, decirlo: "el
           // negocio no ocurrió" y "la aplicación se cayó" no son el mismo hallazgo.
           const error = await this.notaPaginaError();
-          this.blockStep(flow, step, `drift: postcondición del FD no observada — texto '${value}' no visible${suffix}${error}`, false);
+          const motivo = `drift: postcondición del FD no observada — texto '${value}' no visible${suffix}${error}`;
+          /**
+           * FASE B — aquí moría el único drift que no podía llegar al acta. El
+           * veredicto se pide ANTES de bloquear, con la pantalla delante, y lo que
+           * devuelve es el mismo motivo AMPLIADO: el mensaje de siempre sigue entero
+           * (dos tests de K0.35 lo fijan) y el veredicto va detrás. Sin `--assist`, o
+           * sin con qué firmar, esto devuelve null y todo queda como estaba.
+           */
+          const conVeredicto = await this.veredictoSobrePostcondicion(flow, step, motivo, value);
+          this.blockStep(flow, step, conVeredicto ?? motivo, false);
           this.audit('block', `expect_text fallido ${stepKey}: '${value}'`, { phase: 'expect', settle: obs });
           this.pushReport(flow, step, { ...report, outcome: 'postcondition_unmet' });
           return;
@@ -5608,6 +6183,32 @@ function settleFromCli(values: Record<string, unknown>): SettleProfile | undefin
   return has ? profile : undefined;
 }
 
+/**
+ * Fase B — contra qué FD se decide, resuelto en el arranque y no cuando el QA ya
+ * tiene el panel delante. Tres formas declaradas y **ninguna por defecto** (D45):
+ * `--fd=<path>` (se calcula la huella), `--fd-hash=<hex>` (ya calculada) o
+ * `--sin-fd` para el modo S4, donde no hay FD y hay que decirlo.
+ *
+ * Si el fichero no existe se devuelve `undefined` en vez de reventar el run: el FD
+ * solo hace falta para firmar un veredicto, y tumbar un walk entero por un flag
+ * mal escrito sería desproporcionado. El panel dirá lo que falta cuando toque.
+ */
+function fdHashDeCli(values: Record<string, unknown>): string | undefined {
+  const directo = values['fd-hash'];
+  if (typeof directo === 'string' && directo.trim()) return directo.trim();
+  const path = values.fd;
+  if (typeof path === 'string' && path) {
+    try {
+      return huellaDeArtefacto(path);
+    } catch (err) {
+      console.error(`[dom-walker] --fd no utilizable: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
+  }
+  if (values['sin-fd'] === true) return 'sin-fd';
+  return undefined;
+}
+
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
@@ -5624,6 +6225,13 @@ async function main(): Promise<void> {
       assist: { type: 'boolean', default: false },
       'assist-timeout': { type: 'string' },
       'no-minimize': { type: 'boolean', default: false },
+      // fase B: lo que hace falta para poder firmar un veredicto del QA
+      actor: { type: 'string' },
+      fd: { type: 'string' },
+      'fd-hash': { type: 'string' },
+      'sin-fd': { type: 'boolean', default: false },
+      rf: { type: 'string' },
+      decisions: { type: 'string' },
       'quiet-ms': { type: 'string' },
       'settle-timeout': { type: 'string' },
       'max-mutations': { type: 'string' },
@@ -5674,6 +6282,10 @@ async function main(): Promise<void> {
     assist,
     assistTimeoutMs: Number(values['assist-timeout'] ?? process.env.QA_ASSIST_TIMEOUT ?? 600) * 1000,
     assistMinimize: !(values['no-minimize'] ?? false),
+    actor: values.actor ?? process.env.QA_ACTOR,
+    fdHash: fdHashDeCli(values),
+    rf: values.rf,
+    decisionsPath: values.decisions ?? process.env.QA_DECISIONS,
     settleOverride: settleFromCli(values),
     timingProfilePath: values['timing-profile'] ?? process.env.QA_TIMING_PROFILE,
     calibrate: !(values['no-calibrate'] ?? false),
@@ -5799,6 +6411,7 @@ export {
   loadState,
   assertActionable,
   assistOverlayScript,
+  verdictOverlayScript,
   ensureReachable,
   extractionHelpers,
   killAnimationsScript,

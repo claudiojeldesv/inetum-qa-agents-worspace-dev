@@ -36,8 +36,7 @@ import {
   claveDecision,
   decisionsPathFor,
   effectiveDecisions,
-  hashJson,
-  hashText,
+  huellaDeArtefacto,
   normalizeActor,
   parseDecisions,
   type DecisionEntry,
@@ -58,27 +57,11 @@ const USO =
   '  o bien:  --site=<id> --pendings=<path-jsonl>\n' +
   '  NUNCA pases la decisión como JSON en línea: PowerShell 5.1 la destroza (D32).';
 
-/**
- * Huella de un artefacto de entrada. Si es JSON parseable se hashea el objeto (mismo
- * algoritmo que `hashScript`, así que el `script_hash` de un walk-script coincide con el
- * que calcula el walker); si no, el texto crudo — un FD en markdown no es JSON.
- */
-function huellaDeFichero(path: string): string {
-  const abs = resolve(path);
-  if (!existsSync(abs)) throw new Error(`no existe ${abs}`);
-  const texto = readFileSync(abs, 'utf8');
-  try {
-    return hashJson(JSON.parse(texto.replace(/^\uFEFF/, '')));
-  } catch {
-    return hashText(texto);
-  }
-}
-
 function resolverHuella(nombre: 'fd' | 'script'): string {
   const directa = flag(`${nombre}-hash`);
   if (directa && directa.trim()) return directa.trim();
   const path = flag(nombre);
-  if (path) return huellaDeFichero(path);
+  if (path) return huellaDeArtefacto(path);
   throw new Error(`falta --${nombre}=<path> o --${nombre}-hash=<hex>: sin huella la decisión no dice contra QUÉ se decidió`);
 }
 

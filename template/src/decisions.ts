@@ -425,3 +425,32 @@ export function appendDecision(input: Omit<DecisionInput, 'timestamp'> & { times
   appendFileSync(path, serializeEntry(entry) + '\n', { encoding: 'utf8' });
   return { entry, path, total: verdict.total + 1 };
 }
+
+/**
+ * La huella de un artefacto de entrada (el FD, el guion) tal como la guarda una
+ * decisión: `fd_hash` y `script_hash` dicen **contra qué** se decidió, y sin ellos
+ * una decisión vieja no se puede volver a situar.
+ *
+ * Vive AQUÍ y no en cada firmante a propósito. Cuando se escribió sólo firmaba
+ * `record-decision.ts`; con la fusión de parches ya eran dos copias, y con el
+ * veredicto del panel iban a ser tres. Tres copias de la misma regla es la familia
+ * D2 servida: el día que una decida normalizar el BOM o los saltos de línea de otra
+ * forma, las decisiones de los tres firmantes dejan de ser comparables entre sí y
+ * nadie se entera, porque cada una sigue siendo internamente coherente.
+ *
+ * JSON parseable → se hashea el objeto (así el `script_hash` de un walk-script
+ * coincide con el que calcula el walker); si no parsea, el texto crudo — un FD en
+ * markdown no es JSON. El BOM se quita antes de intentar el parseo y no después:
+ * un fichero escrito por PowerShell trae BOM y sin quitarlo caería siempre al
+ * camino de texto, dando una huella distinta a la del mismo fichero sin BOM.
+ */
+export function huellaDeArtefacto(path: string): string {
+  const abs = resolve(path);
+  if (!existsSync(abs)) throw new Error(`no existe ${abs}`);
+  const texto = readFileSync(abs, 'utf8');
+  try {
+    return hashJson(JSON.parse(texto.replace(/^\uFEFF/, '')));
+  } catch {
+    return hashText(texto);
+  }
+}

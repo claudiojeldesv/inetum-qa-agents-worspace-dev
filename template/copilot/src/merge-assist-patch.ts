@@ -44,8 +44,7 @@ import {
   claveDecision,
   decisionsPathFor,
   effectiveDecisions,
-  hashJson,
-  hashText,
+  huellaDeArtefacto,
   normalizeActor,
   parseDecisions,
   verifyChain,
@@ -172,12 +171,13 @@ function main(): void {
     const fdPath = flag('fd');
     if (directo?.trim()) fdHash = directo.trim();
     else if (fdPath) {
-      if (!existsSync(resolve(fdPath))) morir(EXIT_RECHAZO, `[merge-assist-patch] no existe ${resolve(fdPath)}`);
-      const txt = readFileSync(resolve(fdPath), 'utf8');
+      // La MISMA huella que calculan `record-decision` y el veredicto del panel. Un
+      // solo sitio: si cada firmante normalizara el BOM a su manera, las decisiones
+      // de unos y otros dejarían de ser comparables sin que nada se pusiera rojo.
       try {
-        fdHash = hashJson(JSON.parse(txt.replace(/^\uFEFF/, '')));
-      } catch {
-        fdHash = hashText(txt);
+        fdHash = huellaDeArtefacto(fdPath);
+      } catch (err) {
+        morir(EXIT_RECHAZO, `[merge-assist-patch] ${err instanceof Error ? err.message : String(err)}`);
       }
     } else if (has('sin-fd')) {
       // Modo S4: no hay FD. Se declara, no se inventa un default silencioso (D45).

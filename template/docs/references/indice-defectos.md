@@ -1,4 +1,4 @@
-# Índice de defectos D1–D55
+# Índice de defectos D1–D63
 
 Catálogo del vocabulario D-NN del proyecto: qué es cada defecto, dónde se midió, dónde vive el
 arreglo y en qué estado está. Los D-números son la unidad de trazabilidad de los hallazgos de campo
