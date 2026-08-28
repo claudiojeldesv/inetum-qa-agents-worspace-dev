@@ -192,6 +192,32 @@ export function motivoConVeredicto(motivoOriginal: string, nota: string, hash: s
 }
 
 /**
+ * El motivo ampliado cuando NO se pregunta, y por qué. También va detrás del
+ * original, y también sin sustituirlo.
+ *
+ * Existe para un caso concreto: la postcondición que falla porque un paso ANTERIOR
+ * del mismo flujo quedó bloqueado. Ahí no hay nada que decidir —la pantalla no es la
+ * que el caso describe porque el camino no ocurrió— y quien lea el informe tiene que
+ * poder distinguirlo de un drift de verdad.
+ */
+export function motivoSinVeredicto(motivoOriginal: string, causa: string): string {
+  return `${motivoOriginal} — NO se pidió veredicto: ${causa}`;
+}
+
+/**
+ * La causa que se cuenta cuando el camino no llegó. Un solo sitio: la escribe el
+ * walker en el informe y la lee el QA en consola.
+ */
+export function causaCaminoRoto(pasosBloqueados: readonly string[]): string {
+  const lista = pasosBloqueados.join(', ');
+  return (
+    `antes de este paso ya se había bloqueado ${pasosBloqueados.length === 1 ? 'el paso' : 'los pasos'} ` +
+    `${lista}, así que la pantalla no es la que el caso describe. Que el texto no aparezca no dice ` +
+    'nada sobre quién tiene razón: resuelve primero lo de arriba y vuelve a correr'
+  );
+}
+
+/**
  * Por qué NO se abrió el panel, cuando el run lleva `--assist` pero falta algo para
  * poder firmar.
  *

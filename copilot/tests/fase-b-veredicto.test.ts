@@ -31,6 +31,7 @@ import { DomWalker, type StyleContract, type WalkerOptions } from '../src/dom-wa
 import { parseDecisions, verifyChain, type DecisionEntry } from '../../src/decisions.ts';
 import { REGLA_DECISION_ANCLADA } from '../../src/decisions-audit.ts';
 import {
+  causaCaminoRoto,
   faltaParaFirmar,
   motivoConVeredicto,
   veredictoADecision,
@@ -196,6 +197,76 @@ describe('fase B — el veredicto del QA sobre una postcondición incumplida', (
     expect(razon(map)).toContain(MOTIVO_DE_SIEMPRE);
     expect(razon(map)).not.toContain('VEREDICTO DEL QA');
   }, 120_000);
+});
+
+describe('fase B — el camino roto: cuándo NO se pregunta aunque se pueda firmar', () => {
+  /**
+   * Salió de montar el ejercicio integrado, no de razonar sobre el código: un guion
+   * que primero pide ayuda para un clic y después comprueba el resultado de ese clic.
+   * Si el clic no ocurre, la postcondición falla POR ESO, y el panel se abría igual a
+   * preguntar quién tiene razón sobre una pantalla donde no ha pasado nada.
+   *
+   * Lo que lo hace grave y no una molestia: la respuesta se firma en un acta
+   * append-only y encadenada, y alimenta la propuesta de FD de la fase C. Una
+   * decisión tomada sobre una premisa falsa lleva el mismo actor, el mismo grado y
+   * el mismo hash que una buena — después no se distinguen.
+   */
+  it('EL PAR: con un paso anterior bloqueado no se pregunta, y el informe dice por qué', async () => {
+    const workDir = mkdtempSync(resolve(tmpdir(), 'qa-faseb-roto-'));
+    const actaPath = resolve(workDir, 'acta.jsonl');
+    const script: WalkScript = {
+      version: 1,
+      site_id: 'faseb',
+      // sin ?cmd: si el panel llegara a abrirse, nadie lo atiende y se veria en el reloj
+      entry: '/veredicto-autopilot.html',
+      flows: [
+        {
+          flow: 'busqueda',
+          criteria: ['RF-001'],
+          steps: [
+            // este NO resuelve: deja el flujo con un bloqueo previo
+            { id: 's1', action: 'click', hint: { role: 'button', name: 'Un boton que no existe' } },
+            { id: 's2', action: 'expect_text', value: ESPERADO },
+          ],
+        },
+      ],
+    };
+    const map = await new DomWalker(
+      {
+        scriptPath: 't', contractPath: 't', baseUrl: FIX, workDir, rescueBudget: 0, screenCap: 60,
+        headed: false, assist: true, assistTimeoutMs: 4_000, assistMinimize: false,
+        aliasesPath: resolve(workDir, 'a.json'), timingProfilePath: resolve(workDir, 't.json'), calibrate: false,
+        actor: 'qa.tests', fdHash: 'fd-de-prueba', decisionsPath: actaPath,
+      },
+      script,
+      contract,
+      freshState(),
+    ).run();
+
+    const acta = existsSync(actaPath) ? parseDecisions(readFileSync(actaPath, 'utf8')).entries : [];
+    expect(acta, 'se firmó una decisión sobre una pantalla donde no había pasado nada').toHaveLength(0);
+
+    const r = razon(map, 's2');
+    // el veredicto de siempre sigue entero, y detrás va POR QUÉ no se preguntó
+    expect(r).toContain(MOTIVO_DE_SIEMPRE);
+    expect(r).toContain('NO se pidió veredicto');
+    expect(r, 'hay que poder saber cuál fue el paso que rompió el camino').toContain('s1');
+    expect(r).toMatch(/no es la que el caso describe/);
+  }, 120_000);
+
+  it('CONTROL: sin nada bloqueado antes, la MISMA postcondición sí se pregunta', async () => {
+    // si el guardián se pasara de ancho, este par se pondría rojo y el panel no
+    // volvería a abrirse nunca — que es la forma silenciosa de deshacer la fase B
+    const { acta } = await correr('fd');
+    expect(acta).toHaveLength(1);
+    expect(acta[0].decision).toBe('fd');
+  }, 120_000);
+
+  it('el bloqueo de OTRO flujo no cuenta: cada caso se juzga por su propio camino', () => {
+    // la regla mira `q.flow === flow.flow`; esto documenta la intención junto al par
+    expect(causaCaminoRoto(['s1'])).toMatch(/el paso s1/);
+    expect(causaCaminoRoto(['s1', 's4'])).toMatch(/los pasos s1, s4/);
+  });
 });
 
 describe('fase B — fail-closed en la puerta: cuándo el panel NO se abre', () => {

@@ -1,3 +1,8 @@
+> **¿Cuál de las guías?** Para esta tanda la buena es **GUIA-CICLO.md** (~25 min): prueba las
+> tres piezas juntas y termina con una cifra que decide si sirven. Ésta es la versión **corta**
+> (~15 min) y cubre solo el panel de veredicto, con tres paneles en vez de dos. **GUIA-PANEL.md**
+> es el ejercicio anterior, ya hecho.
+
 # El panel que decide quién tiene razón — guía
 
 Workspace: `C:\Users\USUARIO\qa\hrm`, ya desplegado con el código nuevo. Healthcheck **39/39**.
