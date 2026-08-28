@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "site_id": "orangehrm",
+  "generated_at": "2026-08-28T10:18:09.900Z",
+  "entries": [
+    {
+      "flow": "cp001-consulta-personal",
+      "replaces_step": "s9",
+      "original_hint": {
+        "role": "button",
+        "name": "papelera"
+      },
+      "steps": [
+        {
+          "action": "click",
+          "hint": {
+            "role": "button"
+          },
+          "locator": "getByRole('row').nth(1) >> getByRole('button').nth(1)",
+          "role": "target",
+          "tier": "indexed",
+          "fragile": true,
+          "fragile_why": "posicional por estructura (row 1): no depende del dato de la fila, pero se rompe si cambia el orden"
+        }
+      ],
+      "walk_steps": [
+        {
+          "id": "s9",
+          "action": "click",
+          "hint": {
+            "role": "button"
+          },
+          "locator": "getByRole('row').nth(1) >> getByRole('button').nth(1)"
+        }
+      ],
+      "verified": true,
+      "verify_reason": "verificado SOLO EN VIVO: el camino previo contiene pasos de negocio y el replay en limpio los re-ejecutaría — nunca se re-ejecuta negocio para verificar"
+    },
+    {
+      "flow": "cp001-consulta-personal",
+      "replaces_step": "s11",
+      "original_hint": {
+        "role": "button",
+        "name": "No, Cancel"
+      },
+      "steps": [
+        {
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "No, Cancel"
+          },
+          "locator": "getByRole('button', { name: 'No, Cancel' })",
+          "role": "target",
+          "tier": "semantic",
+          "fragile": false
+        }
+      ],
+      "walk_steps": [
+        {
+          "id": "s11",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "No, Cancel"
+          },
+          "locator": "getByRole('button', { name: 'No, Cancel' })"
+        }
+      ],
+      "verified": true,
+      "verify_reason": "verificado SOLO EN VIVO: el camino previo contiene pasos de negocio y el replay en limpio los re-ejecutaría — nunca se re-ejecuta negocio para verificar"
+    }
+  ]
+}

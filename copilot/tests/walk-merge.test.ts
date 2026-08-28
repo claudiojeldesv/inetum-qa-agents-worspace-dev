@@ -412,3 +412,39 @@ describe('lo que cambia el significado no entra si no se nombra (decisión 8)', 
     expect(pasoDe(r, 's6')?.hint?.name).toBe('Delete');
   });
 });
+
+describe('cómo se le describe al QA el elemento que hace el trabajo', () => {
+  /**
+   * Se vio en la vista previa del ejercicio real: el mensaje decía «el plan nombraba
+   * "papelera" y lo que hace esto es "button"», que a un QA no le dice nada. El caso
+   * en que esto se lee es justo el del botón de icono, o sea el que NO tiene nombre.
+   */
+  it('EL PAR: un objetivo sin nombre se describe por lo que es y por qué es frágil', () => {
+    const sinNombre: AssistPatchStep = {
+      action: 'click',
+      hint: { role: 'button' },
+      locator: "getByRole('row').nth(1) >> getByRole('button').nth(1)",
+      role: 'target',
+    };
+    const r = fundirGuion(
+      guion({ id: 's6', action: 'click', hint: { role: 'button', name: 'papelera' } }),
+      parche([sinNombre], { original_hint: { role: 'button', name: 'papelera' } }),
+      { elementos: ['s6'] },
+    );
+    const c = r.cambios.find((x) => x.clase === 'elemento-distinto');
+    expect(c?.descripcion).toContain('un botón SIN NOMBRE');
+    expect(c?.descripcion).toContain('por su posición');
+    expect(c?.descripcion, 'el rol crudo no le dice nada a un QA').not.toMatch(/es «button»/);
+  });
+
+  it('CONTROL: si SÍ tiene nombre, se dice el nombre y no se habla de fragilidad', () => {
+    const r = fundirGuion(
+      guion({ id: 's6', action: 'click', hint: { name: 'Buscar' } }),
+      parche([objetivo('click', { role: 'button', name: 'Search' })], { original_hint: { name: 'Buscar' } }),
+      { elementos: ['s6'] },
+    );
+    const c = r.cambios.find((x) => x.clase === 'elemento-distinto');
+    expect(c?.descripcion).toContain('un botón llamado «Search»');
+    expect(c?.descripcion).not.toContain('frágil');
+  });
+});

@@ -393,7 +393,7 @@ function fundirEntrada(
           peso: PESO_DE['elemento-distinto'],
           flow: entry.flow,
           paso: target.id,
-          descripcion: `el plan nombraba «${resumirHint(entry.original_hint)}» y lo que hace esto es «${resumirHint(target.hint)}»`,
+          descripcion: `el plan nombraba «${resumirHint(entry.original_hint)}» y lo que hace el trabajo es ${describirObjetivo(target)}`,
           grado,
         },
   );
@@ -429,6 +429,31 @@ const NO_ADMITE_POSTCONDICION = new Set([
 function resumirHint(h: StepHint | undefined): string {
   if (!h) return '(sin descripción)';
   return h.name ?? h.label ?? h.text ?? h.test_id ?? h.role ?? '(sin descripción)';
+}
+
+/** Nombres de rol en el idioma del QA, no en el del motor. */
+const ROL_EN_CASTELLANO: Record<string, string> = {
+  button: 'un botón', link: 'un enlace', textbox: 'un campo de texto', checkbox: 'una casilla',
+  combobox: 'un desplegable', radio: 'una opción', row: 'una fila', cell: 'una celda',
+  link_menu: 'un elemento de menú', tab: 'una pestaña', menuitem: 'una opción de menú',
+};
+
+/**
+ * Cómo se le describe al QA el elemento que resultó hacer el trabajo.
+ *
+ * Cuando NO tiene nombre —el caso de los botones de icono, que es justo cuando esto se
+ * lee— decir «lo que hace esto es "button"» no informa de nada. Lo que el QA necesita
+ * saber es que no tiene nombre y que por eso se localiza por su sitio: eso explica el
+ * aviso de fragilidad que verá al lado, y le deja decidir con conocimiento.
+ */
+function describirObjetivo(paso: WalkStep): string {
+  const nombre = paso.hint?.name ?? paso.hint?.label ?? paso.hint?.text;
+  const rol = ROL_EN_CASTELLANO[paso.hint?.role ?? ''] ?? `un elemento (${paso.hint?.role ?? 'sin rol'})`;
+  if (nombre) return `${rol} llamado «${nombre}»`;
+  const porPosicion = typeof paso.locator === 'string' && /\.nth\(\d+\)/.test(paso.locator);
+  return porPosicion
+    ? `${rol} SIN NOMBRE, que solo se puede localizar por su posición — por eso va marcado como frágil`
+    : `${rol} sin nombre`;
 }
 
 /**

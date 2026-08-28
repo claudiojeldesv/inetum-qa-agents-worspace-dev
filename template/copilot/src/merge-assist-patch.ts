@@ -372,12 +372,19 @@ function gestosDeAprobacion(
   }
   for (const [k, lista] of porPaso) {
     const [flow, paso] = k.split('/');
-    out.push({
-      flow,
-      paso,
-      valor: `+${lista.length} cambio(s) de camino (${lista.map((c) => c.paso).join(', ')})`,
-      grado: lista[0].grado,
-    });
+    /**
+     * El resumen describe QUÉ se aceptó, no los ids. Antes listaba `paso` de cada
+     * cambio y salía «(s11, s11)» —el mismo id repetido— porque dos cambios distintos
+     * (retirar el ámbito, refinar la identidad) recaen sobre el mismo paso. Un acta de
+     * auditoría con eso dentro no dice nada a quien la lea dentro de un año.
+     */
+    const pasosNuevos = lista.filter((c) => c.clase === 'paso-nuevo');
+    const otros = [...new Set(lista.filter((c) => c.clase !== 'paso-nuevo').map((c) => c.clase))];
+    const partes = [
+      ...(pasosNuevos.length ? [`${pasosNuevos.length} paso(s) de camino nuevos (${pasosNuevos.map((c) => c.paso).join(', ')})`] : []),
+      ...otros,
+    ];
+    out.push({ flow, paso, valor: partes.join('; '), grado: lista[0].grado });
   }
   for (const c of oraculo) out.push({ flow: c.flow, paso: c.paso, valor: c.valor, grado: c.grado });
   return out;

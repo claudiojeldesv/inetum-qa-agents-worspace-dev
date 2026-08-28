@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "site_id": "orangehrm",
+  "entry": "/web/index.php/auth/login",
+  "flows": [
+    {
+      "flow": "cp001-consulta-personal",
+      "criteria": [
+        "CP001"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": {
+            "label": "Username"
+          },
+          "value": "$fixtures.credentials[0].username"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Password"
+          },
+          "value": "$fixtures.credentials[0].password",
+          "secret": true
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          },
+          "expect_transition": true,
+          "screen": "inicio"
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "text": "PIM"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "pim"
+        },
+        {
+          "id": "s5",
+          "action": "click",
+          "hint": {
+            "text": "Employee List"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "listado-empleados"
+        },
+        {
+          "id": "s6",
+          "action": "expect_text",
+          "value": "Employee Information"
+        },
+        {
+          "id": "s7",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Search"
+          },
+          "locator": "getByRole('button', { name: 'Search' })"
+        },
+        {
+          "id": "s8",
+          "action": "expect_text",
+          "value": "Records Found"
+        },
+        {
+          "id": "s9",
+          "action": "click",
+          "hint": {
+            "role": "button"
+          },
+          "locator": "getByRole('row').nth(1) >> getByRole('button').nth(1)"
+        },
+        {
+          "id": "s10",
+          "action": "expect_text",
+          "value": "permanently deleted"
+        },
+        {
+          "id": "s11",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "No, Cancel"
+          },
+          "locator": "getByRole('button', { name: 'No, Cancel' })"
+        },
+        {
+          "id": "s12",
+          "action": "capture",
+          "screen": "tras-cancelar"
+        },
+        {
+          "id": "s13",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Leave"
+          },
+          "locator": "getByRole('link', { name: 'Leave' })",
+          "expect_transition": true,
+          "screen": "ausencias",
+          "retry_safe": true
+        },
+        {
+          "id": "s14",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Search"
+          }
+        },
+        {
+          "id": "s15",
+          "action": "expect_text",
+          "value": "Records Found"
+        },
+        {
+          "id": "s16",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "X"
+          }
+        }
+      ]
+    }
+  ]
+}
