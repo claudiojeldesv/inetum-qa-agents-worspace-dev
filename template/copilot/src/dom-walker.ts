@@ -111,8 +111,10 @@ import {
 } from '../../src/decisions.ts';
 import { anclarDecisionEnAudit } from '../../src/decisions-audit.ts';
 import {
+  causaCaminoRoto,
   faltaParaFirmar,
   motivoConVeredicto,
+  motivoSinVeredicto,
   porQueNoSeAbre,
   veredictoADecision,
   pararRelojes,
@@ -4303,6 +4305,34 @@ class DomWalker {
     esperado: string,
   ): Promise<string | null> {
     if (!this.opts.assist || this.verifying) return null;
+
+    /**
+     * EL CAMINO ROTO, antes que ningún cerrojo.
+     *
+     * Si un paso ANTERIOR del mismo flujo quedó bloqueado, la pantalla que hay
+     * delante no es la que el caso describe: el clic que abría el modal no ocurrió,
+     * la búsqueda no se lanzó. Que el texto del FD no aparezca ahí **no dice nada**
+     * sobre quién tiene razón.
+     *
+     * Preguntarlo igualmente sería peor que callarse, y no un poco: la respuesta se
+     * firma en un acta append-only y encadenada, y de ahí sale la propuesta de FD de
+     * la fase C. Una decisión tomada sobre una premisa falsa no se distingue después
+     * de una buena — lleva el mismo actor, el mismo grado y el mismo hash.
+     *
+     * No se pregunta, y el informe dice por qué: quien lo lea tiene que poder
+     * separar esto de un drift de verdad.
+     */
+    const previos = this.state.open_questions
+      .filter((q) => q.flow === flow.flow && q.step !== step.id)
+      .map((q) => q.step);
+    if (previos.length) {
+      const causa = causaCaminoRoto(previos);
+      console.error(`[dom-walker] ${flow.flow}/${step.id}: no se pide veredicto — ${causa.split(',')[0]}.`);
+      this.audit('skip', `veredicto NO pedido en ${flow.flow}/${step.id}: camino roto por ${previos.join(', ')}`, {
+        phase: 'verdict',
+      });
+      return motivoSinVeredicto(motivoOriginal, causa);
+    }
 
     // ---- cerrojos EN LA PUERTA. Mismo principio que la fusión de parches: pedirle
     // un veredicto al QA para descubrir después que no se puede firmar tira su
