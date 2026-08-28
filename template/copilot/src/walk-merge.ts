@@ -248,11 +248,24 @@ export interface ResultadoFusion {
   descartados: Array<{ flow: string; paso: string; campo: string; motivo: string }>;
 }
 
-/** Selección de qué aplicar. `undefined` = todo. */
+/**
+ * Qué se aprueba. Lo que no se nombra, no entra — con una excepción declarada.
+ *
+ * La coreografía va en bloque y por eso su default es «sí»: es *cómo se llega*, y el
+ * plan decidió que se acepta entera. Lo que toca **qué significa correcto** —una
+ * comprobación nueva, o que el objetivo resulte ser otro elemento— hay que nombrarlo.
+ */
 export interface Seleccion {
+  /** Por defecto sí: el camino se acepta en bloque (decisión 8). */
   coreografia?: boolean;
-  /** Ids de paso de los cambios de oráculo aprobados. */
+  /** Ids de las comprobaciones nuevas aprobadas. Sin nombrar, no entran. */
   oraculos?: string[];
+  /**
+   * Ids de paso cuyo objetivo resultó ser OTRO elemento del que nombraba el plan.
+   * No es un paso que se pueda dejar fuera: o se funde la entrada entera, o no se
+   * funde. Sin nombrarlo, la entrada se salta.
+   */
+  elementos?: string[];
 }
 
 const clonar = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -385,8 +398,16 @@ function fundirEntrada(
         },
   );
 
-  // --- la selección: los oráculos no aprobados no entran
-  const aprobados = new Set(seleccion.oraculos ?? cambios.filter((c) => c.peso === 'oraculo').map((c) => c.paso));
+  /**
+   * La selección. **Un oráculo no entra si no se nombra**, aunque se pida aplicar.
+   *
+   * Es la decisión 8 del plan: la coreografía se acepta en bloque, pero cambiar un
+   * resultado esperado es cambiar *qué significa correcto*, y eso va uno a uno. Si el
+   * default fuera «todos», `--aplicar` a secas se llevaría por delante los oráculos sin
+   * que nadie los mirase — que es justo el «se acaba clicando sin leer» que la decisión
+   * 9 quiere evitar, con la firma del QA detrás.
+   */
+  const aprobados = new Set(seleccion.oraculos ?? []);
   const finales = pasos.filter((p, i) => (roles[i] === 'assertion' ? aprobados.has(p.id) : true));
 
   return { pasos: finales, cambios, avisos, rechazos, conservados, descartados };
@@ -470,6 +491,22 @@ export function fundirGuion(script: WalkScript, patch: AssistPatch, seleccion: S
     cambios.push(...r.cambios);
     if (r.conservados.length) conservados.push({ flow: entry.flow, paso: entry.replaces_step, campos: r.conservados });
     for (const d of r.descartados) descartados.push({ flow: entry.flow, paso: entry.replaces_step, ...d });
+
+    /**
+     * Si el objetivo resultó ser OTRO elemento del que nombraba el plan, la entrada no
+     * se funde sin permiso explícito. No se puede «aplicar el resto y dejar eso
+     * fuera»: el objetivo es la entrada. O entra con su cambio de significado, o no
+     * entra.
+     */
+    const cambiaElemento = r.cambios.some((c) => c.clase === 'elemento-distinto');
+    if (cambiaElemento && !(seleccion.elementos ?? []).includes(entry.replaces_step)) {
+      avisos.push({
+        flow: entry.flow,
+        paso: entry.replaces_step,
+        texto: 'sin aplicar: cambia QUÉ elemento hace este paso, y eso se aprueba nombrándolo',
+      });
+      continue;
+    }
 
     if (seleccion.coreografia === false) continue; // solo se revisó, no se aplica
     flow.steps.splice(idx, 1, ...r.pasos);
