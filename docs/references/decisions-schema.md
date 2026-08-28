@@ -64,6 +64,11 @@ sí se exige es que el grado quede escrito.
 - **`en-vivo`** — comprobado contra la página actual porque el camino previo muta negocio
   y re-ejecutarlo duplicaría operaciones (K0.25/D2). Es lo que ya degrada
   `verifyAssistPatch` y lo dice en su `verify_reason`; aquí sube al nivel de la decisión.
+  Es también, **siempre y sin excepción**, el grado de un veredicto del panel (fase B): el
+  QA mira la pantalla de ESE run, con el estado que dejaron los pasos anteriores. No hay
+  replay en limpio, así que `desde-cero` sería mentira, y hay observación directa, así que
+  `sin-verificar` se quedaría corto. Es constante en el código, no un parámetro: nadie
+  puede subirlo desde fuera.
 - **`sin-verificar`** — el QA decidió y la verificación queda **aplazada** al próximo run
   con datos frescos. Aplazada, no desaparecida (P5).
 
@@ -114,6 +119,21 @@ npm run qa:decisions -- --site=parabank --audit=.work/parabank/audit-log.json --
   - `--supersede-vigente` revoca automáticamente la decisión vigente de ese `rf`+`paso`.
   - `--actor=` o la variable `QA_ACTOR`. Sin ninguna de las dos, exit 2.
   - Cada decisión firmada queda anclada en el audit-log del run.
+- **`merge-assist-patch`** — firma al fundir un parche del panel en el guion. Una decisión
+  por gesto de aprobación (el bloque de coreografía de cada entrada, y cada oráculo).
+- **`dom-walker --assist`** — firma un **veredicto** sobre una postcondición incumplida
+  (fase B). El panel se abre en la página, el QA elige, y la decisión queda encadenada sin
+  pasar por consola. Exige `--actor=` y `--fd=`/`--fd-hash=`/`--sin-fd`, y un `rf` sin
+  ambigüedad (`--rf=` si el flujo cubre varios criterios). **Fail-closed en la puerta**:
+  si falta cualquiera de los tres, el panel NO se abre y se dice por qué — pedirle un
+  veredicto a alguien para descubrir después que no se puede firmar tira su trabajo.
+
+> **Los tres firmantes calculan la huella del FD con la misma función**
+> (`huellaDeArtefacto` en `src/decisions.ts`). No es simetría estética: si cada uno
+> normalizara el BOM o el salto final a su manera, las decisiones de unos y otros dejarían
+> de ser comparables entre sí y **nada se pondría rojo**, porque cada acta seguiría siendo
+> internamente coherente. Es la familia D2 servida.
+
 - **`check-decisions`** (`npm run qa:decisions`) — recomputa la cadena. Exit 0 coherente,
   2 manipulada, 1 uso incorrecto. **Entra en el healthcheck**: en un workspace de campo el
   acta lleva decisiones reales, y un acta manipulada que nadie mira vale lo mismo que no

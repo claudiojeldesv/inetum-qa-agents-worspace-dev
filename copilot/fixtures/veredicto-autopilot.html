@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Veredicto autopilotado</title></head>
+<!--
+  FASE B — fixture que CONDUCE el panel de veredicto desde dentro de la pagina, por
+  el mismo canal `qa-assist-cmd` que ya usaba el autopiloto del panel de asistencia.
+
+  Por que existe: el camino que importa no es "la funcion pura devuelve la entrada
+  correcta" —eso lo prueban los tests de `walk-verdict.ts`— sino el ENTERO:
+  postcondicion incumplida -> panel abierto -> el QA pulsa -> decision firmada en el
+  acta -> el paso sigue bloqueado y su motivo lleva el veredicto detras. Ese camino
+  atraviesa tres ficheros y un navegador, y es donde se esconden los defectos que
+  los tests de unidad no ven (la leccion de K0.44/K0.47).
+
+  El guion pide "Solicitud aprobada" y la pantalla dice "Solicitud rechazada": drift de
+  negocio del bueno, no un problema de locator. Los dos textos comparten la palabra
+  "Solicitud", asi que el ranking de candidatos tiene que poner el resultado por delante
+  del titulo de la pantalla — si no lo hiciera, el QA elegiria a ciegas.
+
+  La primera version de este fixture decia "No Records Found" y el guion pedia "Records
+  Found", copiando el caso de campo. NO fallaba: el literal positivo casa dentro del
+  negativo y el paso salia VERDE. Es K0.37 reproducido por accidente montando su propio
+  test, y es el recordatorio de lo que la fase B no cubre: un verde no abre panel.
+
+  Modo por query string:
+    ?cmd=fd            pulsa "Es un defecto"
+    ?cmd=defer         pulsa "Luego"
+    ?cmd=app-vacio     pulsa "La aplicacion tiene razon" SIN elegir literal (rechazo)
+    ?cmd=app-candidato elige el candidato 0 y adopta la aplicacion
+    ?cmd=app-senalado  senala el texto de la pantalla y adopta la aplicacion
+    ?cmd=app-tras-rechazo  falla primero sin literal, y al reabrirse elige candidato
+-->
+<body>
+  <h1>Listado de peticiones</h1>
+  <div role="status" id="resultado">Solicitud rechazada</div>
+  <p id="pie">Panel de administracion</p>
+  <script>
+    var cmd = new URLSearchParams(location.search).get('cmd');
+    var enviar = function (host, detail) {
+      host.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: detail }));
+    };
+    var vistas = 0;
+    var espera = setInterval(function () {
+      var host = document.querySelector('[data-qa-assist-host]');
+      if (!host || !cmd) return;
+      vistas += 1;
+      clearInterval(espera);
+
+      if (cmd === 'fd' || cmd === 'defer') { enviar(host, cmd); return; }
+
+      if (cmd === 'app-vacio') { enviar(host, 'app'); return; }
+
+      if (cmd === 'app-candidato') {
+        enviar(host, { choose: 0 });
+        setTimeout(function () { enviar(host, 'app'); }, 150);
+        return;
+      }
+
+      if (cmd === 'app-senalado') {
+        // el QA activa el modo senalar y pulsa el texto del resultado en la pagina
+        enviar(host, 'pick');
+        setTimeout(function () {
+          document.getElementById('resultado').click();
+          setTimeout(function () { enviar(host, 'app'); }, 200);
+        }, 150);
+        return;
+      }
+
+      if (cmd === 'app-tras-rechazo') {
+        // primero el gesto que NO es una decision: adoptar sin decir que dice la app.
+        enviar(host, 'app');
+        // el panel se reinyecta con el motivo del rechazo; se espera al NUEVO host.
+        var reintento = setInterval(function () {
+          var h2 = document.querySelector('[data-qa-assist-host]');
+          if (!h2 || h2 === host) return;
+          clearInterval(reintento);
+          enviar(h2, { choose: 0 });
+          setTimeout(function () { enviar(h2, 'app'); }, 150);
+        }, 100);
+        return;
+      }
+    }, 100);
+  </script>
+</body>
+</html>

@@ -10,8 +10,8 @@ muro, y a un muro se le pasa por el lado — el QA edita el FD o los tests a man
 herramienta, y la herramienta deja de servir.
 
 **Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
-([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 cerrado salvo la pasada de
-textos; P1 cerrado el 2026-08-24.** El resto sin implementar.
+([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 y P1 cerrados el
+2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28.** Quedan P6, P3 y P4, en ese orden.
 
 ---
 
@@ -118,7 +118,39 @@ señala. Y una decisión sin `actor` se rechaza.
 
 **Registro por flags o fichero de pendientes, NUNCA JSON en línea** (D32: PowerShell 5.1 lo destroza).
 
-### P2 — La pantalla de discrepancia con candidatos · MEDIO HECHO el 2026-08-24
+### P2 — La pantalla de discrepancia con candidatos · CERRADO el 2026-08-28
+
+**Cerrado con la fase B del plan de fusión**, que era la otra mitad del mismo agujero: los
+tres botones de veredicto no servían de nada mientras una postcondición incumplida no
+abriera panel, y el disparador no servía de nada sin botones que decidieran.
+
+Ya está lo que faltaba: los tres veredictos (`app` / `fd` / `defer`) firman en el acta de
+P1 sin pasar por consola, la salida **«ninguno de estos, lo señalo yo»** toma el literal de
+un texto pulsado en la página, y los tres continúan el run. El panel es otro
+(`verdictOverlayScript`) y no un modo del de asistencia: allí el QA demuestra un camino
+para construir un locator, aquí dicta quién tiene razón — no hay secuencia que grabar.
+
+Tres cosas que el diseño exigió y el plan no pedía:
+
+- **Fail-closed en la puerta.** Sin actor, sin FD o con un `rf` ambiguo, el panel **no se
+  abre** y se dice por qué. Pedirle un veredicto a una persona para descubrir después que
+  no se puede firmar tira su trabajo y pierde la decisión en silencio.
+- **El rechazo devuelve el panel, no firma humo.** Un «la aplicación tiene razón» que no
+  dice QUÉ dice la aplicación no es una decisión: la fase C no tendría con qué sustituir el
+  criterio. `veredictoADecision` es el único juez y el panel se reinyecta con el motivo
+  delante — duplicar la regla dentro de la página para «avisar antes» sería otra D2.
+- **Un veredicto `app` NO pinta el paso de verde.** Lo que se midió es que el texto del FD
+  no está; que el QA adopte otro literal cambia el criterio del PRÓXIMO run, no lo medido
+  en éste. Hay un test dedicado a ello, porque es lo más fácil de estropear con buena
+  intención.
+
+**Sigue pendiente el criterio de muerte**: medir si los candidatos salen ruidosos en apps
+reales. D59 podó 8 → 1 en un caso montando el ejercicio de OrangeHRM, pero eso es una
+anécdota, no la medición.
+
+Estado anterior, para referencia:
+
+#### MEDIO HECHO el 2026-08-24
 
 Adelantado al cerrar D27, porque era la misma causa: el panel no sabía lo que el walker ya sabía.
 **Ya está**: la causa se mide contra la página antes de abrir el panel y se distinguen cuatro
@@ -128,12 +160,8 @@ para que la compartan—; y la regla dura de «si no hay candidatos, eso ES info
 probada. Los candidatos se leen **en vivo**, no del dom-map: cuando un paso se planta la pantalla
 puede no estar capturada todavía, y un candidato rancio es peor que ninguno.
 
-**Falta**: los tres botones de veredicto (*la aplicación tiene razón* / *es un defecto* / *luego*) y
-la salida «ninguno de estos, lo señalo yo». Eso es lo que enlaza con el acta de P1, y es donde el
-panel pasa de informar a decidir.
-
-**Sigue pendiente el criterio de muerte**: medir si los candidatos salen ruidosos en apps reales
-(más de 5-6 por pantalla). El tope de 8 acota el volcado, pero no sustituye a la medición.
+**Faltaba entonces**: los tres botones de veredicto y la salida «ninguno de estos, lo señalo yo».
+Cerrado el 2026-08-28 con la fase B, arriba.
 
 Diseño original:
 
@@ -180,7 +208,22 @@ nada en ella.
 
 **Lo que NO entra**: reordenar y editar cualquier paso desde aquí (decisión 5).
 
-### P5 — La pantalla de aprobación
+### P5 — La pantalla de aprobación · FASES A y B CERRADAS el 2026-08-28
+
+Plan propio y detallado en el fichero de plan de la sesión; lo entregado:
+
+- **Fase A** — el núcleo de fusión (`copilot/src/walk-merge.ts`) y la aprobación
+  (`copilot/src/merge-assist-patch.ts`). Cambios agrupados por peso, grado de evidencia por decisión,
+  el original anclado en `config/baselines/`, y los cerrojos de escritura ANTES de gastar la atención
+  del QA. **Validada en campo**: el mismo caso de OrangeHRM pasó de 10/16 a 15/16 sin `--assist` y
+  sin nadie delante ([ciclo-cerrado-panel-a-plan.md](../findings/ciclo-cerrado-panel-a-plan.md)).
+- **Fase B** — el disparador que faltaba: un `expect_text` incumplido abre panel de veredicto. Es lo
+  que cerró P2 (arriba).
+
+**Falta la fase C**: la propuesta de FD corregido (`<fd>.propuesta.md`), determinista, derivada solo
+de decisiones firmadas. Ahora tiene con qué: el acta ya recoge veredictos `app` con su literal.
+
+Diseño original de la pantalla, para referencia:
 
 Los cambios **agrupados por peso**: recorrido en bloque con *aceptar todos*; lo que cambia un
 resultado esperado, uno a uno y en grande. Chips de **grado de evidencia** —`desde-cero` /
@@ -210,8 +253,11 @@ convierta en un espejo de la aplicación sin que nadie lo note.
 
 ## 3. Orden y criterios de parada
 
-P0 (falta la pasada de textos) → ~~P1~~ **hecho** → **P2, lo siguiente** (la pantalla que más valor da
-y la que el QA pidió) → P3 → P5 → P4 → P6.
+P0 → ~~P1~~ → ~~P2~~ → ~~P5 (fases A y B)~~ **hechos** → **P6, lo siguiente** → P3 → P4.
+
+P6 se adelanta a P3/P4 porque ya tiene con qué contar: el acta lleva decisiones  reales y
+P6 es exactamente el recuento de cuántos criterios están respaldados por la aplicación y no por
+el FD. Sin decisiones firmadas era una etiqueta sin dientes; ahora tiene el dato debajo.
 
 P4 va después de P5 a propósito: la pantalla de aprobación **ya es** una vista del caso completo, así
 que puede que P4 sobre. Decidirlo con P5 en la mano en vez de construir las dos.
