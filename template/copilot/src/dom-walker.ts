@@ -370,11 +370,34 @@ function extractionHelpers(testidAttrs: string[], cssFallbackAttrs: string[] = [
     const looksGenerated = (id) => !id || /^:.+:$/.test(id) || /ng-tns-|ng-reflect-|cdk-|mat-\\d/.test(id)
       || /[-_]\\d{2,}$/.test(id) || /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(id) || /^[a-z]{1,3}\\d{3,}$/i.test(id) || /^\\d/.test(id);
     /** Ancestro más cercano con rol de contenedor Y nombre accesible. */
+    /**
+     * Posicion del ancla entre los VISIBLES de su mismo rol, en orden de documento.
+     * D63 — el "name" de un contenedor no siempre es un nombre accesible que
+     * Playwright acepte (para un role=row devolvemos su textContent y
+     * getByRole con ese name da CERO), asi que hace falta un ancla estructural de
+     * respaldo. Se acota el barrido a los sospechosos habituales de ser contenedor.
+     */
+    const nthDelAncla = (nodo, rol) => {
+      const todos = document.querySelectorAll('[role], table, tr, form, dialog, nav, main, article, section, ul, ol, li');
+      let i = 0;
+      for (const c of todos) {
+        if (roleOf(c) !== rol || !isVisible(c)) continue;
+        if (c === nodo) return i;
+        i++;
+      }
+      return undefined;
+    };
     const anchorOf = (el) => {
       let p = el.parentElement;
       while (p && p !== document.body) {
         const r = roleOf(p);
-        if (ANCHOR_ROLES.includes(r)) { const n = nameOf(p); if (n) return { role: r, name: n }; }
+        if (ANCHOR_ROLES.includes(r)) {
+          const n = nameOf(p);
+          if (n) {
+            const nth = nthDelAncla(p, r);
+            return nth === undefined ? { role: r, name: n } : { role: r, name: n, nth };
+          }
+        }
         p = p.parentElement;
       }
       return undefined;

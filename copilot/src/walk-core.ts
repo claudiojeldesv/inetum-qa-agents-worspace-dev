@@ -624,6 +624,30 @@ export function buildFallbackCandidates(
       fragile: true,
       why: 'posicional: se rompe si cambia el orden o se añaden elementos',
     });
+
+    /**
+     * D63 — ancla ESTRUCTURAL, el último cartucho.
+     *
+     * Todo lo anclado cuelga de `getByRole('<rol>', { name })`, y el `name` de un
+     * contenedor no siempre es un nombre accesible que Playwright acepte: para un
+     * `role=row` el extractor devuelve su `textContent`, y ese locator resuelve a
+     * CERO. Cuando eso pasa —una tabla de datos con botones de icono, que es la forma
+     * corporativa de siempre— **todos** los candidatos nacían muertos a la vez y la
+     * asistencia se rendía después de que el QA hubiera hecho el trabajo.
+     *
+     * Éste no depende del dato: la fila N, el control M. Es más frágil que anclar por
+     * nombre —de ahí que vaya el último, y solo si el anclado por nombre no resolvió—
+     * pero es la diferencia entre ayudar y rendirse. Y en un listado compartido, donde
+     * el dato de la fila cambia solo, a veces es incluso más estable.
+     */
+    if (el.anchor && typeof el.anchor.nth === 'number') {
+      out.push({
+        source: `getByRole('${el.anchor.role}').nth(${el.anchor.nth})${CHAIN_SEP}getByRole('${el.role}').nth(${el.nth_of_role})`,
+        tier: 'indexed',
+        fragile: true,
+        why: `posicional por estructura (${el.anchor.role} ${el.anchor.nth}): no depende del dato de la fila, pero se rompe si cambia el orden`,
+      });
+    }
   }
 
   return out;

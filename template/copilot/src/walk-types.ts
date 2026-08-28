@@ -559,8 +559,18 @@ export interface PickedElement {
   // identidad semántica (input sin name/label/test-id: la norma en formularios Java
   // corporativos) no tiene locator posible y la asistencia se rendía tras el trabajo
   // del humano. Playwright genera algo casi siempre; esto es lo que le faltaba.
-  /** Ancestro más cercano con role+name — ancla de scope. */
-  anchor?: { role: string; name: string };
+  /**
+   * Ancestro más cercano con role+name — ancla de scope.
+   *
+   * `nth` es su posición entre los VISIBLES de su mismo rol, y existe porque el
+   * `name` de un contenedor **no siempre es un nombre accesible que Playwright
+   * acepte**: para un `role=row` nuestro extractor devuelve su `textContent`, y
+   * `getByRole('row', { name: '…' })` resuelve a CERO. Medido en el listado de
+   * empleados de OrangeHRM el 2026-08-28: el único candidato que producía la
+   * escalera nacía muerto y la asistencia se rendía tras el trabajo del QA (D63).
+   * Con `nth` hay un ancla estructural de respaldo que no depende del dato.
+   */
+  anchor?: { role: string; name: string; nth?: number };
   /** Texto previo más cercano (patrón label-en-celda de tablas corporativas). */
   nearby_text?: string;
   /** Índice del elemento entre los de su mismo rol dentro del ancla (o del documento). */

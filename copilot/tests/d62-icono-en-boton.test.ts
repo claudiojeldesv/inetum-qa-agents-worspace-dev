@@ -20,6 +20,7 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
 import { assistOverlayScript, TESTID_ATTR_CANDIDATES } from '../src/dom-walker.ts';
+import { buildFallbackCandidates } from '../src/walk-core.ts';
 import type { AssistSubmission, PickedElement, WalkStep } from '../src/walk-types.ts';
 
 const FIXTURE = pathToFileURL(resolve(__dirname, '../fixtures/boton-con-icono.html')).href;
@@ -136,4 +137,69 @@ describe('D62 — pulsar el icono captura el botón que lo contiene', () => {
     expect(seq.every((e) => e.role !== 'generic')).toBe(true);
     await page.close();
   }, 120_000);
+});
+
+/**
+ * D63 — todo lo anclado colgaba de un nombre que Playwright no acepta.
+ *
+ * La escalera ancla en `getByRole('<rol>', { name })`, y para un contenedor nuestro
+ * extractor saca ese `name` del `textContent`. Playwright NO calcula así el nombre
+ * accesible de un `role=row`: medido en el listado de OrangeHRM el 2026-08-28,
+ * `getByRole('row', { name: '0452aaa aaa' })` resuelve a **CERO**.
+ *
+ * Consecuencia: el ÚNICO candidato que la escalera producía para un botón de icono en
+ * una tabla nacía muerto, y la asistencia se rendía **después** de que el QA hubiera
+ * hecho el trabajo. El mensaje que vio: «el elemento señalado no tiene identidad única
+ * ni por ancla, texto vecino, id estable o posición».
+ */
+describe('D63 — el ancla estructural, cuando la del nombre nace muerta', () => {
+  it('EL PAR: el botón sin nombre en una fila produce un candidato que NO depende del dato', async () => {
+    page = await browser.newPage();
+    const h = await abrirPanel();
+    await cmd('record');
+    await page.click('#borrar-2 i');
+    await cmd('stop');
+    await page.waitForFunction(() => true, undefined, { timeout: 500 }).catch(() => {});
+
+    const el = h.sent[0].sequence[0];
+    expect(el.anchor?.role).toBe('row');
+    expect(typeof el.anchor?.nth, 'sin la posición del ancla no hay respaldo posible').toBe('number');
+
+    const cands = buildFallbackCandidates(el, ['getByRole']);
+    const estructural = cands.filter((c) => /getByRole\('row'\)\.nth\(\d+\)/.test(c.source));
+    expect(estructural, 'no se ofreció ningún ancla estructural').toHaveLength(1);
+    expect(estructural[0].source).not.toContain('name:');
+    expect(estructural[0].fragile, 'es posicional: tiene que ir marcado').toBe(true);
+    await page.close();
+  }, 120_000);
+
+  it('...y RESUELVE de verdad contra el DOM, que es lo que el anclado por nombre no hacía', async () => {
+    page = await browser.newPage();
+    const h = await abrirPanel();
+    await cmd('record');
+    await page.click('#borrar-2 i');
+    await cmd('stop');
+    await page.waitForFunction(() => true, undefined, { timeout: 500 }).catch(() => {});
+
+    const cands = buildFallbackCandidates(h.sent[0].sequence[0], ['getByRole']);
+    const estructural = cands.find((c) => /getByRole\('row'\)\.nth\(\d+\)/.test(c.source))!;
+    const [a, b2] = estructural.source.split(' >> ');
+    const nthDe = (s: string): number => Number(s.match(/\.nth\((\d+)\)/)![1]);
+    const loc = page.getByRole('row').nth(nthDe(a)).getByRole('button').nth(nthDe(b2));
+    expect(await loc.count(), 'el candidato tiene que resolver a UNO').toBe(1);
+    // y al pulsarlo, la app hace lo que tenía que hacer: es el botón correcto
+    await loc.click();
+    expect(await page.locator('#resultado').textContent()).toBe('pulsado: borrar-2');
+    await page.close();
+  }, 120_000);
+
+  it('CONTROL: con un ancla cuyo nombre SÍ resuelve, el anclado por nombre sigue yendo primero', () => {
+    const cands = buildFallbackCandidates(
+      { role: 'button', name: 'Guardar', via: 'click', anchor: { role: 'dialog', name: 'Aviso', nth: 0 }, nth_of_role: 2 },
+      ['getByRole'],
+    );
+    expect(cands[0].tier, 'lo semántico manda sobre cualquier índice').not.toBe('indexed');
+    const idx = cands.findIndex((c) => c.source.includes("getByRole('dialog').nth(0)"));
+    expect(idx, 'el estructural existe pero va el ÚLTIMO').toBe(cands.length - 1);
+  });
 });
