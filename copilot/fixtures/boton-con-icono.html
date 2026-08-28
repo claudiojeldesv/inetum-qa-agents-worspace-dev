@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><title>Botones de accion con icono</title>
+  <!--
+    El <i> tiene que OCUPAR: en la aplicacion real es un glifo de fuente de iconos y
+    mide 16x16. Sin tamano seria 0x0, no seria pulsable, y el fixture probaria otra
+    cosa distinta de la que fallo en campo.
+  -->
+  <style>
+    .icon { display: inline-block; width: 16px; height: 16px; background: #888; }
+    .icon-button { width: 36px; height: 36px; }
+    #suelto { padding: 8px; }
+  </style>
+</head>
+<!--
+  D62 — la forma de un boton de accion moderno, copiada de OrangeHRM:
+
+      <button class="oxd-icon-button"><i class="oxd-icon bi-trash"></i></button>
+
+  Sin texto, sin aria-label, sin title. El QA pulsa el ICONO y el navegador entrega
+  el <i>, que es rol generic: el panel lo descartaba y le pedia al QA que "senalara
+  su contenedor". Medido en campo el 2026-08-28 con la papelera del listado de
+  empleados, y bloqueo el ejercicio del panel.
+
+  La segunda fila existe para el control que importa: subir al ancestro NO puede
+  convertir dos botones distintos en el mismo.
+-->
+<body>
+  <table>
+    <tr class="fila" id="fila-1">
+      <td>Ada Lovelace</td>
+      <td>
+        <button class="icon-button" id="editar-1"><i class="icon bi-pencil"></i></button>
+        <button class="icon-button" id="borrar-1"><i class="icon bi-trash"></i></button>
+      </td>
+    </tr>
+    <tr class="fila" id="fila-2">
+      <td>Alan Turing</td>
+      <td>
+        <button class="icon-button" id="editar-2"><i class="icon bi-pencil"></i></button>
+        <button class="icon-button" id="borrar-2"><i class="icon bi-trash"></i></button>
+      </td>
+    </tr>
+  </table>
+
+  <!-- CONTROL: un icono suelto que NO esta dentro de nada interactivo. Subir no
+       tiene a donde ir, y el panel debe seguir diciendolo en vez de capturar el body. -->
+  <div id="suelto"><i class="icon bi-info"></i></div>
+
+  <div id="resultado"></div>
+  <script>
+    for (const b of document.querySelectorAll('button')) {
+      b.addEventListener('click', () => {
+        document.getElementById('resultado').textContent = 'pulsado: ' + b.id;
+      });
+    }
+  </script>
+</body>
+</html>

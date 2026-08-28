@@ -685,7 +685,29 @@ function assistOverlayScript(
     const push = async (el, via) => {
       if (!recording) return;
       if (el.closest && el.closest('[' + ASSIST_HOST + ']')) return;
-      const f = fieldsWithContext(el);
+      /**
+       * D62 — el QA pulsa el ICONO y el navegador nos da el icono, no el boton.
+       *
+       * Un boton de accion moderno es <button><i class="icon"/></button>: el <i> es
+       * rol generic y no tiene identidad, asi que el panel lo descartaba y le pedia al
+       * QA que "senalara su contenedor" — pidiendole que haga el trabajo del navegador.
+       * Medido en campo el 2026-08-28 con la papelera de OrangeHRM, que es exactamente
+       * esa forma y bloqueo el ejercicio.
+       *
+       * Solo en CLICK y solo hacia arriba hasta el primer ancestro interactivo: un
+       * hover sobre un envoltorio es otra cosa (avisaria en cada wrapper al mover el
+       * raton), y subir sin limite acabaria capturando el <body>.
+       */
+      let objetivo = el;
+      if (via === 'click' && el.closest) {
+        const rolDirecto = fieldsWithContext(el).role;
+        if (!rolDirecto || rolDirecto === 'generic') {
+          const arriba = el.closest('button, a[href], input, select, textarea, summary, [role]');
+          if (arriba && arriba !== el && !arriba.closest('[' + ASSIST_HOST + ']')) objetivo = arriba;
+        }
+      }
+      const f = fieldsWithContext(objetivo);
+      el = objetivo;
       if (!f.role || f.role === 'generic') {
         // K0.26: antes se descartaba EN SILENCIO y el QA veía "el grabador no
         // registra" (campo, PrestaShop: opciones de menú sin rol). El hover

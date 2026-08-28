@@ -95,6 +95,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D59 | Los candidatos del panel salían ruidosos por no mirar el rol: pidiendo el botón «Search Employee» la lista traía 8 entradas y 5 eran **nombres de empleados** del listado, colados por compartir la palabra «employee». Es el criterio de muerte que el plan puso a P2, asomando a la primera en una app real | OrangeHRM (montaje del ejercicio del panel) | poda por el rol que declara el propio plan, con caída a la lista completa si el rol no da ninguno (`nombresDePantalla`). Medido: 8 candidatos → 1, y el correcto | cerrado |
 | D60 | Un pedido más corto que 3 caracteres no produce candidatos NUNCA, por construcción (el emparejamiento exige palabras de ≥3), y el panel concluía «ni nada que se le parezca» con el elemento delante. No es de laboratorio: el FD de onesait dice «pulsar el botón de cerrar **"X"**» tres veces y las apps corporativas lo pintan `×` | OrangeHRM (traducción del FD a la semántica de onesait) | `pedidoSinPalabrasUtiles` en `src/locator-candidates.ts`: cuando el pedido no da para comparar se enseña lo que hay del rol pedido, en vez de afirmar que no se parece nada | cerrado |
 | D61 | Con una ventana flotante abierta los candidatos salían de la pantalla de FONDO, y el botón de cerrar del modal caía fuera del tope de 8. Es el escenario de onesait: cinco ventanas anidadas y tres pasos que son «pulsar la X» de ventanas distintas | OrangeHRM (modal de confirmación de baja) | `nombresDePantalla` acota a los elementos `inDialog` cuando hay alguno. Medido: pedir «X» dentro del modal pasa de ofrecer los botones del fondo a ofrecer `×`, `No, Cancel`, `Yes, Delete` | cerrado |
+| D62 | El panel captura `e.target`, o sea el **icono**, no el botón que lo contiene. Un botón de acción moderno es `<button><i class="icon"/></button>`: el `<i>` es rol `generic` y sin identidad, así que se descartaba y se le pedía al QA que «señalara su contenedor» — pedirle que haga el trabajo del navegador. **Bloqueó el ejercicio del panel en campo**: la papelera del listado de OrangeHRM no tiene texto, ni `aria-label`, ni `title` | OrangeHRM (ejercicio del panel, 2026-08-28) | en `click` se sube al primer ancestro interactivo antes de rendirse (`push` en `copilot/src/dom-walker.ts`). El hover NO sube (avisaría en cada envoltorio). Fixture `boton-con-icono.html` + 4 tests, con los controles de que no confunde dos botones y de que un icono suelto se sigue rechazando | cerrado |
 
 ## Recuento
 
@@ -112,6 +113,6 @@ instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos ag
 | OrangeHRM (SPA Vue) | D42–D45 |
 | Dolibarr (ERP PHP) | D48–D52, D55; primer ejercicio de campo de D34 |
 | ParaBank (A/B sellado) | D56, D57 |
-| OrangeHRM (ejercicio del panel) | D58–D61 |
+| OrangeHRM (ejercicio del panel) | D58–D62 |
 | the-internet (Sinatra) | D53, D54 |
 | No es un sitio | D32 (PowerShell 5.1), D33 (suite propia), D40 (config de agentes) |
