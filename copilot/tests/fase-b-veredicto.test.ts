@@ -31,7 +31,9 @@ import { DomWalker, type StyleContract, type WalkerOptions } from '../src/dom-wa
 import { parseDecisions, verifyChain, type DecisionEntry } from '../../src/decisions.ts';
 import { REGLA_DECISION_ANCLADA } from '../../src/decisions-audit.ts';
 import {
+  ACCIONES_QUE_OBSERVAN,
   causaCaminoRoto,
+  rompeElCamino,
   faltaParaFirmar,
   motivoConVeredicto,
   veredictoADecision,
@@ -261,6 +263,65 @@ describe('fase B — el camino roto: cuándo NO se pregunta aunque se pueda firm
     expect(acta).toHaveLength(1);
     expect(acta[0].decision).toBe('fd');
   }, 120_000);
+
+  it('EL PAR QUE FALTABA: una POSTCONDICIÓN bloqueada antes NO silencia la siguiente', async () => {
+    /**
+     * Encontrado en campo el 2026-08-29, usando el ejercicio: `s6` (un `expect_text`)
+     * quedó bloqueado con su veredicto firmado, `s7` (el clic) se resolvió bien, y
+     * aun así `s8` **no preguntó** — «antes de este paso ya se había bloqueado s6».
+     * Falso: un `expect_*` que falla deja un hallazgo, no un estado distinto; la
+     * pantalla era exactamente la que el caso describe.
+     *
+     * La primera version de la regla miraba solo si habia ALGUN paso previo
+     * bloqueado. El control que existia no lo cazo porque tenia un unico paso antes.
+     * Este par es el que faltaba, y es el que evita que el guardian se coma la
+     * fase B por el lado silencioso.
+     */
+    const workDir = mkdtempSync(resolve(tmpdir(), 'qa-faseb-obs-'));
+    const actaPath = resolve(workDir, 'acta.jsonl');
+    const script: WalkScript = {
+      version: 1,
+      site_id: 'faseb',
+      entry: '/veredicto-autopilot.html?cmd=fd',
+      flows: [
+        {
+          flow: 'busqueda',
+          criteria: ['RF-001'],
+          steps: [
+            // una postcondición que NO se cumple: bloquea, pero no mueve nada
+            { id: 's1', action: 'expect_text', value: 'Un texto que no esta en ninguna parte' },
+            // y la siguiente tiene que seguir preguntando
+            { id: 's2', action: 'expect_text', value: ESPERADO },
+          ],
+        },
+      ],
+    };
+    const map = await new DomWalker(
+      {
+        scriptPath: 't', contractPath: 't', baseUrl: FIX, workDir, rescueBudget: 0, screenCap: 60,
+        headed: false, assist: true, assistTimeoutMs: 8_000, assistMinimize: false,
+        aliasesPath: resolve(workDir, 'a.json'), timingProfilePath: resolve(workDir, 't.json'), calibrate: false,
+        actor: 'qa.tests', fdHash: 'fd-de-prueba', decisionsPath: actaPath,
+      },
+      script,
+      contract,
+      freshState(),
+    ).run();
+
+    const acta = existsSync(actaPath) ? parseDecisions(readFileSync(actaPath, 'utf8')).entries : [];
+    // el fixture atiende UN panel; que exista decisión prueba que s2 SÍ preguntó
+    expect(acta, 's2 no preguntó: el guardián se pasó de ancho').not.toHaveLength(0);
+    expect(razon(map, 's2')).not.toContain('NO se pidió veredicto');
+  }, 120_000);
+
+  it('la tabla de acciones que observan, recorrida entera', () => {
+    // va como dato y no como condición enterrada: esto es lo que hay que tocar
+    // cuando WalkAction crezca, y esto es lo que lo recuerda
+    for (const a of ACCIONES_QUE_OBSERVAN) expect(rompeElCamino(a), `${a} no mueve la app`).toBe(false);
+    for (const a of ['click', 'fill', 'goto', 'press', 'select', 'hover', 'check', 'scroll_until']) {
+      expect(rompeElCamino(a), `${a} sí mueve la app`).toBe(true);
+    }
+  });
 
   it('el bloqueo de OTRO flujo no cuenta: cada caso se juzga por su propio camino', () => {
     // la regla mira `q.flow === flow.flow`; esto documenta la intención junto al par

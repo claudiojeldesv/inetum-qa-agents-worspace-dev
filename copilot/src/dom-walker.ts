@@ -115,6 +115,7 @@ import {
   faltaParaFirmar,
   motivoConVeredicto,
   motivoSinVeredicto,
+  rompeElCamino,
   porQueNoSeAbre,
   veredictoADecision,
   pararRelojes,
@@ -980,12 +981,23 @@ function verdictOverlayScript(
         .chosen{margin-top:8px;padding:6px 8px;border-radius:5px;background:#064e3b;color:#d1fae5;font-size:12px;
                 word-break:break-word}
         .st{margin-top:8px;color:#9ca3af;font-size:11px}
+        .cierre{color:#6b7280;border-top:1px solid #374151;padding-top:6px}
       </style>
       <div class="p">
         <div class="h"><span>Veredicto QA</span><span id="s">esperando</span></div>
         <div class="b">
           \${${JSON.stringify(
-            rechazo ? `<div class="err">${rechazo.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</div>` : '',
+            /**
+             * «Ha vuelto» y no solo el motivo. Reinyectado, el panel es idéntico al
+             * anterior, y en campo eso se leyó como «el botón no cierra» en vez de
+             * como «lo que hiciste no valía» — el QA acabó pulsando Luego para salir.
+             * Decirlo cuesta una línea.
+             */
+            rechazo
+              ? `<div class="err"><b>Este panel ha vuelto porque falta algo.</b><br>${rechazo
+                  .replace(/</g, '&lt;')
+                  .replace(/\n/g, '<br>')}</div>`
+              : '',
           )}}
           <div class="ctx"><b>Esto no cuadra y no lo puedo decidir yo.</b>
             <span class="ref">paso \${'${step.id}'}</span>
@@ -996,16 +1008,25 @@ function verdictOverlayScript(
               diagnostico.replace(/</g, '&lt;').replace(/\n/g, '<br>'),
             )}}</div></div>
           <ul id="l"></ul>
-          <div id="empty" class="none" style="display:none">Esta pantalla no muestra ningun texto de resultado.
+          <div id="empty" class="none" style="display:none">Esta pantalla no muestra ningún texto de resultado.
             Eso no es un fallo de la lista: es un dato, y empuja a «Es un defecto».</div>
-          <div class="row"><button id="pk" class="pick">Ninguno de estos, lo senalo yo</button></div>
+          <div class="row"><button id="pk" class="pick">Ninguno de estos, lo señalo yo</button></div>
           <div id="ch" class="chosen" style="display:none"></div>
-          <div class="st" id="hint">Elige que dice de verdad la pantalla, o declara que la aplicacion esta mal.</div>
+          <div class="st" id="hint">Elige qué dice de verdad la pantalla, o declara que la aplicación está mal.</div>
           <div class="row">
-            <button id="va">La aplicacion tiene razon</button>
+            <button id="va">La aplicación tiene razón</button>
             <button id="vf">Es un defecto</button>
             <button id="vl">Luego</button>
           </div>
+          <!--
+            Medido en campo el 2026-08-29: el QA capturó el texto y preguntó «¿ahora
+            cómo se cierra esto?». Los tres botones SON la salida —no hay X ni Escape,
+            porque el run está parado esperando y no existe un «cerrar sin decidir»—
+            pero eso no estaba escrito en ninguna parte. En el panel de asistencia
+            «Parar» se explica solo; aquí no.
+          -->
+          <div class="st cierre">Los tres botones cierran el panel y siguen con el caso. No hay otra salida:
+            el run está parado esperando tu decisión.</div>
         </div>
       </div>\`;
     const $ = (id) => root.getElementById(id);
@@ -1021,6 +1042,23 @@ function verdictOverlayScript(
       chosenBox.style.display = 'block';
       chosenBox.textContent = 'Adoptado: ' + JSON.stringify(elegido);
     };
+    /**
+     * Elegir de la lista, en UN solo sitio.
+     *
+     * El clic del QA y el comando \`{choose:N}\` de los tests entran por aquí los dos.
+     * Antes cada uno hacía lo suyo, y el test que comprobaba que tras elegir el panel
+     * dice qué pulsar pasaba por un camino que el QA no recorre nunca: el mensaje que
+     * de verdad importaba no se estaba probando.
+     */
+    const elegir = (i) => {
+      if (cands[i] === undefined) return;
+      elegido = cands[i];
+      origen = 'candidato';
+      // Sin esto el QA se queda mirando el panel sin saber que el gesto siguiente es
+      // un botón y no un aspa. Medido en campo el 2026-08-29.
+      hintBox.textContent = 'Elegido. Ahora pulsa «La aplicación tiene razón» para firmarlo.';
+      render();
+    };
     const render = () => {
       const list = $('l');
       list.innerHTML = '';
@@ -1032,7 +1070,7 @@ function verdictOverlayScript(
         nm.textContent = cands[i];
         nm.title = cands[i];
         li.appendChild(nm);
-        li.onclick = () => { elegido = cands[i]; origen = 'candidato'; pintarElegido(); render(); };
+        li.onclick = () => elegir(i);
         list.appendChild(li);
       }
       $('empty').style.display = cands.length ? 'none' : 'block';
@@ -1048,13 +1086,13 @@ function verdictOverlayScript(
       if (!el || el.closest('[' + ASSIST_HOST + ']')) return;
       const txt = (nameOf(el) || clean(el.textContent) || '').trim();
       if (!txt) {
-        hintBox.textContent = 'Ese elemento no tiene texto legible. Senala el texto del resultado.';
+        hintBox.textContent = 'Ese elemento no tiene texto legible. Señala el texto del resultado.';
         return;
       }
       elegido = txt; origen = 'senalado'; picking = false;
       $('pk').className = 'pick';
       if (hl) { hl.remove(); hl = null; }
-      hintBox.textContent = 'Texto tomado de la pantalla. Comprueba que es el resultado y no un rotulo.';
+      hintBox.textContent = 'Texto tomado. Compruébalo arriba y, si es el resultado, pulsa «La aplicación tiene razón».';
       render();
     };
     const onOver = (e) => {
@@ -1077,8 +1115,8 @@ function verdictOverlayScript(
       picking = !picking;
       $('pk').className = picking ? 'pick on' : 'pick';
       hintBox.textContent = picking
-        ? 'Pulsa sobre el texto de la pantalla que dice el resultado de verdad.'
-        : 'Elige que dice de verdad la pantalla, o declara que la aplicacion esta mal.';
+        ? 'Pulsa en la pantalla el texto que dice el resultado de verdad.'
+        : 'Elige qué dice de verdad la pantalla, o declara que la aplicación está mal.';
       if (!picking && hl) { hl.remove(); hl = null; }
     };
 
@@ -1088,7 +1126,7 @@ function verdictOverlayScript(
       if (hl) hl.remove();
       $('va').disabled = true; $('vf').disabled = true; $('vl').disabled = true; $('pk').disabled = true;
       status.textContent = 'firmando...';
-      hintBox.textContent = 'Registrando la decision en el acta.';
+      hintBox.textContent = 'Registrando la decisión en el acta.';
       window.__qaVerdictSubmit({
         step: '${step.id}',
         verdict,
@@ -1120,9 +1158,7 @@ function verdictOverlayScript(
       else if (cmd === 'fd') submit('fd');
       else if (cmd === 'defer') submit('defer');
       else if (cmd === 'pick') togglePick();
-      else if (cmd && cmd.choose !== undefined) {
-        if (cands[cmd.choose] !== undefined) { elegido = cands[cmd.choose]; origen = 'candidato'; render(); }
-      }
+      else if (cmd && cmd.choose !== undefined) elegir(cmd.choose);
     });
 
     const head = root.querySelector('.h');
@@ -4323,7 +4359,7 @@ class DomWalker {
      * separar esto de un drift de verdad.
      */
     const previos = this.state.open_questions
-      .filter((q) => q.flow === flow.flow && q.step !== step.id)
+      .filter((q) => q.flow === flow.flow && q.step !== step.id && rompeElCamino(q.action))
       .map((q) => q.step);
     if (previos.length) {
       const causa = causaCaminoRoto(previos);
@@ -4403,6 +4439,25 @@ class DomWalker {
       if (!r.ok) {
         rechazo = r.motivo;
         console.error(`[dom-walker] veredicto no admitido: ${r.motivo.split('\n')[0]}`);
+        /**
+         * EL RECHAZO SE AUDITA. Antes solo se imprimía por consola, y eso dejó una
+         * sesión de campo imposible de reconstruir: el QA dijo que había capturado
+         * el texto y que el botón no cerraba, y en los artefactos no había NADA —
+         * ni acta, ni audit-log— que dijera si llegó a pulsar y se le rechazó, o si
+         * nunca pulsó. Tuve que adivinar, en un producto cuyo argumento entero es
+         * que las decisiones del QA dejan rastro.
+         *
+         * Un gesto rechazado ES un gesto: no cambia el plan, pero cuenta cuántas
+         * veces el panel devolvió el trabajo, que es la medida de si la pregunta
+         * está bien hecha.
+         */
+        this.audit('skip', `veredicto no admitido en ${flow.flow}/${step.id}: ${r.motivo.split(':')[0]}`, {
+          phase: 'verdict',
+          source: 'human',
+          intento: intento + 1,
+          veredicto: sub.verdict,
+          con_literal: Boolean(sub.value),
+        });
         continue;
       }
 

@@ -115,6 +115,7 @@ import {
   faltaParaFirmar,
   motivoConVeredicto,
   motivoSinVeredicto,
+  rompeElCamino,
   porQueNoSeAbre,
   veredictoADecision,
   pararRelojes,
@@ -4323,7 +4324,7 @@ class DomWalker {
      * separar esto de un drift de verdad.
      */
     const previos = this.state.open_questions
-      .filter((q) => q.flow === flow.flow && q.step !== step.id)
+      .filter((q) => q.flow === flow.flow && q.step !== step.id && rompeElCamino(q.action))
       .map((q) => q.step);
     if (previos.length) {
       const causa = causaCaminoRoto(previos);

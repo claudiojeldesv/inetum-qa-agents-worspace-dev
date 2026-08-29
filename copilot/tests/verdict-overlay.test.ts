@@ -105,6 +105,53 @@ describe('el panel de veredicto — la lista vacía es un hallazgo, no un hueco'
     await page.close();
   }, 120_000);
 
+  it('el panel dice CÓMO SE SALE: los tres botones, y no hay otra', async () => {
+    /**
+     * Medido en campo el 2026-08-29. El QA capturó el texto y preguntó «¿ahora cómo
+     * cierro el modal?»; acabó pulsando *Luego* para salir — o sea, firmando «lo dejo
+     * sin resolver» cuando ya tenía la decisión tomada. El panel no tiene X ni Escape
+     * a propósito (el run está parado esperando y no existe un «cerrar sin decidir»),
+     * pero eso no estaba escrito en ninguna parte.
+     */
+    page = await browser.newPage();
+    await montar(['Solicitud rechazada']);
+    const v = await ver('.cierre');
+    expect(v.visible, 'no se dice cómo se sale').toBe(true);
+    expect(v.texto).toMatch(/tres botones/i);
+    await page.close();
+  }, 120_000);
+
+  it('SIN JERGA NI MOJIBAKE: los textos del panel llevan sus tildes', async () => {
+    /**
+     * El panel de veredicto nació sin acentos —«lo senalo yo», «La aplicacion tiene
+     * razon»— mientras el de asistencia sí los llevaba. En un producto que se le
+     * enseña a un cliente regulado, eso canta; y la inconsistencia entre los dos
+     * paneles canta más.
+     */
+    page = await browser.newPage();
+    await montar([]);
+    const todo = await page.evaluate(() => {
+      const host = document.querySelector('[data-qa-assist-host]');
+      return host?.shadowRoot?.querySelector('.p')?.textContent ?? '';
+    });
+    for (const bueno of ['lo señalo yo', 'La aplicación tiene razón', 'ningún texto de resultado']) {
+      expect(todo, `falta la forma acentuada: ${bueno}`).toContain(bueno);
+    }
+    for (const malo of ['senalo yo', 'aplicacion tiene razon', 'ningun texto']) {
+      expect(todo, `quedó sin acentuar: ${malo}`).not.toContain(malo);
+    }
+    await page.close();
+  }, 120_000);
+
+  it('elegir de la lista dice cuál es el gesto siguiente', async () => {
+    page = await browser.newPage();
+    await montar(['Solicitud rechazada']);
+    await cmd({ choose: 0 });
+    const v = await ver('#hint');
+    expect(v.texto, 'tras elegir, el panel no dice qué hacer').toMatch(/La aplicación tiene razón/);
+    await page.close();
+  }, 120_000);
+
   it('CONTROL: con candidatos ese aviso NO sale — si saliera siempre, no significaría nada', async () => {
     page = await browser.newPage();
     await montar(['Solicitud rechazada', 'Listado de peticiones']);
@@ -163,6 +210,9 @@ describe('el panel de veredicto — la lista vacía es un hallazgo, no un hueco'
     const v = await ver('.err');
     expect(v.visible).toBe(true);
     expect(v.texto).toMatch(/QUÉ dice/);
+    // y se lee COMO devuelto: reinyectado es identico al anterior, y en campo eso
+    // se leyo como «el boton no cierra» en vez de «lo que hiciste no valia»
+    expect(v.texto, 'no se dice que el panel ha VUELTO').toMatch(/ha vuelto/i);
     await page.close();
   }, 120_000);
 

@@ -205,6 +205,37 @@ export function motivoSinVeredicto(motivoOriginal: string, causa: string): strin
 }
 
 /**
+ * Las acciones que **observan** y no mueven la aplicación. Un `expect_*` que falla
+ * deja un hallazgo, no un estado distinto: la pantalla siguiente es exactamente la
+ * misma que si hubiera pasado.
+ *
+ * Es la lista que decide si un paso bloqueado rompe el camino o no, y va como DATO
+ * y no como una condición enterrada: es lo que hay que tocar cuando `WalkAction`
+ * crezca, y lo que un test puede recorrer entero.
+ */
+export const ACCIONES_QUE_OBSERVAN: readonly string[] = [
+  'expect_text',
+  'expect_state',
+  'expect_value',
+  'expect_count',
+  'expect_each',
+  'capture',
+];
+
+/**
+ * ¿Un paso bloqueado deja la aplicación donde el caso no la describe?
+ *
+ * **Solo si ese paso iba a mover algo.** La primera versión de esta regla miraba
+ * únicamente si había algún paso previo bloqueado, y se comió el panel del ejercicio
+ * de campo: una postcondición bloqueada dos pasos antes silenció la pregunta de la
+ * siguiente, cuando el clic de en medio había funcionado y la pantalla era justo la
+ * correcta. Pasarse de ancho aquí es la forma silenciosa de deshacer la fase B.
+ */
+export function rompeElCamino(action: string): boolean {
+  return !ACCIONES_QUE_OBSERVAN.includes(action);
+}
+
+/**
  * La causa que se cuenta cuando el camino no llegó. Un solo sitio: la escribe el
  * walker en el informe y la lee el QA en consola.
  */
