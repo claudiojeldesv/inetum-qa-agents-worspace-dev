@@ -1,4 +1,4 @@
-# Índice de defectos D1–D63
+# Índice de defectos D1–D64
 
 Catálogo del vocabulario D-NN del proyecto: qué es cada defecto, dónde se midió, dónde vive el
 arreglo y en qué estado está. Los D-números son la unidad de trazabilidad de los hallazgos de campo
@@ -97,10 +97,11 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D61 | Con una ventana flotante abierta los candidatos salían de la pantalla de FONDO, y el botón de cerrar del modal caía fuera del tope de 8. Es el escenario de onesait: cinco ventanas anidadas y tres pasos que son «pulsar la X» de ventanas distintas | OrangeHRM (modal de confirmación de baja) | `nombresDePantalla` acota a los elementos `inDialog` cuando hay alguno. Medido: pedir «X» dentro del modal pasa de ofrecer los botones del fondo a ofrecer `×`, `No, Cancel`, `Yes, Delete` | cerrado |
 | D62 | El panel captura `e.target`, o sea el **icono**, no el botón que lo contiene. Un botón de acción moderno es `<button><i class="icon"/></button>`: el `<i>` es rol `generic` y sin identidad, así que se descartaba y se le pedía al QA que «señalara su contenedor» — pedirle que haga el trabajo del navegador. **Bloqueó el ejercicio del panel en campo**: la papelera del listado de OrangeHRM no tiene texto, ni `aria-label`, ni `title` | OrangeHRM (ejercicio del panel, 2026-08-28) | en `click` se sube al primer ancestro interactivo antes de rendirse (`push` en `copilot/src/dom-walker.ts`). El hover NO sube (avisaría en cada envoltorio). Fixture `boton-con-icono.html` + 4 tests, con los controles de que no confunde dos botones y de que un icono suelto se sigue rechazando | cerrado |
 | D63 | Todo lo anclado de la escalera cuelga de `getByRole('<rol>', { name })`, y para un CONTENEDOR el extractor saca ese `name` del `textContent` — que Playwright no acepta como nombre accesible de un `role=row`. Medido: `getByRole('row', { name: '0452aaa aaa' })` resuelve a **CERO**. En una tabla de datos con botones de icono ese era el UNICO candidato, asi que nacia muerto y la asistencia se rendia DESPUES del trabajo del QA | OrangeHRM (ejercicio del panel, 2026-08-28) | `anchor.nth` capturado en `anchorOf`, y ancla ESTRUCTURAL de respaldo en `buildFallbackCandidates` (`getByRole('row').nth(K) >> getByRole('button').nth(N)`): no depende del dato de la fila. Va el ultimo y marcado fragil. 3 tests, uno comprueba que RESUELVE contra DOM real | cerrado |
+| D64 | El panel de asistencia (fijo arriba-derecha, 400px) puede TAPAR el elemento objetivo: la verificación en vivo hace trial-click, Playwright reintenta contra el panel que intercepta y muere en timeout — el parche queda SIN VERIFICAR y el `verify_reason` dice `locator.click: Timeout`, jerga que no apunta al panel como causa. En OrangeHRM tapaba Search/Reset (alineados a la derecha del formulario, justo bajo el panel). Arrastrar el panel lo cura, pero nada lo sugiere | OrangeHRM (banco de pruebas, 2026-08-29) | pendiente. Candidatos: apartar el panel automáticamente durante la verificación, o como mínimo un `verify_reason` que nombre la posibilidad. El banco lo esquiva con el gesto `mover_panel` (`bench-core.ts`), que es el workaround del QA (arrastrar), no el arreglo | abierto |
 
 ## Recuento
 
-**33 cerrados** · **20 abiertos** · **1 criterio permanente (D2)**.
+**33 cerrados** · **21 abiertos** · **1 criterio permanente (D2)**.
 
 Cerrados con matiz: D3 sin verificación de campo; D23 arregla el daño, no la causa (el SIGTERM viene de fuera); D44 visto una sola vez; D45 con dos
 instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos agentes.
@@ -115,5 +116,6 @@ instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos ag
 | Dolibarr (ERP PHP) | D48–D52, D55; primer ejercicio de campo de D34 |
 | ParaBank (A/B sellado) | D56, D57 |
 | OrangeHRM (ejercicio del panel) | D58–D63 |
+| OrangeHRM (banco de pruebas de paneles) | D64 |
 | the-internet (Sinatra) | D53, D54 |
 | No es un sitio | D32 (PowerShell 5.1), D33 (suite propia), D40 (config de agentes) |

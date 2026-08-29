@@ -11,7 +11,9 @@ herramienta, y la herramienta deja de servir.
 
 **Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
 ([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 y P1 cerrados el
-2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28.** Quedan P6, P3 y P4, en ese orden.
+2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28. P7 (banco de pruebas de paneles, núcleo)
+cerrado el 2026-08-29.** Quedan P6, P3 y P4, en ese orden — y desde P7, toda rebanada de panel se
+audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
 
 ---
 
@@ -251,9 +253,45 @@ del run cuenta cuántos criterios están respaldados por la app y no por el FD.
 Informa, no impide. Ese recuento es lo que un QA Manager quiere ver, y lo que evita que la suite se
 convierta en un espejo de la aplicación sin que nadie lo note.
 
+### P7 — El banco de pruebas de paneles · NÚCLEO CERRADO el 2026-08-29
+
+**Origen**: pregunta del QA tras la sesión de campo del panel de veredicto — *«¿hay alguna forma de
+que tú mismo puedas probar los modales, y no tenga que ser yo?»*. De los cuatro defectos de esa
+sesión, tres eran cazables a máquina y se escaparon porque los paneles solo se conducían contra
+fixtures propios, nunca contra el sitio real.
+
+**Lo entregado**: [`copilot/src/walk-bench.ts`](../../copilot/src/walk-bench.ts) (`npm run
+qa:bench`) + [`bench-core.ts`](../../copilot/src/bench-core.ts) — el walker real conducido por un
+escenario JSON, despachando los mismos `qa-assist-cmd` que pulsaría una persona, contra la
+aplicación de verdad. Dos modos (`--abrir-panel` audita textos; sellado audita comportamiento con el
+aislamiento de producción). Medido contra OrangeHRM: 30/30 en textos, 10/10 sellado, y el ciclo
+entero paneles → firmas → fusión → 6/8 sin asistencia. Encontró D64 mientras se construía. Detalle:
+[banco-de-pruebas-paneles.md](../findings/banco-de-pruebas-paneles.md).
+
+**Las guardas, que son el diseño y no se negocian**: el actor es la constante `banco-de-pruebas`
+(sin parámetro), el acta del banco vive dentro de su work-dir (nunca `config/decisions/`), y por eso
+es un programa aparte y no una bandera del walker — un `--auto-veredicto` en la CLI de producción
+firmaría decisiones de máquina con nombre de persona.
+
+**El protocolo que este banco instaura** (esto es lo que no hay que olvidar):
+
+1. **El banco itera; el QA estrena.** Cada rebanada nueva de panel (P3, P4, la pantalla de
+   aprobación si crece, cualquier mensaje nuevo) se audita con el banco contra el sitio real ANTES
+   de gastar la primera vez de una persona.
+2. La primera vez del QA se reserva para lo que solo ella mide: **si el panel se entiende** sin
+   saber qué se espera de él. El «¿ahora cómo cierro esto?» de campo no lo caza ningún escenario,
+   porque el banco sabe de antemano qué pulsar y esa es justo la información cuya ausencia es el
+   defecto.
+3. Un panel que el banco no preveía es un hallazgo (gesto de socorro + informe rojo), no un
+   timeout.
+
+**Queda de P7**: escenarios de regresión para los sitios de la gira (Dolibarr, ParaBank) cuando
+toque medir el criterio de muerte de P2 (ruido de candidatos) — el banco ya captura el texto del
+panel, así que esa medición puede salir gratis de sus informes.
+
 ## 3. Orden y criterios de parada
 
-P0 → ~~P1~~ → ~~P2~~ → ~~P5 (fases A y B)~~ **hechos** → **P6, lo siguiente** → P3 → P4.
+P0 → ~~P1~~ → ~~P2~~ → ~~P5 (fases A y B)~~ → ~~P7 (núcleo)~~ **hechos** → **P6, lo siguiente** → P3 → P4.
 
 P6 se adelanta a P3/P4 porque ya tiene con qué contar: el acta lleva decisiones  reales y
 P6 es exactamente el recuento de cuántos criterios están respaldados por la aplicación y no por
