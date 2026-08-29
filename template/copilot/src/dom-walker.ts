@@ -4040,6 +4040,10 @@ class DomWalker {
       return null;
     }
 
+    // D64: la entrega ya está en manos del walker — el panel no puede interceptar
+    // ni la verificación en vivo ni la acción real que viene después.
+    await this.panelDejaDeInterceptar();
+
     let verify = await this.verifyAssistPatch(flow, step, steps);
     // minimización por replay (K0.11e): quitar abridores de uno en uno mientras siga
     // verificando. El QA exploró antes de dar con el camino; no tiene por qué saber
@@ -4506,6 +4510,9 @@ class DomWalker {
 
   /** Habla con el panel de veredicto (que se cierra solo tras enseñar el mensaje). */
   private async verdictTell(message: string, ok: boolean): Promise<void> {
+    // D64: si el veredicto quedó firmado, el run continúa YA y el panel aún vive
+    // ~1,4 s enseñando el resultado — que no pueda interceptar el paso siguiente.
+    if (ok) await this.panelDejaDeInterceptar();
     await this.page
       .evaluate(
         ([m, o]) =>
@@ -4516,6 +4523,42 @@ class DomWalker {
         [message, ok] as const,
       )
       .catch(() => {});
+  }
+
+  /**
+   * D64 — el panel CRECE al grabar (fila de secuencia + estado) y puede acabar
+   * TAPANDO el objetivo. Medido en OrangeHRM con sonda: Search vive en y≈406, el
+   * panel compacto no llega (por eso el clic del QA al grabar SÍ funciona) y el
+   * panel crecido sí — el trial-click de la verificación y la acción real morían
+   * por timeout, interceptadas, un segundo después del gesto bueno. En cuanto la
+   * entrega del QA está en manos del walker, el panel deja de ser superficie de
+   * entrada: transparente al hit-test, visible para que se lea el resultado.
+   */
+  private async panelDejaDeInterceptar(): Promise<void> {
+    await this.page
+      .evaluate((attr) => {
+        document.querySelectorAll(`[${attr}]`).forEach((h) => {
+          (h as HTMLElement).style.pointerEvents = 'none';
+        });
+      }, ASSIST_HOST_ATTR)
+      .catch(() => {
+        // la página pudo navegar y llevarse el panel; no hay nada que apartar
+      });
+  }
+
+  /**
+   * D65 — este motivo decía «el parche se verificó… ES válido» sin mirar
+   * `verified`: en campo (2026-08-29) un parche SIN VERIFICAR salió anunciado
+   * como verificado, dos frases y las dos falsas. Se construye del estado real,
+   * y en un solo sitio para que los dos disparadores no deriven (familia D2).
+   */
+  private motivoParcheInalcanzable(flow: WalkFlow, step: WalkStep, reason: string): string {
+    const entry = this.assistPatch.entries.find((e) => e.flow === flow.flow && e.replaces_step === step.id);
+    return entry?.verified === true
+      ? `el parche se verificó pero no se pudo actuar sobre la pantalla actual: ${reason}. ` +
+          `El parche ES válido y está en assist-patch.json — fúndelo en el guion y relanza.`
+      : `el parche quedó SIN VERIFICAR y tampoco se pudo actuar sobre la pantalla actual: ${reason}. ` +
+          `El parche está en assist-patch.json — fundirlo pide revisión y se firmará sin-verificar.`;
   }
 
   private async assistTell(message: string, ok: boolean): Promise<void> {
@@ -5388,13 +5431,7 @@ class DomWalker {
              */
             const reach = await this.ensureAssistedTargetReachable(flow, step, assisted);
             if (!reach.ok) {
-              this.blockStep(
-                flow,
-                step,
-                `el parche se verificó pero no se pudo actuar sobre la pantalla actual: ${reach.reason}. ` +
-                  `El parche ES válido y está en assist-patch.json — fúndelo en el guion y relanza.`,
-                false,
-              );
+              this.blockStep(flow, step, this.motivoParcheInalcanzable(flow, step, reach.reason ?? ''), false);
               this.audit('block', `objetivo asistido inalcanzable ${stepKey}: ${reach.reason}`, {
                 phase: 'assist-postaction',
                 matched: assisted.via,
@@ -5543,13 +5580,7 @@ class DomWalker {
                */
               const reach = await this.ensureAssistedTargetReachable(flow, step, assisted);
               if (!reach.ok) {
-                this.blockStep(
-                  flow,
-                  step,
-                  `el parche se verificó pero no se pudo actuar sobre la pantalla actual: ${reach.reason}. ` +
-                    `El parche ES válido y está en assist-patch.json — fúndelo en el guion y relanza.`,
-                  false,
-                );
+                this.blockStep(flow, step, this.motivoParcheInalcanzable(flow, step, reach.reason ?? ''), false);
                 this.audit('block', `objetivo asistido inalcanzable ${stepKey}: ${reach.reason}`, {
                   phase: 'assist-postaction',
                   matched: assisted.via,

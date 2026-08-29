@@ -82,6 +82,33 @@ se le pasa a `check-decisions --audit` junto con OTRA acta (la del merge, p. ej.
 canta `cola-truncada` — está comparando anclas de un acta contra otra. No es un defecto: es el
 validador haciendo su trabajo con un emparejamiento equivocado. Cada acta con su audit.
 
+## Posdata del mismo día: D64 mordió al QA dos veces, y quedó cerrado
+
+El QA retomó el ejercicio del ciclo y **D64 le costó dos runs seguidos**, con el mismo
+`verify_reason` byte a byte que había medido el banco — y eso que el segundo run llevaba la
+instrucción explícita de arrastrar el panel antes de grabar. Lección doble: el workaround por
+instrucción no funciona en la práctica, y el orden de despliegue importa (el arreglo existía en el
+árbol sin commitear mientras el workspace corría el walker sin él).
+
+El cierre, walker-side y en un solo sitio:
+
+- **D64** — `panelDejaDeInterceptar` en `dom-walker.ts`: en cuanto la entrega del QA está en manos
+  del walker (parche recibido, o veredicto firmado), todos los hosts del panel pasan a
+  `pointer-events: none` — transparentes al hit-test, visibles para leer el resultado. La causa
+  medida con sonda: el panel compacto no llega a Search (por eso el clic del QA al grabar SÍ
+  funciona) y el panel **crecido por la grabación** sí lo tapa — la verificación moría un segundo
+  después del gesto bueno.
+- **D65** — encontrado por el retry del QA, no por el banco: el motivo del bloqueo decía «el parche
+  se verificó… El parche ES válido» **sin mirar `verified`** — dos frases falsas sobre el artefacto
+  que la fusión firma después. Ahora `motivoParcheInalcanzable` construye el motivo del estado real,
+  en un solo sitio para los dos disparadores.
+
+**El par falsable**: el mismo escenario del banco **sin `mover_panel`** — que era el workaround —
+contra OrangeHRM real. Sobre el código anterior falla (medido tres veces: banco + dos runs del QA);
+con el arreglo, **10/10 y parche VERIFICADO** (`.work/d64/bench-report.json` del sandbox). El gesto
+`mover_panel` se queda en el banco: ya no es necesario para esquivar D64, pero sigue siendo un gesto
+legítimo del QA que un escenario puede querer reproducir.
+
 ## El límite, por escrito
 
 De los cuatro defectos de la sesión de campo que motivó esto, el banco habría cazado tres. El
