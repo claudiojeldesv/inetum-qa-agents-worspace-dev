@@ -95,6 +95,10 @@ import {
   urlEstable,
   primerSegmentoNoExpresable,
   debeReiniciarSesionAlReanudar,
+  debeAislarFlujos,
+  esEcoDelHint,
+  puertaBloqueadaAntes,
+  triajeDelBloqueo,
 } from './walk-core.ts';
 // el marcador de peldaños (K0.27a) ya sabe leer una cadena de locator: reimplementar
 // esa clasificación aquí sería tener dos verdades sobre qué peldaño resolvió el paso
@@ -4928,6 +4932,13 @@ class DomWalker {
       step.hint?.name,
       step.hint?.label,
       step.hint?.text,
+      // D68 — el vocabulario del SCOPE también enfoca la poda: sin él, el snapshot
+      // podado puede perder justo las líneas del contenedor que desambiguan.
+      step.scope?.test_id,
+      step.scope?.role,
+      step.scope?.name,
+      step.scope?.label,
+      step.scope?.text,
       step.secret ? undefined : step.value,
     ]
       .filter(Boolean)
@@ -4947,11 +4958,14 @@ class DomWalker {
       step: step.id,
       action: step.action,
       hint: step.hint,
+      // D68 — el scope ES la información que desambigua: sin él, el subagente
+      // recibía «Book now» y veía cuatro; declinar era su única respuesta legal.
+      ...(step.scope ? { scope: step.scope } : {}),
       aria_snapshot: pruned,
       ...(snapshotError ? { snapshot_error: snapshotError } : {}),
       frame_path: [],
       budget_remaining: this.opts.rescueBudget - this.state.rescues_used,
-      instructions: rescueInstructions(step.id, step.action, snapshotError),
+      instructions: rescueInstructions(step.id, step.action, snapshotError, step.scope),
     };
     writeFileSync(resolve(this.opts.workDir, 'rescue-request.json'), JSON.stringify(req, null, 2), 'utf8');
     await this.persist();
@@ -5567,6 +5581,16 @@ class DomWalker {
               this.audit('block', `rescate fallido ${stepKey}: paso a open_questions`, { phase: 'rescue-response' });
               return;
             }
+            // Anti-ECO (conducta medida en RBP, 3 de 13 respuestas): devolver el
+            // locator que el hint ya expresa no aporta información — si hubiera
+            // resuelto, no habría habido rescate. Se rechaza SIN ejecutar, con el
+            // desenlace nombrando la conducta y no disfrazado de «locator inválido».
+            if (esEcoDelHint(step.hint, rescue.locator)) {
+              this.blockStep(flow, step, `rescate LLM devolvió el ECO del hint que ya falló (${rescue.locator}): rechazado sin ejecutar`, true);
+              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: false, locator: rescue.locator, audit_logged: true, source: 'llm' });
+              this.audit('block', `eco del hint en rescate ${stepKey}: rechazado`, { phase: 'rescue-response' });
+              return;
+            }
             const loc = this.locatorFromChain(this.page, rescue.locator);
             const count = loc ? await loc.count().catch(() => 0) : 0;
             if (loc && count >= 1) {
@@ -5641,6 +5665,28 @@ class DomWalker {
           // rescates: sin la foto solo se puede medir si el LLM responde algo, no
           // si responde LO CORRECTO, y esa es la única cifra que decide.
           await this.captureBlockedForRescue(flow, step, causa);
+          /**
+           * D68 (triaje) — el rescate LLM solo puede resolver UNA clase de
+           * bloqueo (hint limpio, posible vocabulario no enseñado). Ambigüedad,
+           * ámbito fallido y cascada se enrutan a su remedio sin gastar
+           * micro-llamada. La clase la decide walk-core con su tabla.
+           */
+          const bloqueadosDelFlujo = new Set(
+            this.state.open_questions.filter((q) => q.flow === flow.flow).map((q) => q.step),
+          );
+          const triaje = triajeDelBloqueo({
+            ambiguo: Boolean(this.ultimaAmbiguedad),
+            fueraDeAmbito: Boolean(this.ultimoAmbitoFallido),
+            puertaBloqueada: puertaBloqueadaAntes(flow.steps, bloqueadosDelFlujo, step.id),
+          });
+          if (triaje.destino !== 'rescate') {
+            this.blockStep(flow, step, `${causa} — ${triaje.motivo}`, false);
+            this.audit('block', `triaje del bloqueo en ${stepKey}: ${triaje.destino}, sin gasto de rescate`, {
+              phase: 'rescue-triage',
+              destino: triaje.destino,
+            });
+            return;
+          }
           if (this.state.rescues_used >= this.opts.rescueBudget) {
             // K0.35 — un hint ambiguo resolvió DE MÁS, así que la pantalla es la
             // que se esperaba; las notas de "aquí no hay aplicación" solo tienen
@@ -6300,8 +6346,13 @@ class DomWalker {
      * Y el aislamiento es SECUENCIAL, no concurrente: un re-login por flujo es seguro
      * incluso en aplicaciones que no admiten dos sesiones simultaneas del mismo usuario.
      */
-    const aislarFlujos =
-      (this.contract as { walker?: { isolate_flows?: boolean } }).walker?.isolate_flows !== false && !storageState;
+    // D69 — solo la sesión del CALLER desactiva el aislamiento; la del checkpoint
+    // (reanudación) entra por `storageState` pero NO es una sesión compartida.
+    const aislarFlujos = debeAislarFlujos({
+      aislamientoDelContract:
+        (this.contract as { walker?: { isolate_flows?: boolean } }).walker?.isolate_flows !== false,
+      sesionDelCaller: Boolean(this.opts.storageState && existsSync(this.opts.storageState)),
+    });
     let flujosVistos = 0;
 
     try {

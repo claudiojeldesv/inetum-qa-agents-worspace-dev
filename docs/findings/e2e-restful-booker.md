@@ -158,6 +158,34 @@ El camino del producto sigue siendo el del ciclo OrangeHRM: **paneles + acta + f
 convertir los 39 bloqueos en un guion que corra en verde a 0 tokens — y eso es exactamente el
 estreno manual del QA (§5).
 
+## 4.5 El triaje del rescate — la respuesta a los números de 4.2 (mismo día)
+
+La pregunta del QA («¿recurrir a la IA solo a veces no sale más barato?») tenía respuesta
+medible: sale más barato SOLO si cada llamada va a la clase de bloqueo que la IA puede
+resolver. Se construyó el triaje (D68/D69, `walk-core`) y se re-corrió el MISMO par:
+
+| | Ayer (sin triaje) | Hoy (con triaje) |
+|---|---|---|
+| Micro-llamadas | 13 | **3** (las tres útiles) |
+| Tokens | ~538k | **~136k** (−75%) |
+| Desbloqueos comprados | 0 | **4** — cp007 completó el alta de la habitación |
+| Bloqueados | 42 | **35** (17 cascada + 6 panel + 12 drift, cada uno con su remedio nombrado) |
+| cp009 (D69) | 3 bloqueos de login | **0** — el run reanudado aísla sesión entre flujos |
+
+Y el control en el otro sitio: OrangeHRM con el guion sin fundir → el rescate legítimo
+(«Buscar»→«Search») **sigue pasando el triaje** y repite el 6/8 con 1 rescate del ejercicio
+original. El triaje corta el gasto sin matar el caso donde la IA gana.
+
+Dos hallazgos de método, de regalo:
+
+- **La gramática declarada era menor que la ejecutable**: con ` >> `, `.nth(N)` y `.filter`
+  sobre la mesa, el MISMO Haiku que ayer solo sabía declinar o hacer eco respondió
+  `getByRole('combobox').nth(0)` — información posicional honesta sacada del snapshot.
+- **La micro-llamada debe ser FRESCA**: el subagente reutilizado (14 declinaciones en su
+  contexto) declinó el caso OrangeHRM que un agente limpio resuelve a la primera con el
+  mismo prompt. El historial de declinaciones sesga hacia declinar — medido, mismo input,
+  dos desenlaces.
+
 ## 5. Estreno manual del QA
 
 PENDIENTE — se despliega a su workspace con la receta y el QA ejecuta con paneles (`--assist`).
