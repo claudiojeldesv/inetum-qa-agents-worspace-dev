@@ -5220,7 +5220,19 @@ class DomWalker {
           this.blockStep(flow, step, `drift: postcondición del FD no cumplida — ${resolved.via} no está '${want}'`, false);
           this.audit('block', `expect_state fallido ${stepKey}: ${resolved.via} != ${want}`, { phase: 'expect', settle: obs });
         }
-        this.pushReport(flow, step, { ...report, outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet' });
+        /**
+         * D5 — el locator autoritativo VIAJA en el report, como en expect_value.
+         * Sin él, un expect_state VERDE se caía del emisor («sin locator
+         * autoritativo») y arrastraba su flujo entero a la cola del Writer: un
+         * paso correcto costaba una pasada de planner (~130k tokens). El espejo
+         * de expect_value, que lo hacía bien desde D46.
+         */
+        this.pushReport(flow, step, {
+          ...report,
+          outcome: ok ? (obs.timed_out ? 'settle_timeout' : 'ok') : 'postcondition_unmet',
+          resolved_via: resolved.via,
+          ...(resolved.emit ? { emit_locator: resolved.emit } : {}),
+        });
         return;
       }
       case 'expect_count': {

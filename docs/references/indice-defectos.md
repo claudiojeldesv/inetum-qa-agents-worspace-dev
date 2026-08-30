@@ -38,7 +38,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D2 | **La familia madre**: algo declarado que nadie valida ni consume, y falla en silencio. Criterio, no ticket. Instancias: D9, D14, D20, D43, D46, D47… | ParaBank beta.3 (3 instancias en un run) | [run-beta-parabank.md](../findings/run-beta-parabank.md) §D2 | criterio |
 | D3 | Lo medido no sobrevive al siguiente run (aliases no promovidos). El diagnóstico original era falso: la causa era `promoteRescues` exigiendo cero drift | ParaBank beta.3 | K0.44: `RescueRecord.source` + `aliasPromotionVerdict` | cerrado — **sin verificación de campo** (falta un `alias-hit` real) |
 | D4 | El healthcheck dio 26/26 con el MCP `playwright-test` desconectado: verifica el binario, no que las tools estén vivas en la sesión | ParaBank beta.3 | — | abierto |
-| D5 | `expect_state` no deja locator autoritativo → un paso verde se cae del emisor y su flujo se paga con una pasada de planner (~130k tokens) | ParaBank beta.3 | [run-beta-parabank.md](../findings/run-beta-parabank.md) tabla final | abierto |
+| D5 | `expect_state` no deja locator autoritativo → un paso verde se cae del emisor y su flujo se paga con una pasada de planner (~130k tokens). Vivió tapado por los propios tests: el fixture de walk-to-spec escribía `resolved_via` A MANO en el report | ParaBank beta.3 | el report de `expect_state` escribe `resolved_via` + `emit_locator`, espejo exacto de `expect_value` (que lo hacía bien desde D46). Par de punta a punta SIN reports fabricados: walker real contra fixture → dom-map → emisor emite en vez de encolar (`d5-expect-state-emisible.test.ts`) | cerrado |
 | D6 | Audit-log partido en dos: el refiner escribe en `.work/audit-log.json` en vez de `.work/<site>/audit-log.json` | ParaBank beta.3 | íd. | abierto |
 | D7 | No hay CLI para `appendAuditEntry`: el orquestador escribió tres `.ts` desechables solo para registrar | ParaBank beta.3 | íd. (mitigado parcialmente por `audit-mark`) | abierto |
 | D8 | El command imprimió `--fd=<ruta>` con una ruta inexistente como si fuera ejecutable | ParaBank beta.3 | íd. ("arreglo de un minuto") | abierto |
@@ -104,7 +104,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 
 ## Recuento
 
-**37 cerrados** · **20 abiertos** · **1 criterio permanente (D2)**.
+**38 cerrados** · **19 abiertos** · **1 criterio permanente (D2)**.
 
 Cerrados con matiz: D3 sin verificación de campo; D23 arregla el daño, no la causa (el SIGTERM viene de fuera); D44 visto una sola vez; D45 con dos
 instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos agentes.
