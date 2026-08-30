@@ -29,7 +29,8 @@
     "qa:decisions": "tsx src/scripts/check-decisions.ts",
     "qa:decide": "tsx src/scripts/record-decision.ts",
     "qa:merge": "tsx copilot/src/merge-assist-patch.ts",
-    "qa:bench": "tsx copilot/src/walk-bench.ts"
+    "qa:bench": "tsx copilot/src/walk-bench.ts",
+    "qa:propuesta": "tsx src/scripts/propose-fd.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",

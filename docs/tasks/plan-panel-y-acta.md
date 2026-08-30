@@ -12,7 +12,7 @@ herramienta, y la herramienta deja de servir.
 **Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
 ([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 y P1 cerrados el
 2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28. P7 (banco de pruebas de paneles, núcleo)
-cerrado el 2026-08-29.** Quedan P6, P3 y P4, en ese orden — y desde P7, toda rebanada de panel se
+cerrado el 2026-08-29. P5 fase C (la propuesta de FD) cerrada el 2026-08-30 — P5 COMPLETO.** Quedan P6, P3 y P4, en ese orden — y desde P7, toda rebanada de panel se
 audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
 
 ---
@@ -222,8 +222,19 @@ Plan propio y detallado en el fichero de plan de la sesión; lo entregado:
 - **Fase B** — el disparador que faltaba: un `expect_text` incumplido abre panel de veredicto. Es lo
   que cerró P2 (arriba).
 
-**Falta la fase C**: la propuesta de FD corregido (`<fd>.propuesta.md`), determinista, derivada solo
-de decisiones firmadas. Ahora tiene con qué: el acta ya recoge veredictos `app` con su literal.
+- **Fase C — CERRADA el 2026-08-30**: la propuesta de FD corregido (`npm run qa:propuesta`,
+  núcleo puro en [`src/fd-proposal.ts`](../../src/fd-proposal.ts)). Documento aparte
+  (`<fd>.propuesta.md`), determinista (misma entrada → mismos bytes; la versión es la cabeza del
+  acta, no el reloj), derivado SOLO de decisiones firmadas: `app` de oráculo sustituye el literal
+  si aparece EXACTAMENTE una vez en el FD (repetido o ausente → «no ubicable», elegir sería
+  adivinar); `app` de elemento se reconstruye del original anclado contra el guion fundido; `fd`
+  se lista como criterio SOSTENIDO sin tocar el cuerpo; un `defer` no aparece. Cada cambio con su
+  origen en la misma fila (actor, grado, fecha, hash) y aviso mecánico cuando el literal adoptado
+  lleva cifras — el primer caso real fue exactamente ése: «(110) Records Found», enseñado con su
+  aviso, no corregido. Generada contra el acta de campo real (3 cambios, 4 decisiones de otros
+  casos fuera sin ruido). Encontró **D67** al primer uso: el original anclado es por sitio y los
+  guiones por caso — el segundo caso fundido se queda sin ancla (mitigado con `--original=`,
+  abierto en el índice).
 
 Diseño original de la pantalla, para referencia:
 

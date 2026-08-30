@@ -1,4 +1,4 @@
-# Índice de defectos D1–D66
+# Índice de defectos D1–D67
 
 Catálogo del vocabulario D-NN del proyecto: qué es cada defecto, dónde se midió, dónde vive el
 arreglo y en qué estado está. Los D-números son la unidad de trazabilidad de los hallazgos de campo
@@ -100,10 +100,11 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D64 | El panel de asistencia (fijo arriba-derecha, 400px) TAPA el elemento objetivo cuando crece al grabar: la verificación en vivo hace trial-click, Playwright reintenta contra el panel que intercepta y muere en timeout — parche SIN VERIFICAR con `verify_reason` de jerga (`locator.click: Timeout`) que no apunta al panel. En OrangeHRM tapaba Search/Reset. Mordió al banco una vez y AL QA DOS runs seguidos (el workaround por instrucción —arrastra el panel— no funcionó en la práctica) | OrangeHRM (banco de pruebas + retry del ejercicio, 2026-08-29) | `panelDejaDeInterceptar` en `dom-walker.ts`: entregado el gesto del QA, todos los hosts del panel pasan a `pointer-events: none` — transparente al hit-test, visible para leer el resultado. Par falsable: el banco SIN `mover_panel` (que era el workaround), 10/10 contra OrangeHRM real | cerrado |
 | D65 | El motivo del bloqueo «objetivo asistido inalcanzable» afirmaba «el parche se verificó… El parche ES válido» SIN mirar `verified`: en campo salió sobre un parche SIN VERIFICAR — dos frases, las dos falsas, sobre el artefacto que la fusión firma después | OrangeHRM (retry del ejercicio del ciclo, 2026-08-29) | `motivoParcheInalcanzable` en `dom-walker.ts`: el motivo se construye del estado real del parche, en un solo sitio para los dos disparadores (familia D2) | cerrado |
 | D66 | La reanudación tras el checkpoint de rescate (exit 42) re-ejecuta el flujo a medias DESDE SU PRIMER PASO con la sesión del testigo (K0.35) restaurada: en un flujo con login el navegador despierta ya dentro y `fill Username` es irresoluble — el walker pide rescate de un paso YA COMPLETADO (s1) y la respuesta legítima del subagente para s7 se descarta como «respuesta de otro paso». Orquestado a ciegas es un bucle quema-tokens: cada reanudación pide rescates de login que nunca resolverán | OrangeHRM (prueba motor+IA con subagente, 2026-08-29) | pendiente — conflicto de diseño: saltar pasos completados exige aterrizar en la pantalla del paso pendiente (el deep-link que K0.24 declara no garantizable), y re-ejecutarlos exige sesión limpia. Workaround medido: borrar `walk-session.json` antes de reanudar (re-login limpio); con él la reanudación consume la respuesta y termina 6/8 con 1 rescate | abierto |
+| D67 | El original anclado de la fusión (`config/baselines/<site>/walk-script.original.json`) es por SITIO y los guiones son por CASO: el primer merge del sitio lo escribe, y el segundo caso fundido —«si existe, no se toca nunca», que es correcto— se queda SIN ancla propia. Su «antes» se pierde: la fase C no puede reconstruir los cambios de elemento (los apartó con motivo, que es como se encontró) y la distancia al original de la decisión 7 tampoco existe para ese caso | workspace de campo OrangeHRM (fase C sobre el 2º caso fundido del sitio, 2026-08-30) | pendiente — el ancla debería ser por guion (p. ej. `walk-script.original.<hashScript-corto>.json` o subcarpeta por caso), manteniendo «nunca se sobrescribe» por ancla. Mitigación ya operativa: `--original=` explícito en `qa:propuesta`, y el motivo de la apartada lo nombra | abierto |
 
 ## Recuento
 
-**35 cerrados** · **21 abiertos** · **1 criterio permanente (D2)**.
+**35 cerrados** · **22 abiertos** · **1 criterio permanente (D2)**.
 
 Cerrados con matiz: D3 sin verificación de campo; D23 arregla el daño, no la causa (el SIGTERM viene de fuera); D44 visto una sola vez; D45 con dos
 instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos agentes.
@@ -120,5 +121,6 @@ instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos ag
 | OrangeHRM (ejercicio del panel) | D58–D63 |
 | OrangeHRM (banco de pruebas de paneles + retry del ejercicio) | D64, D65 |
 | OrangeHRM (motor+IA: checkpoint de rescate con subagente) | D66 |
+| OrangeHRM (fase C en el workspace de campo) | D67 |
 | the-internet (Sinatra) | D53, D54 |
 | No es un sitio | D32 (PowerShell 5.1), D33 (suite propia), D40 (config de agentes) |

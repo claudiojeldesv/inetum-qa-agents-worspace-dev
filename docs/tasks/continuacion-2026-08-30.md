@@ -7,7 +7,7 @@
 ## Por dónde empezar
 
 1. [`CLAUDE.md`](../../CLAUDE.md) — el mapa. 2. [`indice-defectos.md`](../references/indice-defectos.md)
-— D1–D66 con guarda. 3. La cola de abajo, en su orden.
+— D1–D67 con guarda. 3. La cola de abajo, en su orden.
 
 ## Qué se cerró desde el doc anterior (2026-08-25 → 2026-08-30)
 
@@ -26,7 +26,7 @@
 
 ## La cola, en orden
 
-### 1. P5 fase C — la propuesta de FD corregido
+### 1. P5 fase C — la propuesta de FD corregido · CERRADA el 2026-08-30 (D67 encontrado al primer uso; siguiente: P6)
 
 Documento aparte (`<fd>.propuesta.md`), por plantilla determinista, derivado SOLO de decisiones
 firmadas; un `defer` no aparece; nunca sobreescribe el FD del cliente. Diseño en el plan de sesión
