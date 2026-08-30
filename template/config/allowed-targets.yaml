@@ -23,6 +23,7 @@ patterns:
   - 'https://demo.mifos.io/*'                # Mifos X web-app (core banking Angular sobre Fineract)
   - 'https://demo.dolibarr.org/*'            # Dolibarr ERP/CRM 23.x (PHP legacy), demo publico
   - 'https://the-internet.herokuapp.com/*'    # sitio de practica QA (Sinatra), demo publico; autorizado QA 2026-08-24
+  - 'https://automationintesting.online/*'    # Restful Booker Platform (hotel B&B), sandbox de testing; autorizado QA 2026-08-30
 
   # Entornos no productivos (cualquier subdominio) — añade los tuyos
   - 'https://*.qa.*'
@@ -48,6 +49,9 @@ allowed_test_credentials:
   - username: tomsmith
     password: 'SuperSecretPassword!'
     source: 'the-internet.herokuapp.com - impresas en la propia pagina /login (verificado 2026-08-24)'
+  - username: admin
+    password: password
+    source: 'automationintesting.online - credenciales demo del README oficial de restful-booker-platform (la pantalla de login NO las imprime; verificado 2026-08-30)'
   - username: standard_user
     password: secret_sauce
     source: 'saucedemo.com - publicly documented'
