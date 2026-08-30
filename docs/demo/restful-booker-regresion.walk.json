@@ -1,0 +1,966 @@
+{
+  "version": 1,
+  "site_id": "restful-booker",
+  "entry": "/",
+  "flows": [
+    {
+      "flow": "cp001-reserva-individual",
+      "criteria": [
+        "CP001"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "expect_text",
+          "value": "Welcome to Shady Meadows B&B test"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Check In"
+          },
+          "value": "10/11/2026"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "label": "Check Out"
+          },
+          "value": "12/11/2026"
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Check Availability"
+          },
+          "retry_safe": true,
+          "expect_after": "Our Rooms"
+        },
+        {
+          "id": "s5",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Book now"
+          },
+          "scope": {
+            "text": "Single"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "reserva-single"
+        },
+        {
+          "id": "s6",
+          "action": "expect_text",
+          "value": "Single Room"
+        },
+        {
+          "id": "s7",
+          "action": "expect_text",
+          "value": "Price Summary"
+        },
+        {
+          "id": "s8",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Firstname"
+          },
+          "value": "Ana"
+        },
+        {
+          "id": "s10",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Lastname"
+          },
+          "value": "Prueba"
+        },
+        {
+          "id": "s11",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Email"
+          },
+          "value": "ana.prueba@example.com"
+        },
+        {
+          "id": "s12",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Phone"
+          },
+          "value": "01234567890"
+        },
+        {
+          "id": "s13",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s14",
+          "action": "expect_text",
+          "value": "Booking Confirmed"
+        }
+      ],
+      "unauthenticated": true
+    },
+    {
+      "flow": "cp002-consulta-disponibilidad",
+      "criteria": [
+        "CP002"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": {
+            "label": "Check In"
+          },
+          "value": "17/11/2026"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Check Out"
+          },
+          "value": "18/11/2026"
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Check Availability"
+          },
+          "retry_safe": true,
+          "expect_after": "Our Rooms"
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Our Rooms"
+        },
+        {
+          "id": "s5",
+          "action": "expect_text",
+          "value": "Single"
+        },
+        {
+          "id": "s6",
+          "action": "expect_text",
+          "value": "Double"
+        },
+        {
+          "id": "s7",
+          "action": "expect_text",
+          "value": "Suite"
+        }
+      ],
+      "unauthenticated": true
+    },
+    {
+      "flow": "cp003-detalle-suite",
+      "criteria": [
+        "CP003"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Book now"
+          },
+          "scope": {
+            "text": "Suite"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "reserva-suite"
+        },
+        {
+          "id": "s2",
+          "action": "expect_text",
+          "value": "Suite Room"
+        },
+        {
+          "id": "s3",
+          "action": "expect_text",
+          "value": "Room Features"
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Room Policies"
+        },
+        {
+          "id": "s5",
+          "action": "expect_text",
+          "value": "Check-in: 3:00 PM - 8:00 PM"
+        },
+        {
+          "id": "s6",
+          "action": "expect_text",
+          "value": "No smoking"
+        }
+      ],
+      "unauthenticated": true
+    },
+    {
+      "flow": "cp004-contacto-envio",
+      "criteria": [
+        "CP004"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Contact"
+          },
+          "retry_safe": true,
+          "expect_after": "Send Us a Message"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "value": "Ana Prueba"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Email"
+          },
+          "value": "ana.prueba@example.com"
+        },
+        {
+          "id": "s4",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Phone"
+          },
+          "value": "012345678901"
+        },
+        {
+          "id": "s5",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Subject"
+          },
+          "value": "Consulta sobre desayuno"
+        },
+        {
+          "id": "s6",
+          "action": "fill",
+          "hint": {
+            "test_id": "ContactDescription"
+          },
+          "value": "Hola, quisiera saber el horario del desayuno para una estancia de dos noches. Gracias."
+        },
+        {
+          "id": "s7",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Submit"
+          }
+        },
+        {
+          "id": "s8",
+          "action": "expect_text",
+          "value": "Thanks for getting in touch"
+        }
+      ],
+      "unauthenticated": true
+    },
+    {
+      "flow": "cp005-contacto-validaciones",
+      "criteria": [
+        "CP005"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Contact"
+          },
+          "retry_safe": true,
+          "expect_after": "Send Us a Message"
+        },
+        {
+          "id": "s2",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Submit"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "expect_text",
+          "value": "Name may not be blank"
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Subject may not be blank"
+        },
+        {
+          "id": "s5",
+          "action": "expect_text",
+          "value": "Message may not be blank"
+        }
+      ],
+      "unauthenticated": true
+    },
+    {
+      "flow": "cp006-acceso-admin",
+      "criteria": [
+        "CP006"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/admin",
+          "screen": "admin-login"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Username"
+          },
+          "value": "$fixtures.credentials[0].username"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Password"
+          },
+          "value": "$fixtures.credentials[0].password",
+          "secret": true
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          },
+          "expect_transition": true,
+          "screen": "admin-rooms"
+        },
+        {
+          "id": "s5",
+          "action": "expect_text",
+          "value": "Room #"
+        },
+        {
+          "id": "s6",
+          "action": "expect_text",
+          "value": "Type"
+        },
+        {
+          "id": "s7",
+          "action": "expect_text",
+          "value": "Price"
+        },
+        {
+          "id": "s8",
+          "action": "expect_text",
+          "value": "101"
+        }
+      ]
+    },
+    {
+      "flow": "cp007-alta-habitacion",
+      "criteria": [
+        "CP007"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/admin",
+          "screen": "admin-login"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Username"
+          },
+          "value": "$fixtures.credentials[0].username"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Password"
+          },
+          "value": "$fixtures.credentials[0].password",
+          "secret": true
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          },
+          "expect_transition": true,
+          "screen": "admin-rooms"
+        },
+        {
+          "id": "s5",
+          "action": "fill",
+          "hint": {
+            "test_id": "roomName"
+          },
+          "value": "701"
+        },
+        {
+          "id": "s6",
+          "action": "select",
+          "hint": {
+            "test_id": "type"
+          },
+          "value": "Twin"
+        },
+        {
+          "id": "s7",
+          "action": "select",
+          "hint": {
+            "test_id": "accessible"
+          },
+          "value": "true"
+        },
+        {
+          "id": "s8",
+          "action": "fill",
+          "hint": {
+            "test_id": "roomPrice"
+          },
+          "value": "123"
+        },
+        {
+          "id": "s9",
+          "action": "check",
+          "hint": {
+            "label": "WiFi"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Create"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "expect_text",
+          "value": "701"
+        }
+      ]
+    },
+    {
+      "flow": "cp008-reserva-llega-al-admin",
+      "criteria": [
+        "CP008"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": {
+            "label": "Check In"
+          },
+          "value": "24/11/2026"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Check Out"
+          },
+          "value": "26/11/2026"
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Check Availability"
+          },
+          "retry_safe": true,
+          "expect_after": "Our Rooms"
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Book now"
+          },
+          "scope": {
+            "text": "Double"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "reserva-double"
+        },
+        {
+          "id": "s5",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Firstname"
+          },
+          "value": "Ana"
+        },
+        {
+          "id": "s7",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Lastname"
+          },
+          "value": "Prueba"
+        },
+        {
+          "id": "s8",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Email"
+          },
+          "value": "ana.prueba@example.com"
+        },
+        {
+          "id": "s9",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Phone"
+          },
+          "value": "01234567890"
+        },
+        {
+          "id": "s10",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "expect_text",
+          "value": "Booking Confirmed"
+        },
+        {
+          "id": "s12",
+          "action": "goto",
+          "target": "/admin",
+          "screen": "admin-login"
+        },
+        {
+          "id": "s13",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Username"
+          },
+          "value": "$fixtures.credentials[0].username"
+        },
+        {
+          "id": "s14",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Password"
+          },
+          "value": "$fixtures.credentials[0].password",
+          "secret": true
+        },
+        {
+          "id": "s15",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          },
+          "expect_transition": true,
+          "screen": "admin-rooms"
+        },
+        {
+          "id": "s16",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Messages"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "admin-mensajes"
+        },
+        {
+          "id": "s17",
+          "action": "expect_text",
+          "value": "You have a new booking!"
+        }
+      ]
+    },
+    {
+      "flow": "cp009-lectura-mensaje",
+      "criteria": [
+        "CP009"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/admin",
+          "screen": "admin-login"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Username"
+          },
+          "value": "$fixtures.credentials[0].username"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Password"
+          },
+          "value": "$fixtures.credentials[0].password",
+          "secret": true
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          },
+          "expect_transition": true,
+          "screen": "admin-rooms"
+        },
+        {
+          "id": "s5",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Messages"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "admin-mensajes"
+        },
+        {
+          "id": "s6",
+          "action": "expect_text",
+          "value": "Name"
+        },
+        {
+          "id": "s7",
+          "action": "expect_text",
+          "value": "Subject"
+        },
+        {
+          "id": "s8",
+          "action": "click",
+          "hint": {
+            "text": "Consulta sobre desayuno"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "expect_text",
+          "value": "From: Ana Prueba"
+        },
+        {
+          "id": "s10",
+          "action": "expect_text",
+          "value": "ana.prueba@example.com"
+        },
+        {
+          "id": "s11",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Close"
+          }
+        },
+        {
+          "id": "s12",
+          "action": "expect_text",
+          "value": "Subject"
+        }
+      ]
+    },
+    {
+      "flow": "cp010-fechas-ocupadas",
+      "criteria": [
+        "CP010"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "fill",
+          "hint": {
+            "label": "Check In"
+          },
+          "value": "01/12/2026"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Check Out"
+          },
+          "value": "03/12/2026"
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Check Availability"
+          },
+          "retry_safe": true,
+          "expect_after": "Our Rooms"
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Book now"
+          },
+          "scope": {
+            "text": "Single"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "reserva-single"
+        },
+        {
+          "id": "s5",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Firstname"
+          },
+          "value": "Ana"
+        },
+        {
+          "id": "s7",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Lastname"
+          },
+          "value": "Prueba"
+        },
+        {
+          "id": "s8",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Email"
+          },
+          "value": "ana.prueba@example.com"
+        },
+        {
+          "id": "s9",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Phone"
+          },
+          "value": "01234567890"
+        },
+        {
+          "id": "s10",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "expect_text",
+          "value": "Booking Confirmed"
+        },
+        {
+          "id": "s12",
+          "action": "goto",
+          "target": "/",
+          "screen": "home"
+        },
+        {
+          "id": "s13",
+          "action": "fill",
+          "hint": {
+            "label": "Check In"
+          },
+          "value": "01/12/2026"
+        },
+        {
+          "id": "s14",
+          "action": "fill",
+          "hint": {
+            "label": "Check Out"
+          },
+          "value": "03/12/2026"
+        },
+        {
+          "id": "s15",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Check Availability"
+          },
+          "retry_safe": true,
+          "expect_after": "Our Rooms"
+        },
+        {
+          "id": "s16",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Book now"
+          },
+          "scope": {
+            "text": "Single"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "reserva-single"
+        },
+        {
+          "id": "s17",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s18",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Firstname"
+          },
+          "value": "Ana"
+        },
+        {
+          "id": "s19",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Lastname"
+          },
+          "value": "Prueba"
+        },
+        {
+          "id": "s20",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Email"
+          },
+          "value": "ana.prueba@example.com"
+        },
+        {
+          "id": "s21",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Phone"
+          },
+          "value": "01234567890"
+        },
+        {
+          "id": "s22",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserve Now"
+          }
+        },
+        {
+          "id": "s23",
+          "action": "expect_text",
+          "value": "fechas no disponibles"
+        }
+      ],
+      "unauthenticated": true
+    }
+  ]
+}

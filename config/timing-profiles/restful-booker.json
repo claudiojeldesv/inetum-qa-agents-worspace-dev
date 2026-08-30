@@ -1,0 +1,708 @@
+{
+  "version": 1,
+  "site_id": "restful-booker",
+  "steps": {
+    "cp001-reserva-individual/__entry": {
+      "samples": [
+        847
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s1": {
+      "samples": [
+        453
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s11": {
+      "samples": [
+        458
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s12": {
+      "samples": [
+        432
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s14": {
+      "samples": [
+        436
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s2": {
+      "samples": [
+        440
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s3": {
+      "samples": [
+        417
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s4": {
+      "samples": [
+        562
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s6": {
+      "samples": [
+        448
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp001-reserva-individual/s7": {
+      "samples": [
+        443
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/__entry": {
+      "samples": [
+        680
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/s1": {
+      "samples": [
+        453
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/s2": {
+      "samples": [
+        448
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/s3": {
+      "samples": [
+        632
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/s4": {
+      "samples": [
+        455
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/s5": {
+      "samples": [
+        455
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/s6": {
+      "samples": [
+        447
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp002-consulta-disponibilidad/s7": {
+      "samples": [
+        455
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp003-detalle-suite/__entry": {
+      "samples": [
+        678
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp003-detalle-suite/s2": {
+      "samples": [
+        453
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp003-detalle-suite/s3": {
+      "samples": [
+        447
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp003-detalle-suite/s4": {
+      "samples": [
+        449
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp003-detalle-suite/s5": {
+      "samples": [
+        448
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp003-detalle-suite/s6": {
+      "samples": [
+        455
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/__entry": {
+      "samples": [
+        611
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/s2": {
+      "samples": [
+        441
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/s3": {
+      "samples": [
+        438
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/s4": {
+      "samples": [
+        432
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/s5": {
+      "samples": [
+        436
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/s6": {
+      "samples": [
+        434
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/s7": {
+      "samples": [
+        764
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp004-contacto-envio/s8": {
+      "samples": [
+        454
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp005-contacto-validaciones/__entry": {
+      "samples": [
+        704
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp005-contacto-validaciones/s2": {
+      "samples": [
+        578
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp005-contacto-validaciones/s3": {
+      "samples": [
+        446
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp005-contacto-validaciones/s4": {
+      "samples": [
+        451
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp005-contacto-validaciones/s5": {
+      "samples": [
+        454
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/__entry": {
+      "samples": [
+        642
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s1": {
+      "samples": [
+        642
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s2": {
+      "samples": [
+        462
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s3": {
+      "samples": [
+        440
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s4": {
+      "samples": [
+        931
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s5": {
+      "samples": [
+        445
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s6": {
+      "samples": [
+        448
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s7": {
+      "samples": [
+        449
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp006-acceso-admin/s8": {
+      "samples": [
+        451
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/__entry": {
+      "samples": [
+        637
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s1": {
+      "samples": [
+        629
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s10": {
+      "samples": [
+        591
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s11": {
+      "samples": [
+        442
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s2": {
+      "samples": [
+        450
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s3": {
+      "samples": [
+        450
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s4": {
+      "samples": [
+        968
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s5": {
+      "samples": [
+        454
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp007-alta-habitacion/s9": {
+      "samples": [
+        458
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/__entry": {
+      "samples": [
+        669,
+        705
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s1": {
+      "samples": [
+        454,
+        445
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s11": {
+      "samples": [
+        435,
+        436
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s12": {
+      "samples": [
+        740,
+        425
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s13": {
+      "samples": [
+        432,
+        452
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s14": {
+      "samples": [
+        433,
+        456
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s15": {
+      "samples": [
+        947,
+        952
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s16": {
+      "samples": [
+        799,
+        890
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s17": {
+      "samples": [
+        442,
+        461
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s2": {
+      "samples": [
+        437,
+        445
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s3": {
+      "samples": [
+        618,
+        579
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s8": {
+      "samples": [
+        449,
+        446
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp008-reserva-llega-al-admin/s9": {
+      "samples": [
+        447,
+        443
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/__entry": {
+      "samples": [
+        667,
+        657
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s1": {
+      "samples": [
+        626,
+        0
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s10": {
+      "samples": [
+        454,
+        428
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s11": {
+      "samples": [
+        437,
+        439
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s12": {
+      "samples": [
+        454,
+        459
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s2": {
+      "samples": [
+        446
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s3": {
+      "samples": [
+        456
+      ],
+      "screen": "admin-login",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s4": {
+      "samples": [
+        962
+      ],
+      "screen": "admin-rooms",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s5": {
+      "samples": [
+        552,
+        732
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s6": {
+      "samples": [
+        438,
+        438
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s7": {
+      "samples": [
+        447,
+        426
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s8": {
+      "samples": [
+        564,
+        561
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp009-lectura-mensaje/s9": {
+      "samples": [
+        439,
+        408
+      ],
+      "screen": "admin-mensajes",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/__entry": {
+      "samples": [
+        597,
+        646
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s1": {
+      "samples": [
+        438,
+        438
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s11": {
+      "samples": [
+        459,
+        440
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s12": {
+      "samples": [
+        670,
+        618
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s13": {
+      "samples": [
+        457,
+        436
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s14": {
+      "samples": [
+        421,
+        451
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s15": {
+      "samples": [
+        549,
+        551
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s2": {
+      "samples": [
+        458,
+        448
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s20": {
+      "samples": [
+        447,
+        433
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s21": {
+      "samples": [
+        436,
+        439
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s23": {
+      "samples": [
+        435,
+        439
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s3": {
+      "samples": [
+        525,
+        580
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s8": {
+      "samples": [
+        408,
+        457
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    },
+    "cp010-fechas-ocupadas/s9": {
+      "samples": [
+        453,
+        441
+      ],
+      "screen": "home",
+      "updated": "2026-08-30"
+    }
+  }
+}

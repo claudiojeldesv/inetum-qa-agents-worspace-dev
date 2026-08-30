@@ -1,0 +1,36 @@
+# Receta de campo — Restful Booker Platform (hotel B&B, React SPA con cara publica + admin)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: restful-booker
+url: 'https://automationintesting.online/'
+allowlist_pattern: 'https://automationintesting.online/*'
+style_contract: config/style-contracts/restful-booker.yaml
+mode: S4
+flows: [reserva, contacto, admin-rooms, admin-mensajes]
+
+auth:
+  needed: true
+  note: 'admin / password del README oficial de restful-booker-platform; la pantalla de login NO
+    las imprime (verificado 2026-08-30). Solo la cara admin va tras login; la publica no.'
+
+last_run:
+  date: 2026-08-30
+  iteration: null
+  verdict: 'ciclo E2E en curso — primer sitio del producto disenado 100% desde la UI'
+  payload: '0.4.0-beta.15'
+  findings:
+    - docs/findings/e2e-restful-booker.md
+
+notes: |
+  Primer ciclo E2E completo en terreno virgen: planner nativo (13 TCs, 145k tokens) + FD onesait
+  de 10 casos disenado desde la UI (template/examples/06-restful-booker/restful-booker-fd.md).
+  Rasgos del sitio que muerden:
+  - La demo se REINICIA por ventanas: frontend y microservicios caen unos segundos y los datos
+    sobreviven mas de lo esperado. Clase `entorno` en el smoke, no culpar al Writer.
+  - DEFECTO REAL del sitio: POST /api/booking 409 (doble-booking) revienta el frontend
+    (TypeError ... reading 'length', pagina en blanco). CP010 lo pisa a proposito: el veredicto
+    correcto es «el FD tiene razon» — defecto de producto, no se parchea el test.
+  - Las fechas de reserva son estado compartido y persistente: cada caso usa su ventana propia
+    (CP001 10-12/11, CP008 24-26/11, CP010 01-03/12). Un re-run en la misma epoca de datos
+    choca en CP010 (el arrange tambien 409). Documentado en la nota del FD.
+  - Los formularios publicos van por PLACEHOLDER (sin label): la prioridad del contract pone
+    getByPlaceholder alto a proposito.
