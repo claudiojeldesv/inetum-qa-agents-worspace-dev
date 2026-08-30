@@ -36,6 +36,8 @@ import { pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
 import { appendAuditEntry } from '../audit-log.ts';
+import { leerOraculosDeSpec } from '../oracle-origin.ts';
+import type { OraculosDeSpec } from '../oracle-origin.ts';
 import { extractTestBlocks, loadA11yContract, verifySpec } from './verify-a11y.ts';
 
 export interface PreReviewContract {
@@ -74,6 +76,13 @@ export interface PreReviewResult {
   must_fix: number;
   should_fix: number;
   clean: boolean;
+  /**
+   * P6 — el respaldo de los oráculos del spec, leído de sus etiquetas
+   * `@oraculo` (las emite walk-to-spec desde el acta). Informa, no impide: el
+   * recuento agregado del resumen es lo que evita que la suite se convierta en
+   * un espejo de la aplicación sin que nadie lo note.
+   */
+  oraculos: OraculosDeSpec;
 }
 
 /**
@@ -769,6 +778,7 @@ export function preReviewSpec(
       must_fix: findings.length,
       should_fix: 0,
       clean: findings.length === 0,
+      oraculos: leerOraculosDeSpec(source),
     };
   }
 
@@ -998,6 +1008,7 @@ export function preReviewSpec(
     must_fix: mustFix,
     should_fix: shouldFix,
     clean: mustFix === 0,
+    oraculos: leerOraculosDeSpec(source),
   };
 }
 
@@ -1120,6 +1131,18 @@ function main(): void {
         specs_clean: active.filter((r) => r.clean).length,
         must_fix_total: active.reduce((n, r) => n + r.must_fix, 0),
         should_fix_total: active.reduce((n, r) => n + r.should_fix, 0),
+        /**
+         * P6 — cuántos oráculos respalda cada fuente. Es el número que un QA
+         * Manager quiere ver: una suite donde `app` crece y `fd` mengua se está
+         * convirtiendo en un espejo de la aplicación, y este recuento es el
+         * único sitio donde eso se nota antes de que sea verdad.
+         */
+        oraculos: {
+          fd: active.reduce((n, r) => n + r.oraculos.fd, 0),
+          app: active.reduce((n, r) => n + r.oraculos.app, 0),
+          captura: active.reduce((n, r) => n + r.oraculos.captura, 0),
+          specs_sin_etiqueta: active.filter((r) => !r.oraculos.etiquetado).length,
+        },
         dirty_specs: active.filter((r) => !r.clean).map((r) => ({
           file: r.test_file,
           criteria: [...new Set(r.findings.filter((f) => f.severity === 'must-fix').map((f) => f.criterion_id))],

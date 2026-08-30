@@ -40,6 +40,9 @@ import { parseArgs } from 'node:util';
 import { parse as parseYaml } from 'yaml';
 
 import { appendAuditEntry } from '../../src/audit-log.ts';
+import { decisionsPathFor, effectiveDecisions, parseDecisions, verifyChain } from '../../src/decisions.ts';
+import type { DecisionEntry } from '../../src/decisions.ts';
+import { etiquetarFlujo } from '../../src/oracle-origin.ts';
 import { fileNameFor } from '../../src/pom-scaffolder.ts';
 import { parseLocatorChain, primerSegmentoNoExpresable, resolveFixtureRef } from './walk-core.ts';
 // D46 — la regla de "esto es codigo emisible" vive en walk-core porque ahora la usan DOS:
@@ -374,7 +377,17 @@ export function emitFromWalk(
   script: WalkScript,
   domMap: DomMap,
   contract: EmitContract,
-  opts: { pagesImportPrefix?: string } = {},
+  opts: {
+    pagesImportPrefix?: string;
+    /**
+     * P6 — decisiones VIGENTES del acta, para etiquetar el origen de cada
+     * oráculo (`@oraculo … fd|app|captura`). La distinción importa:
+     * `undefined` = el acta no se pudo leer → NO se etiqueta (afirmar «fd» sin
+     * haber mirado el acta sería etiquetar mintiendo); `[]` = acta leída y sin
+     * firmas para este guion → todo es `fd`/`captura`, y eso sí se afirma.
+     */
+    decisiones?: DecisionEntry[];
+  } = {},
 ): EmitResult {
   const importPrefix = opts.pagesImportPrefix ?? '../pages/';
   const reports = new Map<string, StepReport>();
@@ -650,9 +663,16 @@ export function emitFromWalk(
       if (i < blocks.length - 1) body.push('');
     });
 
+    // P6 — el test hereda de dónde salió cada oráculo. Solo si el acta se leyó:
+    // sin acta no hay etiqueta, porque «fd» también es una afirmación.
+    const oraculos =
+      opts.decisiones !== undefined
+        ? etiquetarFlujo(flow.flow, flow.steps, opts.decisiones).lineas_jsdoc.map((l) => ` * ${l}`)
+        : [];
     const content = [
       `/**`,
       ` * @criterion ${criterion}`,
+      ...oraculos,
       ` * @generated-by walk-to-spec v1`,
       ` */`,
       `import { test, expect } from '@playwright/test';`,
@@ -716,6 +736,7 @@ function main(): void {
       'style-contract': { type: 'string' },
       'out-specs': { type: 'string' },
       'out-pages': { type: 'string' },
+      decisions: { type: 'string' },
     },
   });
   const scriptPath = values['walk-script'];
@@ -730,7 +751,29 @@ function main(): void {
   const outSpecs = resolve(process.cwd(), values['out-specs'] ?? `tests/e2e/${script.site_id}`);
   const outPages = resolve(process.cwd(), values['out-pages'] ?? `tests/pages/${script.site_id}`);
 
-  const result = emitFromWalk(script, domMap, contract, { pagesImportPrefix: relImport(outSpecs, outPages) });
+  // P6 — el acta del sitio decide la etiqueta de origen de cada oráculo. Tres
+  // desenlaces y los tres se distinguen: acta sana → vigentes; acta ROTA o
+  // --decisions apuntando a la nada → SIN etiqueta (afirmar «fd» sin haber
+  // leído el acta sería etiquetar mintiendo); sin acta y sin flag → nada se
+  // firmó nunca aquí, y eso sí se afirma (todo fd/captura).
+  const actaPath = resolve(process.cwd(), values.decisions ?? decisionsPathFor(script.site_id));
+  let decisiones: DecisionEntry[] | undefined;
+  if (existsSync(actaPath)) {
+    const parsedActa = parseDecisions(readFileSync(actaPath, 'utf8'));
+    if (verifyChain(parsedActa.entries, parsedActa.malformed).ok) {
+      decisiones = [...effectiveDecisions(parsedActa.entries).values()];
+    } else {
+      console.error(
+        `[walk-to-spec] el acta ${actaPath} tiene la cadena ROTA — los specs salen SIN etiqueta de oráculo. Verifica con: npm run qa:decisions -- --site=${script.site_id}`,
+      );
+    }
+  } else if (values.decisions) {
+    console.error(`[walk-to-spec] no existe el acta ${actaPath} — los specs salen SIN etiqueta de oráculo`);
+  } else {
+    decisiones = [];
+  }
+
+  const result = emitFromWalk(script, domMap, contract, { pagesImportPrefix: relImport(outSpecs, outPages), decisiones });
 
   mkdirSync(outSpecs, { recursive: true });
   mkdirSync(outPages, { recursive: true });

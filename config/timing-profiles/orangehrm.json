@@ -4,45 +4,58 @@
   "steps": {
     "cp005-ciclo-completo/__entry": {
       "samples": [
-        699
+        699,
+        766
       ],
       "screen": "login",
-      "updated": "2026-08-29"
+      "updated": "2026-08-30"
     },
     "cp005-ciclo-completo/s1": {
       "samples": [
-        418
+        418,
+        434
       ],
       "screen": "login",
-      "updated": "2026-08-29"
+      "updated": "2026-08-30"
     },
     "cp005-ciclo-completo/s2": {
       "samples": [
-        422
+        422,
+        425
       ],
       "screen": "login",
-      "updated": "2026-08-29"
+      "updated": "2026-08-30"
     },
     "cp005-ciclo-completo/s3": {
       "samples": [
-        1247
+        1247,
+        1303
       ],
       "screen": "inicio",
-      "updated": "2026-08-29"
+      "updated": "2026-08-30"
     },
     "cp005-ciclo-completo/s4": {
       "samples": [
-        1148
+        1148,
+        1142
       ],
       "screen": "pim",
-      "updated": "2026-08-29"
+      "updated": "2026-08-30"
     },
     "cp005-ciclo-completo/s5": {
       "samples": [
-        1173
+        1173,
+        1052
       ],
       "screen": "listado-empleados",
-      "updated": "2026-08-29"
+      "updated": "2026-08-30"
+    },
+    "cp005-ciclo-completo/s6": {
+      "samples": [
+        453
+      ],
+      "screen": "listado-empleados",
+      "updated": "2026-08-30"
     },
     "cp005-ciclo-completo/s7": {
       "samples": [

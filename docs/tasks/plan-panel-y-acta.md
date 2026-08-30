@@ -255,7 +255,7 @@ cuando es posible.
 grupos, no una lista de 7. Y con 20 de coreografía sigue siendo usable (decidir: listar, paginar o
 resumir — pendiente).
 
-### P6 — La etiqueta de oráculo, con dientes
+### P6 — La etiqueta de oráculo, con dientes · CERRADO el 2026-08-30
 
 Cada criterio arrastra de dónde salió su oráculo (`fd` | `app` | `captura`), y el test lo **hereda en
 su JSDoc**. Y —esto es lo que evita que sea otro D2— **una regla de pre-review lo lee** y el resumen
@@ -263,6 +263,22 @@ del run cuenta cuántos criterios están respaldados por la app y no por el FD.
 
 Informa, no impide. Ese recuento es lo que un QA Manager quiere ver, y lo que evita que la suite se
 convierta en un espejo de la aplicación sin que nadie lo note.
+
+**Lo entregado**: núcleo puro [`src/oracle-origin.ts`](../../src/oracle-origin.ts) con la regla de
+origen en orden (id re-clavado `#vN` → `captura` aunque haya firma — la firma autoriza, la
+procedencia es la grabación; decisión `app` vigente → `app` con actor/grado/hash en la misma línea;
+sin nada, `fd`, que también es una afirmación). `walk-to-spec` estampa `@oraculo` por paso que
+observa + `@oraculo-resumen`, leyendo el acta del sitio por defecto — y distingue tres desenlaces:
+acta sana → etiquetas; acta ROTA o `--decisions` a la nada → SIN etiqueta (afirmar «fd» sin mirar
+sería etiquetar mintiendo); sin acta → todo `fd`/`captura`, afirmado. `pre-review` lee las etiquetas
+(el resumen manda; sin él cuenta las sueltas) y agrega `oraculos: {fd, app, captura,
+specs_sin_etiqueta}` al resumen del lote — un spec pre-P6 sale `sin etiqueta`, no `fd=0`
+tranquilizador. Par de ida y vuelta probado (emisor↔lector con los mismos números) + 13 tests.
+
+**Validado con el ciclo de vida real**: las etiquetas `app` aparecen cuando el criterio adoptado
+entra al guion (vía la propuesta de fase C aceptada) — simulado contra OrangeHRM real con el acta
+de campo: run 6/6, spec emitido con `@oraculo s6 app — «Employee Information» firmado por
+claudio.jeldes (en-vivo) [e5f08d9d]`, y pre-review contando `fd=0 · app=1 · captura=0`.
 
 ### P7 — El banco de pruebas de paneles · NÚCLEO CERRADO el 2026-08-29
 

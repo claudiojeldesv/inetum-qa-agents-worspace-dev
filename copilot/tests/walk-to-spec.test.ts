@@ -347,3 +347,48 @@ describe('emitFromWalk — D43: el secreto declara su variable y falla legible',
     expect(r.required_env).toEqual([]);
   });
 });
+
+describe('P6 — la etiqueta de oráculo viaja del acta al spec, y pre-review la lee', () => {
+  const decision = {
+    rf: 'RF-001', paso: 'inicio-sesion/s4', decision: 'app' as const,
+    valor_nuevo: 'Global Position', fd_hash: 'x', script_hash: 'y',
+    evidencia: 'en-vivo' as const, actor: 'claudio.jeldes',
+    timestamp: '2026-08-29T18:53:06.282Z', hash: '20fe39fa3cbab1a8c43d5d941656c453',
+  };
+
+  it('con el acta leída, cada oráculo lleva su origen y la firma va en la línea', () => {
+    const r = emitFromWalk(script(), domMap(GREEN_REPORTS), CONTRACT, { decisiones: [decision] });
+    const spec = r.emitted[0].content;
+    expect(spec).toMatch(/@oraculo s4 app — «Global Position» firmado por claudio\.jeldes \(en-vivo\) \[20fe39fa\]/);
+    // s5 es expect_state sin decisión: su oráculo es del FD, y eso también se afirma
+    expect(spec).toContain('@oraculo s5 fd');
+    expect(spec).toContain('@oraculo-resumen fd=1 app=1 captura=0');
+  });
+
+  it('acta VACÍA etiqueta todo fd (leída y sin firmas); acta NO LEÍDA no etiqueta nada — «fd» sin mirar sería mentir', () => {
+    const vacia = emitFromWalk(script(), domMap(GREEN_REPORTS), CONTRACT, { decisiones: [] });
+    expect(vacia.emitted[0].content).toContain('@oraculo-resumen fd=2 app=0 captura=0');
+
+    const sinActa = emitFromWalk(script(), domMap(GREEN_REPORTS), CONTRACT);
+    expect(sinActa.emitted[0].content).not.toContain('@oraculo');
+  });
+
+  it('EL DIENTE: pre-review lee del spec emitido los mismos números que el emisor escribió', () => {
+    const r = emitFromWalk(script(), domMap(GREEN_REPORTS), CONTRACT, { decisiones: [decision] });
+    const dir = mkdtempSync(join(tmpdir(), 'qa-p6-'));
+    const file = join(dir, 'inicio-sesion.spec.ts');
+    writeFileSync(file, r.emitted[0].content, 'utf8');
+    const res = preReviewSpec(file, PRE_REVIEW);
+    rmSync(dir, { recursive: true, force: true });
+    expect(res.oraculos).toEqual({ fd: 1, app: 1, captura: 0, etiquetado: true });
+  });
+
+  it('un spec de antes de P6 queda declarado como sin-etiqueta, no como fd=0 tranquilizador', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qa-p6-legacy-'));
+    const file = join(dir, 'legacy.spec.ts');
+    writeFileSync(file, "/** @criterion RF-9 */\nimport { test, expect } from '@playwright/test';\ntest('x', async () => { expect(1).toBe(1); });\n", 'utf8');
+    const res = preReviewSpec(file, PRE_REVIEW);
+    rmSync(dir, { recursive: true, force: true });
+    expect(res.oraculos.etiquetado).toBe(false);
+  });
+});

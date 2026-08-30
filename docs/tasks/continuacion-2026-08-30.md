@@ -36,7 +36,7 @@ literal (frágil por dato) frente a «Records Found» a secas (la trampa K0.37: 
 Records Found»). La propuesta tiene que poner ESA decisión delante del QA con el dato a la vista,
 no esconderla.
 
-### 2. P6 — la etiqueta de oráculo, con dientes
+### 2. P6 — la etiqueta de oráculo, con dientes · CERRADO el 2026-08-30 (siguiente: bloque 3, «la IA usa el walker»)
 
 Cada criterio arrastra de dónde salió su oráculo (`fd` | `app` | `captura`), el test lo hereda en
 su JSDoc, una regla de pre-review lo lee, y el resumen del run cuenta cuántos criterios respalda la
