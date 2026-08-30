@@ -521,6 +521,12 @@ export interface RescueRequest {
   step: string;
   action: WalkAction;
   hint?: StepHint;
+  /**
+   * D68 — el CONTENEDOR del paso (K0.16), cuando el guion lo declara. Es la
+   * información que desambigua controles repetidos; sin ella el subagente solo
+   * podía declinar («4 Book now indistinguibles», medido en RBP 2026-08-30).
+   */
+  scope?: StepHint;
   /** Snapshot ARIA podado del frame donde falló la resolución. */
   aria_snapshot: string;
   /**

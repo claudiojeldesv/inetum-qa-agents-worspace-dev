@@ -1490,19 +1490,146 @@ export const CONSENT_ACCEPT = /aceptar|acepto|accept|allow|permitir|consent|de a
  * llega vacío, el subagent tiene que saberlo — un rescate a ciegas que no se
  * anuncia invita a inventar el locator, que es exactamente lo prohibido.
  */
-export function rescueInstructions(stepId: string, action: string, snapshotError = ''): string {
+export function rescueInstructions(stepId: string, action: string, snapshotError = '', scope?: StepHint): string {
+  /**
+   * D68 — la gramática declarada era MENOR que la que el ejecutor acepta:
+   * `locatorFromChain` entiende cadenas ` >> `, `.nth(N)` y `.filter({ hasText })`
+   * desde K0.11a, pero las instrucciones ofrecían solo formas planas — así que
+   * ante controles repetidos (el caso NORMAL de una app corporativa: filas de
+   * tabla, tarjetas) la única respuesta legal era declinar. Medido en RBP:
+   * «4 Book now indistinguibles» con la desambiguación posible y prohibida.
+   */
+  const scopeNote = scope
+    ? `El paso busca el hint DENTRO de un contenedor (scope=${JSON.stringify(scope)}): si el hint aparece varias ` +
+      `veces, responde el locator del candidato de ESE contenedor — normalmente un segmento contenedor con ` +
+      `.filter({ hasText: '...' }) seguido de ' >> ' y el hijo. Si nada en el snapshot permite distinguirlo, locator=null. `
+    : '';
   const base =
     `Resuelve el locator Playwright del elemento que este paso necesita (action='${action}'). ` +
+    scopeNote +
     `Responde SOLO escribiendo el archivo rescue-response.json en este mismo directorio con ` +
     `{"step":"${stepId}","locator":"getByRole('...', { name: '...' })"} — grammar permitida: ` +
-    `getByTestId('x') | getByRole('r', { name: 'n' }) | getByLabel('x') | getByText('x') | css=<selector>. ` +
-    `Si el elemento NO existe en el snapshot, locator=null (el paso quedará bloqueado, no lo inventes).`;
+    `getByTestId('x') | getByRole('r', { name: 'n' }) | getByLabel('x') | getByText('x') | css=<selector>, ` +
+    `encadenables con ' >> ' (contenedor >> hijo) y con sufijos .nth(N) y .filter({ hasText: 'txt' }). ` +
+    `Si el elemento NO existe en el snapshot, locator=null (el paso quedará bloqueado, no lo inventes). ` +
+    `Y NUNCA respondas el mismo locator que ya expresa el hint: si el hint hubiera resuelto, no habría rescate.`;
   if (!snapshotError) return base;
   return (
     `AVISO: esta petición va SIN EVIDENCIA — el snapshot ARIA no se pudo obtener (${snapshotError}). ` +
     `Sin DOM que mirar, la única respuesta honesta es locator=null con el motivo; no adivines. ` +
     base
   );
+}
+
+// -------------------------------------------- triaje del rescate (D68/D69)
+
+/**
+ * Acciones PUERTA: cambian el documento o el estado de la pantalla (navegar,
+ * pulsar, desplegar, enviar). Una puerta bloqueada condena lo que viene detrás
+ * en el mismo flujo: pedir rescate de esos pasos es pagar por confirmar que una
+ * pantalla que nunca se abrió sigue cerrada. Medido en RBP: 4 de 13
+ * micro-llamadas fueron para pasos condenados, todas null. `fill`/`select`/
+ * `check` bloqueados NO condenan (no cambian de pantalla: los pasos siguientes
+ * siguen siendo preguntables) y las postcondiciones tampoco.
+ */
+const ACCIONES_PUERTA: ReadonlySet<string> = new Set(['goto', 'click', 'hover', 'press']);
+
+/** Primera puerta bloqueada ANTES de `stepId` en el orden del flujo, o null. */
+export function puertaBloqueadaAntes(
+  steps: ReadonlyArray<{ id: string; action: WalkAction }>,
+  bloqueados: ReadonlySet<string>,
+  stepId: string,
+): string | null {
+  for (const s of steps) {
+    if (s.id === stepId) return null;
+    if (ACCIONES_PUERTA.has(s.action) && bloqueados.has(s.id)) return s.id;
+  }
+  return null;
+}
+
+export interface TriajeInput {
+  ambiguo: boolean;
+  fueraDeAmbito: boolean;
+  puertaBloqueada: string | null;
+}
+export interface TriajeVeredicto {
+  destino: 'cascada' | 'panel' | 'rescate';
+  motivo: string;
+}
+
+/**
+ * D68 (la mitad de enrutado) — el walker YA SABE la clase del bloqueo cuando se
+ * planta, y mandarlo todo a la misma puerta (rescate LLM) es pagar tarifa plana
+ * por respuestas que la clase determina de antemano. Medido en RBP: 13
+ * micro-llamadas (~538k tokens), CERO desbloqueos — 10 eran ambigüedad o
+ * cascada, clases que el rescate no puede resolver POR DISEÑO (no inventar; no
+ * elegir entre iguales). El triaje enruta por clase:
+ *
+ *   cascada  → ni preguntar: el elemento no puede existir (puerta bloqueada antes)
+ *   panel    → ambigüedad real o ámbito fallido: elegir es del QA (scope en el
+ *              guion, o señalar con --assist); un LLM que elija adivina
+ *   rescate  → hint irresoluble limpio: posible vocabulario no enseñado — la
+ *              única clase donde la micro-llamada compra algo (35% medido en
+ *              OrangeHRM con el cruce «Buscar»→«Search»)
+ *
+ * La prioridad importa: con una puerta bloqueada antes, la pantalla actual no es
+ * la del paso, así que cualquier ambigüedad observada es ruido de otra pantalla.
+ */
+export function triajeDelBloqueo(i: TriajeInput): TriajeVeredicto {
+  if (i.puertaBloqueada) {
+    return {
+      destino: 'cascada',
+      motivo:
+        `en cascada de ${i.puertaBloqueada}: la puerta que abría esta pantalla quedó bloqueada — ` +
+        `no se gasta rescate en un elemento que no puede existir; resuelve ${i.puertaBloqueada} primero`,
+    };
+  }
+  if (i.ambiguo || i.fueraDeAmbito) {
+    return {
+      destino: 'panel',
+      motivo:
+        `elegir entre candidatos es del QA, no del rescate LLM (elegiría a ciegas): ` +
+        `acota el hint con 'scope' en el guion o señálalo en un run con --assist`,
+    };
+  }
+  return { destino: 'rescate', motivo: 'hint irresoluble limpio: posible vocabulario no enseñado' };
+}
+
+/**
+ * Guarda anti-ECO — conducta medida en RBP (3 de 13 respuestas): ante un hint
+ * con `test_id` inexistente, el LLM devuelve `getByTestId('<el mismo>')` — ni
+ * acierto, ni planta: devuelve LO QUE YA FALLÓ. Ejecutarlo repite la resolución
+ * fallida y disfraza el desenlace de «locator de rescate inválido», que apunta
+ * al LLM cuando el problema es que la respuesta no aportó información. Se
+ * detecta comparando contra las formas que el hint ya expresa.
+ */
+export function esEcoDelHint(hint: StepHint | undefined, locator: string): boolean {
+  if (!hint) return false;
+  const formas = new Set<string>();
+  if (hint.test_id) formas.add(`getByTestId('${hint.test_id}')`);
+  if (hint.label) formas.add(`getByLabel('${hint.label}')`);
+  if (hint.text) formas.add(`getByText('${hint.text}')`);
+  if (hint.role && hint.name) {
+    formas.add(`getByRole('${hint.role}', { name: '${hint.name}' })`);
+    formas.add(`getByRole('${hint.role}', { name: '${hint.name}', exact: true })`);
+  }
+  if (hint.role && !hint.name) formas.add(`getByRole('${hint.role}')`);
+  return formas.has(locator.trim());
+}
+
+/**
+ * D69 — hermano de D66 que su arreglo no cubría: `aislarFlujos` se desactivaba
+ * con CUALQUIER storageState, y la sesión del CHECKPOINT (reanudación tras exit
+ * 42) entra por la misma variable que la del caller. Consecuencia medida en RBP:
+ * en el run reanudado el aislamiento entre flujos (D42) quedó apagado, cp007 y
+ * cp009 aterrizaron en /admin YA logueados y su login se volvió irresoluble
+ * (cp009: de 0 bloqueos en la línea base a 3). Solo la sesión del CALLER
+ * (auth-handler, pensada para compartirse) desactiva el aislamiento; la del
+ * checkpoint es un artefacto de transporte de la reanudación, no una sesión
+ * compartida.
+ */
+export function debeAislarFlujos(i: { aislamientoDelContract: boolean; sesionDelCaller: boolean }): boolean {
+  return i.aislamientoDelContract && !i.sesionDelCaller;
 }
 
 /** Marcador en disco de una asistencia en curso (K0.45/D12). */
