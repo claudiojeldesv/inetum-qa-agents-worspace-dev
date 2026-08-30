@@ -26,6 +26,14 @@ export interface InteractiveElement {
    */
   test_id_attr?: string;
   label?: string;
+  /**
+   * D16 — los locators que el walker MIDIÓ contra el DOM real, ordenados por la
+   * prioridad del contract (llegan por `dom-map-to-discovery`). Cuando el primero
+   * es parseable (`parseMeasuredLocator`), el scaffolder lo prefiere sobre la
+   * heurística: lo medido gana a lo reconstruido. Opcional — los reports viejos
+   * y el camino del planner no lo traen y todo sigue como antes.
+   */
+  measured_locators?: string[];
   verified?: boolean | null;          // anotado por verify-locators (Q2.1): true = resuelve único contra el DOM real
   verify_reason?: string;             // 'not-found' | 'ambiguous(n)' | ... cuando verified !== true
   /** Cadena de iframes hasta el frame del elemento (K0.4). El locator se emite
@@ -130,6 +138,16 @@ function renderLocator(el: InteractiveElement, testIdAttribute = 'data-test'): s
   const scope = el.frame_path?.length
     ? 'this.page' + el.frame_path.map((s) => `.frameLocator('${s.replace(/'/g, "\\'")}')`).join('')
     : 'this.page';
+  /**
+   * D16 — lo MEDIDO gana a lo reconstruido: si el walker dejó un locator que
+   * resolvió contra el DOM real y es de forma emisible, se usa ése. El parser
+   * es fail-closed (guarda D20): jerga de diagnóstico (`anchored(...)`),
+   * cadenas `>>` o formas no soportadas devuelven null y caen a la heurística.
+   */
+  for (const chain of el.measured_locators ?? []) {
+    const medido = parseMeasuredLocator(chain);
+    if (medido) return `${scope}.${renderSpec(medido)}`;
+  }
   if (el.test_id) {
     const attr = el.test_id_attr;
     if (!attr || attr === testIdAttribute) {
@@ -150,6 +168,55 @@ function renderLocator(el: InteractiveElement, testIdAttribute = 'data-test'): s
     return `${scope}.getByLabel('${el.label.replace(/'/g, "\\'")}')`;
   }
   return `${scope}.getByRole('${el.role ?? 'generic'}') /* TODO writer: refine */`;
+}
+
+/**
+ * D16 — el parser fail-closed de un locator MEDIDO. Acepta exactamente las
+ * formas que este scaffolder sabe emitir y verify-locators sabe verificar —
+ * UN segmento `getByX(...)` con literales simples. Todo lo demás devuelve null
+ * y el consumidor cae a su heurística: la notación de diagnóstico de la
+ * escalera (`anchored(...)`, guarda D20), las cadenas `>>`, los css/xpath.
+ * Es UNA función para los DOS consumidores (scaffolder y verify-locators):
+ * si cada uno parseara a su manera, el POM emitiría una cosa y el verificador
+ * verificaría otra — la familia D2 con dos cabezas.
+ */
+export type MeasuredSpec =
+  | { kind: 'testId'; testId: string }
+  | { kind: 'roleName'; role: string; name: string }
+  | { kind: 'label'; label: string }
+  | { kind: 'text'; text: string };
+
+const LIT = String.raw`'((?:[^'\\]|\\.)*)'`;
+const RE_MEASURED: Array<[RegExp, (m: RegExpMatchArray) => MeasuredSpec]> = [
+  [new RegExp(String.raw`^getByTestId\(${LIT}\)$`), (m) => ({ kind: 'testId', testId: des(m[1]) })],
+  [new RegExp(String.raw`^getByRole\(${LIT},\s*\{\s*name:\s*${LIT}\s*(?:,\s*exact:\s*true\s*)?\}\)$`), (m) => ({ kind: 'roleName', role: des(m[1]), name: des(m[2]) })],
+  [new RegExp(String.raw`^getByLabel\(${LIT}\)$`), (m) => ({ kind: 'label', label: des(m[1]) })],
+  [new RegExp(String.raw`^getByText\(${LIT}\)$`), (m) => ({ kind: 'text', text: des(m[1]) })],
+];
+const des = (s: string): string => s.replace(/\\(.)/g, '$1');
+
+export function parseMeasuredLocator(chain: string): MeasuredSpec | null {
+  const c = chain.trim();
+  if (c.includes('>>')) return null; // anclado/compuesto: no expresable en un POM plano
+  for (const [re, build] of RE_MEASURED) {
+    const m = c.match(re);
+    if (m) return build(m);
+  }
+  return null;
+}
+
+const esc = (s: string): string => s.replace(/'/g, "\\'");
+function renderSpec(s: MeasuredSpec): string {
+  switch (s.kind) {
+    case 'testId':
+      return `getByTestId('${esc(s.testId)}')`;
+    case 'roleName':
+      return `getByRole('${s.role}', { name: '${esc(s.name)}' })`;
+    case 'label':
+      return `getByLabel('${esc(s.label)}')`;
+    case 'text':
+      return `getByText('${esc(s.text)}')`;
+  }
 }
 
 /**

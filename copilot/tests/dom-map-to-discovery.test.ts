@@ -101,3 +101,30 @@ describe('domMapToDiscovery — business_text y frame_path (K0)', () => {
     expect(roles.indexOf('textbox')).toBeLessThan(roles.indexOf('button'));
   });
 });
+
+describe('D16 — el adaptador arrastra lo medido en vez de tirarlo', () => {
+  it('EL PAR: locator_candidates viaja como measured_locators; sin candidatos, el campo no existe', () => {
+    const base: DomMap = {
+      version: 1, site_id: 's', generated_by: 'dom-walker', generated_at: '2026-08-30T00:00:00.000Z',
+      target_url: 'https://x', contract: 'c.yaml', testid_attribute: 'data-test',
+      stats: {
+        flows: 1, steps_total: 1, steps_executed: 1, steps_blocked: 0, rescues_used: 0,
+        rescue_budget: 0, screens: 1, flaky_timing: 0, settle_timeouts: 0, postcondition_unmet: 0,
+      },
+      screens: [{
+        name: 'p', url_pattern: 'https://x/p', flow: 'f',
+        elements: [
+          { role: 'button', name: 'Search', locator_candidates: ["getByRole('button', { name: 'Search' })", "getByText('Search')"] },
+          { role: 'link', name: 'PIM', locator_candidates: [] },
+        ],
+        forms: [], landmarks: [], business_text: [],
+      }],
+      transitions: [], open_questions: [], rescues: [],
+    } as unknown as DomMap;
+    const r = domMapToDiscovery(base);
+    const conMedido = r.screens[0].interactive_elements.find((e) => e.name === 'Search')!;
+    const sinMedido = r.screens[0].interactive_elements.find((e) => e.name === 'PIM')!;
+    expect(conMedido.measured_locators).toEqual(["getByRole('button', { name: 'Search' })", "getByText('Search')"]);
+    expect('measured_locators' in sinMedido).toBe(false);
+  });
+});

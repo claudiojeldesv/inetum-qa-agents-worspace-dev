@@ -31,6 +31,7 @@ import { parse as parseYaml } from 'yaml';
 import { chromium, selectors, type Page } from '@playwright/test';
 
 import { appendAuditEntry } from '../audit-log.ts';
+import { parseMeasuredLocator } from '../pom-scaffolder.ts';
 import { resolveAppUrl, appPathname } from '../app-url.ts';
 import { proxyFromEnv } from '../proxy-env.ts';
 import { candidatosParaInforme } from '../locator-candidates.ts';
@@ -56,6 +57,8 @@ export interface DiscoveryElement {
   test_id_attr?: string;
   /** De donde salio `test_id_attr`: util para auditar quien acerto. */
   test_id_attr_source?: string;
+  /** D16 — los locators medidos por el walker (via dom-map-to-discovery). */
+  measured_locators?: string[];
   /**
    * G3 (plan gate-locators-medidos) — los nombres accesibles REALES que el DOM ofrece
    * cuando el locator por (rol, nombre) no resuelve o resuelve a varios. Sin esto el
@@ -93,8 +96,15 @@ export type LocatorSpec =
   | { kind: 'role'; role: string };
 
 /** Misma prioridad que renderLocator del pom-scaffolder: test_id → role+name → label → role.
- *  role 'text' (business_text de expect_text, K0.2): texto plano sin rol ARIA → getByText. */
+ *  role 'text' (business_text de expect_text, K0.2): texto plano sin rol ARIA → getByText.
+ *  D16 — y ANTES que todo, lo MEDIDO: el mismo `parseMeasuredLocator` que usa el
+ *  scaffolder, para que este verificador verifique EXACTAMENTE lo que el POM va a
+ *  emitir. Dos parsers habrían sido la familia D2 con dos cabezas. */
 export function locatorSpecFor(el: DiscoveryElement): LocatorSpec {
+  for (const chain of el.measured_locators ?? []) {
+    const medido = parseMeasuredLocator(chain);
+    if (medido) return medido;
+  }
   if (el.test_id) return { kind: 'testId', testId: el.test_id };
   if (el.role === 'text' && el.name) return { kind: 'text', text: el.name };
   if (el.role && el.name) return { kind: 'roleName', role: el.role, name: el.name };

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { scaffoldPage, scaffoldBasePage, scaffold } from '../../src/pom-scaffolder.ts';
+import { parseMeasuredLocator, scaffoldPage, scaffoldBasePage, scaffold } from '../../src/pom-scaffolder.ts';
 
 describe('pom-scaffolder scaffoldPage', () => {
   /**
@@ -391,5 +391,45 @@ describe('pom-scaffolder — D41: colision entre locator y componente', () => {
     );
     expect(r.content).toContain('readonly nav: NavComponent;');
     expect(r.content).not.toContain('navComponent');
+  });
+});
+
+describe('D16 — lo MEDIDO gana a lo reconstruido, y el parser es fail-closed', () => {
+  it('EL PAR: con locator medido parseable, el POM lo emite; el mismo elemento sin él cae a la heurística', () => {
+    const el = { role: 'button', name: 'Buscar', test_id: 'search-btn' };
+    const conMedido = scaffoldPage({
+      name: 'listado',
+      interactive_elements: [{ ...el, measured_locators: ["getByRole('button', { name: 'Search' })"] }],
+    });
+    // el walker MIDIÓ que resuelve por rol+Search; la heurística habría dicho testId
+    expect(conMedido.content).toContain("getByRole('button', { name: 'Search' })");
+    expect(conMedido.content).not.toContain("getByTestId('search-btn')");
+
+    const sinMedido = scaffoldPage({ name: 'listado', interactive_elements: [el] });
+    expect(sinMedido.content).toContain("getByTestId('search-btn')");
+  });
+
+  it('GUARDA D20: la jerga de diagnóstico y las cadenas >> NO se emiten — caen a la heurística', () => {
+    const result = scaffoldPage({
+      name: 'listado',
+      interactive_elements: [{
+        role: 'button', name: 'Buscar',
+        measured_locators: ["anchored(label:'Usuario')", "getByRole('row').nth(2) >> getByRole('button')"],
+      }],
+    });
+    expect(result.content).not.toContain('anchored');
+    expect(result.content).not.toContain('>>');
+    expect(result.content).toContain("getByRole('button', { name: 'Buscar' })");
+  });
+
+  it('la tabla del parser: lo que acepta y lo que rechaza, forma a forma', () => {
+    expect(parseMeasuredLocator("getByTestId('x')")).toEqual({ kind: 'testId', testId: 'x' });
+    expect(parseMeasuredLocator("getByRole('button', { name: 'Search' })")).toEqual({ kind: 'roleName', role: 'button', name: 'Search' });
+    expect(parseMeasuredLocator("getByRole('link', { name: 'Employee List', exact: true })")).toEqual({ kind: 'roleName', role: 'link', name: 'Employee List' });
+    expect(parseMeasuredLocator("getByLabel('Usuario')")).toEqual({ kind: 'label', label: 'Usuario' });
+    expect(parseMeasuredLocator("getByText('Records Found')")).toEqual({ kind: 'text', text: 'Records Found' });
+    for (const malo of ["anchored(label:'x')", "getByRole('row') >> getByText('y')", "locator('#id')", "getByPlaceholder('x')", "getByRole('button')"]) {
+      expect(parseMeasuredLocator(malo), `${malo} no es emisible`).toBeNull();
+    }
   });
 });

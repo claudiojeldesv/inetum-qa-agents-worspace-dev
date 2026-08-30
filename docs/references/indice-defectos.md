@@ -49,7 +49,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 | D13 | Subagentes lanzados en background: ~30 min de espera muerta; la regla "no background" no es imponible | ParaBank beta.4 | instrumentado en `src/run-cost.ts` | abierto |
 | D14 | «Citar y no traducir» sin dientes: `confidence` declarado y sin consumidor. Familia D2 | ParaBank beta.4 | [run-beta-parabank-2.md](../findings/run-beta-parabank-2.md) | abierto |
 | D15 | `walk-to-spec` ignora `auth.enabled` | ParaBank beta.4 | íd. | abierto |
-| D16 | El `discovery-analyzer` tira los locators medidos | ParaBank beta.4 | íd. | abierto |
+| D16 | El `discovery-analyzer` tira los locators medidos: el adaptador `dom-map-to-discovery` no arrastraba `locator_candidates` y el scaffolder reconstruía por heurística lo que el walker ya había resuelto contra el DOM real | ParaBank beta.4; re-medido en OrangeHRM 2026-08-30 (150/161 elementos con locator medido, antes 0) | `measured_locators` viaja por el adaptador y lo consumen LOS DOS lados con el MISMO parser fail-closed (`parseMeasuredLocator` en `pom-scaffolder`, guarda D20: jerga y cadenas `>>` caen a la heurística): el POM emite lo medido y `verify-locators` verifica EXACTAMENTE eso — dos parsers habrían sido la familia D2 con dos cabezas | cerrado |
 | D17 | `QA_WORK_DIR` exportado tarde → el refiner escribe al audit-log genérico | ParaBank beta.4 | íd. | abierto (menor) |
 | D18 | El workspace desplegado no declara su versión y nada la comprueba (`CLAUDE_PLUGIN_ROOT` congelado al arrancar: 3 despliegues salieron en beta.1 con todo verde) | ParaBank beta.4 | `src/version-drift.ts:2` + `healthcheck.ts` | cerrado |
 | D19 | El gate de `open_questions` bloqueaba por EXISTIR una pregunta en vez de por ausencia de oráculo (`then` AMBIGUO) | ParaBank beta.4 | verificado en campo en runs 4 y 5 | cerrado |
@@ -104,7 +104,7 @@ K0.1–K0.17 → [SPEC-kernel-v2.md](../SPEC-kernel-v2.md) · K0.18–K0.41 →
 
 ## Recuento
 
-**36 cerrados** · **21 abiertos** · **1 criterio permanente (D2)**.
+**37 cerrados** · **20 abiertos** · **1 criterio permanente (D2)**.
 
 Cerrados con matiz: D3 sin verificación de campo; D23 arregla el daño, no la causa (el SIGTERM viene de fuera); D44 visto una sola vez; D45 con dos
 instancias latentes vivas; D40 con prosa obsoleta pendiente de retirar en dos agentes.
