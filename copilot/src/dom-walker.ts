@@ -41,7 +41,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { parse as parseYaml } from 'yaml';
 import { chromium, expect, type BrowserContext, type Frame, type Locator, type Page } from '@playwright/test';
@@ -528,6 +528,112 @@ function captureScript(testidAttrs: string[], cssFallbackAttrs: string[] = []): 
 
 // -------------------------------------- overlay del modo asistido (K0.10c)
 
+// ----------------------------------------------------- P3: posturas del panel
+
+/** Preferencias del panel, POR SITIO (`config/panel-prefs/<site>.json`): postura
+ * y posición. Durables como los hint-aliases y por la misma razón — son del QA
+ * sobre este sitio, no de un run. */
+export interface PanelPrefs {
+  postura?: 'normal' | 'barra' | 'fantasma';
+  left?: string | null;
+  top?: string | null;
+}
+
+/** Una marca de la tira de pasos: el caso entero de un vistazo. */
+export interface MarcaDeTira {
+  id: string;
+  e: 'hecho' | 'aqui' | 'nocuadra' | 'pend';
+}
+
+export interface P3Opts {
+  prefs?: PanelPrefs;
+  tira?: MarcaDeTira[];
+}
+
+/** CSS de las posturas y la tira — UNO para los dos paneles (familia D2: si cada
+ * panel llevara su copia, derivarían). `.post` va con float para no tocar el
+ * layout existente de `.h`. */
+const POSTURAS_CSS = `
+        .post{float:right;display:inline-flex;gap:4px;margin-left:8px}
+        .post button{padding:0 6px;font-size:11px;line-height:16px;background:#1f2937;border:1px solid #4b5563;color:#9ca3af;border-radius:3px;cursor:pointer}
+        .post button.on{background:#4b5563;color:#f9fafb}
+        .p.barra .b,.p.barra .tira{display:none}
+        .p.fantasma{opacity:.35}
+        .tira{display:flex;gap:3px;margin-top:4px}
+        .tira i{width:10px;height:10px;border-radius:2px;display:inline-block}
+        .tira i.hecho{background:#059669}
+        .tira i.aqui{background:#2563eb;box-shadow:0 0 0 1px #93c5fd}
+        .tira i.nocuadra{background:#b91c1c}
+        .tira i.pend{background:#374151}`;
+
+/** Botones de postura para la cabecera. `─` colapsa a barra; `◌` fantasma. */
+const POSTURAS_HTML = `<span class="post"><button id="po-b" title="Colapsar a barra (Alt+P alterna posturas)">─</button><button id="po-f" title="Modo fantasma: se ve, no estorba (Alt+P alterna)">◌</button></span>`;
+
+/**
+ * El comportamiento de las posturas, compartido por los dos paneles. Requiere en
+ * scope: `host`, `root`. Reglas que no son cosmética:
+ *  - **fantasma** = opacidad baja Y transparente a los clics (el QA trabaja con
+ *    la app detrás); la CABECERA queda viva para volver — sin eso, el fantasma
+ *    sería una trampa sin salida;
+ *  - **Escape jamás toca el panel**: el QA lo usa para cerrar modales de la app
+ *    y el manejador de cookies también lo pulsa. El atajo es Alt+P, que alterna
+ *    normal → barra → fantasma;
+ *  - cada cambio (postura o arrastre) se informa a Node por `__qaPanelPrefs`,
+ *    que lo hace durable POR SITIO.
+ */
+function posturasScript(p3?: P3Opts): string {
+  return `
+    const P3 = ${JSON.stringify({ prefs: p3?.prefs ?? {}, tira: p3?.tira ?? [] })};
+    (() => {
+      const tiraEl = root.querySelector('.tira');
+      if (tiraEl) {
+        if (!P3.tira.length) { tiraEl.style.display = 'none'; }
+        const rotulo = { hecho: 'hecho', aqui: 'aquí', nocuadra: 'no cuadra', pend: 'pendiente' };
+        for (const m of P3.tira) {
+          const i = document.createElement('i');
+          i.className = m.e;
+          i.title = m.id + ' — ' + rotulo[m.e];
+          tiraEl.appendChild(i);
+        }
+      }
+      if (P3.prefs.left) { host.style.left = P3.prefs.left; host.style.right = 'auto'; }
+      if (P3.prefs.top) { host.style.top = P3.prefs.top; }
+      let postura = P3.prefs.postura || 'normal';
+      const caja = root.querySelector('.p');
+      const reportar = () => {
+        try { window.__qaPanelPrefs && window.__qaPanelPrefs({ postura, left: host.style.left || null, top: host.style.top || null }); } catch (e) {}
+      };
+      const aplicar = () => {
+        caja.classList.toggle('barra', postura === 'barra');
+        caja.classList.toggle('fantasma', postura === 'fantasma');
+        // fantasma: el host deja pasar los clics y la cabecera se re-arma sola.
+        // Tras la entrega el walker apaga el host (D64); la ventana en que un
+        // Alt+P podría re-armarlo dura lo que el panel tarda en cerrarse solo.
+        host.style.pointerEvents = postura === 'fantasma' ? 'none' : '';
+        const h = root.querySelector('.h'); if (h) h.style.pointerEvents = 'auto';
+        const pb = root.getElementById('po-b'), pf = root.getElementById('po-f');
+        if (pb) pb.className = postura === 'barra' ? 'on' : '';
+        if (pf) pf.className = postura === 'fantasma' ? 'on' : '';
+      };
+      window.__qaPostura = (p) => { postura = p; aplicar(); reportar(); };
+      window.__qaPanelMovido = reportar;
+      const pb = root.getElementById('po-b'), pf = root.getElementById('po-f');
+      if (pb) pb.onclick = (e) => { e.stopPropagation(); window.__qaPostura(postura === 'barra' ? 'normal' : 'barra'); };
+      if (pf) pf.onclick = (e) => { e.stopPropagation(); window.__qaPostura(postura === 'fantasma' ? 'normal' : 'fantasma'); };
+      document.addEventListener('keydown', (e) => {
+        if (!e.altKey || (e.key !== 'p' && e.key !== 'P')) return;
+        window.__qaPostura(postura === 'normal' ? 'barra' : postura === 'barra' ? 'fantasma' : 'normal');
+      }, true);
+      aplicar();
+    })();`;
+}
+
+/** Los comandos de postura del canal \`qa-assist-cmd\` — mismos en ambos paneles. */
+const POSTURAS_CMD = `
+      if (cmd === 'postura-barra') { window.__qaPostura && window.__qaPostura('barra'); return; }
+      if (cmd === 'postura-fantasma') { window.__qaPostura && window.__qaPostura('fantasma'); return; }
+      if (cmd === 'postura-normal') { window.__qaPostura && window.__qaPostura('normal'); return; }`;
+
 /**
  * Panel de asistencia inyectado en la página de la app. Vive en un **shadow root
  * cerrado** con el marcador `data-qa-assist-host` por dos razones:
@@ -558,6 +664,7 @@ function assistOverlayScript(
    * funciona sobre los que se señalen en ESTA vida del panel. Se dice en la interfaz.
    */
   grabado: PickedElement[] = [],
+  p3?: P3Opts,
 ): string {
   return `(() => {
     ${extractionHelpers(testidAttrs)}
@@ -601,10 +708,11 @@ function assistOverlayScript(
         li.asr{background:#1e3a5f;outline:1px solid #2563eb}
         li button{padding:1px 5px;font-size:11px}
         .st{margin-top:6px;color:#9ca3af;font-size:11px}
-        .warn{color:#fca5a5}
+        .warn{color:#fca5a5}${POSTURAS_CSS}
       </style>
       <div class="p">
-        <div class="h"><span>Asistencia QA</span><span id="s">esperando</span></div>
+        <div class="h"><span>Asistencia QA</span><span id="s">esperando</span>${POSTURAS_HTML}</div>
+        <div class="tira"></div>
         <div class="b">
           <div class="ctx"><b>Necesito que me eches una mano.</b> <span class="ref">paso \${'${step.id}'}</span><div class="dx">\${${JSON.stringify(
             // K0.44 — se embebe con JSON.stringify y no como literal entrecomillado a
@@ -879,7 +987,7 @@ function assistOverlayScript(
     // funcionalidad de forma programática — lo usan los tests y permitiría guiar el
     // panel desde el orquestador.
     host.addEventListener('qa-assist-cmd', (ev) => {
-      const cmd = ev && ev.detail;
+      const cmd = ev && ev.detail;${POSTURAS_CMD}
       if (cmd === 'record') startRec();
       else if (cmd === 'pause') pauseRec();
       else if (cmd === 'clear') { seq.length = 0; nodes.length = 0; render(); }
@@ -909,7 +1017,8 @@ function assistOverlayScript(
       host.style.top = (drag.r.top + e.clientY - drag.y) + 'px';
       host.style.right = 'auto';
     });
-    document.addEventListener('mouseup', () => { drag = null; });
+    document.addEventListener('mouseup', () => { if (drag) { drag = null; window.__qaPanelMovido && window.__qaPanelMovido(); } drag = null; });
+${posturasScript(p3)}
     render();
   })()`;
 }
@@ -946,6 +1055,7 @@ function verdictOverlayScript(
   diagnostico: string,
   candidatos: string[],
   rechazo?: string,
+  p3?: P3Opts,
 ): string {
   return `(() => {
     ${extractionHelpers(testidAttrs)}
@@ -982,10 +1092,11 @@ function verdictOverlayScript(
         .chosen{margin-top:8px;padding:6px 8px;border-radius:5px;background:#064e3b;color:#d1fae5;font-size:12px;
                 word-break:break-word}
         .st{margin-top:8px;color:#9ca3af;font-size:11px}
-        .cierre{color:#6b7280;border-top:1px solid #374151;padding-top:6px}
+        .cierre{color:#6b7280;border-top:1px solid #374151;padding-top:6px}${POSTURAS_CSS}
       </style>
       <div class="p">
-        <div class="h"><span>Veredicto QA</span><span id="s">esperando</span></div>
+        <div class="h"><span>Veredicto QA</span><span id="s">esperando</span>${POSTURAS_HTML}</div>
+        <div class="tira"></div>
         <div class="b">
           \${${JSON.stringify(
             /**
@@ -1154,7 +1265,7 @@ function verdictOverlayScript(
     // Mismo canal de comandos que el panel de asistencia: el shadow root es CERRADO,
     // asi que sin esto los tests no podrian pulsar nada.
     host.addEventListener('qa-assist-cmd', (ev) => {
-      const cmd = ev && ev.detail;
+      const cmd = ev && ev.detail;${POSTURAS_CMD}
       if (cmd === 'app') submit('app');
       else if (cmd === 'fd') submit('fd');
       else if (cmd === 'defer') submit('defer');
@@ -1171,7 +1282,8 @@ function verdictOverlayScript(
       host.style.top = (drag.r.top + e.clientY - drag.y) + 'px';
       host.style.right = 'auto';
     });
-    document.addEventListener('mouseup', () => { drag = null; });
+    document.addEventListener('mouseup', () => { if (drag) { drag = null; window.__qaPanelMovido && window.__qaPanelMovido(); } drag = null; });
+${posturasScript(p3)}
     render();
   })()`;
 }
@@ -3692,6 +3804,28 @@ class DomWalker {
       this.assistTrack?.(Array.isArray(seq) ? seq : []);
     });
     /**
+     * P3 — las preferencias del panel (postura y posicion), POR SITIO. El panel
+     * informa en cada cambio y esto las hace durables en config/panel-prefs/,
+     * como los hint-aliases y por la misma razon: son del QA sobre este sitio,
+     * no de un run. Solo se persisten los campos conocidos — el puente es una
+     * superficie que la pagina puede llamar, y no se escribe lo que la pagina
+     * quiera sino lo que el schema dice.
+     */
+    await this.page.exposeFunction('__qaPanelPrefs', (p: PanelPrefs) => {
+      try {
+        const ruta = this.panelPrefsPath;
+        mkdirSync(dirname(ruta), { recursive: true });
+        const limpio: PanelPrefs = {
+          ...(p && (p.postura === 'normal' || p.postura === 'barra' || p.postura === 'fantasma') ? { postura: p.postura } : {}),
+          ...(p && typeof p.left === 'string' && p.left.length < 32 ? { left: p.left } : {}),
+          ...(p && typeof p.top === 'string' && p.top.length < 32 ? { top: p.top } : {}),
+        };
+        writeFileSync(ruta, JSON.stringify(limpio, null, 2), 'utf8');
+      } catch {
+        // preferencias son conveniencia: un fallo de escritura no puede tocar el run
+      }
+    });
+    /**
      * Fase B — el puente del panel de VEREDICTO. Aparte del de asistencia a
      * propósito: aquel transporta una secuencia de elementos para construir un
      * locator, éste un veredicto sobre quién tiene razón. Compartir el canal
@@ -3770,6 +3904,33 @@ class DomWalker {
       if (unique) return { locator: unique, candidate };
     }
     return null;
+  }
+
+  /** P3 — preferencias del panel por sitio, al lado de los hint-aliases. */
+  private get panelPrefsPath(): string {
+    const seguro = this.script.site_id.trim().replace(/[^a-zA-Z0-9._-]/g, '-');
+    return resolve(process.cwd(), 'config/panel-prefs', `${seguro}.json`);
+  }
+
+  /**
+   * P3 — lo que el panel necesita saber del caso para pintarse: las preferencias
+   * durables del sitio y la tira de pasos (hecho / aqui / no cuadra / pendiente),
+   * derivada de lo que el estado YA tiene — completed, open_questions — sin
+   * inventar nada nuevo que mantener.
+   */
+  private p3DelPaso(flow: WalkFlow, step: WalkStep): P3Opts {
+    let prefs: PanelPrefs = {};
+    try {
+      if (existsSync(this.panelPrefsPath)) prefs = parseJsonLoose<PanelPrefs>(readFileSync(this.panelPrefsPath, 'utf8'));
+    } catch {
+      prefs = {}; // preferencias ilegibles: el panel nace con las de fabrica
+    }
+    const bloqueados = new Set(this.state.open_questions.filter((q) => q.flow === flow.flow).map((q) => q.step));
+    const tira: MarcaDeTira[] = flow.steps.map((s) => ({
+      id: s.id,
+      e: s.id === step.id ? 'aqui' : bloqueados.has(s.id) ? 'nocuadra' : this.state.completed.includes(`${flow.flow}/${s.id}`) ? 'hecho' : 'pend',
+    }));
+    return { prefs, tira };
   }
 
   /** Ruta del marcador de asistencia en curso (K0.45/D12). */
@@ -3928,7 +4089,7 @@ class DomWalker {
         this.page
           // D10/D23 — el panel nace con lo ya grabado dentro (recuperado de una
           // sesion interrumpida, o conservado a traves de la navegacion que lo mato).
-          .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, note, mutating, this.assistRecorded))
+          .evaluate(assistOverlayScript(TESTID_ATTR_CANDIDATES, step, note, mutating, this.assistRecorded, this.p3DelPaso(flow, step)))
           .then(() => undefined)
           // K0.44 (D10) — antes esto solo se escribía por consola y la espera seguía
           // viva: el walker aguardaba el timeout entero por un panel que no llegó a
@@ -4276,7 +4437,7 @@ class DomWalker {
       const inject = (rechazo?: string): Promise<void> =>
         this.page
           .evaluate(
-            verdictOverlayScript(TESTID_ATTR_CANDIDATES, step, args.esperado, args.diagnostico, args.candidatos, rechazo),
+            verdictOverlayScript(TESTID_ATTR_CANDIDATES, step, args.esperado, args.diagnostico, args.candidatos, rechazo, this.p3DelPaso(flow, step)),
           )
           .then(() => undefined)
           // K0.44/D10 — si el panel no llega a existir, la espera NO puede seguir

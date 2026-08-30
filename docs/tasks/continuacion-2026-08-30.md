@@ -58,7 +58,7 @@ La frontera que la comparativa dejó medida y no se negocia: IA para semántica 
 walker para repetir, verificar y arbitrar (13,5 s / 0 tokens el arbitraje que desempató a las dos
 pasadas del planner).
 
-### 4. P3 → P4 — posturas del panel
+### 4. P3 → P4 — posturas del panel · P3 CERRADO el 2026-08-30 (banco 15/15 contra OrangeHRM; axe medido y fijado). P4 es una DECISIÓN con el QA: puede que sobre
 
 P3 (colapso, fantasma, tira de pasos, la colisión de `Escape`, medir si el panel contamina el scan
 de axe). P4 se decide con P5 en la mano — puede que sobre. **Regla P7 en vigor: toda rebanada de

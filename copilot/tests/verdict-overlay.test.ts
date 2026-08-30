@@ -17,6 +17,7 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
 import { verdictOverlayScript, TESTID_ATTR_CANDIDATES } from '../src/dom-walker.ts';
+import type { P3Opts, PanelPrefs } from '../src/dom-walker.ts';
 import type { VerdictSubmission } from '../src/walk-verdict.ts';
 import type { WalkStep } from '../src/walk-types.ts';
 
@@ -28,7 +29,7 @@ let browser: Browser;
 let page: Page;
 
 /** Monta el panel con el puente que en producción expone el walker. */
-async function montar(candidatos: string[], rechazo?: string): Promise<VerdictSubmission[]> {
+async function montar(candidatos: string[], rechazo?: string, p3?: P3Opts): Promise<VerdictSubmission[]> {
   const sent: VerdictSubmission[] = [];
   await page.exposeFunction('__qaVerdictSubmit', (p: VerdictSubmission) => {
     sent.push(p);
@@ -43,6 +44,7 @@ async function montar(candidatos: string[], rechazo?: string): Promise<VerdictSu
       `El plan esperaba '${ESPERADO}' y no aparece.`,
       candidatos,
       rechazo,
+      p3,
     ),
   );
   return sent;
@@ -245,6 +247,110 @@ describe('el panel de veredicto — la lista vacía es un hallazgo, no un hueco'
     await cmd('app');
     await page.waitForFunction(() => true, undefined, { timeout: 300 }).catch(() => {});
     expect(sent[0].value, 'el panel se capturó a sí mismo').toBeUndefined();
+    await page.close();
+  }, 120_000);
+});
+
+describe('P3 — posturas del panel: barra, fantasma, y lo que Escape NO hace', () => {
+  it('postura-barra colapsa el cuerpo y postura-normal lo devuelve — nada se pierde por el camino', async () => {
+    page = await browser.newPage();
+    await montar(['Solicitud rechazada']);
+    await cmd({ choose: 0 });
+    await cmd('postura-barra');
+    expect((await ver('.b')).visible, 'la barra tiene que esconder el cuerpo').toBe(false);
+    await cmd('postura-normal');
+    expect((await ver('.b')).visible).toBe(true);
+    // lo elegido SOBREVIVE al cambio de postura
+    expect((await ver('#ch')).texto).toContain('Solicitud rechazada');
+    await page.close();
+  }, 120_000);
+
+  it('FANTASMA: se ve pero no estorba — los clics atraviesan el panel y la cabecera sigue viva', async () => {
+    page = await browser.newPage();
+    await montar(['Solicitud rechazada']);
+    await cmd('postura-fantasma');
+    const estado = await page.evaluate(() => {
+      const host = document.querySelector('[data-qa-assist-host]') as HTMLElement;
+      const r = host.getBoundingClientRect();
+      // el punto medio del CUERPO del panel: en fantasma tiene que dar la PÁGINA
+      const debajo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const cab = host.shadowRoot!.querySelector('.h') as HTMLElement;
+      return {
+        pointer: host.style.pointerEvents,
+        opacidad: getComputedStyle(host.shadowRoot!.querySelector('.p')!).opacity,
+        atraviesa: debajo ? !debajo.closest('[data-qa-assist-host]') : true,
+        cabeceraViva: getComputedStyle(cab).pointerEvents,
+      };
+    });
+    expect(estado.pointer).toBe('none');
+    expect(Number(estado.opacidad)).toBeLessThan(0.5);
+    expect(estado.atraviesa, 'en fantasma el clic tiene que llegar a la app de detrás').toBe(true);
+    expect(estado.cabeceraViva, 'sin cabecera viva el fantasma es una trampa sin salida').toBe('auto');
+    await page.close();
+  }, 120_000);
+
+  it('Alt+P alterna normal → barra → fantasma → normal; ESCAPE no toca nada de nada', async () => {
+    page = await browser.newPage();
+    await montar(['Solicitud rechazada']);
+    await cmd({ choose: 0 });
+    await page.keyboard.press('Alt+P');
+    await page.waitForFunction(() => true, undefined, { timeout: 250 }).catch(() => {});
+    await page.keyboard.press('Alt+P');
+    await page.waitForFunction(() => true, undefined, { timeout: 250 }).catch(() => {});
+    expect((await ver('.b')).visible, 'en fantasma el cuerpo SI se ve (solo baja la opacidad)').toBe(true);
+    const fant = await page.evaluate(() => (document.querySelector('[data-qa-assist-host]')!.shadowRoot!.querySelector('.p') as HTMLElement).classList.contains('fantasma'));
+    expect(fant).toBe(true);
+    await page.keyboard.press('Alt+P');
+    await page.waitForFunction(() => true, undefined, { timeout: 250 }).catch(() => {});
+    expect((await ver('.b')).visible).toBe(true); // normal otra vez
+
+    /**
+     * El contrato de Escape, fijado (P3): el QA lo usa para cerrar modales de la
+     * app y el manejador de cookies también lo pulsa. Si algún día alguien le
+     * pone un listener al panel, esto se pone rojo ANTES de que un QA pierda una
+     * elección por cerrar un datepicker.
+     */
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => true, undefined, { timeout: 250 }).catch(() => {});
+    const vivo = await page.evaluate(() => !!document.querySelector('[data-qa-assist-host]'));
+    expect(vivo, 'Escape cerró el panel').toBe(true);
+    expect((await ver('#ch')).texto, 'Escape perdió lo elegido').toContain('Solicitud rechazada');
+    await page.close();
+  }, 120_000);
+
+  it('la tira pinta el caso entero: hecho, aquí, no-cuadra y pendiente, con su título', async () => {
+    page = await browser.newPage();
+    await montar(['Solicitud rechazada'], undefined, {
+      tira: [
+        { id: 's1', e: 'hecho' },
+        { id: 's2', e: 'nocuadra' },
+        { id: 's3', e: 'aqui' },
+        { id: 's4', e: 'pend' },
+      ],
+    });
+    const marcas = await page.evaluate(() => {
+      const tira = document.querySelector('[data-qa-assist-host]')!.shadowRoot!.querySelectorAll('.tira i');
+      return [...tira].map((i) => ({ c: i.className, t: (i as HTMLElement).title }));
+    });
+    expect(marcas.map((m) => m.c)).toEqual(['hecho', 'nocuadra', 'aqui', 'pend']);
+    expect(marcas[1].t).toContain('s2');
+    expect(marcas[1].t).toContain('no cuadra');
+    await page.close();
+  }, 120_000);
+
+  it('las preferencias viajan: nace como el sitio lo dejó, y cada cambio sale por el puente', async () => {
+    page = await browser.newPage();
+    const prefs: PanelPrefs[] = [];
+    await page.exposeFunction('__qaPanelPrefs', (p: PanelPrefs) => { prefs.push(p); });
+    await montar([], undefined, { prefs: { postura: 'barra', left: '33px', top: '44px' } });
+    const nacimiento = await page.evaluate(() => {
+      const host = document.querySelector('[data-qa-assist-host]') as HTMLElement;
+      return { left: host.style.left, top: host.style.top, barra: host.shadowRoot!.querySelector('.p')!.classList.contains('barra') };
+    });
+    expect(nacimiento).toEqual({ left: '33px', top: '44px', barra: true });
+    await cmd('postura-fantasma');
+    await page.waitForFunction(() => true, undefined, { timeout: 300 }).catch(() => {});
+    expect(prefs.at(-1)).toMatchObject({ postura: 'fantasma', left: '33px', top: '44px' });
     await page.close();
   }, 120_000);
 });

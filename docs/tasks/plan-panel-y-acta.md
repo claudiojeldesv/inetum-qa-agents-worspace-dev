@@ -12,8 +12,7 @@ herramienta, y la herramienta deja de servir.
 **Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
 ([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 y P1 cerrados el
 2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28. P7 (banco de pruebas de paneles, núcleo)
-cerrado el 2026-08-29. P5 fase C (la propuesta de FD) cerrada el 2026-08-30 — P5 COMPLETO.** Quedan P6, P3 y P4, en ese orden — y desde P7, toda rebanada de panel se
-audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
+cerrado el 2026-08-29. P5 fase C, P6 y P3 cerrados el 2026-08-30.** Queda **P4, que es una decisión con el QA, no una tarea** (la pantalla de aprobación ya es una vista del caso y la tira de P3 ya lo enseña de un vistazo). Desde P7, toda rebanada de panel se audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
 
 ---
 
@@ -185,7 +184,7 @@ Found» y dio verde en campo).
 **Comprobación falsable**: un fixture donde el texto esperado no está y hay tres textos de resultado
 → salen los tres, ordenados, y el menú NO sale. Otro donde no hay ninguno → lista vacía.
 
-### P3 — Posturas del panel
+### P3 — Posturas del panel · CERRADO el 2026-08-30 (primera rebanada bajo el protocolo del banco)
 
 Colapsar a barra de una línea (con atajo, y recordando posición y estado por sitio), modo fantasma
 (baja opacidad y deja de capturar eventos), y la **tira de pasos**: los N pasos del caso como marcas
@@ -318,7 +317,7 @@ panel, así que esa medición puede salir gratis de sus informes.
 
 ## 3. Orden y criterios de parada
 
-P0 → ~~P1~~ → ~~P2~~ → ~~P5 (fases A y B)~~ → ~~P7 (núcleo)~~ **hechos** → **P6, lo siguiente** → P3 → P4.
+P0 → ~~P1~~ → ~~P2~~ → ~~P5 completo~~ → ~~P7 (núcleo)~~ → ~~P6~~ → ~~P3~~ **hechos** → **P4, y es una decisión, no una tarea**: la pantalla de aprobación (P5) ya es una vista del caso, y la tira de P3 ya enseña el caso de un vistazo — decidir CON EL QA si P4 aporta algo o sobra.
 
 P6 se adelanta a P3/P4 porque ya tiene con qué contar: el acta lleva decisiones  reales y
 P6 es exactamente el recuento de cuántos criterios están respaldados por la aplicación y no por
