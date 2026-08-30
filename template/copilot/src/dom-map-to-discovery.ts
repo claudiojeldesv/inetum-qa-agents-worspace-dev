@@ -30,6 +30,12 @@ interface DiscoveryElement {
   label?: string;
   /** Cadena de iframes hasta el frame del elemento (K0.4) — el scaffolder emite frameLocator. */
   frame_path?: string[];
+  /**
+   * D16 — los locators que el walker MIDIÓ, en el orden de prioridad del
+   * contract. Antes este adaptador los tiraba y el scaffolder los reconstruía
+   * por heurística: cada locator medido que se pierde se re-paga aguas abajo.
+   */
+  measured_locators?: string[];
 }
 
 interface DiscoveryScreen {
@@ -81,6 +87,9 @@ function toDiscoveryElement(el: DomElement): DiscoveryElement {
   if (el.test_id !== undefined) out.test_id = el.test_id;
   if (el.label !== undefined) out.label = el.label;
   if (el.frame_path?.length) out.frame_path = el.frame_path;
+  // D16 — lo medido viaja; quién lo puede emitir lo decide el consumidor
+  // (parseMeasuredLocator, fail-closed), no este adaptador
+  if (el.locator_candidates?.length) out.measured_locators = el.locator_candidates;
   return out;
 }
 

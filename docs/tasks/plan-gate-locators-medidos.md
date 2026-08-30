@@ -81,7 +81,31 @@ Las dos últimas filas son las que dan valor por encima de un `grep`:
   que habla la regla — es que todavía no se ha preguntado por el vocabulario. Sin esta salvedad el gate
   marcaría cada locator compuesto y se volvería ruido.
 
-### G2 — smoke run instrumentado, antes de que la suite sea el juez
+### G2 — smoke run instrumentado, antes de que la suite sea el juez · ENTREGADO el 2026-08-30, con una desviación escrita
+
+**Lo entregado** (bloque «la IA usa el walker», continuación 2026-08-30):
+
+- **La separación de rojos** — `npm run qa:smoke` (`src/scripts/smoke-run.ts`): corre el lote con el
+  runner real (`--reporter=json`) y clasifica cada rojo por el SITIO del fallo: `locator` (lo
+  arregla el Writer), `asercion` (posible defecto del PRODUCTO — el Writer NO la toca; se escala),
+  `entorno` (la guarda D43: el propio error nombra la variable) y `desconocida` (declarada, no
+  inventada). El borde que decide todo, probado: un expect que expira menciona «waiting for» y AUN
+  ASÍ es aserción. Salida JSONL + resumen + audit; exit 2 con rojos.
+- **El cazador de EQUIVOCADO** — `MF-eligio-a-ciegas` en pre-review: un `.first()`/`.nth()` cuya
+  base la MEDICIÓN declara `ambiguous(n)` es must-fix AUNQUE el test esté verde (la clase
+  firstInvoiceRefLink). Misma disciplina anti-ruido que G1: sin medición, sin elemento medido o sin
+  pantalla acotada, NO aplica — y un `.first()` sobre base única medida no molesta.
+
+**La desviación, deliberada y con su porqué**: el plan pedía un fixture activo bajo `QA_SMOKE=1`
+que registrara `count()` en el momento de usar cada locator. Eso exige o tocar el import del
+spec-template (el golden que fijan K0.43 y los checks SF) o parchear playwright-core por preload —
+las dos con más coste que valor hoy, porque el desenlace EQUIVOCADO que esa mitad cazaba lo caza
+`MF-eligio-a-ciegas` con el dato que verify-locators YA mide. `QA_SMOKE=1` queda exportado y
+reservado por si el fixture se materializa.
+
+Diseño original:
+
+#### G2 — smoke run instrumentado, antes de que la suite sea el juez
 
 Un run por spec contra el sitio, con un fixture activo solo bajo `QA_SMOKE=1` que envuelve la
 resolución y registra, por cada locator usado, su `count()` en el momento de usarlo. Sale un JSONL,
@@ -160,7 +184,16 @@ Declararlo por adelantado evita venderle al gate un mérito que no tiene.
 **Predicción**: el nombre accesible real de la columna `Ref.` no es exactamente `Ref.`. Si G3 lo revela,
 TC-004 se arregla en un intento. Barato y cae de inmediato.
 
-### I5 — G2 sobre el corpus (solo si I1 e I2 pasan)
+### I5 — G2 sobre el corpus · SINTÉTICA el 2026-08-30; la del corpus, pendiente del corpus
+
+**El corpus de campo no está en esta máquina** (los planes lo daban por intacto; no lo está — está
+anotado en la memoria del proyecto). La I5 corrió en versión sintética con la MISMA forma del caso
+real: cabecera y fila comparten (rol, nombre), la medición dice `ambiguous(2)`, el spec elige con
+`.first()` — y `MF-eligio-a-ciegas` lo marca con el test en verde, con su par de control (base única
+→ silencio). La I5 contra el corpus real queda pendiente de que el corpus vuelva.
+
+Diseño original:
+
 
 **Predicción**: el conteo marca `firstInvoiceRefLink` con `count >= 2` en un spec **verde**. Es la única
 prueba del valor propio de la mitad dinámica; si no lo caza, G2 no se justifica.

@@ -20,6 +20,8 @@ import {
   assertsLandingUrl,
   screenFileName,
   type PreReviewContract,
+  anclasElegidasACiegas,
+  veredictoDeCiega,
 } from '../../src/scripts/pre-review.ts';
 
 const BASE: PreReviewContract = {
@@ -964,5 +966,60 @@ describe('G1 — la via de escape del protocolo Q2 (medida en I2)', () => {
     const src = "this.error = this.page.getByTestId('error') /* verify-locators: not-found en el estado por defecto */;";
     expect(extractGetByAnchors(src)[0].sanctioned).toBe(true);
     expect(extractGetByAnchors("page.getByTestId('error');")[0].sanctioned).toBe(false);
+  });
+});
+
+describe('G2 — MF-eligio-a-ciegas: el .first() sobre base ambigua, la I5 sintética', () => {
+  /**
+   * El corpus de campo con el caso real (firstInvoiceRefLink, Dolibarr) no está
+   * en esta máquina, así que la I5 del plan corre aquí en versión sintética con
+   * la MISMA forma: cabecera y fila comparten (rol, nombre), la medición lo
+   * declara ambiguous, y el spec elige con .first() — verde y equivocable.
+   */
+  const MED = {
+    elementos: [
+      { screen: 'invoices', role: 'link', name: 'Ref.', verified: false, verify_reason: 'ambiguous(2)' },
+      { screen: 'invoices', role: 'button', name: 'Search', verified: true },
+    ],
+    pantallas: new Map([['invoices', true]]),
+  };
+
+  it('extrae las cadenas .first()/.nth() con su base y su línea', () => {
+    const src = [
+      "await page.getByRole('link', { name: 'Ref.' }).first().click();",
+      "await page.getByRole('button', { name: 'Search' }).click();",
+      "await page.getByLabel('Amount').nth(2).fill('7');",
+    ].join('\n');
+    const anclas = anclasElegidasACiegas(src);
+    expect(anclas).toHaveLength(2);
+    expect(anclas[0]).toMatchObject({ base: "getByRole('link', { name: 'Ref.' })", disambiguador: 'first()', line: 1 });
+    expect(anclas[1]).toMatchObject({ base: "getByLabel('Amount')", disambiguador: 'nth(2)', line: 3 });
+  });
+
+  it('LA I5: base ambigua medida + .first() → must-fix AUNQUE el test esté verde', () => {
+    const v = veredictoDeCiega(
+      { line: 1, base: "getByRole('link', { name: 'Ref.' })", disambiguador: 'first()' },
+      MED,
+      new Set(['invoices']),
+    );
+    expect(v).toBeTruthy();
+    expect(v).toContain('A CIEGAS');
+    expect(v).toContain('2');
+    expect(v).toContain('firstInvoiceRefLink');
+  });
+
+  it('EL PAR: la misma forma sobre base ÚNICA medida no molesta — un .first() defensivo no es finding', () => {
+    const v = veredictoDeCiega(
+      { line: 1, base: "getByRole('button', { name: 'Search' })", disambiguador: 'first()' },
+      MED,
+      new Set(['invoices']),
+    );
+    expect(v).toBeNull();
+  });
+
+  it('la disciplina de G1: sin pantalla acotada o sin elemento medido, NO aplica', () => {
+    const ciega = { line: 1, base: "getByRole('link', { name: 'Ref.' })", disambiguador: 'first()' };
+    expect(veredictoDeCiega(ciega, MED, new Set())).toBeNull();
+    expect(veredictoDeCiega({ ...ciega, base: "getByRole('link', { name: 'Otro' })" }, MED, new Set(['invoices']))).toBeNull();
   });
 });

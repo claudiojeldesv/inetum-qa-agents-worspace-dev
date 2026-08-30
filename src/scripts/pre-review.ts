@@ -36,6 +36,8 @@ import { pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
 import { appendAuditEntry } from '../audit-log.ts';
+import { parseMeasuredLocator } from '../pom-scaffolder.ts';
+import type { MeasuredSpec } from '../pom-scaffolder.ts';
 import { leerOraculosDeSpec } from '../oracle-origin.ts';
 import type { OraculosDeSpec } from '../oracle-origin.ts';
 import { extractTestBlocks, loadA11yContract, verifySpec } from './verify-a11y.ts';
@@ -716,6 +718,68 @@ export function assertsLandingUrl(source: string): boolean {
   return /\btoHaveURL\s*\(/.test(source) || /\bwaitForURL\s*\(/.test(source);
 }
 
+// ---------------------------------------------------------------------------
+// MF-eligio-a-ciegas (G2, plan gate-locators-medidos) — el cazador de EQUIVOCADO.
+//
+// Un `.first()`/`.nth()` sobre una base que la MEDICIÓN declara ambigua elige
+// 1 de N a ciegas: puede estar operando el elemento equivocado CON EL TEST EN
+// VERDE. El caso real que lo prueba: `firstInvoiceRefLink` clicaba el enlace de
+// ordenación de la cabecera en vez del de la fila, suite verde. Ninguna capa
+// estática pura lo ve (un .first() legítimo es idéntico a uno envenenado): hace
+// falta el dato medido. Sin medición, sin elemento medido o sin pantalla
+// acotada, el check NO aplica — la disciplina de G1: no se inventan exigencias,
+// y un falso positivo aquí mata el gate (I2).
+// ---------------------------------------------------------------------------
+
+export interface AnclaCiega {
+  line: number;
+  base: string;
+  disambiguador: string;
+}
+
+/** Las cadenas `getByX(...).first()` / `.nth(N)` de un fichero, con su línea. */
+export function anclasElegidasACiegas(texto: string): AnclaCiega[] {
+  const out: AnclaCiega[] = [];
+  const re = /(getBy\w+\(\s*'(?:[^'\\]|\\.)*'\s*(?:,\s*\{[^{}]*\})?\s*\))\s*\.\s*(first\(\)|nth\(\s*\d+\s*\))/g;
+  for (const m of texto.matchAll(re)) {
+    out.push({ line: lineOf(texto, m.index!), base: m[1], disambiguador: m[2].replace(/\s+/g, '') });
+  }
+  return out;
+}
+
+function coincideConMedido(spec: MeasuredSpec, e: ElementoMedido): boolean {
+  switch (spec.kind) {
+    case 'testId':
+      return e.test_id === spec.testId;
+    case 'roleName':
+      return e.role === spec.role && e.name === spec.name;
+    case 'label':
+      return e.label === spec.label;
+    case 'text':
+      return e.role === 'text' && e.name === spec.text;
+  }
+}
+
+/** El veredicto de una ancla ciega contra la medición, o null si no aplica. */
+export function veredictoDeCiega(
+  ancla: AnclaCiega,
+  med: MedicionDiscovery,
+  pantallasDelSpec: Set<string>,
+): string | null {
+  if (pantallasDelSpec.size === 0) return null; // sin acotar, no se inventan exigencias
+  const spec = parseMeasuredLocator(ancla.base);
+  if (!spec) return null; // base no parseable: fuera del vocabulario medible
+  const candidatos = med.elementos.filter((e) => pantallasDelSpec.has(e.screen) && coincideConMedido(spec, e));
+  const ambiguo = candidatos.find((e) => e.verify_reason?.startsWith('ambiguous('));
+  if (!ambiguo) return null; // único o no medido: un .first() defensivo no es un finding
+  const n = /ambiguous\((\d+)\)/.exec(ambiguo.verify_reason ?? '')?.[1] ?? '2+';
+  return (
+    `'${ancla.base}.${ancla.disambiguador}' elige 1 de ${n} A CIEGAS: la medición dice que la base ` +
+    `resuelve a ${n} elementos en '${ambiguo.screen}' — puede estar operando el equivocado con el ` +
+    `test en VERDE (G2, caso firstInvoiceRefLink). Desambigua por contenedor o por dato, no por posición`
+  );
+}
+
 export function preReviewSpec(
   filePath: string,
   contract: PreReviewContract,
@@ -859,6 +923,21 @@ export function preReviewSpec(
           severity: v.severity,
           location: { line: ancla.line },
           description: (etiqueta ? `[${basename(etiqueta)}] ` : '') + v.description,
+        });
+      }
+    }
+
+    // MF-eligio-a-ciegas (G2) — mismas fuentes (spec + POMs), mismo acotado por pantalla
+    for (const [etiqueta, texto] of ficherosDeEspera) {
+      for (const ciega of anclasElegidasACiegas(texto)) {
+        const veredicto = veredictoDeCiega(ciega, medicion, pantallasDelSpec);
+        if (!veredicto) continue;
+        add({
+          criterion_id: 'MF-eligio-a-ciegas',
+          category: 'locator-strategy',
+          severity: 'must-fix',
+          location: { line: ciega.line },
+          description: (etiqueta ? `[${basename(etiqueta)}] ` : '') + veredicto,
         });
       }
     }

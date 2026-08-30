@@ -42,7 +42,7 @@ Cada criterio arrastra de dónde salió su oráculo (`fd` | `app` | `captura`), 
 su JSDoc, una regla de pre-review lo lee, y el resumen del run cuenta cuántos criterios respalda la
 aplicación y no el FD. Ya tiene el dato debajo: el acta lleva decisiones reales (`app` con literal).
 
-### 3. El bloque «la IA usa el walker» — añadido el 2026-08-30 a petición del QA
+### 3. El bloque «la IA usa el walker» · ENTREGADO el 2026-08-30 (D66, D16, D5 cerrados; G2 con desviación escrita en su plan; I5 del corpus pendiente del corpus)
 
 Origen: la pregunta *«¿es un ahorro que la misma IA utilice el walker?»* — sí, y el cableado está a
 medio terminar. Cada pieza mueve trabajo de tokens re-pagados a determinismo gratis:
