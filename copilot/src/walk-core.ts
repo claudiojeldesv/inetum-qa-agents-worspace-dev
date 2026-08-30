@@ -1648,3 +1648,38 @@ export function pruneAriaSnapshot(snapshot: string, maxLines = 120, focus = ''):
   if (prev < lines.length - 1) out.push(`# ... podado: ${lines.length - 1 - prev} líneas más`);
   return out.join('\n');
 }
+
+// ------------------------------------------------------------------ D66
+
+/**
+ * D66 — ¿hay que limpiar la sesión antes de RE-EJECUTAR un flujo a medias?
+ *
+ * La reanudación re-ejecuta un flujo parcial desde su primer paso (saltar los
+ * completados exigiría aterrizar en la pantalla del pendiente — el deep-link
+ * que K0.24 declara no garantizable). Pero re-ejecutar un login con la sesión
+ * del checkpoint restaurada es irresoluble: el navegador despierta ya dentro,
+ * `fill Username` no existe, el walker pide rescate de un paso YA completado y
+ * descarta la respuesta legítima del pendiente como «respuesta de otro paso».
+ * Medido contra OrangeHRM (2026-08-29): bucle quema-tokens si se orquesta a
+ * ciegas. La re-ejecución exige la MISMA sesión que midió el run original —
+ * limpia — y eso es lo que este predicado decide.
+ *
+ * Las dos excepciones, deliberadas:
+ *  - la sesión la trajo el CALLER (`--storage-state`, proyecto de auth): está
+ *    pensada para compartirse y limpiarla rompería el reuso a propósito;
+ *  - el contract declara `isolate_flows: false`: el guion DEPENDE de sesión
+ *    entre flujos, y ahí la re-ejecución limpia no puede reconstruir el estado
+ *    de todos modos — limitación conocida, no se disimula limpiando a medias.
+ */
+export function debeReiniciarSesionAlReanudar(i: {
+  /** El flujo tiene pasos completados en `state.completed` pero no todos. */
+  flujoAMedias: boolean;
+  /** La sesión activa viene del checkpoint propio (`walk-session.json`). */
+  sesionEsCheckpoint: boolean;
+  /** `walker.isolate_flows` del contract (default true). */
+  aislamientoDelContract: boolean;
+  /** El caller pasó `--storage-state` / QA_STORAGE_STATE. */
+  sesionDelCaller: boolean;
+}): boolean {
+  return i.flujoAMedias && i.sesionEsCheckpoint && i.aislamientoDelContract && !i.sesionDelCaller;
+}

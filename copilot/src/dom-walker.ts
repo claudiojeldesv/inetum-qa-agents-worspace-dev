@@ -94,6 +94,7 @@ import {
   type LocatorAttempt,
   urlEstable,
   primerSegmentoNoExpresable,
+  debeReiniciarSesionAlReanudar,
 } from './walk-core.ts';
 // el marcador de peldaños (K0.27a) ya sabe leer una cadena de locator: reimplementar
 // esa clasificación aquí sería tener dos verdades sobre qué peldaño resolvió el paso
@@ -6146,6 +6147,35 @@ class DomWalker {
         const keys = ['__entry', ...flow.steps.map((s) => s.id)].map((id) => `${flow.flow}/${id}`);
         // flujo 100% completado en un run anterior: se salta (sesión restaurada de walk-session.json)
         if (keys.every((k) => this.state.completed.includes(k))) continue;
+
+        /**
+         * D66 — un flujo A MEDIAS se re-ejecuta desde su primer paso, y hacerlo
+         * con la sesión del checkpoint restaurada envenenaba la reanudación: el
+         * login sobre un dashboard ya logueado es irresoluble, el walker pedía
+         * rescate de un paso YA completado y la respuesta legítima del paso
+         * pendiente se descartaba como «respuesta de otro paso» (medido contra
+         * OrangeHRM, bucle quema-tokens). La re-ejecución exige la sesión limpia
+         * que midió el run original. El predicado —con sus dos excepciones,
+         * sesión del caller y flujos no aislados— vive en walk-core con su tabla.
+         */
+        if (
+          debeReiniciarSesionAlReanudar({
+            flujoAMedias: keys.some((k) => this.state.completed.includes(k)),
+            sesionEsCheckpoint: storageState === sessionCheckpoint,
+            aislamientoDelContract:
+              (this.contract as { walker?: { isolate_flows?: boolean } }).walker?.isolate_flows !== false,
+            sesionDelCaller: Boolean(this.opts.storageState),
+          })
+        ) {
+          await this.context.clearCookies().catch(() => {});
+          await this.page
+            .evaluate('try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}')
+            .catch(() => {});
+          console.error(
+            `[dom-walker] sesión del checkpoint DESCARTADA para re-ejecutar '${flow.flow}' desde su primer paso (D66): ` +
+              `la re-ejecución exige la sesión limpia que midió el run original`,
+          );
+        }
 
         // pasos que quedaron bloqueados en un run anterior: siguen bloqueados, no se re-intentan
         const blocked = new Set(
