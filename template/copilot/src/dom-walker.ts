@@ -97,6 +97,9 @@ import {
   debeReiniciarSesionAlReanudar,
   debeAislarFlujos,
   esEcoDelHint,
+  resolveViewport,
+  notaTextoOculto,
+  type Viewport,
   puertaBloqueadaAntes,
   triajeDelBloqueo,
 } from './walk-core.ts';
@@ -220,6 +223,8 @@ interface WalkerOptions {
   decisionsPath?: string;
   /** Override global de settle por CLI/env (K0.13). Pisa contract y script, no el paso. */
   settleOverride?: SettleProfile;
+  /** D71 — viewport EFECTIVO del run (null = default de Playwright, sin declarar). */
+  viewport?: Viewport | null;
   /** Perfil de tiempos durable. Default config/timing-profiles/<site_id>.json */
   timingProfilePath?: string;
   /** Calibrar timeouts con lo observado en runs anteriores. Off con --no-calibrate. */
@@ -5284,7 +5289,21 @@ class DomWalker {
           // K0.35 — y si la pantalla es un volcado de excepción, decirlo: "el
           // negocio no ocurrió" y "la aplicación se cayó" no son el mismo hallazgo.
           const error = await this.notaPaginaError();
-          const motivo = `drift: postcondición del FD no observada — texto '${value}' no visible${suffix}${error}`;
+          // D71 — ¿el texto NO está, o está y no se ve? Son dos hallazgos distintos
+          // y solo uno es del negocio. Contarlo cuesta una llamada al DOM.
+          const ocultos = await this.page
+            .getByText(value)
+            .count()
+            .then(async (n) => {
+              let escondidos = 0;
+              for (let i = 0; i < Math.min(n, 5); i++) {
+                if (!(await this.page.getByText(value).nth(i).isVisible().catch(() => true))) escondidos++;
+              }
+              return escondidos;
+            })
+            .catch(() => 0);
+          const oculto = notaTextoOculto({ nodosOcultos: ocultos, viewport: this.opts.viewport ?? null });
+          const motivo = `drift: postcondición del FD no observada — texto '${value}' no visible${suffix}${error}${oculto}`;
           /**
            * FASE B — aquí moría el único drift que no podía llegar al acta. El
            * veredicto se pide ANTES de bloquear, con la pantalla delante, y lo que
@@ -6304,7 +6323,13 @@ class DomWalker {
       ...(storageState ? { storageState } : {}),
       ...(animProfile.disable_animations ? { reducedMotion: 'reduce' as const } : {}),
       ...(this.locale ? { locale: this.locale } : {}),
+      // D71 — declarado o el default de Playwright, pero SIEMPRE dicho por pantalla:
+      // un viewport invisible convierte cualquier maqueta responsiva en drift falso.
+      ...(this.opts.viewport ? { viewport: this.opts.viewport } : {}),
     });
+    console.log(
+      `[dom-walker] viewport ${this.opts.viewport ? `${this.opts.viewport.width}×${this.opts.viewport.height} (declarado)` : '1280×720 (default de Playwright — sin declarar; ver D71)'}`
+    );
     if (animProfile.disable_animations) {
       // string, no referencia de función — mismo motivo que settleScript: esbuild
       // (tsx en producción) envuelve funciones con __name, inexistente en la
@@ -6608,6 +6633,7 @@ async function main(): Promise<void> {
       'busy-selector': { type: 'string', multiple: true },
       'timing-profile': { type: 'string' },
       'no-calibrate': { type: 'boolean', default: false },
+      viewport: { type: 'string' },
       from: { type: 'string' },
       to: { type: 'string' },
       'step-delay': { type: 'string' },
@@ -6657,6 +6683,11 @@ async function main(): Promise<void> {
     rf: values.rf,
     decisionsPath: values.decisions ?? process.env.QA_DECISIONS,
     settleOverride: settleFromCli(values),
+    // D71 — declarado, no heredado: CLI > contract > default de Playwright.
+    viewport: resolveViewport({
+      cli: values.viewport ?? process.env.QA_VIEWPORT,
+      contract: (contract as StyleContract & { viewport?: Viewport }).viewport ?? null,
+    }),
     timingProfilePath: values['timing-profile'] ?? process.env.QA_TIMING_PROFILE,
     calibrate: !(values['no-calibrate'] ?? false),
     fromStep: values.from,

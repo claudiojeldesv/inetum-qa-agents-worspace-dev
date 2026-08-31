@@ -1,0 +1,606 @@
+{
+  "version": 1,
+  "site_id": "espocrm",
+  "steps": {
+    "cp001-acceso/__entry": {
+      "samples": [
+        463,
+        4541
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp001-acceso/s1": {
+      "samples": [
+        2548
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp001-acceso/s2": {
+      "samples": [
+        2510
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp001-acceso/s3": {
+      "samples": [
+        2543
+      ],
+      "screen": "inicio",
+      "updated": "2026-08-31"
+    },
+    "cp001-acceso/s4": {
+      "samples": [
+        413,
+        2561
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp001-acceso/s5": {
+      "samples": [
+        451,
+        2504
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp001-acceso/s6": {
+      "samples": [
+        438,
+        2559
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp001-acceso/s7": {
+      "samples": [
+        441,
+        2510
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/__entry": {
+      "samples": [
+        865,
+        2958
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/s1": {
+      "samples": [
+        444,
+        2502
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/s2": {
+      "samples": [
+        452,
+        2513
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/s3": {
+      "samples": [
+        425,
+        4893
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/s5": {
+      "samples": [
+        445,
+        2509
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/s6": {
+      "samples": [
+        453,
+        3778
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/s7": {
+      "samples": [
+        456,
+        2506
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp002-consulta-cartera/s8": {
+      "samples": [
+        436,
+        2508
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp003-busqueda-cuenta/__entry": {
+      "samples": [
+        494,
+        2921
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp003-busqueda-cuenta/s1": {
+      "samples": [
+        493,
+        2502
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp003-busqueda-cuenta/s2": {
+      "samples": [
+        426,
+        2561
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp003-busqueda-cuenta/s3": {
+      "samples": [
+        431,
+        4904
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp003-busqueda-cuenta/s5": {
+      "samples": [
+        407,
+        2517
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp003-busqueda-cuenta/s6": {
+      "samples": [
+        579,
+        3652
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp003-busqueda-cuenta/s7": {
+      "samples": [
+        442,
+        2561
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/__entry": {
+      "samples": [
+        937,
+        2938
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s1": {
+      "samples": [
+        431,
+        2559
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s10": {
+      "samples": [
+        438,
+        2555
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s2": {
+      "samples": [
+        443,
+        2504
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s3": {
+      "samples": [
+        418,
+        4478
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s6": {
+      "samples": [
+        439,
+        2510
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s7": {
+      "samples": [
+        438,
+        3734
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s8": {
+      "samples": [
+        441,
+        2513
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp004-ficha-cuenta/s9": {
+      "samples": [
+        440,
+        2561
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/__entry": {
+      "samples": [
+        892,
+        3098
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s1": {
+      "samples": [
+        434,
+        2502
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s10": {
+      "samples": [
+        437,
+        2550
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s2": {
+      "samples": [
+        425,
+        2553
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s3": {
+      "samples": [
+        422,
+        4337
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s6": {
+      "samples": [
+        445,
+        2560
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s7": {
+      "samples": [
+        439,
+        3432
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s8": {
+      "samples": [
+        436,
+        2554
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp005-relaciones-cuenta/s9": {
+      "samples": [
+        437,
+        2550
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp006-validacion-alta/__entry": {
+      "samples": [
+        907,
+        3306
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp006-validacion-alta/s1": {
+      "samples": [
+        433,
+        2510
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp006-validacion-alta/s2": {
+      "samples": [
+        431,
+        2558
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp006-validacion-alta/s3": {
+      "samples": [
+        415,
+        4247
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp006-validacion-alta/s7": {
+      "samples": [
+        435,
+        2557
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp006-validacion-alta/s8": {
+      "samples": [
+        442,
+        3231
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp007-alta-cuenta/__entry": {
+      "samples": [
+        895,
+        3047
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp007-alta-cuenta/s1": {
+      "samples": [
+        438,
+        2559
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp007-alta-cuenta/s12": {
+      "samples": [
+        445,
+        2561
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp007-alta-cuenta/s13": {
+      "samples": [
+        436,
+        2563
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp007-alta-cuenta/s2": {
+      "samples": [
+        429,
+        2501
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp007-alta-cuenta/s3": {
+      "samples": [
+        421,
+        4441
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp008-cuenta-en-cartera/__entry": {
+      "samples": [
+        924,
+        3004
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp008-cuenta-en-cartera/s1": {
+      "samples": [
+        434,
+        2548
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp008-cuenta-en-cartera/s2": {
+      "samples": [
+        430,
+        2552
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp008-cuenta-en-cartera/s3": {
+      "samples": [
+        415,
+        4361
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp008-cuenta-en-cartera/s5": {
+      "samples": [
+        442,
+        2559
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp008-cuenta-en-cartera/s6": {
+      "samples": [
+        739,
+        3474
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp008-cuenta-en-cartera/s7": {
+      "samples": [
+        420,
+        2537
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/__entry": {
+      "samples": [
+        425,
+        2990
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/s1": {
+      "samples": [
+        2560
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/s11": {
+      "samples": [
+        431,
+        2548
+      ],
+      "screen": "ficha-cuenta-nueva",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/s2": {
+      "samples": [
+        2552
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/s3": {
+      "samples": [
+        4300
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/s5": {
+      "samples": [
+        2510
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/s6": {
+      "samples": [
+        541,
+        3651
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp009-baja-cuenta/s7": {
+      "samples": [
+        4859
+      ],
+      "screen": "ficha-cuenta-nueva",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/__entry": {
+      "samples": [
+        883,
+        3028
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/s1": {
+      "samples": [
+        432,
+        2557
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/s2": {
+      "samples": [
+        429,
+        2506
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/s3": {
+      "samples": [
+        425,
+        4252
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/s5": {
+      "samples": [
+        444,
+        2555
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/s6": {
+      "samples": [
+        429,
+        3771
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/s7": {
+      "samples": [
+        440,
+        2506
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    },
+    "cp010-idioma-del-listado/s8": {
+      "samples": [
+        446,
+        2503
+      ],
+      "screen": "home",
+      "updated": "2026-08-31"
+    }
+  }
+}

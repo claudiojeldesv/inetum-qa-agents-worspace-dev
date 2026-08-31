@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "site_id": "espocrm",
+  "entry": "/",
+  "flows": [
+    {
+      "flow": "cp001-acceso",
+      "criteria": ["CP001"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas", "screen": "inicio" },
+        { "id": "s4", "action": "expect_text", "value": "Cuentas" },
+        { "id": "s5", "action": "expect_text", "value": "Contactos" },
+        { "id": "s6", "action": "expect_text", "value": "Posibles clientes" },
+        { "id": "s7", "action": "expect_text", "value": "Oportunidades" }
+      ]
+    },
+    {
+      "flow": "cp002-consulta-cartera",
+      "criteria": ["CP002"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply", "screen": "listado-cuentas" },
+        { "id": "s5", "action": "expect_text", "value": "AFP Supply" },
+        { "id": "s6", "action": "expect_text", "value": "Janeville" },
+        { "id": "s7", "action": "expect_text", "value": "Venta al por mayor" },
+        { "id": "s8", "action": "expect_text", "value": "Cliente" }
+      ]
+    },
+    {
+      "flow": "cp003-busqueda-cuenta",
+      "criteria": ["CP003"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "fill", "hint": { "role": "searchbox" }, "value": "AFP" },
+        { "id": "s6", "action": "press", "hint": { "role": "searchbox" }, "value": "Enter" },
+        { "id": "s7", "action": "expect_text", "value": "AFP Supply" }
+      ]
+    },
+    {
+      "flow": "cp004-ficha-cuenta",
+      "criteria": ["CP004"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "click", "hint": { "role": "link", "name": "AFP Supply" }, "retry_safe": true, "expect_transition": true, "screen": "ficha-cuenta" },
+        { "id": "s6", "action": "expect_text", "value": "contact@afp-supply.de" },
+        { "id": "s7", "action": "expect_text", "value": "+49125648741" },
+        { "id": "s8", "action": "expect_text", "value": "Teltower Damm 301" },
+        { "id": "s9", "action": "expect_text", "value": "Germany" },
+        { "id": "s10", "action": "expect_text", "value": "Venta al por mayor" }
+      ]
+    },
+    {
+      "flow": "cp005-relaciones-cuenta",
+      "criteria": ["CP005"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "click", "hint": { "role": "link", "name": "AFP Supply" }, "retry_safe": true, "expect_transition": true, "screen": "ficha-cuenta" },
+        { "id": "s6", "action": "expect_text", "value": "Contactos" },
+        { "id": "s7", "action": "expect_text", "value": "Oportunidades" },
+        { "id": "s8", "action": "expect_text", "value": "Frederick Devine" },
+        { "id": "s9", "action": "expect_text", "value": "Laptops for employees" },
+        { "id": "s10", "action": "expect_text", "value": "Cerrado ganado" }
+      ]
+    },
+    {
+      "flow": "cp006-validacion-alta",
+      "criteria": ["CP006"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "click", "hint": { "role": "button", "name": "Crear cuenta" }, "retry_safe": true, "expect_after": "Guardar", "screen": "alta-cuenta" },
+        { "id": "s6", "action": "click", "hint": { "role": "button", "name": "Guardar" } },
+        { "id": "s7", "action": "expect_text", "value": "No válido" },
+        { "id": "s8", "action": "expect_text", "value": "Nombre es requerido" }
+      ]
+    },
+    {
+      "flow": "cp007-alta-cuenta",
+      "criteria": ["CP007"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "click", "hint": { "role": "button", "name": "Crear cuenta" }, "retry_safe": true, "expect_after": "Guardar", "screen": "alta-cuenta" },
+        { "id": "s6", "action": "fill", "hint": { "label": "Nombre" }, "value": "QA Inetum Prueba" },
+        { "id": "s7", "action": "fill", "hint": { "label": "Sitio web" }, "value": "www.qa-inetum-prueba.es" },
+        { "id": "s8", "action": "fill", "hint": { "placeholder": "Ciudad" }, "scope": { "text": "Dirección de facturación" }, "value": "Madrid" },
+        { "id": "s9", "action": "fill", "hint": { "placeholder": "País" }, "scope": { "text": "Dirección de facturación" }, "value": "España" },
+        { "id": "s10", "action": "fill", "hint": { "label": "Descripción" }, "value": "Alta de prueba QA. Ignorar." },
+        { "id": "s11", "action": "click", "hint": { "role": "button", "name": "Guardar" }, "expect_transition": true, "screen": "ficha-cuenta-nueva" },
+        { "id": "s12", "action": "expect_text", "value": "QA Inetum Prueba" },
+        { "id": "s13", "action": "expect_text", "value": "Madrid" }
+      ]
+    },
+    {
+      "flow": "cp008-cuenta-en-cartera",
+      "criteria": ["CP008"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "fill", "hint": { "role": "searchbox" }, "value": "QA Inetum" },
+        { "id": "s6", "action": "press", "hint": { "role": "searchbox" }, "value": "Enter" },
+        { "id": "s7", "action": "expect_text", "value": "QA Inetum Prueba" }
+      ]
+    },
+    {
+      "flow": "cp009-baja-cuenta",
+      "criteria": ["CP009"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "fill", "hint": { "role": "searchbox" }, "value": "QA Inetum" },
+        { "id": "s6", "action": "press", "hint": { "role": "searchbox" }, "value": "Enter" },
+        { "id": "s7", "action": "click", "hint": { "role": "link", "name": "QA Inetum Prueba" }, "retry_safe": true, "expect_transition": true, "screen": "ficha-cuenta-nueva" },
+        { "id": "s8", "action": "click", "hint": { "role": "button", "name": "Acciones" } },
+        { "id": "s9", "action": "click", "hint": { "role": "link", "name": "Eliminar" } },
+        { "id": "s10", "action": "click", "hint": { "role": "button", "name": "Eliminar" }, "scope": { "role": "dialog" } },
+        { "id": "s11", "action": "expect_text", "value": "Cuentas" }
+      ]
+    },
+    {
+      "flow": "cp010-idioma-del-listado",
+      "criteria": ["CP010"],
+      "unauthenticated": true,
+      "steps": [
+        { "id": "s1", "action": "select", "hint": { "label": "Username" }, "value": "Administrator" },
+        { "id": "s2", "action": "select", "hint": { "label": "Language" }, "value": "Spanish (Spain)" },
+        { "id": "s3", "action": "click", "hint": { "role": "button", "name": "Login" }, "retry_safe": true, "expect_after": "Cuentas" },
+        { "id": "s4", "action": "click", "hint": { "role": "link", "name": "Cuentas" }, "retry_safe": true, "expect_after": "AFP Supply" },
+        { "id": "s5", "action": "expect_text", "value": "Nombre" },
+        { "id": "s6", "action": "expect_text", "value": "Industria" },
+        { "id": "s7", "action": "expect_text", "value": "Tipo" },
+        { "id": "s8", "action": "expect_text", "value": "País" }
+      ]
+    }
+  ]
+}

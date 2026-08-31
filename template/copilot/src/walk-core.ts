@@ -1632,6 +1632,57 @@ export function debeAislarFlujos(i: { aislamientoDelContract: boolean; sesionDel
   return i.aislamientoDelContract && !i.sesionDelCaller;
 }
 
+/** Tamaño de ventana del run. Ancho y alto en píxeles CSS. */
+export interface Viewport {
+  width: number;
+  height: number;
+}
+
+/**
+ * D71 — el viewport EFECTIVO del run, declarado en vez de heredado en silencio.
+ *
+ * Hasta aquí ninguna capa lo declaraba, así que todo run corría con el default de
+ * Playwright (1280×720) sin que apareciera en ningún artefacto. En una maqueta
+ * responsiva eso no es un detalle: medido en EspoCRM, el enlace 'Cuentas' del menú
+ * lateral NUNCA es visible a 1280×720 (existe en el DOM, oculto) y aparece a los
+ * 1553 ms a 1400×900. El FD lo escribe un QA mirando SU pantalla; el walker lo
+ * ejecutaba en otra, más estrecha, y el oráculo dejaba de ser observable sin que
+ * nada relacionara una cosa con la otra.
+ *
+ * Precedencia: CLI > contract > null (= el default de Playwright, intacto). No se
+ * inventa un default propio: cambiarlo movería en silencio la línea base de todas
+ * las mediciones anteriores, que es justo el error que este defecto documenta.
+ */
+export function resolveViewport(i: { cli?: string; contract?: Viewport | null }): Viewport | null {
+  if (i.cli) {
+    const m = /^(\d{3,5})\s*[xX×]\s*(\d{3,5})$/.exec(i.cli.trim());
+    if (!m) throw new Error(`--viewport inválido: '${i.cli}' (formato esperado: 1400x900)`);
+    return { width: Number(m[1]), height: Number(m[2]) };
+  }
+  if (i.contract && i.contract.width > 0 && i.contract.height > 0) {
+    return { width: i.contract.width, height: i.contract.height };
+  }
+  return null;
+}
+
+/**
+ * D71 — la nota que convierte «no visible» en accionable.
+ *
+ * `expect_text` fallido dice la verdad («el texto no está visible») pero calla el
+ * dato que decide el diagnóstico: si ese texto EXISTE en el DOM y solo está
+ * oculto, el hallazgo no es del negocio — es de layout, y el primer sospechoso es
+ * la anchura de la ventana. Sin esta línea el QA sale a buscar un drift que no
+ * existe; con ella mira el viewport y se acabó.
+ */
+export function notaTextoOculto(i: { nodosOcultos: number; viewport: Viewport | null }): string {
+  if (i.nodosOcultos <= 0) return '';
+  const cuantos = i.nodosOcultos === 1 ? '1 nodo' : `${i.nodosOcultos} nodos`;
+  const vp = i.viewport
+    ? `${i.viewport.width}×${i.viewport.height}`
+    : '1280×720 (default de Playwright, no declarado)';
+  return ` — OJO: ${cuantos} con ese texto EXISTE en el DOM pero está OCULTO; el viewport del run es ${vp}. Si el FD se escribió en una pantalla más ancha, la maqueta responsiva puede estar plegando el elemento: esto es layout, no drift del negocio.`;
+}
+
 /** Marcador en disco de una asistencia en curso (K0.45/D12). */
 export interface AssistMarker {
   estado: 'ESPERANDO AL QA';

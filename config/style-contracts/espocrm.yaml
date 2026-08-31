@@ -1,0 +1,119 @@
+# Style Contract — demo.espocrm.com — EspoCRM demo (CRM de negocio)
+# Schema docs: docs/references/style-contract-schema.md
+# SPA Backbone con Advanced Pack + Sales Pack + Project Management. Modulos de
+# negocio (Cuentas, Contactos, Posibles clientes, Oportunidades) con listados,
+# buscador, ficha de registro con paneles de relaciones, alta y borrado.
+#
+# Rasgos medidos en el reconocimiento (.work/e2e-espocrm/literales.json, 2026-08-31):
+# - NO HAY CONTRASENA: el acceso es un <select> de usuario (unica opcion:
+#   "Administrator") + boton Login. No hay credencial que declarar; por eso
+#   synthetic_fixtures.credentials va VACIO y auth se resuelve por pasos del guion.
+# - EL IDIOMA DE TODA LA UI lo decide el desplegable "Language" de la puerta, que
+#   viene preseleccionado segun el locale del navegador (esta maquina: es_ES). Un
+#   guion que no fije el idioma NO ES REPRODUCIBLE entre maquinas. Se fija español
+#   a proposito: es el idioma del cliente objetivo. El idioma queda en la URL
+#   (?l=es_ES) tras entrar.
+# - ACCESIBILIDAD POBRE, y es el rasgo que manda en la prioridad de locators: los
+#   controles NO tienen id, ni name, ni label asociado por `for=`. La etiqueta es
+#   texto adyacente (.control-label) sin vinculo. Lo unico estable es el atributo
+#   `data-name` (name, website, billingAddressCity, save, cancel...). Por eso
+#   getByPlaceholder y getByText van altos y getByLabel NO lidera: aqui el peldaño
+#   que trabaja es el ANCLADO (etiqueta hermana), no el semantico.
+#   Si el cliente autoriza la convencion, `data-name` es su testid natural
+#   (--testid-attr=data-name). NO se pre-afina en el ciclo de medicion.
+# - I18N PARCIAL (defecto real del sitio): con la sesion en español, las CABECERAS
+#   del listado siguen en INGLES (Name / Industry / Type / Country) y tambien el
+#   panel "Details" y las pestañas (Account / Stream / Support / Sales), mientras
+#   los valores y el resto de la UI estan traducidos. CP010 del FD lo pisa a
+#   proposito: el veredicto correcto es "el FD tiene razon".
+# - Los desplegables de negocio (Tipo, Industria) NO son <select> nativos: son
+#   disparador + lista. Familia "selectOption lanzo sobre un div".
+# - DEMO COMPARTIDA y simultanea ("it can be used simultaneously by many people"):
+#   los datos son estado compartido. Los contadores absolutos (1-12 / 12) NO son
+#   oraculo; los registros semilla pueden cambiar. Lo que el caso crea, el caso
+#   lo borra.
+#
+# A11y: inject siempre (hard rule SPEC); fail_on_violations=false (demo publico).
+# NOTA para el scan: este sitio tiene violaciones reales de nombre accesible; el
+# scan las va a cantar y eso es informacion del producto, no ruido.
+
+version: 1
+project: espocrm
+
+# D71 — el viewport del run, DECLARADO. A 1280×720 (el default de Playwright, que
+# hasta este ciclo se heredaba en silencio) EspoCRM pliega el menu lateral: el
+# enlace 'Cuentas' existe en el DOM pero NUNCA es visible, y toda postcondicion que
+# lo mire se convierte en drift falso. Medido: visible a los 1553 ms a 1400×900.
+viewport:
+  width: 1400
+  height: 900
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByRole
+    - getByPlaceholder
+    - getByText
+    - getByLabel
+    - getByTestId
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/espocrm.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false
+  severity_threshold:
+    - serious
+    - critical
+
+# Sin contrasena: la puerta se pasa con pasos del guion (elegir usuario e idioma),
+# no con un auth-handler de credenciales.
+auth:
+  enabled: false
+
+evidence:
+  screenshots: on
+
+synthetic_fixtures:
+  credentials: []
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  coverage:
+    negatives_by_flow: {}
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath

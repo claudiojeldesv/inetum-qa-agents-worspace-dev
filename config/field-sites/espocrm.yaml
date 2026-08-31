@@ -1,0 +1,41 @@
+# Receta de campo — EspoCRM demo (CRM de negocio: sesion, grids, alta y borrado)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: espocrm
+url: 'https://demo.espocrm.com/'
+allowlist_pattern: 'https://demo.espocrm.com/*'
+style_contract: config/style-contracts/espocrm.yaml
+mode: S4
+flows: [acceso, consulta-cuentas, ficha-cuenta, alta-cuenta, borrado-cuenta]
+
+auth:
+  needed: false
+  note: 'NO hay contrasena. La puerta es un <select> de usuario (unica opcion
+    "Administrator") + boton Login. El desplegable "Language" decide el idioma de
+    TODA la UI y debe fijarse en el guion (Spanish (Spain)) o el caso no es
+    reproducible entre maquinas.'
+
+last_run:
+  date: 2026-08-31
+  iteration: null
+  verdict: 'tercer ciclo E2E en terreno virgen — FD disenado 100% desde la UI'
+  payload: null
+  findings:
+    - docs/findings/e2e-espocrm.md
+
+notes: |
+  Tercer ciclo E2E completo en terreno virgen (los anteriores: Restful Booker y Tricentis
+  Insurance). FD onesait de 10 casos disenado desde la UI
+  (template/examples/08-espocrm/espocrm-fd.md).
+  Rasgos del sitio que muerden:
+  - CERO nombres accesibles: los controles no tienen id, ni name, ni label con `for=`. La
+    etiqueta es texto adyacente. El unico identificador estable es `data-name`. Es el terreno
+    natural del peldaño ANCLADO de la escalera (el que nacio para el legacy de ParaBank).
+    Si el cliente autoriza la convencion, --testid-attr=data-name es su testid.
+  - El idioma vive en la puerta y en la URL (?l=es_ES). Fijarlo SIEMPRE.
+  - I18N PARCIAL, defecto real: con la sesion en español las cabeceras del listado siguen en
+    ingles (Name / Industry / Type / Country), igual que el panel "Details" y las pestañas.
+    CP010 lo pisa a proposito: el veredicto correcto es «el FD tiene razon».
+  - Los desplegables de negocio (Tipo, Industria) no son <select> nativos: disparador + lista.
+  - DEMO COMPARTIDA: contadores absolutos NO son oraculo, los registros semilla pueden mutar
+    y lo que un caso crea puede sobrevivir si el borrado falla. CP007 crea «QA Inetum Prueba»
+    y CP009 la borra: si un run anterior dejo una, puede aparecer duplicada.
