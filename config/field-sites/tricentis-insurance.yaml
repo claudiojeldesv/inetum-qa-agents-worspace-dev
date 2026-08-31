@@ -1,0 +1,40 @@
+# Receta de campo — Tricentis Vehicle Insurance (tarificador de polizas demo, wizard 5 pasos)
+# La consume src/scripts/field-deploy.mjs. Schema en docs/references/field-sites-schema.md.
+site: tricentis-insurance
+url: 'https://sampleapp.tricentis.com/101/'
+allowlist_pattern: 'https://sampleapp.tricentis.com/*'
+style_contract: config/style-contracts/tricentis-insurance.yaml
+mode: S4
+flows: [tarificacion, envio-quote, validaciones, motorcycle]
+
+auth:
+  needed: false
+  note: 'Sin login: la app es publica de punta a punta. El paso Send Quote pide
+    username/password para el presupuesto — valores sinteticos, no credenciales.'
+
+last_run:
+  date: 2026-08-31
+  iteration: null
+  verdict: 'segundo ciclo E2E en terreno virgen — FD disenado 100% desde la UI'
+  payload: null
+  findings:
+    - docs/findings/e2e-tricentis-insurance.md
+
+notes: |
+  Segundo ciclo E2E completo en terreno virgen (el primero: Restful Booker). FD onesait de
+  10 casos disenado desde la UI (template/examples/07-tricentis-insurance/tricentis-fd.md).
+  Rasgos del sitio que muerden:
+  - FACHADA ideal-forms: selects/radios/checkboxes nativos OCULTOS tras UI estilizada.
+    selectOption sin force se cuelga; el gesto de usuario es el dropdown/label visible.
+    Es la familia "selectOption lanzo sobre un div" del select inteligente del walker.
+  - El Next NAVEGA con errores (contador rojo en la pestana); el gate real es la tabla de
+    precios ("Please, complete the first three steps to see the price table.") y el envio
+    ("Not finished yet... There is still some data missing!").
+  - Start Date exige "Must be more than one month in the future": las fechas del FD llevan
+    margen (12/01/2026 disenada el 2026-08-31). Si el FD se re-ejecuta meses despues, esa
+    fecha caduca y el caso cae por dato, no por producto.
+  - Phone solo digitos ("Must be only digits"): 0034600000000, jamas +34.
+  - La tabla de precios es COMPUTADA y DETERMINISTA por config (misma config x2 = mismos
+    precios, medido 2026-08-31): el oraculo exacto 88.00/260.00/510.00/972.00 pertenece a
+    LA config del FD; cualquier cambio de dato la invalida.
+  - Ids CamelCase solo en #EuroProtection, #LegalDefenseInsurance y #Comments.

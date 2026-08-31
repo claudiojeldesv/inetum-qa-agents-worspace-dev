@@ -24,6 +24,7 @@ patterns:
   - 'https://demo.dolibarr.org/*'            # Dolibarr ERP/CRM 23.x (PHP legacy), demo publico
   - 'https://the-internet.herokuapp.com/*'    # sitio de practica QA (Sinatra), demo publico; autorizado QA 2026-08-24
   - 'https://automationintesting.online/*'    # Restful Booker Platform (hotel B&B), sandbox de testing; autorizado QA 2026-08-30
+  - 'https://sampleapp.tricentis.com/*'       # Tricentis Vehicle Insurance (tarificador de polizas demo, sin login); autorizado QA 2026-08-31
 
   # Entornos no productivos (cualquier subdominio) — añade los tuyos
   - 'https://*.qa.*'

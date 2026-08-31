@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "site_id": "tricentis-insurance",
+  "aliases": {
+    "|||start date|": {
+      "locator": "getByRole('textbox', { name: 'MM/DD/YYYY' })",
+      "hint": {
+        "label": "Start Date"
+      },
+      "origin": {
+        "flow": "cp006-regla-fecha-inicio",
+        "step": "s23",
+        "date": "2026-08-30"
+      }
+    }
+  }
+}

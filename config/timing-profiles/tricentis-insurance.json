@@ -1,0 +1,1583 @@
+{
+  "version": 1,
+  "site_id": "tricentis-insurance",
+  "steps": {
+    "cp001-tarificacion-automovil/__entry": {
+      "samples": [
+        1001
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s1": {
+      "samples": [
+        444
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s10": {
+      "samples": [
+        430
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s11": {
+      "samples": [
+        1659
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s12": {
+      "samples": [
+        449
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s13": {
+      "samples": [
+        428
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s14": {
+      "samples": [
+        419
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s16": {
+      "samples": [
+        437
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s17": {
+      "samples": [
+        421
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s18": {
+      "samples": [
+        421
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s19": {
+      "samples": [
+        432
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s2": {
+      "samples": [
+        434
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s20": {
+      "samples": [
+        442
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s22": {
+      "samples": [
+        415
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s23": {
+      "samples": [
+        418
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s24": {
+      "samples": [
+        456
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s25": {
+      "samples": [
+        446
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s26": {
+      "samples": [
+        409
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s28": {
+      "samples": [
+        414
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s29": {
+      "samples": [
+        1626
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s3": {
+      "samples": [
+        441
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s30": {
+      "samples": [
+        439
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s31": {
+      "samples": [
+        437
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s32": {
+      "samples": [
+        422
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s33": {
+      "samples": [
+        440
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s34": {
+      "samples": [
+        454
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s35": {
+      "samples": [
+        446
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s36": {
+      "samples": [
+        447
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s37": {
+      "samples": [
+        416
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s4": {
+      "samples": [
+        413
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s5": {
+      "samples": [
+        432
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s6": {
+      "samples": [
+        434
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s7": {
+      "samples": [
+        447
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s8": {
+      "samples": [
+        437
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp001-tarificacion-automovil/s9": {
+      "samples": [
+        462
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/__entry": {
+      "samples": [
+        1005
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s1": {
+      "samples": [
+        485
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s10": {
+      "samples": [
+        1632
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s11": {
+      "samples": [
+        440
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s12": {
+      "samples": [
+        449
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s13": {
+      "samples": [
+        445
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s15": {
+      "samples": [
+        447
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s16": {
+      "samples": [
+        446
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s17": {
+      "samples": [
+        421
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s18": {
+      "samples": [
+        462
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s19": {
+      "samples": [
+        442
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s2": {
+      "samples": [
+        431
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s21": {
+      "samples": [
+        432
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s22": {
+      "samples": [
+        452
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s23": {
+      "samples": [
+        416
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s24": {
+      "samples": [
+        464
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s25": {
+      "samples": [
+        447
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s27": {
+      "samples": [
+        415
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s28": {
+      "samples": [
+        1643
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s3": {
+      "samples": [
+        423
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s38": {
+      "samples": [
+        432
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s4": {
+      "samples": [
+        441
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s5": {
+      "samples": [
+        437
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s6": {
+      "samples": [
+        427
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s7": {
+      "samples": [
+        435
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s8": {
+      "samples": [
+        443
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp002-envio-presupuesto-gold/s9": {
+      "samples": [
+        438
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/__entry": {
+      "samples": [
+        1005
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s1": {
+      "samples": [
+        430
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s10": {
+      "samples": [
+        1620
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s11": {
+      "samples": [
+        417
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s12": {
+      "samples": [
+        428
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s13": {
+      "samples": [
+        416
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s15": {
+      "samples": [
+        452
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s16": {
+      "samples": [
+        444
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s17": {
+      "samples": [
+        438
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s18": {
+      "samples": [
+        441
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s19": {
+      "samples": [
+        452
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s2": {
+      "samples": [
+        444
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s21": {
+      "samples": [
+        446
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s22": {
+      "samples": [
+        420
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s23": {
+      "samples": [
+        467
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s24": {
+      "samples": [
+        408
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s25": {
+      "samples": [
+        436
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s27": {
+      "samples": [
+        436
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s28": {
+      "samples": [
+        1636
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s29": {
+      "samples": [
+        439
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s3": {
+      "samples": [
+        420
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s30": {
+      "samples": [
+        428
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s31": {
+      "samples": [
+        436
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s32": {
+      "samples": [
+        465
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s33": {
+      "samples": [
+        417
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s4": {
+      "samples": [
+        419
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s5": {
+      "samples": [
+        452
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s6": {
+      "samples": [
+        429
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s7": {
+      "samples": [
+        428
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s8": {
+      "samples": [
+        432
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp003-coberturas-tabla/s9": {
+      "samples": [
+        460
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/__entry": {
+      "samples": [
+        1020
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s1": {
+      "samples": [
+        512
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s10": {
+      "samples": [
+        408
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s11": {
+      "samples": [
+        437
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s12": {
+      "samples": [
+        1644
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s13": {
+      "samples": [
+        424
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s14": {
+      "samples": [
+        420
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s15": {
+      "samples": [
+        429
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s17": {
+      "samples": [
+        451
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s18": {
+      "samples": [
+        417
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s19": {
+      "samples": [
+        434
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s2": {
+      "samples": [
+        432
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s20": {
+      "samples": [
+        412
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s21": {
+      "samples": [
+        420
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s22": {
+      "samples": [
+        426
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s23": {
+      "samples": [
+        434
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s24": {
+      "samples": [
+        443
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s25": {
+      "samples": [
+        402
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s26": {
+      "samples": [
+        1647
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s27": {
+      "samples": [
+        428
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s28": {
+      "samples": [
+        434
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s3": {
+      "samples": [
+        420
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s4": {
+      "samples": [
+        415
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s5": {
+      "samples": [
+        446
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s6": {
+      "samples": [
+        439
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s7": {
+      "samples": [
+        419
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s8": {
+      "samples": [
+        413
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp004-tarificacion-motocicleta/s9": {
+      "samples": [
+        418
+      ],
+      "screen": "wizard-motorcycle",
+      "updated": "2026-08-30"
+    },
+    "cp005-validacion-potencia/__entry": {
+      "samples": [
+        1037
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp005-validacion-potencia/s1": {
+      "samples": [
+        488
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp005-validacion-potencia/s2": {
+      "samples": [
+        423
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp005-validacion-potencia/s3": {
+      "samples": [
+        456
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp005-validacion-potencia/s5": {
+      "samples": [
+        448
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/__entry": {
+      "samples": [
+        955,
+        957
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s1": {
+      "samples": [
+        465,
+        495
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s10": {
+      "samples": [
+        1653,
+        1613
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s11": {
+      "samples": [
+        424,
+        431
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s12": {
+      "samples": [
+        418,
+        434
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s13": {
+      "samples": [
+        422,
+        413
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s15": {
+      "samples": [
+        418,
+        456
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s16": {
+      "samples": [
+        435,
+        437
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s17": {
+      "samples": [
+        438,
+        414
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s18": {
+      "samples": [
+        432,
+        439
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s19": {
+      "samples": [
+        416,
+        430
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s2": {
+      "samples": [
+        417,
+        431
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s20": {
+      "samples": [
+        410,
+        441
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s21": {
+      "samples": [
+        445,
+        416
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s22": {
+      "samples": [
+        434,
+        445
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s23": {
+      "samples": [
+        450
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s24": {
+      "samples": [
+        426,
+        453
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s3": {
+      "samples": [
+        402,
+        421
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s4": {
+      "samples": [
+        436,
+        422
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s5": {
+      "samples": [
+        448,
+        412
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s6": {
+      "samples": [
+        420,
+        429
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s7": {
+      "samples": [
+        412,
+        446
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s8": {
+      "samples": [
+        457,
+        402
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp006-regla-fecha-inicio/s9": {
+      "samples": [
+        416,
+        413
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/__entry": {
+      "samples": [
+        1000,
+        1034
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s1": {
+      "samples": [
+        468,
+        488
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s10": {
+      "samples": [
+        1640,
+        1602
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s11": {
+      "samples": [
+        445,
+        410
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s12": {
+      "samples": [
+        424,
+        431
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s13": {
+      "samples": [
+        414,
+        411
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s15": {
+      "samples": [
+        431,
+        425
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s16": {
+      "samples": [
+        417,
+        431
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s17": {
+      "samples": [
+        431,
+        424
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s18": {
+      "samples": [
+        445,
+        433
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s19": {
+      "samples": [
+        446,
+        425
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s2": {
+      "samples": [
+        419,
+        410
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s20": {
+      "samples": [
+        422,
+        448
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s21": {
+      "samples": [
+        405,
+        431
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s22": {
+      "samples": [
+        426,
+        440
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s23": {
+      "samples": [
+        441,
+        425
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s24": {
+      "samples": [
+        432,
+        440
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s25": {
+      "samples": [
+        407,
+        448
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s26": {
+      "samples": [
+        1632,
+        1667
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s3": {
+      "samples": [
+        443,
+        446
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s31": {
+      "samples": [
+        433,
+        428
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s33": {
+      "samples": [
+        430,
+        417
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s38": {
+      "samples": [
+        433,
+        432
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s39": {
+      "samples": [
+        427,
+        420
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s4": {
+      "samples": [
+        429,
+        427
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s5": {
+      "samples": [
+        409,
+        451
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s6": {
+      "samples": [
+        422,
+        430
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s7": {
+      "samples": [
+        428,
+        431
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s8": {
+      "samples": [
+        422,
+        408
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp007-telefono-solo-digitos/s9": {
+      "samples": [
+        456,
+        408
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/__entry": {
+      "samples": [
+        979,
+        999
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s1": {
+      "samples": [
+        419,
+        536
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s10": {
+      "samples": [
+        1630,
+        1623
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s11": {
+      "samples": [
+        446,
+        417
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s12": {
+      "samples": [
+        412,
+        415
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s13": {
+      "samples": [
+        432,
+        418
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s15": {
+      "samples": [
+        416,
+        454
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s16": {
+      "samples": [
+        447,
+        419
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s17": {
+      "samples": [
+        423,
+        450
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s18": {
+      "samples": [
+        417,
+        430
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s19": {
+      "samples": [
+        432,
+        444
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s2": {
+      "samples": [
+        413,
+        416
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s20": {
+      "samples": [
+        440,
+        445
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s21": {
+      "samples": [
+        1658,
+        1625
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s22": {
+      "samples": [
+        415,
+        405
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s23": {
+      "samples": [
+        434,
+        434
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s24": {
+      "samples": [
+        428,
+        417
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s25": {
+      "samples": [
+        422,
+        433
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s3": {
+      "samples": [
+        411,
+        448
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s4": {
+      "samples": [
+        430,
+        440
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s5": {
+      "samples": [
+        409,
+        402
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s6": {
+      "samples": [
+        422,
+        408
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s7": {
+      "samples": [
+        439,
+        420
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s8": {
+      "samples": [
+        436,
+        432
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp008-prev-conserva-datos/s9": {
+      "samples": [
+        418,
+        442
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp009-tabla-sin-datos/__entry": {
+      "samples": [
+        1013,
+        1046
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp009-tabla-sin-datos/s1": {
+      "samples": [
+        422,
+        480
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp009-tabla-sin-datos/s2": {
+      "samples": [
+        1664,
+        1652
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp009-tabla-sin-datos/s3": {
+      "samples": [
+        447,
+        417
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp010-avance-con-invalidos/__entry": {
+      "samples": [
+        934,
+        977
+      ],
+      "screen": "101",
+      "updated": "2026-08-30"
+    },
+    "cp010-avance-con-invalidos/s1": {
+      "samples": [
+        470,
+        493
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp010-avance-con-invalidos/s2": {
+      "samples": [
+        1657,
+        1637
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    },
+    "cp010-avance-con-invalidos/s3": {
+      "samples": [
+        429,
+        428
+      ],
+      "screen": "wizard-automobile",
+      "updated": "2026-08-30"
+    }
+  }
+}

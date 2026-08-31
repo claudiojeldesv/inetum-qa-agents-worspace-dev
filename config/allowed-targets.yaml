@@ -49,6 +49,7 @@ patterns:
   # Ciclo E2E en terreno virgen (2026-08-30) — primer ciclo completo planner→FD→walker
   # sobre un sitio jamas tocado por el producto. Elegido por el QA entre 3 candidatos.
   - 'https://automationintesting.online/*'    # Restful Booker Platform (hotel B&B): cara publica + admin, disenado para testing, se resetea solo; autorizado QA 2026-08-30
+  - 'https://sampleapp.tricentis.com/*'    # Tricentis Vehicle Insurance (tarificador de polizas demo): wizard multi-paso sin login, disenado para practica de automatizacion; segundo ciclo E2E en terreno virgen, autorizado QA 2026-08-31
 
   # Entornos no productivos (cualquier subdominio)
   - 'https://*.qa.*'

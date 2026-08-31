@@ -1,0 +1,101 @@
+# Style Contract — sampleapp.tricentis.com/101/ — Tricentis Vehicle Insurance
+# Schema docs: docs/references/style-contract-schema.md
+# Tarificador de polizas de vehiculo (demo oficial de Tricentis, version 1.0.1):
+# landing de marketing + wizard de 5 pasos (Enter Vehicle Data -> Enter Insurant
+# Data -> Enter Product Data -> Select Price Option -> Send Quote), sin login.
+# El wizard vive DETRAS del nav de tipos (Automobile/Truck/Motorcycle/Camper).
+#
+# Rasgos medidos en el reconocimiento (.work/e2e-tricentis/literales.json, 2026-08-31):
+# - FACHADA ideal-forms: los <select>, radios y checkboxes nativos estan OCULTOS
+#   tras una UI estilizada (jQuery ideal-forms). selectOption sin force se cuelga;
+#   el gesto real del usuario es el dropdown/label visible. Los campos de texto
+#   son nativos y visibles.
+# - El boton Next NAVEGA aunque el paso tenga errores: deja un contador rojo en
+#   la pestana del paso. El gate real esta en la tabla de precios, que se niega a
+#   calcular con pasos invalidos ("Please, complete the first three steps to see
+#   the price table.") y en el envio ("Not finished yet...").
+# - Reglas de validacion con literal exacto: Start Date "Must be more than one
+#   month in the future" (fechas del FD elegidas con margen); Phone "Must be only
+#   digits" (0034..., no +34...); Engine Performance "Must be a number between 1
+#   and 2000".
+# - Ids minusculas en todo el wizard SALVO #EuroProtection, #LegalDefenseInsurance
+#   y #Comments (CamelCase) — inconsistencia del propio sitio.
+# - La tabla de precios es COMPUTADA por config (dos configs distintas dieron
+#   88/260/510/972 y 122/233/344/455): el oraculo de precio exige config fija.
+# - La tabla y el envio tardan (spinner): esperar por senal, no por timeout.
+#
+# A11y: inject siempre (hard rule SPEC); fail_on_violations=false (demo publico).
+
+version: 1
+project: tricentis-insurance
+
+pom:
+  enabled: true
+  location: tests/pages
+  class_suffix: Page
+
+locators:
+  priority:
+    - getByLabel
+    - getByRole
+    - getByPlaceholder
+    - getByText
+    - getByTestId
+  forbid_css_selectors: true
+  forbid_xpath: true
+
+naming:
+  language: es
+  spec_pattern: '{id}_{feature}.{condicion}.spec.ts'
+  test_title_pattern: '{condicion} → {resultado}'
+
+tc_registry:
+  enabled: true
+  path: 'config/tc-registry/tricentis-insurance.json'
+  id_prefix: 'TC'
+
+asserts:
+  semantic_only: true
+  forbid_text_equality: true
+
+waits:
+  forbid_wait_for_timeout: true
+  prefer_locators_assert: true
+
+fixtures:
+  location: tests/fixtures
+  synthetic_data_only: true
+
+a11y:
+  inject_axe_check: true
+  fail_on_violations: false
+  severity_threshold:
+    - serious
+    - critical
+
+# Sin login: la app es publica de punta a punta.
+auth:
+  enabled: false
+
+evidence:
+  screenshots: on
+
+# Solicitante sintetico unico del FD. El paso Send Quote pide username/password
+# para "crear la cuenta" del presupuesto: valores sinteticos, no credenciales.
+synthetic_fixtures:
+  credentials: []
+  test_cards: []
+  test_iban: []
+
+test_design:
+  require_business_postcondition: true
+  min_functional_asserts: 1
+  forbid_navigation_only_test: true
+  coverage:
+    negatives_by_flow: {}
+  no_assume_undiscovered_flows: true
+
+banned_apis:
+  - page.waitForTimeout
+  - assert.equal
+  - xpath
