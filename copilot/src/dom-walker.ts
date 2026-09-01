@@ -678,8 +678,11 @@ function inventoryScript(testidAttrs: string[], cssFallbackAttrs: string[] = [])
         else if (vis) item.visible = true; // sin proxy expresable, no se degrada la fila
       }
       // «visible» para el QA significa ACCIONABLE, no «tiene caja»: si algo lo
-      // tapa, se le enseña como no accionable y con su salida.
-      if (vis && px) item.visible = false;
+      // tapa, se le enseña como no accionable y CON SU SALIDA. Pero solo se
+      // degrada si esa salida existe y es expresable: marcar «tapado» sin ofrecer
+      // proxy dejaría al QA peor que antes — vería el problema y ninguna puerta.
+      if (vis && px && item.proxy) item.visible = false;
+      else if (vis && !item.proxy) { item.visible = true; delete item.motivo_oculto; }
       out.push(item);
     });
     return out;
@@ -1256,15 +1259,28 @@ function assistOverlayScript(
       });
       box.appendChild(ul);
     };
-    /** Crea una fila NUEVA desde un locator, sin gesto previo: el «sí o sí». */
+    /**
+     * Crea una fila NUEVA desde un locator, sin gesto previo: el «sí o sí».
+     *
+     * D81/bis — medido en el segundo estreno del QA: submit elige el objetivo
+     * con seq.findIndex(s => s.as === 'target'), o sea EL PRIMERO. Si el QA
+     * ya había grabado algo antes de abrir la lista, la fila vieja ganaba y la
+     * elegida aquí se ignoraba en silencio — el parche del run registró
+     * css=#gendermale (el input oculto que había señalado a mano) en vez del
+     * control visible que eligió en la lista. Elegir en la lista es una decisión
+     * EXPLÍCITA y posterior: manda sobre lo grabado antes.
+     */
     const applyManualNuevo = async (value) => {
       let res;
       try { res = await window.__qaAssistResolve(value); } catch (e) { res = { ok: false }; }
       if (!res || !res.ok) { status.textContent = 'ese locator no resuelve único aquí'; return false; }
+      // el objetivo es ÚNICO: lo elegido ahora sustituye a cualquier marca previa
+      for (const s of seq) if (s.as === 'target') delete s.as;
       seq.push({ via: 'manual', name: value, as: 'target', manual_locator: value,
                  _q: { ok: true, tier: 'manual', fragile: false, label: 'manual', source: value } });
       nodes.push(null);
       render();
+      status.textContent = 'objetivo elegido de la lista: ' + value + ' — pulsa Parar para enviarlo';
       return true;
     };
     $('inv').onclick = async () => {
