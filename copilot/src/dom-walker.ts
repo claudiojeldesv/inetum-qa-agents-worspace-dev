@@ -214,6 +214,24 @@ interface WalkerOptions {
   /** Minimizar el parche por replay (K0.11e). Off con --no-minimize. */
   assistMinimize: boolean;
   /**
+   * D79 — verificar el parche con un REPLAY en contexto limpio (ventana nueva).
+   * **Apagado por defecto**, y la razón la puso el QA en campo con dos casos que
+   * `retry_safe` no puede conocer: una aplicación cuyo login admite UNA sesión a
+   * la vez (banca), donde el replay se re-loguea y tumba la sesión del run; y un
+   * flujo que ya QUEMÓ un dato de un solo uso, que el replay vuelve a consumir.
+   * Medido además: la ventana nueva dejó el navegador cerrado y mató ocho flujos
+   * (cp003-cp010 de Tricentis, «Target page, context or browser has been
+   * closed»), y de 27 parches enseñados en el estreno solo 11 se verificaron —
+   * la mayoría por pasos previos irreproducibles, no por el locator.
+   *
+   * La contrapartida es real y queda dicha: la verificación en vivo prueba menos
+   * (que resuelve en la pantalla que el QA tiene delante, no en limpio), y el
+   * acta lo registra con el grado `en-vivo` en vez de `desde-cero`. Es el trade
+   * correcto: una verificación más fuerte que te quema los datos no es más
+   * fuerte, es destructiva.
+   */
+  replayVerify?: boolean;
+  /**
    * Fase B — lo que hace falta para poder FIRMAR un veredicto del QA sobre una
    * postcondición incumplida. Los tres son fail-closed: sin ellos el panel de
    * veredicto no se abre y el paso se bloquea como siempre. No se inventan defaults
@@ -5233,7 +5251,22 @@ class DomWalker {
      * débil que "reproduce desde cero", y se dice: el motivo viaja al parche como
      * verify_reason. Nunca se re-ejecuta negocio para verificar.
      */
-    if (this.hasMutatingPrior(flow, failed)) {
+    /**
+     * D79 — la verificación EN VIVO es ahora el camino por defecto, y el replay
+     * en ventana nueva hay que pedirlo (`--verificar-con-replay`).
+     *
+     * Antes se elegía solo por `hasMutatingPrior`, y eso producía una asimetría
+     * que el QA cazó en campo: el PRIMER check de un flujo no tiene nada que
+     * mute por delante, así que abría ventana; los siguientes ya no. O sea, las
+     * pantallas donde el replay parece más barato son justo las que lo disparan.
+     *
+     * Y el replay re-ejecuta el camino previo en un contexto limpio, con dos
+     * consecuencias que `retry_safe` no puede conocer —las puso el QA, y son de
+     * su dominio—: vuelve a hacer login (mortal donde solo hay UNA sesión a la
+     * vez) y vuelve a consumir datos de un solo uso.
+     */
+    const enVivo = !this.opts.replayVerify || this.hasMutatingPrior(flow, failed);
+    if (enVivo) {
       try {
         for (const [i, ps] of steps.entries()) {
           if (ps.role === 'opener') continue;
@@ -5255,7 +5288,9 @@ class DomWalker {
         return {
           ok: true,
           reason:
-            'verificado SOLO EN VIVO: el camino previo contiene pasos de negocio y el replay en limpio los re-ejecutaría — nunca se re-ejecuta negocio para verificar',
+            this.hasMutatingPrior(flow, failed)
+              ? 'verificado SOLO EN VIVO: el camino previo contiene pasos de negocio y el replay en limpio los re-ejecutaría — nunca se re-ejecuta negocio para verificar'
+              : 'verificado SOLO EN VIVO (por defecto): el replay en limpio re-ejecutaría el camino previo — un login de sesión única o un dato de un solo uso no se re-consumen para verificar. Pídelo con --verificar-con-replay si este flujo lo tolera',
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
@@ -7054,6 +7089,7 @@ async function main(): Promise<void> {
       assist: { type: 'boolean', default: false },
       'assist-timeout': { type: 'string' },
       'no-minimize': { type: 'boolean', default: false },
+      'verificar-con-replay': { type: 'boolean', default: false },
       // fase B: lo que hace falta para poder firmar un veredicto del QA
       actor: { type: 'string' },
       fd: { type: 'string' },
@@ -7112,6 +7148,7 @@ async function main(): Promise<void> {
     assist,
     assistTimeoutMs: Number(values['assist-timeout'] ?? process.env.QA_ASSIST_TIMEOUT ?? 600) * 1000,
     assistMinimize: !(values['no-minimize'] ?? false),
+    replayVerify: values['verificar-con-replay'] ?? false,
     actor: values.actor ?? process.env.QA_ACTOR,
     fdHash: fdHashDeCli(values),
     rf: values.rf,
