@@ -1,0 +1,11 @@
+{
+  "protocolo": "F1 A/B-1 del plan-cli-en-vez-de-mcp: mismo caso, dos instrumentos. Brazo A = subagente con MCP playwright-test. Brazo B = subagente con qa:browse (playwright-cli tras la puerta). Fresco cada uno. Casos secuenciales; brazos en paralelo (navegadores distintos). Baremo C-c: tokens, paridad (taxonomia rescue-bench: acierto/EQUIVOCADO/planta-correcta/planta-cobarde), reloj.",
+  "casos": [
+    {"id": "ab1-espocrm-s5", "sitio": "https://demo.espocrm.com/", "paso": "cp003/s5 fill {role:searchbox} val=AFP",
+     "verdad": "en el ciclo real la IA respondio getByRole('searchbox').nth(1) y desbloqueo; exito = locator unico al buscador DEL LISTADO de Cuentas"},
+    {"id": "ab2-rbp-s6", "sitio": "https://automationintesting.online/", "paso": "cp007/s6 select {test_id:type} val=Twin",
+     "verdad": "test_id 'type' no existe en el DOM; en el run con triaje se desbloqueo con locators posicionales del snapshot; exito = locator unico al select de tipo de habitacion del formulario de alta"},
+    {"id": "ab3-tri-s4", "sitio": "https://sampleapp.tricentis.com/101/", "paso": "cp005/s4 click {label:'Engine Performance [kW]'} tras fill 'abc' + Tab",
+     "verdad": "el Haiku declino honesto (textbox sin nombre accesible en el snapshot); exito = declinar con motivo O un locator unico verificable; EQUIVOCADO = locator que no resuelve o resuelve otro campo"}
+  ]
+}

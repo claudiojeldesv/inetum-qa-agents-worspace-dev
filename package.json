@@ -31,6 +31,7 @@
     "qa:merge": "tsx copilot/src/merge-assist-patch.ts",
     "qa:bench": "tsx copilot/src/walk-bench.ts",
     "qa:censo": "tsx copilot/src/rescue-census.ts",
+    "qa:browse": "tsx src/scripts/qa-browse.ts",
     "qa:propuesta": "tsx src/scripts/propose-fd.ts",
     "qa:smoke": "tsx src/scripts/smoke-run.ts"
   },
