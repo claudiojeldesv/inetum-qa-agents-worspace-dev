@@ -85,3 +85,91 @@ tres ciclos) en una tarea de reconocimiento acotada. Sin subagentes. Ahí el CLI
   pero el camino sancionado es el wrapper y se mide lo que se usaría.
 - Los brazos navegaron pasos previos ellos mismos (2-4 acciones); en la integración real de Fase 2 el
   walker ya está EN la pantalla — el coste de ambos brazos bajaría por igual, el empate no se movería.
+
+---
+
+# A/B-2 (re-alcanzado) — el orquestador con `qa:browse` contra el `recon.ts` a mano
+
+**Aquí el CLI SÍ gana, ~2,6× en coste — pero por una razón distinta a la del plan: no porque el snapshot
+vaya a fichero, sino porque no hay que ESCRIBIR UN PROGRAMA. El token caro es el de salida.**
+
+**Diseño**: el veredicto de A/B-1 mató la comparación entre subagentes, así que A/B-2 se re-alcanzó al
+caso contrario: **el orquestador** (que no paga envoltorio) haciendo un reconocimiento completo con
+`qa:browse`, contra la línea base histórica de los tres `recon.ts` escritos a mano.
+**Terreno limpio**: `practicesoftwaretesting.com` — en el allowlist, nunca sometido al protocolo de recon
+en este proyecto. **Regla de disciplina declarada y cumplida**: no leer su Style Contract durante el brazo.
+
+## 1. El resultado
+
+| | línea base (`recon.ts` a mano) | brazo CLI (orquestador) |
+|---|--:|--:|
+| tokens de **salida** (lo caro: $25/M) | ~2.727 (media de los 3 scripts) | ~840 (14 comandos cortos) |
+| tokens de **entrada** | ~3.000 (salida del script + partes de `literales.json`) | ~2.100 (8,4 KB: resultados + greps) |
+| **coste relativo** (5/25 por M) | **~82,5** | **~31,5** |
+| turnos | 1 escritura + N relanzamientos | 14 |
+
+**≈2,6× más barato.** Y el desglose enseña dónde: **el 82% del coste de la línea base es OUTPUT** — el
+programa que hay que redactar. Los comandos del CLI son de una línea.
+
+## 2. La cobertura, honestamente
+
+Conseguido en el brazo CLI: 3 pantallas (listado, ficha, login), inventario de controles con identidad
+(**97 atributos `data-test`** — sitio rico en testids, lo contrario de EspoCRM), los 9 productos con sus
+9 precios como oráculos, el árbol de categorías/marcas del filtro, los literales visibles del login, y
+tres notas de comportamiento: **UI en español por locale** (`lang=es`, `navLang=es-ES`) con **precios en
+USD** (i18n parcial), y versión declarada en el pie (`v2.4 | Built 2026-08-22 | Angular 20.0.5`).
+
+**No conseguido en el mismo tiempo, y el script a mano SÍ lo lograba: los literales de validación.** El
+`recon.ts` los captura porque guioniza `fill` + blur + `click` + espera + lectura en un flujo con estado;
+por comandos sueltos, el submit por `eval` no disparó la validación de Angular. **Paridad: incompleta.**
+Es la contrapartida exacta de la ventaja: sin programa no hay flujo con estado.
+
+## 3. Dos hallazgos del terreno que valen aparte
+
+- **El snapshot automático del CLI sufre D72.** Al entrar en `/auth/login` el `.yml` salió sin el
+  formulario: la SPA no había pintado. Mismo defecto que perseguimos en el walker, en otra herramienta.
+- **El formulario existe en el DOM y NO está en el árbol de accesibilidad** (`login-form: true`,
+  `email: true` por `eval`, ausentes del snapshot). Con los controles fuera del árbol, los comandos por
+  `ref` del CLI **no pueden alcanzarlos** y hay que caer a `eval`. El MCP tiene exactamente el mismo
+  agujero: es el mismo árbol. Refuerza por qué el walker no se apoya solo en a11y.
+
+## 4. Dos bugs de la puerta, encontrados POR USARLA (no leyéndola)
+
+Ambos arreglados con test de regresión (15 en total en `qa-browse.test.ts`):
+
+1. **Los globales del CLI pueden preceder al comando.** `--raw eval "…"` —la forma más barata de sacar
+   un literal— era rechazada porque el parser tomaba `resto[0]` a ciegas. El comando es ahora el primer
+   positional que no es flag.
+2. **`shell: true` destrozaba los argumentos.** Un `eval` con espacios llegaba partido y un `|` se
+   interpretaba como pipe de cmd.exe. Y sin shell, Node 20+ se niega a lanzar el `.cmd` de npx. Se
+   invoca `cli.js` con `node` directamente: los argumentos viajan **verbatim**. Sin esto, el brazo CLI
+   era inservible para cualquier extracción no trivial.
+
+**Peaje residual medido**: en Windows, `npm run qa:browse -- …` reintroduce la capa de cmd. El camino
+sancionado para argumentos complejos es `npx tsx src/scripts/qa-browse.ts` — misma puerta, sin
+intermediario. La puerta se re-verificó tras cada arreglo: sigue bloqueando URL fuera de allowlist y
+sesión ajena.
+
+## 5. Veredicto de A/B-2 y qué se adopta
+
+**HC3 (el recon por wrapper iguala la cobertura con menos turnos): PARCIAL.** Más barato (~2,6×) y con
+menos trabajo de autoría, pero **no cubre lo que exige flujo con estado** (validaciones).
+
+**Adopción propuesta — los dos, por fases del recon:**
+
+| fase del recon | herramienta | por qué |
+|---|---|---|
+| exploración, inventario de controles, literales estáticos, notas | **`qa:browse`** | 2,6× más barato, cero autoría, y grepear el `.yml` bate a leer el árbol |
+| sondas de comportamiento (validaciones, cascadas, flujos con estado) | **`probe-*.ts` a mano** | necesitan estado y esperas; un programa sigue siendo la herramienta correcta |
+
+Es decir: el CLI sustituye al `recon.ts` **grande**, no a las `probe-*.ts`. En los tres ciclos eso habría
+sido cambiar ~10,9 KB de programa por ~14 comandos, conservando las sondas (3,0-8,5 KB) donde hacen falta.
+
+## 6. Límites de A/B-2
+
+- **Un solo sitio y un solo operador** (yo, que además ya venía calentado por A/B-1).
+- El reloj total del brazo (430 s) incluye **arreglar los dos bugs de la puerta**, que es coste único y
+  no de recon; el recon propiamente fueron 14 turnos.
+- La línea base es histórica y se compara por artefacto (bytes del script escrito), no re-ejecutándola:
+  el coste real de la línea base fue **mayor** que el contabilizado, porque no incluyo sus relanzamientos
+  documentados (EspoCRM re-lanzado por un proceso zombi, ids equivocados en Tricentis).

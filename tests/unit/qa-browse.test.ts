@@ -43,6 +43,19 @@ describe('qa:browse — URLs por la puerta ANTES de ejecutar', () => {
   it('goto sin URL es uso inválido, no un pase', () => {
     expect(plan(['goto'])).toMatchObject({ veredicto: 'bloquear', regla: 'uso' });
   });
+
+  it('los globales del CLI pueden PRECEDER al comando (--raw eval …) — hallado en uso, A/B-2', () => {
+    // Tomar resto[0] a ciegas rechazaba `--raw eval "…"`, que es la forma más
+    // barata de sacar un literal: devuelve solo el valor.
+    expect(plan(['--raw', 'eval', 'document.title']).veredicto).toBe('ejecutar');
+  });
+
+  it('con globales delante, la URL SIGUE verificándose y el engine se inyecta tras el comando', () => {
+    expect(plan(['--json', 'goto', 'https://x.example/'], { verificarUrl: bloquea })).toMatchObject({ veredicto: 'bloquear', regla: 'C1' });
+    const p = plan(['--json', 'open', 'https://ok.example/']);
+    if (p.veredicto === 'ejecutar') expect(p.args).toEqual(['-s=default', '--json', 'open', '--browser=chromium', 'https://ok.example/']);
+    else throw new Error('debía ejecutar');
+  });
 });
 
 describe('qa:browse — lo prohibido, con su motivo', () => {

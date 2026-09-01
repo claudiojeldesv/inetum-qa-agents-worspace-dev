@@ -46,7 +46,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { runPreflight, type PreflightResult } from '../compliance-preflight.ts';
 import { appendAuditEntry } from '../audit-log.ts';
 
@@ -117,8 +117,12 @@ function esUrl(s: string): boolean {
 
 export function planBrowse(i: PlanInput): PlanBrowse {
   const { sesion, resto } = extraerSesion(i.argv);
-  const comando = resto[0];
-  if (!comando || comando.startsWith('-')) {
+  // El comando es el primer positional que NO es flag: `--raw`, `--json` y
+  // demás globales del CLI pueden precederlo (`--raw eval "…"`). Encontrado en
+  // uso durante A/B-2: tomar resto[0] a ciegas rechazaba invocaciones legítimas.
+  const iCmd = resto.findIndex((a) => !a.startsWith('-'));
+  const comando = iCmd >= 0 ? resto[iCmd] : undefined;
+  if (!comando) {
     return { veredicto: 'bloquear', regla: 'uso', razon: 'falta el comando (open|goto|click|…)' };
   }
 
@@ -133,7 +137,7 @@ export function planBrowse(i: PlanInput): PlanBrowse {
   // --- comandos con URL: verificar TODAS antes de tocar nada -----------------
   const urls: string[] = [];
   if (CON_URL.has(comando)) {
-    for (const a of resto.slice(1)) {
+    for (const a of resto.slice(iCmd + 1)) {
       if (a.startsWith('-')) continue;
       if (!esUrl(a)) {
         // Fail-closed: un positional que no parsea como URL en un comando de
@@ -164,7 +168,7 @@ export function planBrowse(i: PlanInput): PlanBrowse {
         return { veredicto: 'bloquear', regla: 'engine', razon: `--browser=${engine}: solo ${[...ENGINES_PERMITIDOS].join('/')} (canales del sistema no auditados)` };
       }
     } else {
-      args.splice(1, 0, '--browser=chromium');
+      args.splice(iCmd + 1, 0, '--browser=chromium');
     }
   } else if (comando !== 'goto' || !i.sesionAbierta(sesion)) {
     // Todo lo que no es `open` opera sobre una sesión existente: exigir que la
@@ -219,11 +223,17 @@ function main(): void {
   const dir = resolve('.work', 'browse', plan.sesion);
   mkdirSync(dir, { recursive: true });
 
-  const r = spawnSync('npx', ['playwright', 'cli', ...plan.args], {
-    cwd: dir,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
+  /**
+   * Se invoca el cli.js de Playwright con `node`, sin shell y sin npx. Medido en
+   * A/B-2: con `shell: true` cmd.exe RE-PARSEA los argumentos y un `eval` con
+   * espacios o `|` llega partido (el `|` se interpretaba como pipe del shell);
+   * y sin shell, Node 20+ se niega a lanzar el `.cmd` de npx. Llamar al JS
+   * directamente hace que los argumentos viajen VERBATIM, que es lo que un
+   * `eval` necesita. `cli.js` se resuelve desde este módulo, no desde el cwd,
+   * porque el cwd es el directorio de la sesión.
+   */
+  const cliJs = fileURLToPath(new URL('../../node_modules/@playwright/test/cli.js', import.meta.url));
+  const r = spawnSync(process.execPath, [cliJs, 'cli', ...plan.args], { cwd: dir, stdio: 'inherit' });
 
   if (plan.abreSesion && r.status === 0) {
     writeFileSync(marcador(plan.sesion), JSON.stringify({ sesion: plan.sesion, abierta: new Date().toISOString(), urls: plan.urls }, null, 2), 'utf8');

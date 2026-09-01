@@ -108,10 +108,20 @@ brazos frescos con navegador interactivo resolvieron lo que el Haiku con snapsho
 — la calidad era del respondedor, no del transporte. Y la palanca de coste con número: no arrancar
 subagentes (D-c, ~3-5k directo) vale ~10× más que cualquier transporte.
 
-**A/B-2 re-alcanzado por el veredicto**: ya no subagente-contra-subagente sino **orquestador con
-`qa:browse` contra los `recon.ts` a mano** de los tres ciclos. El orquestador no paga envoltorio y puede
-**Grep** sobre los `.yml` en vez de tragarse el árbol en contexto — el único terreno donde
-fichero-contra-inline juega a favor del CLI. Pendiente de ejecutar.
+**A/B-2 EJECUTADO (2026-09-01)** sobre terreno limpio (`practicesoftwaretesting.com`, nunca reconocido;
+disciplina declarada y cumplida: no leer su contract durante el brazo). **HC3: PARCIAL — el CLI gana
+~2,6× en coste pero no cubre lo que exige flujo con estado.** Y gana por una razón distinta a la del
+plan: no porque el snapshot vaya a fichero, sino porque **no hay que escribir un programa** — el 82% del
+coste de la línea base es OUTPUT (~2.727 tokens del `recon.ts` medio) contra ~840 de 14 comandos. Lo que
+NO consiguió: los literales de validación, que el script a mano sí captura porque guioniza fill+blur+
+click+espera. **Adopción: el CLI sustituye al `recon.ts` grande, NO a las `probe-*.ts`** — exploración,
+inventario y literales estáticos por wrapper; sondas de comportamiento por programa.
+
+Dos bugs de la puerta encontrados POR USARLA, arreglados con regresión (15 tests): los globales del CLI
+pueden preceder al comando (`--raw eval …` era rechazado), y `shell: true` destrozaba los argumentos
+(un `|` se interpretaba como pipe de cmd; sin shell, Node 20+ no lanza el `.cmd` de npx) — ahora se
+invoca `cli.js` con `node` y los argumentos viajan verbatim. Camino sancionado para argumentos
+complejos: `npx tsx src/scripts/qa-browse.ts`, no `npm run` (reintroduce cmd en Windows).
 
 ## 6. F2 — pruebas reales (el producto en un run vivo)
 
