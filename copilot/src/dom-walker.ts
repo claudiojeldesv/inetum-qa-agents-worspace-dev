@@ -1223,7 +1223,7 @@ function assistOverlayScript(
     const pintarInventario = (els) => {
       const box = $('invbox');
       box.style.display = 'block';
-      box.innerHTML = '<div class="st">Pasa el ratón por una fila y te la marco en la página. Pulsa para elegirla.</div>';
+      box.innerHTML = '<div class="st">Pasa el ratón por una fila y te la marco en la página. <b>Pulsa la fila y queda elegida</b> — después, Parar.</div>';
       const ul = document.createElement('ul');
       ul.style.cssText = 'max-height:190px;overflow:auto;margin:4px 0';
       els.forEach((e) => {
@@ -1232,28 +1232,41 @@ function assistOverlayScript(
         li.textContent = e.fila;
         if (!e.visible) li.style.opacity = e.proxy ? '0.85' : '0.55';
         li.onmouseenter = () => { try { window.__qaResaltar(e.ref); } catch (err) {} };
+        /**
+         * UN SOLO CLIC. Medido en el segundo estreno: el QA eligió la fila, vio
+         * el marco naranja, y se fue al icono de objetivo — porque el botón
+         * «Usar este» aparecía DEBAJO del bloque de semáforos y no se ve. Nunca
+         * llegó a pulsarlo, así que no había fila que enviar y el replay se fue
+         * sin objetivo. Un paso intermedio que el usuario no descubre es un paso
+         * que no existe: pulsar la fila ES elegirla, y el veredicto se enseña
+         * DESPUÉS como confirmación, no como puerta.
+         */
         li.onclick = async () => {
           // proponerObjetivo vive en el núcleo; aquí se aplica su misma regla.
           const usarProxy = !e.visible && e.proxy;
           const loc = usarProxy ? e.proxy.locator : e.locator;
+          const aplicado = await applyManualNuevo(loc);
           let v = null;
           try { v = await window.__qaVeredicto(loc); } catch (err) {}
+          box.innerHTML = '';
           const li2 = document.createElement('div');
           li2.className = 'st';
-          li2.innerHTML = v && !v.error
-            ? '<b>' + (usarProxy ? 'Su control visible' : 'Ese elemento') + '</b><br>'
-              + '· ¿lo encuentro? <b>' + v.encuentro.texto + '</b><br>'
-              + '· ¿puedo pulsarlo? <b>' + v.acciono.texto + '</b><br>'
-              + '· ¿durará? <b>' + v.dura.texto + '</b>'
-              + (usarProxy ? '<br><i>El elemento está oculto; se usa el control que pulsaría un usuario.</i>' : '')
-            : 'No he podido verificarlo.';
+          li2.innerHTML = (aplicado ? '<b>ELEGIDO</b> — ' : '<b>NO se pudo usar</b> — ')
+            + (usarProxy ? 'su control visible' : 'ese elemento') + '<br>'
+            + (v && !v.error
+              ? '· ¿lo encuentro? <b>' + v.encuentro.texto + '</b><br>'
+                + '· ¿puedo pulsarlo? <b>' + v.acciono.texto + '</b><br>'
+                + '· ¿durará? <b>' + v.dura.texto + '</b><br>'
+              : '')
+            + (usarProxy ? '<i>El elemento está oculto; se usa el control que pulsaría un usuario.</i><br>' : '')
+            + (aplicado
+              ? '<b>Ahora pulsa Parar</b> para enviarlo. (No hace falta el icono de objetivo.)'
+              : 'Elige otra fila.');
           box.appendChild(li2);
-          const ok = document.createElement('button');
-          ok.textContent = 'Usar este';
-          ok.onclick = async () => {
-            if (await applyManualNuevo(loc)) { box.style.display = 'none'; box.innerHTML = ''; }
-          };
-          li2.appendChild(ok);
+          const volver = document.createElement('button');
+          volver.textContent = 'Ver la lista otra vez';
+          volver.onclick = () => pintarInventario(els);
+          li2.appendChild(volver);
         };
         ul.appendChild(li);
       });
@@ -1280,7 +1293,14 @@ function assistOverlayScript(
                  _q: { ok: true, tier: 'manual', fragile: false, label: 'manual', source: value } });
       nodes.push(null);
       render();
-      status.textContent = 'objetivo elegido de la lista: ' + value + ' — pulsa Parar para enviarlo';
+      /**
+       * Elegir de la lista NO exige grabar. «Parar» nace deshabilitado y solo lo
+       * habilitaba «Grabar», así que el QA tenía que iniciar una grabación que no
+       * necesitaba para poder enviar — y en el segundo estreno eso le llevó a
+       * pulsar Grabar, no encontrar el botón de confirmar, y enviar sin objetivo.
+       */
+      $('t').disabled = false;
+      status.textContent = 'objetivo elegido de la lista — pulsa Parar para enviarlo';
       return true;
     };
     $('inv').onclick = async () => {
@@ -1290,7 +1310,7 @@ function assistOverlayScript(
       try {
         inv = await window.__qaInventario(${JSON.stringify(pedidoDelPaso(step.hint))});
         if (inv && inv.error) { status.textContent = 'no pude inventariar: ' + inv.error; return; }
-        status.textContent = inv.length + ' elementos en esta pantalla (ocultos incluidos)';
+        status.textContent = inv.length + ' elementos en esta pantalla (ocultos incluidos) — no hace falta Grabar';
         pintarInventario(inv);
       } catch (e) { status.textContent = 'no pude inventariar'; }
     };
@@ -1329,6 +1349,23 @@ function assistOverlayScript(
       // K0.20: editar el locator de una fila a mano (validado en vivo) y re-capturar
       else if (cmd && cmd.edit !== undefined) { if (seq[cmd.edit.row]) applyManual(cmd.edit.row, cmd.edit.locator); }
       else if (cmd && cmd.recapture !== undefined) { repick = cmd.recapture; recording = true; render(); }
+      /**
+       * D81 — el inventario, por comando. Existe para que el camino que el QA
+       * usa con el ratón sea EL MISMO que se prueba automáticamente: la primera
+       * versión se envió a campo sin test de punta a punta y el QA se encontró
+       * con que elegir una fila no hacía nada. Un camino sin test es un camino
+       * que se rompe en las manos de otro.
+       */
+      else if (cmd && cmd.inventario !== undefined) {
+        (async () => {
+          const els = await window.__qaInventario(cmd.inventario.pedido || '');
+          if (!els || els.error) return;
+          const hallado = els.find((x) => x.fila.indexOf(cmd.inventario.contiene) >= 0);
+          if (!hallado) return;
+          const usarProxy = !hallado.visible && hallado.proxy;
+          await applyManualNuevo(usarProxy ? hallado.proxy.locator : hallado.locator);
+        })();
+      }
     });
 
     // arrastre del panel por la cabecera

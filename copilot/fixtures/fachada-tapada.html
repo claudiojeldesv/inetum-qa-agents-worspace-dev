@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Fachada con control tapado</title>
+  <!--
+    D81 — reproduce la fachada que el QA sufrió en Tricentis (ideal-forms):
+    el <input type=radio> REAL existe, tiene id y nombre accesible por su label,
+    pero está TAPADO por un <span> estilizado de 20x20 que es quien recibe el
+    clic del usuario. Playwright lo considera "visible" (tiene caja y opacity 1)
+    y aun así el clic caduca. Y el span no tiene identidad propia: rol generic,
+    sin nombre, con una clase que se repite.
+
+    El binding vive en el SPAN, igual que en la fachada real: pulsar el input
+    directamente no marca nada — así el fixture distingue el arreglo bueno
+    (accionar el control visible) del falso verde.
+  -->
+  <style>
+    .campo { position: relative; margin: 24px; }
+    /* el input real, debajo del span y del mismo tamaño */
+    .campo input { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: 0; }
+    /* el control estilizado que TAPA al input */
+    .ideal-radio {
+      position: absolute; left: 0; top: 0; width: 20px; height: 20px;
+      border: 2px solid #555; border-radius: 50%; background: #fff; cursor: pointer;
+    }
+    .ideal-radio.on { background: #2563eb; }
+    .txt { margin-left: 30px; }
+  </style>
+</head>
+<body>
+  <h1>Datos del asegurado</h1>
+
+  <label class="campo ideal-radiocheck-label">
+    <input type="radio" id="gendermale" name="gender" />
+    <span class="ideal-radio"></span>
+    <span class="txt">Male</span>
+  </label>
+
+  <label class="campo ideal-radiocheck-label" style="margin-top:60px">
+    <input type="radio" id="genderfemale" name="gender" />
+    <span class="ideal-radio"></span>
+    <span class="txt">Female</span>
+  </label>
+
+  <p>Marcado: <span id="estado">ninguno</span></p>
+
+  <script>
+    // El binding SOLO en el span — como la fachada real. Pulsar el input no hace nada.
+    document.querySelectorAll('.ideal-radio').forEach(function (sp) {
+      sp.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        var input = sp.parentElement.querySelector('input');
+        document.querySelectorAll('.ideal-radio').forEach(function (o) { o.classList.remove('on'); });
+        document.querySelectorAll('input[type=radio]').forEach(function (i) { i.checked = false; });
+        sp.classList.add('on');
+        input.checked = true;
+        document.getElementById('estado').textContent = input.id;
+      });
+    });
+
+    var cmd = new URLSearchParams(location.search).get('cmd');
+    var enviar = function (host, detail) {
+      host.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: detail }));
+    };
+    var espera = setInterval(function () {
+      var host = document.querySelector('[data-qa-assist-host]');
+      if (!host || !cmd) return;
+      clearInterval(espera);
+      if (cmd === 'inventario') {
+        // el camino EXACTO del QA: abrir la lista, elegir la fila de Male, Parar.
+        // Sin 'record': elegir de la lista no debe exigir grabar.
+        enviar(host, { inventario: { pedido: 'Male', contiene: 'Male' } });
+        setTimeout(function () { enviar(host, 'stop'); }, 600);
+      } else if (cmd === 'block') {
+        enviar(host, 'block');
+      }
+    }, 100);
+  </script>
+</body>
+</html>
