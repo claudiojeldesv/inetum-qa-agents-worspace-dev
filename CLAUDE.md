@@ -22,6 +22,8 @@ Ingeniero QA con experiencia en banca y seguros regulados. Foco profesional: exp
 
 Peer subagents en `.claude/agents/` (nativos Microsoft + `ia4d-*` propios), orquestados por commands en `.claude/commands/qa-automator/`. Handoff por archivos. Árbol completo, deprecations de token-efficiency y estructura del repo: [SPEC.md](SPEC.md) §3 y [`docs/references/composition-rules.md`](docs/references/composition-rules.md).
 
+**Instrumentos de navegador, por terreno adjudicado con dato** ([cli-vs-mcp.md](docs/findings/cli-vs-mcp.md)): el **walker** ejecuta la regresión (0 tokens, no se toca); **`qa:browse`** (playwright-cli tras puerta fail-closed) hace el **reconocimiento** — 2,6× más barato que escribir un `recon.ts`, protocolo en [`docs/references/recon-con-cli.md`](docs/references/recon-con-cli.md); las **`probe-*.ts` a mano** siguen para sondas con estado; y el **MCP** queda solo para Planner/Generator/Healer nativos. El CLI como respondedor de rescate se midió y se descartó (empate en tokens, 34% más lento).
+
 **Wrapper sobre Playwright Test Agents nativos**: Playwright v1.56+ trae Planner/Generator/Healer nativos (`npx playwright init-agents --loop=claude`). **No los reimplementamos** — los rodeamos con lo que Microsoft no construirá: compliance regulado, convenciones de cliente, trazabilidad, A11y obligatorio, PII ES, Quality layer. Mediciones reales en [`docs/findings/spike-playwright-mcp.md`](docs/findings/spike-playwright-mcp.md).
 
 **Asignación de modelos** (normativa al crear o tocar subagents): Planner/Generator nativos → `sonnet`. Subagents `ia4d-*`: **Sonnet** para Writer/Reviewer/Spec-refiner y code-analyzer (razonamiento); **Haiku** para Judge y mecánicos (style-enforcer/pii-scanner/a11y-injector/discovery-analyzer/mode-router/spec-parser).
@@ -67,6 +69,7 @@ Carga **lazy** (Claude lee cuando la tarea lo pide):
 | [`SPEC.md`](SPEC.md) | Definición del agente: objective, posicionamiento, modos, commands, structure, code style, boundaries, roadmap |
 | [`docs/STATUS.md`](docs/STATUS.md) | Historial completo de fases, releases y hallazgos (la vieja sección "Estado actual") |
 | [`docs/references/indice-defectos.md`](docs/references/indice-defectos.md) | **El catálogo D1–D63**: qué es cada defecto, dónde se midió, dónde vive el arreglo, estado. Primer sitio donde buscar un D-número |
+| [`docs/references/recon-con-cli.md`](docs/references/recon-con-cli.md) | **Primer contacto con un sitio**: el protocolo de reconocimiento con `qa:browse` (playwright-cli tras la puerta fail-closed). Sustituye al `recon.ts` a mano — 2,6× más barato medido. Las `probe-*.ts` de comportamiento se quedan |
 | [`docs/references/field-sites-schema.md`](docs/references/field-sites-schema.md) | **Montar un workspace de campo**: `npm run field:deploy -- --site=<sitio> --dest=<ruta>`. Recetas en `config/field-sites/`, sello `FIELD.json`, y por qué el desplegador verifica el allowlist pero JAMAS lo escribe |
 | [`docs/SPEC-kernel-v2.md`](docs/SPEC-kernel-v2.md) | Spec congelado del kernel v2 (K0.1–K0.17: escalera de resolución, walk-script, aliases) |
 | [`docs/SPEC-caos-corporativo.md`](docs/SPEC-caos-corporativo.md) | Spec de la gira de stacks corporativos (K0.18–K0.41, un ciclo por sección; usa un D1..D4 LOCAL por ciclo) |

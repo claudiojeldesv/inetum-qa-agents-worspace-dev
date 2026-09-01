@@ -123,7 +123,30 @@ pueden preceder al comando (`--raw eval …` era rechazado), y `shell: true` des
 invoca `cli.js` con `node` y los argumentos viajan verbatim. Camino sancionado para argumentos
 complejos: `npx tsx src/scripts/qa-browse.ts`, no `npm run` (reintroduce cmd en Windows).
 
-## 6. F2 — pruebas reales (el producto en un run vivo)
+## 6. F2 — ADOPCIÓN (re-alcanzada: el respondedor murió, no hay nada que probar de él)
+
+F2 se diseñó para validar el respondedor de rescate en un run vivo. F1 lo mató, así que «pruebas reales»
+de una pieza descartada sería teatro. F2 pasa a ser lo que de verdad faltaba: **que la herramienta que sí
+ganó deje de ser un script que nadie sabe que existe.**
+
+**HECHA (2026-09-01)**:
+
+1. **Protocolo operativo**: [`docs/references/recon-con-cli.md`](../references/recon-con-cli.md) — los
+   comandos que funcionaron, las tres trampas medidas (D72 en el snapshot automático; lo que no está en
+   el árbol de accesibilidad no se alcanza por `ref`; el comillado), y el reparto explícito con las
+   `probe-*.ts`.
+2. **`CLAUDE.md`**: instrumentos de navegador por terreno adjudicado, en la sección de arquitectura, más
+   la fila en la tabla de documentación viva. El próximo ciclo no vuelve a escribir un `recon.ts` por
+   inercia.
+3. **Template sincronizado**: el script viaja en `src/` y la guía en `docs/references/`. El alias
+   `npm run qa:browse` NO viaja (`package.json` no está en `COPY_FILES`) y da igual: el camino sancionado
+   para argumentos complejos es `npx tsx src/scripts/qa-browse.ts`, que funciona en repo y en workspace.
+4. **Resolución robusta de `cli.js`**: se resuelve por el algoritmo de módulos desde `@playwright/test`
+   (que no exporta `cli.js` como subpath) en vez de por ruta relativa cosida — un workspace de campo
+   puede hoistear `node_modules` distinto. Fail-closed si no aparece: nunca cae a `npx` con shell, que
+   es justo lo que destroza los argumentos.
+
+## 6-bis. F2 original — pruebas reales (DESCARTADA, se conserva el texto por trazabilidad)
 
 Solo con F1 en verde:
 
@@ -135,12 +158,18 @@ Solo con F1 en verde:
    general y se compara contra su dossier.
 3. Todo run de F2 emite sus números por `qa:cost` y alimenta el finding.
 
-## 7. F3 — el estreno del QA
+## 7. F3 — el estreno del QA (re-alcanzada con F2)
 
-Tú pruebas el camino entero en uno de los workspaces de campo (propongo `crm`, que tiene el
-`rescue-request.json` pendiente de verdad): lanzas el run, el rescate se responde por CLI, y evalúas
-tres cosas que ninguna métrica mía contesta — si el locator propuesto te merece confianza, si el
-audit-log te deja reconstruir qué miró la IA, y si el reloj se siente mejor o peor que antes.
+Ya no es el rescate por CLI (muerto). **Es el reconocimiento**: en el próximo sitio virgen, el primer
+contacto se hace con [`recon-con-cli.md`](../references/recon-con-cli.md) en la mano, sin escribir un
+`recon.ts`. Lo que se evalúa es lo que ninguna métrica mía contesta:
+
+- ¿la cosecha te sirve como materia prima del FD, o echas de menos algo que el script sí daba?
+- ¿las tres trampas documentadas te muerden igualmente, o la guía las evita?
+- ¿dónde notas que hace falta bajar a una `probe-*.ts`? — ese límite lo fija tu criterio, no el mío.
+
+**Pendiente**: no hay sitio virgen en cola. Se hace cuando toque el siguiente ciclo E2E — y no bloquea
+la vuelta al plan del rescate (§8).
 
 ## 8. La vuelta al plan anterior (para que no se olvide — petición explícita del QA)
 
