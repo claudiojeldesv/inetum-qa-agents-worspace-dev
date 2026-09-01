@@ -1309,6 +1309,185 @@ export function pedidoDelPaso(hint: StepHint | undefined): string {
   return h.name ?? h.label ?? h.text ?? h.test_id ?? '(el paso no dice qué buscar)';
 }
 
+// ------------------------------------------- D81: el inventario del panel
+/**
+ * D81 — «que el QA SIEMPRE pueda coger el locator».
+ *
+ * Medido en el estreno del QA (2026-09-01, Tricentis): grabó `css=#gendermale`
+ * CINCO veces y `Speeding`/`Euro Protection` tres cada uno — 15 enseñanzas para
+ * 7 elementos distintos. La causa no era amnesia (los aliases se promovieron y
+ * se consultaron: hay `alias-hit` en el audit-log), sino que el elemento se
+ * encuentra y NO se puede accionar: el radio nativo de `ideal-forms` vive a
+ * `left:-9999px` tras un control estilizado.
+ *
+ * Y el panel no podía ofrecérselo aunque quisiera, por DOS filtros:
+ *   `captureScript`  → `if (!isVisible(el)) continue`  (ni lo captura)
+ *   `nombresDePantalla` → `if (!el.name) continue`     (lo tira si no tiene nombre)
+ *
+ * El primero no se toca: el dom-map debe seguir viendo solo lo que un usuario
+ * puede usar. El inventario es una captura APARTE, solo para el panel.
+ *
+ * Doctrina: el panel no sabe —ni finge saber— cuál es el elemento correcto. Eso
+ * es del QA (regla dura #9, «QA es juez»). Lo que hace es imposible elegir a
+ * ciegas: describe en idioma de QA, deja resaltarlo en la página, y dice las
+ * tres cosas que sí son mecánicas — si lo encuentra, si se puede accionar, y si
+ * durará. El QA decide con los ojos.
+ */
+
+/** Por qué un elemento no se ve. Vocabulario cerrado: se enseña al QA tal cual. */
+export type MotivoOculto =
+  | 'fuera-de-pantalla'
+  | 'display-none'
+  | 'visibility-hidden'
+  | 'transparente'
+  | 'sin-tamano'
+  | 'tapado'
+  /** Un ANCESTRO tiene display:none — típicamente otro paso o pestaña del asistente. */
+  | 'seccion-oculta';
+
+/** Un elemento del inventario, tal y como sale de la página. */
+export interface ElementoInventario {
+  /** Índice estable dentro de la captura: con él se resalta y se elige. */
+  ref: number;
+  role: string;
+  /** Nombre accesible. Puede faltar — y ese es justo el caso que D81 rescata. */
+  name?: string;
+  test_id?: string;
+  label?: string;
+  /** Texto visible más cercano que lo identifica cuando no hay nombre. */
+  cerca?: string;
+  visible: boolean;
+  motivo_oculto?: MotivoOculto;
+  /** Control VISIBLE que lo envuelve o etiqueta: lo que pulsaría un usuario. */
+  proxy?: { ref: number; via: 'label' | 'envoltorio' | 'aria-controls'; locator: string };
+  /** Locator propuesto para ESTE elemento. */
+  locator: string;
+  /** Estable = id/testid/nombre. Frágil = posicional (no entra en memoria durable). */
+  estable: boolean;
+  por_que_estable?: string;
+}
+
+/** Cómo se le enseña una fila al QA. Sin jerga: ni CSS, ni Playwright. */
+export function filaDelInventario(el: ElementoInventario): string {
+  const nombre = el.name ? `«${el.name}»` : el.cerca ? `(sin nombre, junto a «${el.cerca}»)` : '(sin nombre)';
+  if (el.visible) return `${el.role.padEnd(10)} ${nombre}`;
+  const oculto: Record<MotivoOculto, string> = {
+    'fuera-de-pantalla': 'fuera de pantalla',
+    'display-none': 'no renderizado',
+    'visibility-hidden': 'oculto',
+    transparente: 'transparente',
+    'sin-tamano': 'sin tamaño',
+    tapado: 'tapado por otro elemento',
+    'seccion-oculta': 'su sección no se muestra ahora (otra pestaña o paso)',
+  };
+  const cola = el.proxy ? ' — pero su control visible sí se pulsa' : '';
+  return `${el.role.padEnd(10)} ${nombre}  [${oculto[el.motivo_oculto ?? 'sin-tamano']}${cola}]`;
+}
+
+export interface Semaforos {
+  encuentro: { ok: boolean; texto: string };
+  acciono: { ok: boolean; texto: string };
+  dura: { ok: boolean; texto: string };
+}
+
+/**
+ * Los tres semáforos, en palabras. Se enseñan SIEMPRE antes de aceptar una
+ * elección — incluida la que el QA teclea a mano.
+ *
+ * El de `dura` no es cosmético: un locator frágil no se promueve a memoria
+ * durable (`aliasPromotionVerdict`), así que el QA lo grabaría una y otra vez
+ * sin que nada persista. Medido en el estreno: `getByRole('link').nth(8)`
+ * enseñado tres veces en Restful Booker, promovido cero.
+ */
+export function semaforos(i: {
+  coincidencias: number;
+  accionable: boolean;
+  motivoNoAccionable?: MotivoOculto;
+  hayProxy?: boolean;
+  estable: boolean;
+  porQueEstable?: string;
+}): Semaforos {
+  const encuentro =
+    i.coincidencias === 1
+      ? { ok: true, texto: 'único' }
+      : i.coincidencias === 0
+        ? { ok: false, texto: 'ninguno: no está en esta pantalla' }
+        : { ok: false, texto: `${i.coincidencias} candidatos: hay que acotar` };
+
+  const acciono = i.accionable
+    ? { ok: true, texto: 'sí' }
+    : {
+        ok: false,
+        texto: i.hayProxy
+          ? `no, está ${i.motivoNoAccionable === 'fuera-de-pantalla' ? 'fuera de pantalla' : 'oculto'} — pero su control visible sí`
+          : `no, está ${i.motivoNoAccionable === 'fuera-de-pantalla' ? 'fuera de pantalla' : 'oculto'} y no encuentro control visible que lo cubra`,
+      };
+
+  const dura = i.estable
+    ? { ok: true, texto: `estable (${i.porQueEstable ?? 'identidad propia'})` }
+    : { ok: false, texto: 'frágil (posicional): NO entra en memoria durable — acótalo por contenedor o texto' };
+
+  return { encuentro, acciono, dura };
+}
+
+/**
+ * Qué se propone cuando el QA señala algo. La regla es la del ciclo de
+ * Tricentis, escrita con dato: **accionar el CONTROL VISIBLE como un usuario,
+ * jamás el input oculto**. Un clic sobre el nativo escondido deja el radio
+ * marcado a la vista y NO dispara el binding de jQuery: el importe interno no
+ * se actualiza y el test se pondría verde habiendo probado nada.
+ *
+ * Por eso, ante un elemento oculto CON proxy visible, se propone el proxy — y
+ * se dice por qué. Sin proxy no se inventa nada: se devuelve el elemento con su
+ * semáforo en rojo, que es información honesta y no una falsa salida.
+ */
+export function proponerObjetivo(el: ElementoInventario): {
+  locator: string;
+  esProxy: boolean;
+  explicacion: string;
+} {
+  if (el.visible) {
+    return { locator: el.locator, esProxy: false, explicacion: 'visible y accionable: se usa tal cual' };
+  }
+  if (el.proxy) {
+    const via =
+      el.proxy.via === 'label'
+        ? 'su etiqueta'
+        : el.proxy.via === 'envoltorio'
+          ? 'el control estilizado que lo envuelve'
+          : 'el control que lo gobierna';
+    return {
+      locator: el.proxy.locator,
+      esProxy: true,
+      explicacion: `el elemento está oculto; se usa ${via}, que es lo que pulsaría un usuario`,
+    };
+  }
+  return {
+    locator: el.locator,
+    esProxy: false,
+    explicacion: 'está oculto y no hay control visible que lo cubra: acciónalo solo si sabes lo que haces',
+  };
+}
+
+/**
+ * Ordena el inventario para que lo que el QA busca salga arriba. Sin pedido,
+ * el orden es: accionables antes que ocultos-con-proxy, y esos antes que
+ * ocultos sin salida. Con pedido, lo que se le parece manda.
+ */
+export function ordenarInventario(els: ElementoInventario[], pedido?: string): ElementoInventario[] {
+  const p = (pedido ?? '').trim().toLowerCase();
+  const puntua = (el: ElementoInventario): number => {
+    let s = el.visible ? 0 : el.proxy ? 10 : 20;
+    if (p) {
+      const texto = `${el.name ?? ''} ${el.label ?? ''} ${el.cerca ?? ''}`.toLowerCase();
+      if (texto.includes(p)) s -= 100;
+      else if (p.split(/\s+/).some((w) => w.length > 2 && texto.includes(w))) s -= 50;
+    }
+    return s;
+  };
+  return [...els].sort((a, b) => puntua(a) - puntua(b) || a.ref - b.ref);
+}
+
 // ----------------------------------------------------------------- estado
 
 /** Hash estable del script: invalida el checkpoint si el guion cambió. */

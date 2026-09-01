@@ -67,6 +67,12 @@ import {
   fingerprintHash,
   hashScript,
   pedidoDelPaso,
+  // D81 — el inventario del panel: que el QA SIEMPRE pueda coger el locator.
+  filaDelInventario,
+  ordenarInventario,
+  semaforos,
+  type ElementoInventario,
+  type MotivoOculto,
   textoAsistencia,
   hintLocatorPlan,
   isLandmarkRole,
@@ -499,6 +505,221 @@ function extractionHelpers(testidAttrs: string[], cssFallbackAttrs: string[] = [
 }
 
 /** Corre DENTRO del frame. Aproximación determinística de rol + accessible name. */
+/**
+ * D81 — la captura del INVENTARIO del panel. Deliberadamente distinta de
+ * `captureScript`, y esa separación es el punto:
+ *
+ *   `captureScript` alimenta el dom-map y salta lo invisible (`if (!isVisible)`)
+ *   porque el dom-map describe lo que un USUARIO puede usar. Eso no se toca.
+ *
+ *   Este inventario existe para el QA cuando el motor ya se plantó, y ahí la
+ *   pregunta es otra: «¿qué hay en esta pantalla, aunque no se vea?». Medido en
+ *   el estreno (Tricentis): el radio `#gendermale` está a `left:-9999px` y sin
+ *   nombre accesible, así que era invisible para los DOS filtros y el panel no
+ *   podía ofrecérselo al QA ni queriendo. Grabó el mismo elemento cinco veces.
+ *
+ * Por cada elemento devuelve: qué es, cómo se llama (o a qué texto visible está
+ * pegado si no tiene nombre), si se ve y por qué no, su locator propuesto, si
+ * es estable, y —lo importante— su PROXY VISIBLE: el control que un usuario
+ * pulsaría de verdad.
+ */
+function inventoryScript(testidAttrs: string[], cssFallbackAttrs: string[] = []): string {
+  return `(() => {
+    ${extractionHelpers(testidAttrs, cssFallbackAttrs)}
+    const SEL = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], [contenteditable=true]';
+    /**
+     * El motivo se busca SUBIENDO, no solo en el elemento. Medido en Tricentis:
+     * el radio #gendermale es 0x0, pero también lo son su label, su <p> y su
+     * <div> — el culpable real es una <section class="idealsteps-step"> con
+     * display:none cuatro niveles arriba, o sea OTRO PASO DEL ASISTENTE.
+     * Decirle al QA «sin tamaño» no le sirve de nada; decirle «está en una
+     * sección que ahora no se muestra» le dice que navegue primero. El motivo
+     * más informativo gana al más literal.
+     */
+    const motivoOculto = (el) => {
+      const propio = (n) => {
+        const st = getComputedStyle(n);
+        if (st.display === 'none') return 'display-none';
+        if (st.visibility === 'hidden') return 'visibility-hidden';
+        if (parseFloat(st.opacity || '1') === 0) return 'transparente';
+        const r = n.getBoundingClientRect();
+        // el patrón de fachada: sacado del viewport a propósito (left:-9999px)
+        if (r.width > 0 && r.height > 0 && (r.right < 0 || r.bottom < 0 || r.left > (window.innerWidth || 0) * 3)) return 'fuera-de-pantalla';
+        if (r.width === 0 || r.height === 0) return 'sin-tamano';
+        return null;
+      };
+      const mio = propio(el);
+      if (mio && mio !== 'sin-tamano') return mio;
+      // sin tamaño propio: el culpable suele estar arriba
+      let p = el.parentElement, saltos = 0;
+      while (p && saltos < 8) {
+        const st = getComputedStyle(p);
+        if (st.display === 'none') return 'seccion-oculta';
+        if (st.visibility === 'hidden') return 'visibility-hidden';
+        p = p.parentElement; saltos++;
+      }
+      return mio ?? 'tapado';
+    };
+    /**
+     * El control VISIBLE que cubre a uno oculto, en el orden en que un usuario
+     * lo encontraría: su etiqueta, el envoltorio estilizado, o quien lo gobierna.
+     */
+    const proxyVisible = (el) => {
+      /**
+       * El caso que de verdad mordió al QA en el estreno: el elemento SÍ se ve
+       * (18x22, opacity 1) y aun así el clic caduca, porque encima hay un
+       * <span class="ideal-radio"> de 20x20 — el control estilizado de la
+       * fachada. elementFromPoint sobre su centro devuelve exactamente ese
+       * span: quien recibe el clic de un usuario. No hay que adivinarlo, el
+       * navegador ya sabe la respuesta. (Sin backticks en este comentario: vive
+       * dentro de un template literal y lo cerrarían.)
+       */
+      const r0 = el.getBoundingClientRect();
+      if (r0.width > 0 && r0.height > 0) {
+        const cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+        if (cx >= 0 && cy >= 0 && cx <= (window.innerWidth || 0) && cy <= (window.innerHeight || 0)) {
+          const top = document.elementFromPoint(cx, cy);
+          if (top && top !== el && !el.contains(top) && !top.closest('[' + ASSIST_HOST + ']')) {
+            return { node: top, via: 'envoltorio' };
+          }
+        }
+      }
+      if (el.id) {
+        const lb = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+        if (lb && isVisible(lb)) return { node: lb, via: 'label' };
+        const gov = document.querySelector('[aria-controls="' + CSS.escape(el.id) + '"]');
+        if (gov && isVisible(gov)) return { node: gov, via: 'aria-controls' };
+      }
+      const pl = el.closest('label');
+      if (pl && isVisible(pl)) return { node: pl, via: 'label' };
+      // envoltorio: el ancestro más cercano que SÍ se ve y no es media pantalla
+      let p = el.parentElement, saltos = 0;
+      while (p && saltos < 4) {
+        const r = p.getBoundingClientRect();
+        if (isVisible(p) && r.width < (window.innerWidth || 1e9) * 0.9) return { node: p, via: 'envoltorio' };
+        p = p.parentElement; saltos++;
+      }
+      return null;
+    };
+    /** Locator + estabilidad, en la MISMA prioridad que la escalera del walker. */
+    const locatorDe = (el) => {
+      const f = fieldsOf(el);
+      if (f.test_id) return { locator: "getByTestId('" + f.test_id + "')", estable: true, por_que: 'testid declarado' };
+      if (el.id && !/^[0-9]|:|\\s/.test(el.id)) return { locator: 'css=#' + el.id, estable: true, por_que: 'id de aspecto estable' };
+      const nm = nameOf(el);
+      const role = roleOf(el);
+      if (nm) return { locator: "getByRole('" + role + "', { name: '" + nm.replace(/'/g, "\\\\'") + "' })", estable: true, por_que: 'nombre accesible' };
+      const mismos = Array.from(document.querySelectorAll(SEL)).filter((x) => roleOf(x) === role);
+      const i = mismos.indexOf(el);
+      return { locator: "getByRole('" + role + "').nth(" + (i < 0 ? 0 : i) + ')', estable: false, por_que: 'posicional' };
+    };
+    /** Texto visible más cercano: lo que permite reconocerlo SIN nombre. */
+    const textoCerca = (el) => {
+      let p = el.parentElement, saltos = 0;
+      while (p && saltos < 3) {
+        const t = clean(p.textContent || '');
+        if (t && t.length <= 60) return t;
+        p = p.parentElement; saltos++;
+      }
+      const prev = el.previousElementSibling;
+      return prev ? clean(prev.textContent || '').slice(0, 60) : '';
+    };
+
+    const nodos = Array.from(document.querySelectorAll(SEL))
+      .filter((el) => !el.closest('[' + ASSIST_HOST + ']'))
+      .filter((el) => { const r = roleOf(el); return r !== 'generic' && r !== 'presentation' && r !== 'none' && !LANDMARK_ROLES_JS.includes(r); });
+
+    const idx = new Map(); nodos.forEach((n, i) => idx.set(n, i));
+    const out = [];
+    nodos.forEach((el, ref) => {
+      const vis = isVisible(el);
+      const L = locatorDe(el);
+      const item = { ref, role: roleOf(el), visible: vis, locator: L.locator, estable: L.estable, por_que_estable: L.por_que };
+      const nm = nameOf(el); if (nm) item.name = nm;
+      const f = fieldsOf(el); if (f.test_id) item.test_id = f.test_id; if (f.label) item.label = f.label;
+      if (!nm) { const c = textoCerca(el); if (c) item.cerca = c; }
+      /**
+       * El proxy se busca por NO-ACCIONABLE, no por invisible. Medido: el radio
+       * de Tricentis pasa isVisible (18x22, opacity 1) y el clic caduca igual
+       * porque lo tapa el span de la fachada. Condicionar el proxy a la
+       * invisibilidad dejaba fuera justo el caso que el QA sufrió cinco veces.
+       */
+      const px = proxyVisible(el);
+      if (!vis) item.motivo_oculto = motivoOculto(el);
+      else if (px) item.motivo_oculto = 'tapado';
+      if ((!vis || px) && px) {
+        /**
+         * El proxy suele ser un <span> decorativo SIN identidad propia: rol
+         * 'generic', sin nombre, sin id. Un getByRole('generic') no es un
+         * locator válido, y una clase suelta (span.ideal-radio) resuelve 6 en la
+         * misma pantalla. Se ANCLA al elemento que cubre, que sí tiene id:
+         * medido en Tricentis, '#gendermale + span' resuelve ÚNICO, es visible, y
+         * al pulsarlo el radio queda marcado DE VERDAD (dispara el binding de
+         * jQuery — no el falso verde del clic por JS sobre el input oculto).
+         */
+        let loc = null;
+        if (el.id && !/^[0-9]|:|\\s/.test(el.id)) {
+          const sib = '#' + el.id + ' + ' + px.node.tagName.toLowerCase();
+          if (document.querySelectorAll(sib).length === 1 && document.querySelector(sib) === px.node) loc = 'css=' + sib;
+          if (!loc && px.node === el.parentElement) {
+            const par = '#' + el.id + ':scope';
+            // el padre no se expresa con ':scope' en CSS plano: se usa :has()
+            const conHas = px.node.tagName.toLowerCase() + ':has(> #' + el.id + ')';
+            if (document.querySelectorAll(conHas).length === 1) loc = 'css=' + conHas;
+            void par;
+          }
+        }
+        if (!loc) {
+          const pl = locatorDe(px.node);
+          // un rol 'generic' no es un locator ejecutable: mejor no ofrecerlo
+          loc = /getByRole\\('generic'/.test(pl.locator) ? null : pl.locator;
+        }
+        if (loc) item.proxy = { ref: idx.has(px.node) ? idx.get(px.node) : -1, via: px.via, locator: loc };
+        else if (vis) item.visible = true; // sin proxy expresable, no se degrada la fila
+      }
+      // «visible» para el QA significa ACCIONABLE, no «tiene caja»: si algo lo
+      // tapa, se le enseña como no accionable y con su salida.
+      if (vis && px) item.visible = false;
+      out.push(item);
+    });
+    return out;
+  })()`;
+}
+
+/**
+ * D81 — resaltar en la página el elemento que el QA está mirando en la lista.
+ * Sin esto la lista sería otra forma de elegir a ciegas: el QA tiene que VER
+ * qué va a coger antes de aceptarlo. El marco vive en un elemento propio con el
+ * atributo del host del panel, para que la captura del dom-map lo salte igual
+ * que salta el panel (K0.10).
+ */
+function highlightScript(): string {
+  return `((ref, sel, hostAttr) => {
+    const ID = 'qa-d81-highlight';
+    document.getElementById(ID)?.remove();
+    if (ref < 0) return null;
+    const nodos = Array.from(document.querySelectorAll(sel)).filter((el) => !el.closest('[' + hostAttr + ']'));
+    const el = nodos[ref];
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    const r2 = el.getBoundingClientRect();
+    const box = document.createElement('div');
+    box.id = ID;
+    box.setAttribute(hostAttr, '1');
+    const fuera = r2.width === 0 || r2.height === 0 || r2.right < 0 || r2.bottom < 0;
+    // Un elemento a left:-9999px no se puede enmarcar donde está: se enmarca su
+    // proxy si lo hay, y si no se avisa — nunca se dibuja un marco que engañe.
+    const t = fuera ? null : r2;
+    if (!t) return { encontrado: true, enmarcado: false, motivo: 'no tiene sitio en pantalla' };
+    box.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;border:3px solid #f59e0b;'
+      + 'box-shadow:0 0 0 3px rgba(245,158,11,.35);border-radius:3px;'
+      + 'left:' + (t.left - 3) + 'px;top:' + (t.top - 3) + 'px;width:' + (t.width + 6) + 'px;height:' + (t.height + 6) + 'px';
+    document.body.appendChild(box);
+    return { encontrado: true, enmarcado: true, alto: Math.round(r.height), ancho: Math.round(r.width) };
+  })`;
+}
+
 function captureScript(testidAttrs: string[], cssFallbackAttrs: string[] = []): string {
   // Serializado como string para frame.evaluate — sin closures externas.
   return `(() => {
@@ -752,6 +973,10 @@ function assistOverlayScript(
             <button id="x" class="${mutating ? 'safe' : ''}" disabled>Capturar sin ejecutar</button>
           </div>
           <div class="row">
+            <button id="inv" class="safe">Ver todo lo que hay</button>
+          </div>
+          <div id="invbox" style="display:none"></div>
+          <div class="row">
             <button id="d" class="drift">No existe aquí</button>
             <button id="b">Bloquear paso</button>
           </div>
@@ -980,6 +1205,80 @@ function assistOverlayScript(
     $('c').onclick = () => { seq.length = 0; nodes.length = 0; render(); };
     $('t').onclick = () => submit('recorded');
     $('x').onclick = () => submit('recorded', 'el QA pidió capturar sin ejecutar la acción', false);
+    /**
+     * D81 — «Ver todo lo que hay»: la vía que garantiza el «sí o sí».
+     *
+     * El QA no teclea locators ni inspecciona el DOM. Ve una lista en su idioma
+     * —incluidos los elementos SIN nombre y los OCULTOS, que son justo los que
+     * el camino normal descarta—, pasa el ratón y se le resalta en la página, y
+     * al elegir se le enseñan los tres semáforos. Ante un oculto con control
+     * visible se propone el CONTROL VISIBLE, nunca el input escondido: la regla
+     * que el ciclo de Tricentis escribió con dato (clic sobre el nativo oculto =
+     * marcado a la vista sin disparar el binding = verde que miente).
+     */
+    let inv = null;
+    const pintarInventario = (els) => {
+      const box = $('invbox');
+      box.style.display = 'block';
+      box.innerHTML = '<div class="st">Pasa el ratón por una fila y te la marco en la página. Pulsa para elegirla.</div>';
+      const ul = document.createElement('ul');
+      ul.style.cssText = 'max-height:190px;overflow:auto;margin:4px 0';
+      els.forEach((e) => {
+        const li = document.createElement('li');
+        li.style.cssText = 'cursor:pointer;font:11px monospace;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        li.textContent = e.fila;
+        if (!e.visible) li.style.opacity = e.proxy ? '0.85' : '0.55';
+        li.onmouseenter = () => { try { window.__qaResaltar(e.ref); } catch (err) {} };
+        li.onclick = async () => {
+          // proponerObjetivo vive en el núcleo; aquí se aplica su misma regla.
+          const usarProxy = !e.visible && e.proxy;
+          const loc = usarProxy ? e.proxy.locator : e.locator;
+          let v = null;
+          try { v = await window.__qaVeredicto(loc); } catch (err) {}
+          const li2 = document.createElement('div');
+          li2.className = 'st';
+          li2.innerHTML = v && !v.error
+            ? '<b>' + (usarProxy ? 'Su control visible' : 'Ese elemento') + '</b><br>'
+              + '· ¿lo encuentro? <b>' + v.encuentro.texto + '</b><br>'
+              + '· ¿puedo pulsarlo? <b>' + v.acciono.texto + '</b><br>'
+              + '· ¿durará? <b>' + v.dura.texto + '</b>'
+              + (usarProxy ? '<br><i>El elemento está oculto; se usa el control que pulsaría un usuario.</i>' : '')
+            : 'No he podido verificarlo.';
+          box.appendChild(li2);
+          const ok = document.createElement('button');
+          ok.textContent = 'Usar este';
+          ok.onclick = async () => {
+            if (await applyManualNuevo(loc)) { box.style.display = 'none'; box.innerHTML = ''; }
+          };
+          li2.appendChild(ok);
+        };
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+    };
+    /** Crea una fila NUEVA desde un locator, sin gesto previo: el «sí o sí». */
+    const applyManualNuevo = async (value) => {
+      let res;
+      try { res = await window.__qaAssistResolve(value); } catch (e) { res = { ok: false }; }
+      if (!res || !res.ok) { status.textContent = 'ese locator no resuelve único aquí'; return false; }
+      seq.push({ via: 'manual', name: value, as: 'target', manual_locator: value,
+                 _q: { ok: true, tier: 'manual', fragile: false, label: 'manual', source: value } });
+      nodes.push(null);
+      render();
+      return true;
+    };
+    $('inv').onclick = async () => {
+      const box = $('invbox');
+      if (box.style.display === 'block') { box.style.display = 'none'; box.innerHTML = ''; try { window.__qaResaltar(-1); } catch (e) {} return; }
+      status.textContent = 'mirando la pantalla…';
+      try {
+        inv = await window.__qaInventario(${JSON.stringify(pedidoDelPaso(step.hint))});
+        if (inv && inv.error) { status.textContent = 'no pude inventariar: ' + inv.error; return; }
+        status.textContent = inv.length + ' elementos en esta pantalla (ocultos incluidos)';
+        pintarInventario(inv);
+      } catch (e) { status.textContent = 'no pude inventariar'; }
+    };
+
     $('d').onclick = () => submit('drift', 'el QA confirma que el elemento no existe en esta pantalla');
     $('b').onclick = () => submit('block', 'el QA decidió bloquear el paso');
     // el walker llama a esto al terminar de verificar, y luego cierra
@@ -3878,6 +4177,88 @@ class DomWalker {
       const unique = await this.uniqueOrNull(loc).catch(() => null);
       return { ok: unique !== null, count, unique: unique !== null };
     });
+
+    /**
+     * D81, puente 1 — el INVENTARIO. Todo lo que hay en la pantalla, incluido lo
+     * que no se ve y lo que no tiene nombre: justo lo que los dos filtros del
+     * camino normal descartan y por lo que el QA no podía llegar a `#gendermale`.
+     * Se ordena poniendo arriba lo que se parece a lo que el paso pedía.
+     */
+    await this.page.exposeFunction('__qaInventario', async (pedido?: string) => {
+      try {
+        const crudo = (await this.page.evaluate(
+          inventoryScript(TESTID_ATTR_CANDIDATES, this.cssFallbackAttrs),
+        )) as ElementoInventario[];
+        const ordenado = ordenarInventario(crudo, pedido);
+        return ordenado.map((el) => ({ ...el, fila: filaDelInventario(el) }));
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    /**
+     * D81, puente 2 — RESALTAR. Sin esto la lista es otra forma de elegir a
+     * ciegas. Devuelve si pudo enmarcarlo: un elemento a `left:-9999px` no tiene
+     * sitio en pantalla y se dice, en vez de dibujar un marco que engañe.
+     */
+    await this.page.exposeFunction('__qaResaltar', async (ref: number) => {
+      try {
+        const SEL = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role], [contenteditable=true]';
+        return await this.page.evaluate(
+          ({ script, ref: r, sel, host }) => (eval(script) as (a: number, b: string, c: string) => unknown)(r, sel, host),
+          { script: highlightScript(), ref, sel: SEL, host: ASSIST_HOST_ATTR },
+        );
+      } catch (e) {
+        return { encontrado: false, motivo: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    /**
+     * D81, puente 3 — el VEREDICTO antes de aceptar. Los tres semáforos en
+     * palabras, calculados contra el DOM VIVO: cuántos resuelve, si se puede
+     * accionar de verdad (no solo si existe — el caso de Tricentis) y si va a
+     * sobrevivir al siguiente run. Sirve igual para una fila de la lista que
+     * para un locator tecleado a mano.
+     */
+    await this.page.exposeFunction('__qaVeredicto', async (src: string) => {
+      const loc = this.locatorFromChain(this.page, src);
+      if (!loc) return { error: 'no reconozco ese locator' };
+      const count = await loc.count().catch(() => 0);
+      let accionable = false;
+      let motivo: MotivoOculto | undefined;
+      if (count === 1) {
+        accionable = await loc
+          .first()
+          .isVisible()
+          .then((v) => v && loc.first().isEnabled())
+          .catch(() => false);
+        if (!accionable) {
+          motivo = await loc
+            .first()
+            .evaluate((el: Element) => {
+              const st = getComputedStyle(el as HTMLElement);
+              if (st.display === 'none') return 'display-none';
+              if (st.visibility === 'hidden') return 'visibility-hidden';
+              if (parseFloat(st.opacity || '1') === 0) return 'transparente';
+              const r = el.getBoundingClientRect();
+              if (r.width === 0 || r.height === 0) return 'sin-tamano';
+              if (r.right < 0 || r.bottom < 0) return 'fuera-de-pantalla';
+              return 'tapado';
+            })
+            .catch(() => undefined) as MotivoOculto | undefined;
+        }
+      }
+      const estable = !/\.nth\(\d+\)/.test(src);
+      return semaforos({
+        coincidencias: count,
+        accionable,
+        motivoNoAccionable: motivo,
+        hayProxy: false,
+        estable,
+        porQueEstable: /getByTestId/.test(src) ? 'testid declarado' : /css=#/.test(src) ? 'id' : 'nombre accesible',
+      });
+    });
+
     this.assistBridgeReady = true;
   }
 
@@ -6815,6 +7196,9 @@ export {
   verdictOverlayScript,
   ensureReachable,
   extractionHelpers,
+  // D81 — exportados para poder probarlos contra un sitio real sin arrancar un walk
+  inventoryScript,
+  highlightScript,
   killAnimationsScript,
   settleScript,
   TESTID_ATTR_CANDIDATES,
