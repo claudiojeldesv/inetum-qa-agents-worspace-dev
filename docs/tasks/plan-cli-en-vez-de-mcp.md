@@ -97,9 +97,21 @@ los `recon.ts`/`probe-*.ts` escritos a mano en los tres ciclos (coste: mi tiempo
 errores documentados, p. ej. el `label[for="gendermale"]` inexistente). Criterio: cobertura igual
 (mismos literales y hallazgos) con menos pasos de orquestador.
 
-Salida de F1: tabla con el baremo C-c aplicado a los dos A/B, en un finding
-(`docs/findings/cli-vs-mcp.md`). **Kill criteria**: si el brazo CLI no cumple el baremo en A/B-1, el
-respondedor CLI muere aquí y solo sobrevive (si cumplió) el recon.
+**A/B-1 EJECUTADO (2026-09-01)** — resultado en [cli-vs-mcp.md](../findings/cli-vs-mcp.md), y los kill
+criteria se aplicaron: **empate al 0,09% en tokens (197.117 vs 196.938), CLI un 34% más lento, paridad
+perfecta (3/3 aciertos en ambos, ab3 con el MISMO locator literal). HC2 y HC4 muertas: el respondedor de
+rescate por CLI NO se construye.** El control midió el porqué: 45.885 tokens por un subagente SIN TAREA —
+el 59-78% del coste de cada brazo era el envoltorio, que es ciego al transporte; los esquemas MCP van
+diferidos en este harness (el «impuesto» de los foros no aplica); y snapshot-a-fichero no ahorra si hay
+que LEER el fichero para razonar. Hallazgo colateral que alimenta la Fase 2 del plan del rescate: los DOS
+brazos frescos con navegador interactivo resolvieron lo que el Haiku con snapshot podado estático declinó
+— la calidad era del respondedor, no del transporte. Y la palanca de coste con número: no arrancar
+subagentes (D-c, ~3-5k directo) vale ~10× más que cualquier transporte.
+
+**A/B-2 re-alcanzado por el veredicto**: ya no subagente-contra-subagente sino **orquestador con
+`qa:browse` contra los `recon.ts` a mano** de los tres ciclos. El orquestador no paga envoltorio y puede
+**Grep** sobre los `.yml` en vez de tragarse el árbol en contexto — el único terreno donde
+fichero-contra-inline juega a favor del CLI. Pendiente de ejecutar.
 
 ## 6. F2 — pruebas reales (el producto en un run vivo)
 
