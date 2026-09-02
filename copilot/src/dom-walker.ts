@@ -4546,15 +4546,52 @@ class DomWalker {
       let done = false;
       let timer: ReturnType<typeof setTimeout>;
       let watchdog: ReturnType<typeof setInterval>;
+      /**
+       * D86 — AL CADUCAR NO SE DESTRUYE LO GRABADO, Y SE DICE CUÁNTO HABÍA.
+       *
+       * `clearAssistMarker()` borra el fichero Y vacía `assistRecorded`, así que
+       * un timeout se llevaba por delante los gestos del QA **y la única prueba
+       * de que hubo gestos**. Consecuencia medida: en el estreno de Restful
+       * Booker hubo OCHO paneles seguidos que caducaron a 600 s exactos, y al
+       * investigarlo dos explicaciones quedaron indistinguibles con lo que había
+       * en disco — que el QA se ausentara ~80 min, o que estuviera delante
+       * haciendo el gesto que el panel no escucha (siete de los ocho eran pasos
+       * mutantes, donde se pide hover + ◉ y no clic). Sin traza no hay
+       * diagnóstico, y el propio mecanismo borraba la traza.
+       *
+       * Dos cosas, y la primera es la que hace concluyente el próximo run:
+       *  1. el desenlace va al audit-log CON el número de gestos grabados —
+       *     append-only, sobrevive a que el panel siguiente sobrescriba el
+       *     marcador y a que el run acabe;
+       *  2. al caducar el marcador se CONSERVA en vez de borrarse, así que si el
+       *     QA relanza, `recuperarAssistRecording` le devuelve sus gestos (con
+       *     sus tres cerrojos: flujo, paso y hash del guion).
+       *
+       * En la salida por ÉXITO sí se limpia: los gestos ya se consumieron.
+       *
+       * Límite conocido de (2), dicho para que nadie lo descubra en campo: el
+       * marcador es de RUTA FIJA, así que el panel del paso siguiente lo
+       * sobrescribe. Conservarlo salva el caso real —el QA ve que ha caducado y
+       * relanza— pero no varios timeouts encadenados. Lo que sí sobrevive a todo
+       * es (1), y por eso es la mitad que importa para diagnosticar.
+       */
       const finish = (p: AssistSubmission | null, reason?: string): void => {
         if (done) return;
         done = true;
         if (reason) endReason = reason;
         clearTimeout(timer);
         clearInterval(watchdog);
+        const gestos = this.assistRecorded.length;
         this.assistPending = null;
         this.assistTrack = null;
-        this.clearAssistMarker();
+        if (p) this.clearAssistMarker();
+        this.audit(p ? 'allow' : 'skip', `panel de ${flow.flow}/${step.id} cerrado: ${p ? 'enviado por el QA' : reason ?? 'plazo agotado'} — ${gestos} gesto(s) grabado(s)`, {
+          phase: 'assist-close',
+          gestos_grabados: gestos,
+          enviado: Boolean(p),
+          paso_mutante: mutating,
+          ...(gestos > 0 && !p ? { grabado_conservado: this.assistMarkerPath } : {}),
+        });
         res(p);
       };
       timer = setTimeout(() => finish(null), this.opts.assistTimeoutMs);

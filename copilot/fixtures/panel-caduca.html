@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8" /><title>Panel que caduca</title></head>
+<body>
+  <h1>Formulario</h1>
+  <!--
+    D86 — el panel se abre y NADIE lo atiende: se agota el plazo. Con `?cmd=gesto`
+    el fixture hace UN gesto (hover sobre el objetivo, que es lo que el panel pide
+    en un paso mutante) y NO pulsa Parar — reproduce el caso de campo donde el QA
+    estaba delante pero la espera caducó igual. Sin `cmd`, nadie toca nada.
+  -->
+  <button id="objetivo" type="button">Confirmar</button>
+  <script>
+    var cmd = new URLSearchParams(location.search).get('cmd');
+    var espera = setInterval(function () {
+      var host = document.querySelector('[data-qa-assist-host]');
+      if (!host) return;
+      clearInterval(espera);
+      if (cmd !== 'gesto') return;           // nadie atiende: caduca en seco
+      host.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: 'record' }));
+      setTimeout(function () {
+        // hover: el gesto que el panel pide en un paso mutante. Sin pulsar Parar.
+        var b = document.getElementById('objetivo');
+        var r = b.getBoundingClientRect();
+        b.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX: r.left + 5, clientY: r.top + 5 }));
+      }, 300);
+    }, 100);
+  </script>
+</body></html>
