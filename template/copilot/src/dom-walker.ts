@@ -634,13 +634,93 @@ function inventoryScript(testidAttrs: string[], cssFallbackAttrs: string[] = [])
       return null;
     };
     /** Locator + estabilidad, en la MISMA prioridad que la escalera del walker. */
+    /**
+     * D87 — el inventario proponía locators AMBIGUOS y los pintaba «estables».
+     *
+     * Prefería el nombre accesible y no comprobaba que resolviera ÚNICO. Medido
+     * en Restful Booker: la portada tiene CUATRO tarjetas con «Book now», así
+     * que las cuatro filas del inventario proponían
+     * getByRole('link', { name: 'Book now' }) — el mismo locator para las
+     * cuatro. Al elegir una, la validación en vivo lo rechazaba («ese locator no
+     * resuelve único aquí»), no se creaba fila, y el QA enviaba el panel VACÍO
+     * creyendo que había señalado algo. El registro de D86 lo dejó en una línea:
+     * enviado=true, gestos=0.
+     *
+     * Y el semáforo mentía en verde: decía «estable · nombre accesible» sobre un
+     * locator que apunta a cuatro cosas. **Estable, correcto y único son tres
+     * ejes distintos**, y el panel solo miraba el primero.
+     *
+     * Ahora cada candidato se comprueba EN LA PÁGINA antes de ofrecerse, y si
+     * resuelve varios se desambigua por posición DENTRO de su propio grupo —
+     * getByRole('link', { name: 'Book now' }).nth(2), que sigue diciendo qué
+     * es y además cuál. Eso es frágil por definición y se declara como tal, así
+     * que el semáforo «¿durará?» avisa y el cerrojo de promoción (D85) lo
+     * mantiene fuera de la memoria durable.
+     */
+    const cuantosResuelve = (loc, el) => {
+      try {
+        if (loc.indexOf('css=') === 0) {
+          const n = document.querySelectorAll(loc.slice(4));
+          return { n: n.length, esEste: n.length === 1 && n[0] === el };
+        }
+        /**
+         * Parseo por posiciones y NO por expresión regular: este script viaja
+         * dentro de un template literal, donde las secuencias de escape se
+         * procesan antes de llegar a la página — un /\\(/ se convierte en /(/ y
+         * la expresión deja de casar en silencio. Ya pasó: la primera versión de
+         * esta comprobación no casaba nunca y todos los candidatos caían al
+         * peldaño posicional, el peor de los tres.
+         */
+        const ini = "getByRole('";
+        if (loc.indexOf(ini) === 0) {
+          const finRol = loc.indexOf("'", ini.length);
+          const marca = "name: '";
+          const iNom = loc.indexOf(marca);
+          if (finRol > 0 && iNom > 0) {
+            const rol = loc.slice(ini.length, finRol);
+            const nombre = loc.slice(iNom + marca.length, loc.lastIndexOf("'")).replace(/\\\\'/g, "'");
+            /**
+             * La comparación tiene que ser la de PLAYWRIGHT, no la mía. Su
+             * getByRole casa el nombre SIN distinguir mayúsculas y por
+             * subcadena (salvo exact:true), así que comparar con === decía
+             * «único» sobre un locator que en ejecución resuelve cuatro:
+             * medido en Restful Booker, donde conviven «Book Now» y tres
+             * «Book now». Verificar con una semántica distinta a la del
+             * consumidor es no verificar — y el error se paga en verde.
+             */
+            const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+            const objetivo = norm(nombre);
+            const mismos = Array.from(document.querySelectorAll(SEL))
+              .filter((x) => roleOf(x) === rol && norm(nameOf(x)).indexOf(objetivo) >= 0);
+            return { n: mismos.length, esEste: mismos.length === 1 && mismos[0] === el, grupo: mismos };
+          }
+        }
+      } catch (e) { /* selector inválido: se trata como no resuelto */ }
+      return { n: 0, esEste: false };
+    };
     const locatorDe = (el) => {
       const f = fieldsOf(el);
-      if (f.test_id) return { locator: "getByTestId('" + f.test_id + "')", estable: true, por_que: 'testid declarado' };
-      if (el.id && !/^[0-9]|:|\\s/.test(el.id)) return { locator: 'css=#' + el.id, estable: true, por_que: 'id de aspecto estable' };
-      const nm = nameOf(el);
       const role = roleOf(el);
-      if (nm) return { locator: "getByRole('" + role + "', { name: '" + nm.replace(/'/g, "\\\\'") + "' })", estable: true, por_que: 'nombre accesible' };
+      const candidatos = [];
+      if (f.test_id) candidatos.push({ locator: "getByTestId('" + f.test_id + "')", por_que: 'testid declarado' });
+      if (el.id && !/^[0-9]|:|\\s/.test(el.id)) candidatos.push({ locator: 'css=#' + el.id, por_que: 'id de aspecto estable' });
+      const nm = nameOf(el);
+      if (nm) candidatos.push({ locator: "getByRole('" + role + "', { name: '" + nm.replace(/'/g, "\\\\'") + "' })", por_que: 'nombre accesible' });
+
+      for (const c of candidatos) {
+        const r = cuantosResuelve(c.locator, el);
+        // ÚNICO y además ES ESTE: un locator que resuelve uno solo pero apunta a
+        // otro elemento sería lo peor de todo — verde, estable y equivocado.
+        if (r.esEste) return { locator: c.locator, estable: true, por_que: c.por_que };
+      }
+      // ambiguo: se desambigua DENTRO de su grupo, que conserva el significado
+      for (const c of candidatos) {
+        const r = cuantosResuelve(c.locator, el);
+        if (r.n > 1 && r.grupo) {
+          const i = r.grupo.indexOf(el);
+          if (i >= 0) return { locator: c.locator + '.nth(' + i + ')', estable: false, por_que: 'posicional dentro de ' + r.n + ' iguales' };
+        }
+      }
       const mismos = Array.from(document.querySelectorAll(SEL)).filter((x) => roleOf(x) === role);
       const i = mismos.indexOf(el);
       return { locator: "getByRole('" + role + "').nth(" + (i < 0 ? 0 : i) + ')', estable: false, por_que: 'posicional' };
@@ -4584,7 +4664,14 @@ class DomWalker {
         const gestos = this.assistRecorded.length;
         this.assistPending = null;
         this.assistTrack = null;
-        if (p) this.clearAssistMarker();
+        /**
+         * El marcador se conserva SOLO si hay algo que conservar. Caducar con
+         * CERO gestos no deja evidencia que salvar, y un marcador pegado sobre
+         * un run terminado miente sobre el estado del walk: eso es exactamente
+         * lo que cerró K0.45/D12, y la primera versión de D86 lo reabrió al
+         * dejar de borrar SIEMPRE en vez de dejar de borrar CUANDO HAY GESTOS.
+         */
+        if (p || gestos === 0) this.clearAssistMarker();
         this.audit(p ? 'allow' : 'skip', `panel de ${flow.flow}/${step.id} cerrado: ${p ? 'enviado por el QA' : reason ?? 'plazo agotado'} — ${gestos} gesto(s) grabado(s)`, {
           phase: 'assist-close',
           gestos_grabados: gestos,

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8" /><title>Cuatro iguales</title></head>
+<body>
+  <h1>Habitaciones</h1>
+  <!--
+    D87 — cuatro enlaces con el MISMO nombre accesible, y uno con distinta caja.
+    Reproduce la portada de Restful Booker, donde el inventario proponía
+    getByRole('link', { name: 'Book now' }) para los cuatro y la validación en
+    vivo lo rechazaba, dejando al QA sin fila y con el panel vacío.
+    La variante «Book Now» está a propósito: getByRole casa sin distinguir
+    mayúsculas, así que comparar con === decía «único» sobre algo que resuelve 4.
+  -->
+  <div><span>Single</span> <a href="#s">Book Now</a></div>
+  <div><span>Double</span> <a href="#d">Book now</a></div>
+  <div><span>Twin</span> <a href="#t">Book now</a></div>
+  <div><span>Suite</span> <a href="#u">Book now</a></div>
+  <a href="#solo" id="unico">Reservar ya</a>
+</body></html>

@@ -67,12 +67,15 @@ async function correr(cmd: string): Promise<{ map: DomMap; cierres: Entrada[]; w
 
 describe('D86 — un panel que caduca deja traza de lo que había', () => {
   it('nadie atiende: el cierre queda registrado con CERO gestos', async () => {
-    const { cierres } = await correr('');
+    const { cierres, workDir } = await correr('');
     expect(cierres, 'el cierre del panel debe registrarse siempre').toHaveLength(1);
     expect(cierres[0].metadata?.enviado).toBe(false);
     expect(cierres[0].metadata?.gestos_grabados).toBe(0);
     // y dice que el paso mutaba, que es la mitad del diagnóstico de campo
     expect(cierres[0].metadata?.paso_mutante).toBe(true);
+    // Sin gestos NO se conserva marcador: dejarlo pegado pondría un
+    // «ESPERANDO AL QA» sobre un run ya terminado (K0.45/D12).
+    expect(existsSync(resolve(workDir, 'assist-pending.json')), 'sin nada que conservar, el marcador se retira').toBe(false);
   }, 90_000);
 
   it('el QA gesticuló y NO envió: el registro lo distingue de la ausencia', async () => {
