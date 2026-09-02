@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "source_fd": "restful-booker-fd.md",
+  "refined_timestamp": "2026-09-02T22:06:20.199Z",
+  "target_url": "https://automationintesting.online/",
+  "criteria": [
+    {
+      "id": "CP001",
+      "title": "Reserva de habitación individual",
+      "flow": "reserva-de-habitacion-individual",
+      "given": "la habitación individual existe y tiene disponibilidad en la ventana de fechas del caso (10/11/2026 a 12/11/2026).",
+      "when": "verificar que un huésped puede reservar la habitación individual desde el portal público y recibe la confirmación.",
+      "then": "La reserva queda confirmada y el sistema muestra las fechas de la estancia junto al mensaje de confirmación.",
+      "source_ref": "restful-booker-fd.md:16-45",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP002",
+      "title": "Consulta de disponibilidad",
+      "flow": "consulta-de-disponibilidad",
+      "given": "ninguna.",
+      "when": "verificar que la consulta de disponibilidad devuelve el catálogo de habitaciones.",
+      "then": "El catálogo muestra las tres habitaciones del hotel con su precio por noche.",
+      "source_ref": "restful-booker-fd.md:49-68",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP003",
+      "title": "Consulta del detalle de la suite",
+      "flow": "consulta-del-detalle-de-la",
+      "given": "la suite existe en el catálogo.",
+      "when": "verificar que la ficha de una habitación muestra sus características y políticas.",
+      "then": "La ficha de la suite muestra características, políticas de entrada y salida y normas de la casa.",
+      "source_ref": "restful-booker-fd.md:72-90",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP004",
+      "title": "Envío de mensaje de contacto",
+      "flow": "envio-de-mensaje-de-contacto",
+      "given": "ninguna.",
+      "when": "verificar que un visitante puede enviar un mensaje al hotel desde el formulario de contacto.",
+      "then": "El sistema confirma la recepción del mensaje citando el nombre del remitente y el asunto enviado.",
+      "source_ref": "restful-booker-fd.md:94-115",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP005",
+      "title": "Validaciones del formulario de contacto",
+      "flow": "validaciones-del-formulario-de-contacto",
+      "given": "ninguna.",
+      "when": "verificar que el formulario de contacto rechaza el envío vacío e informa de cada campo obligatorio.",
+      "then": "El mensaje no se envía y el sistema enumera los campos obligatorios que faltan.",
+      "source_ref": "restful-booker-fd.md:119-137",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP006",
+      "title": "Acceso al panel de administración",
+      "flow": "acceso-al-panel-de-administracion",
+      "given": "usuario administrador dado de alta.",
+      "when": "verificar que el administrador accede al panel y ve el inventario de habitaciones.",
+      "then": "El panel muestra el inventario de habitaciones en una tabla con número, tipo, accesibilidad, precio y detalles.",
+      "source_ref": "restful-booker-fd.md:141-161",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP007",
+      "title": "Alta de habitación",
+      "flow": "alta-de-habitacion",
+      "given": "sesión de administrador iniciada (CP006).",
+      "when": "verificar que el administrador puede dar de alta una habitación y que ésta aparece en el inventario.",
+      "then": "La habitación queda dada de alta y aparece como una fila más del inventario con su tipo y precio.",
+      "source_ref": "restful-booker-fd.md:165-185",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP008",
+      "title": "La reserva llega a la bandeja del administrador",
+      "flow": "la-reserva-llega-a-la",
+      "given": "la habitación doble tiene disponibilidad en la ventana de fechas del caso (24/11/2026 a 26/11/2026).",
+      "when": "verificar que una reserva hecha en el portal público genera un aviso en la bandeja de mensajes del administrador.",
+      "then": "La reserva del portal público genera un aviso de nueva reserva en la bandeja del administrador a nombre del huésped que reservó.",
+      "source_ref": "restful-booker-fd.md:189-218",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP009",
+      "title": "Lectura de un mensaje de la bandeja",
+      "flow": "lectura-de-un-mensaje-de",
+      "given": "sesión de administrador iniciada. Existe al menos un mensaje en la bandeja con asunto `Consulta sobre desayuno` (lo deja el CP004).",
+      "when": "verificar que el administrador puede abrir un mensaje de la bandeja, leer sus datos y cerrar la ventana.",
+      "then": "La ventana del mensaje muestra remitente, teléfono, correo y texto completo; al cerrarla se vuelve a la bandeja. El contador de mensajes sin leer disminuye tras la lectura.",
+      "source_ref": "restful-booker-fd.md:222-245",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "CP010",
+      "title": "Reserva rechazada por fechas ocupadas",
+      "flow": "reserva-rechazada-por-fechas-ocupadas",
+      "given": "la habitación individual tiene disponibilidad en la ventana de fechas del caso (01/12/2026 a 03/12/2026) al empezar el caso.",
+      "when": "verificar que el sistema no permite reservar una habitación en fechas ya ocupadas y avisa al huésped.",
+      "then": "La segunda reserva no se registra. El sistema informa de que las fechas no están disponibles y el huésped puede corregirlas sin perder la sesión.",
+      "source_ref": "restful-booker-fd.md:249-275",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    }
+  ],
+  "brief": {
+    "flows": [
+      "reserva-de-habitacion-individual",
+      "consulta-de-disponibilidad",
+      "consulta-del-detalle-de-la",
+      "envio-de-mensaje-de-contacto",
+      "validaciones-del-formulario-de-contacto",
+      "acceso-al-panel-de-administracion",
+      "alta-de-habitacion",
+      "la-reserva-llega-a-la",
+      "lectura-de-un-mensaje-de",
+      "reserva-rechazada-por-fechas-ocupadas"
+    ],
+    "entry": "/",
+    "ignore": [],
+    "drift_flags": []
+  },
+  "open_questions_ref": null,
+  "pii_redaction": {
+    "verdict": "pass",
+    "literals_found": [],
+    "downstream_note": null
+  },
+  "refiner_notes": "Convertido por src/fd-to-criteria.ts: parser determinista de la forma onesait, SIN LLM. Dos límites que hay que leer antes de fiarse de este fichero: `drift_risk` NO se evalúa (sale `low` en todos porque juzgarlo exige criterio y esto no lo tiene), y `open_questions` sale vacío (detectar ambigüedad tampoco es mecánico). Lo que sí es fiable y es para lo que existe: `id`, `title`, `given/when/then` citados del FD, y `source_ref` con la línea real."
+}

@@ -706,7 +706,7 @@ export function primerSegmentoNoExpresable(chain: string): string | null {
 export function buildAssistSteps(
   sequence: PickedElement[],
   candidates: Array<LocatorCandidate | null>,
-  opts: { targetIndex?: number; targetAction?: WalkAction } = {},
+  opts: { targetIndex?: number; targetAction?: WalkAction; targetHint?: StepHint } = {},
 ): AssistPatchStep[] {
   if (sequence.length === 0) return [];
   // objetivo: el que el QA marcó explícitamente en el panel; si no, el último click
@@ -728,7 +728,16 @@ export function buildAssistSteps(
     // P4 — una comprobación de texto escrita a mano no señala a ningún elemento:
     // su contenido va en `value`, y un hint aquí sería fontanería inventada que
     // acabaría en el guion emitido.
-    const hint: StepHint = el.via === 'texto' ? {} : {
+    /**
+     * D90 — en una elección de ZONA el elemento no cambia: sigue siendo el que
+     * el FD nombra. Lo que cambia es DÓNDE buscarlo. Así que el hint es el del
+     * PASO, no el de la etiqueta que el QA eligió — poner `{name:'Single'}`
+     * aquí convertiría «pulsa Book now en la tarjeta Single» en «pulsa Single»,
+     * que es otra instrucción.
+     */
+    const hint: StepHint = el.via === 'zona'
+      ? (opts.targetHint ?? {})
+      : el.via === 'texto' ? {} : {
       ...(el.test_id ? { test_id: el.test_id } : {}),
       ...(el.role ? { role: el.role } : {}),
       ...(el.name ? { name: el.name } : {}),
@@ -748,6 +757,8 @@ export function buildAssistSteps(
       ...(cand?.why ? { fragile_why: cand.why } : {}),
       // una comprobación se materializa como expect_text del texto observado
       ...(role === 'assertion' && el.name ? { value: el.name } : {}),
+      // D90 — el ámbito elegido en palabras viaja al parche y de ahí al guion
+      ...(el.via === 'zona' && el.zona ? { scope: { text: el.zona } } : {}),
     });
   });
   return steps;
@@ -766,12 +777,12 @@ export function pruneAssistSequence(sequence: PickedElement[]): PickedElement[] 
     // P4 — una comprobación de texto escrita a mano no es un elemento señalado:
     // no se deduplica ni se poda por hover/click. Dos comprobaciones seguidas del
     // mismo texto son raras, pero si el QA las escribe es porque quiere las dos.
-    if (el.via === 'texto') {
+    if (el.via === 'texto' || el.via === 'zona') {
       out.push(el);
       continue;
     }
     const prev = out[out.length - 1];
-    if (prev && prev.via !== 'texto' && key(prev) === key(el)) {
+    if (prev && prev.via !== 'texto' && prev.via !== 'zona' && key(prev) === key(el)) {
       // mismo elemento: el click gana sobre el hover
       if (prev.via === 'hover' && el.via === 'click') out[out.length - 1] = el;
       continue;
@@ -937,6 +948,7 @@ export function assistStepsToWalkSteps(steps: AssistPatchStep[], replacesStep: s
     ...(Object.keys(s.hint).length ? { hint: s.hint } : {}),
     ...(s.locator ? { locator: s.locator } : {}),
     ...(s.value !== undefined ? { value: s.value } : {}),
+    ...(s.scope ? { scope: s.scope } : {}),
   }));
 }
 

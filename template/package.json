@@ -32,7 +32,8 @@
     "qa:canal": "tsx src/scripts/rescue-channel.ts",
     "qa:browse": "tsx src/scripts/qa-browse.ts",
     "qa:propuesta": "tsx src/scripts/propose-fd.ts",
-    "qa:smoke": "tsx src/scripts/smoke-run.ts"
+    "qa:smoke": "tsx src/scripts/smoke-run.ts",
+    "qa:criterios": "tsx src/scripts/fd-to-criteria.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",

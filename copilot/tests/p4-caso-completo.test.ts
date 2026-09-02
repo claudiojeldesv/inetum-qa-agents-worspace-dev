@@ -185,7 +185,13 @@ describe('P4 — y eso llega a la pantalla del QA', () => {
     expect(cab).toContain('cp042-alta');
     expect(cab).toContain('8 pasos');
     expect(cab).toContain('3 con comprobación');
-    expect(cab, 'el criterio del guion es la trazabilidad al FD').toContain('RF-014');
+  }, 60_000);
+
+  it('sin criteria.json se enseña al menos el criterio que declara el guion', async () => {
+    // Es la única trazabilidad disponible en ese caso, y esconderla no ayuda: la
+    // línea con fichero y línea del FD llega cuando hay criteria.json, no antes.
+    const fd = (await sombra('.casobox .fd')).join(' ');
+    expect(fd).toContain('RF-014');
   }, 60_000);
 
   it('dónde está el QA se ve sin leer: la fila en curso va marcada', async () => {

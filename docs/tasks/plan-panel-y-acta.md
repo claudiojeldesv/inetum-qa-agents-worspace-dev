@@ -12,7 +12,7 @@ herramienta, y la herramienta deja de servir.
 **Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
 ([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 y P1 cerrados el
 2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28. P7 (banco de pruebas de paneles, núcleo)
-cerrado el 2026-08-29. P5 fase C, P6 y P3 cerrados el 2026-08-30.** **P4 y P4-bis cerrados el 2026-09-02** (la decisión se tomó: el caso completo aporta, y con la comprobación de texto el panel además añade lo único que se puede añadir sin señalar). Queda como decisión pendiente si «añadir paso» vuelve al alcance ahora que D81 permite señalar sin tocar el DOM (la pantalla de aprobación ya es una vista del caso y la tira de P3 ya lo enseña de un vistazo). Desde P7, toda rebanada de panel se audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
+cerrado el 2026-08-29. P5 fase C, P6 y P3 cerrados el 2026-08-30.** **P4, P4-bis y P4-ter cerrados (2026-09-02/03)** (la decisión se tomó: el caso completo aporta, y con la comprobación de texto el panel además añade lo único que se puede añadir sin señalar). Queda como decisión pendiente si «añadir paso» vuelve al alcance ahora que D81 permite señalar sin tocar el DOM (la pantalla de aprobación ya es una vista del caso y la tira de P3 ya lo enseña de un vistazo). Desde P7, toda rebanada de panel se audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
 
 ---
 
@@ -259,6 +259,29 @@ acabaría en el guion emitido describiendo un elemento que nadie señaló.
 **Nota para la próxima revisión de alcance**: la auditoría se escribió ANTES de D81. Hoy el QA sí
 puede señalar un elemento sin tocar el DOM («Ver todo lo que hay»), así que el motivo por el que se
 retiró «añadir paso» se ha debilitado. Es terreno de la decisión 5 y la tiene el QA, no el agente.
+
+### P4-ter — «¿Cuál de ellos?»: preguntar en el idioma del FD · CERRADO el 2026-09-03
+
+Cierra **D90**, que era el fondo del episodio de los cuatro «Book now»: el motor trabaja con la
+frase del FD (97 de 102 pasos completados de un run de campo se resolvieron así) y el panel, justo
+donde esa frase era ambigua, cambiaba de idioma y pedía un locator.
+
+Ahora ofrece **ZONAS**: «el de «Single»», «el de «Double»», «el de «Suite»» — nombradas con una
+palabra que se ve en la pantalla. Y lo elegido se funde como `scope: {text:'Single'}`, o sea
+lenguaje de FD: a partir de ahí lo resuelve D88 solo, sin volver a preguntar.
+
+Tres cosas que no son cosmética:
+
+1. **cada zona se verifica antes de ofrecerse** — la etiqueta tiene que resolver ÚNICA en la página
+   y la cadena completa se ejecuta y tiene que dar uno. Ofrecer algo ambiguo pintado de bueno es
+   exactamente D87;
+2. **el hint sigue siendo el del PASO**, no la etiqueta: «pulsa Book now en la tarjeta Single» no es
+   «pulsa Single». Poner la etiqueta como hint convertiría la instrucción en otra;
+3. **no es posicional**, así que SÍ entra en memoria durable — al contrario que el `.nth(i)` del
+   inventario, que el cerrojo de D89 deja fuera con razón.
+
+7 tests, y verificado contra la portada real antes de escribirlos: Single→`/reservation/1`,
+Double→`/2`, Suite→`/3`.
 
 ### P5 — La pantalla de aprobación · FASES A y B CERRADAS el 2026-08-28
 

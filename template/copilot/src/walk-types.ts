@@ -602,13 +602,18 @@ export interface PickedElement {
   label?: string;
   /**
    * 'click' = el QA lo pulsó · 'hover' = pasó por encima de forma sostenida ·
+   * 'zona' = el QA eligió la ZONA en palabras (D90) en vez de un locator: el
+   * elemento sigue siendo el del hint del paso, lo que se elige es en cuál de
+   * las varias zonas de la pantalla buscarlo.
    * 'texto' = NO es un elemento señalado, es una comprobación de texto que el QA
    * escribió (P4). No tiene nodo en el DOM y por eso no pasa por la escalera de
    * locators: `findVisibleText` opera sobre una cadena. Es la única adición a
    * mano que la auditoría de maquetas dejó viva — «añadir paso» se retiró porque
    * un paso de acción necesita un locator y un locator necesita un elemento.
    */
-  via: 'click' | 'hover' | 'texto';
+  via: 'click' | 'hover' | 'texto' | 'zona';
+  /** D90 — etiqueta de la zona elegida, cuando `via === 'zona'`. */
+  zona?: string;
   // --- contexto para la escalera de fallback (K0.11b). Sin esto, un elemento sin
   // identidad semántica (input sin name/label/test-id: la norma en formularios Java
   // corporativos) no tiene locator posible y la asistencia se rendía tras el trabajo
@@ -690,6 +695,13 @@ export interface AssistPatchStep {
   fragile_why?: string;
   /** value del paso cuando es una comprobación (expect_text). */
   value?: string;
+  /**
+   * D90 — el ÁMBITO que el QA eligió en palabras («el de la tarjeta Single»).
+   * Es lo que convierte una elección del panel en lenguaje de FD: al fundirse
+   * deja `scope: {text:'Single'}` en el guion y, a partir de ahí, la escalera lo
+   * resuelve sola (D88) aunque el locator concreto cambie.
+   */
+  scope?: StepHint;
 }
 
 /**

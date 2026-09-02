@@ -71,6 +71,7 @@ import {
   decidirEspera,
   notaMemoriaEfimera,
   locatorEsFragil,
+  CHAIN_SEP,
   filasDelCaso,
   type FilaDeCaso,
   // D81 — el inventario del panel: que el QA SIEMPRE pueda coger el locator.
@@ -214,6 +215,14 @@ interface WalkerOptions {
   storageState?: string;
   /** hint-aliases durable del sitio (K0.5). Default: config/hint-aliases/<site_id>.json */
   aliasesPath?: string;
+  /**
+   * P4 — `criteria.json` del estándar S3, para que la vista de caso del panel
+   * pueda enseñar la línea del FD (`source_ref`) y el resultado esperado EN LAS
+   * PALABRAS DEL FD. Opcional: sin él el panel enseña el criterio que el guion
+   * declara y nada más, que es lo que se podía antes. Los sitios S4 lo obtienen
+   * de su FD markdown con `qa:criterios` (parser determinista, sin LLM).
+   */
+  criteriaPath?: string;
   /** Modo asistido (K0.10): panel Record en el navegador cuando un hint no resuelve. */
   assist: boolean;
   assistTimeoutMs: number;
@@ -360,6 +369,23 @@ const ASSIST_WATCHDOG_MS = 500;
  * página que redirige sola dejaría al QA en un bucle infinito de paneles.
  */
 const ASSIST_MAX_REINJECTIONS = 3;
+/** D90 — tope de zonas que se ofrecen: una lista larga se clica sin leer. */
+const ZONAS_CAP = 8;
+/** D90 — cuánto se sube buscando el contenedor. Misma cota que D88 y por lo mismo. */
+const ZONA_TREPADA_MAX = 5;
+
+/**
+ * D90 — una ZONA en la que el hint del paso resuelve único, nombrada con una
+ * palabra de la pantalla. Es lo que el panel ofrece en vez de un locator.
+ */
+export interface ZonaDelHint {
+  /** El texto que identifica la zona («Single»). Resuelve único en la página. */
+  etiqueta: string;
+  /** La cadena verificada que resuelve al elemento DENTRO de esa zona. */
+  locator: string;
+  /** Cuántos niveles hubo que subir. Diagnóstico, no se pinta. */
+  niveles: number;
+}
 
 /**
  * Cuántas veces se le puede devolver el panel al QA porque su veredicto no era una
@@ -897,8 +923,17 @@ export interface P3Opts {
   tira?: MarcaDeTira[];
   /** P4 — las filas del caso completo, ya calculadas por `filasDelCaso`. */
   caso?: FilaDeCaso[];
-  /** Cabecera de la vista de caso: el flujo y los criterios que declara el guion. */
-  casoRef?: { flujo: string; criterios: string[] };
+  /** Cabecera de la vista de caso: el flujo, sus criterios y —si hay criteria.json— el FD. */
+  casoRef?: {
+    flujo: string;
+    criterios: string[];
+    /** Título del criterio, tal como lo escribe el FD. */
+    titulo?: string;
+    /** `fichero.md:16-45`: la trazabilidad obligatoria del estándar S3. */
+    fuente?: string;
+    /** El resultado esperado EN LAS PALABRAS DEL FD, no en las del guion. */
+    esperado?: string;
+  };
 }
 
 /** CSS de las posturas y la tira — UNO para los dos paneles (familia D2: si cada
@@ -930,6 +965,10 @@ const POSTURAS_CSS = `
         .p.caso .casobox{display:block}
         .casobox .cab{padding:7px 10px;background:#161c25;border-bottom:1px solid #374151;color:#9ca3af;font-size:11.5px;display:flex;justify-content:space-between;gap:8px}
         .casobox .cab b{color:#f9fafb;font-weight:500}
+        .casobox .fd{padding:7px 10px;background:#0f1620;border-bottom:1px solid #232b35}
+        .casobox .fd .src{color:#7f8ea3;font:11px ui-monospace,monospace}
+        .casobox .fd .esp{color:#9ca3af;font-size:11.5px;margin-top:3px}
+        .casobox .fd .esp i{color:#cfe0f2;font-style:normal}
         .casobox ol{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
         .casobox ol li{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #232b35;align-items:start}
         .casobox ol li:last-child{border-bottom:0}
@@ -984,17 +1023,48 @@ function posturasScript(p3?: P3Opts): string {
        */
       const casoEl = root.querySelector('.casobox');
       if (casoEl && P3.caso.length) {
+        const ref = P3.casoRef || {};
         const cab = document.createElement('div');
         cab.className = 'cab';
         const izq = document.createElement('span');
         const conOraculo = P3.caso.filter((f) => f.oraculo).length;
-        izq.innerHTML = '<b>' + ((P3.casoRef && P3.casoRef.flujo) || 'caso') + '</b>';
+        // el titulo del FD gana al nombre del flujo cuando existe: el flujo es el
+        // identificador tecnico, el titulo es como lo llama el documento
+        izq.appendChild(document.createElement('b')).textContent = ref.titulo || ref.flujo || 'caso';
         const der = document.createElement('span');
-        der.textContent = P3.caso.length + ' pasos · ' + conOraculo + ' con comprobación'
-          + (P3.casoRef && P3.casoRef.criterios && P3.casoRef.criterios.length
-            ? ' · ' + P3.casoRef.criterios.join(', ') : '');
+        der.textContent = P3.caso.length + ' pasos · ' + conOraculo + ' con comprobación';
         cab.appendChild(izq); cab.appendChild(der);
         casoEl.appendChild(cab);
+        /**
+         * P4 - LA LINEA DEL FD. La trazabilidad obligatoria del estandar S3
+         * (source_ref) y el resultado esperado EN LAS PALABRAS DEL FD, no en
+         * las del guion: el guion dice "comprobar que se ve X" y el FD dice lo
+         * que el negocio espera. Sin criteria.json esta fila no aparece, y el
+         * panel se queda como estaba - no se inventa la referencia.
+         */
+        // la fila aparece si hay ALGO que referenciar: con criteria.json es la
+        // linea del FD; sin el, al menos el criterio que declara el guion, que
+        // es la unica trazabilidad disponible y esconderla no ayuda a nadie
+        if (ref.fuente || ref.esperado || (ref.criterios && ref.criterios.length)) {
+          const fd = document.createElement('div');
+          fd.className = 'fd';
+          const cita = (ref.criterios && ref.criterios.length ? ref.criterios.join(', ') : '')
+            + (ref.fuente ? (ref.criterios && ref.criterios.length ? ' · ' : '') + ref.fuente : '');
+          if (cita) {
+            const l = document.createElement('div');
+            l.className = 'src';
+            l.textContent = cita;
+            fd.appendChild(l);
+          }
+          if (ref.esperado) {
+            const e = document.createElement('div');
+            e.className = 'esp';
+            e.appendChild(document.createElement('span')).textContent = 'El FD espera: ';
+            e.appendChild(document.createElement('i')).textContent = ref.esperado;
+            fd.appendChild(e);
+          }
+          casoEl.appendChild(fd);
+        }
         const ol = document.createElement('ol');
         for (const f of P3.caso) {
           const li = document.createElement('li');
@@ -1183,6 +1253,10 @@ function assistOverlayScript(
           <div class="row">
             <button id="x" class="${mutating ? 'safe' : ''}" disabled>Capturar sin ejecutar</button>
           </div>
+          <div class="row">
+            <button id="zon" class="safe">¿Cuál de ellos?</button>
+          </div>
+          <div id="zonbox" style="display:none"></div>
           <div class="row">
             <button id="inv" class="safe">Ver todo lo que hay</button>
             <button id="txt" class="safe">Añadir comprobación de texto</button>
@@ -1562,6 +1636,63 @@ function assistOverlayScript(
       box.querySelector('#txtok').onclick = () => anadirComprobacion(inp.value);
       setTimeout(() => inp.focus(), 0);
     };
+    /**
+     * D90 - EL PELDANO EN EL IDIOMA DEL FD.
+     *
+     * Cuando el hint del paso designa a varias cosas, esto pregunta EN CUAL DE
+     * LAS ZONAS de la pantalla, con una palabra que se ve: "el de la tarjeta
+     * Single". El QA no elige un locator - elige contexto, que es lo que un
+     * humano hace al leer el FD. Lo elegido se funde como scope en el guion, no
+     * como posicion, asi que la proxima vez el motor lo resuelve solo.
+     */
+    const pintarZonas = (zonas) => {
+      const box = $('zonbox');
+      box.style.display = 'block';
+      box.innerHTML = '';
+      const caja = document.createElement('div');
+      caja.style.cssText = 'margin-top:8px;padding:8px;border:1px solid #4b5563;border-radius:5px;background:#0b1220';
+      const t = document.createElement('div');
+      t.style.cssText = 'color:#9ca3af;font-size:11.5px;margin-bottom:6px';
+      t.textContent = zonas.length
+        ? 'Está en varias zonas de la pantalla. ¿En cuál lo busco?'
+        : 'No encuentro zonas con nombre propio en esta pantalla: usa «Ver todo lo que hay».';
+      caja.appendChild(t);
+      for (const z of zonas) {
+        const b = document.createElement('button');
+        b.style.cssText = 'display:block;width:100%;text-align:left;margin:3px 0';
+        b.textContent = 'el de «' + z.etiqueta + '»';
+        b.title = z.locator;
+        b.onclick = async () => {
+          const ok = await aplicarZona(z);
+          if (ok) { box.style.display = 'none'; box.innerHTML = ''; }
+        };
+        caja.appendChild(b);
+      }
+      box.appendChild(caja);
+    };
+    const aplicarZona = async (z) => {
+      let res;
+      try { res = await window.__qaAssistResolve(z.locator); } catch (e) { res = { ok: false }; }
+      if (!res || !res.ok) { status.textContent = 'esa zona ya no resuelve única: la pantalla ha cambiado'; return false; }
+      for (const x of seq) if (x.as === 'target') delete x.as;
+      seq.push({ via: 'zona', name: z.etiqueta, zona: z.etiqueta, as: 'target', manual_locator: z.locator,
+                 _q: { ok: true, tier: 'zona', fragile: false, label: 'zona «' + z.etiqueta + '»', source: z.locator } });
+      nodes.push(null);
+      render();
+      $('t').disabled = false;
+      status.textContent = 'zona elegida: «' + z.etiqueta + '» — pulsa Parar para enviarlo';
+      return true;
+    };
+    $('zon').onclick = async () => {
+      const box = $('zonbox');
+      if (box.style.display === 'block') { box.style.display = 'none'; box.innerHTML = ''; return; }
+      status.textContent = 'buscando las zonas…';
+      try {
+        const zonas = await window.__qaZonas();
+        status.textContent = zonas.length + ' zona(s) con nombre propio';
+        pintarZonas(zonas || []);
+      } catch (e) { status.textContent = 'no pude calcular las zonas'; }
+    };
     $('inv').onclick = async () => {
       const box = $('invbox');
       if (box.style.display === 'block') { box.style.display = 'none'; box.innerHTML = ''; try { window.__qaResaltar(-1); } catch (e) {} return; }
@@ -1619,6 +1750,14 @@ function assistOverlayScript(
        * P4 - la comprobacion de texto, por comando. Mismo motivo que el
        * inventario: el camino del raton y el que se prueba tienen que ser uno.
        */
+      else if (cmd && cmd.zona !== undefined) {
+        (async () => {
+          const zonas = await window.__qaZonas();
+          const z = (zonas || []).find((x) => x.etiqueta === cmd.zona);
+          if (z) await aplicarZona(z);
+          else status.textContent = 'no hay zona «' + cmd.zona + '»';
+        })();
+      }
       else if (cmd && cmd.comprobacion !== undefined) {
         (async () => {
           $('txt').onclick();
@@ -2326,6 +2465,10 @@ class DomWalker {
   private assistRecorded: PickedElement[] = [];
   /** Pasos cuyo rescate SÍ llegó a memoria durable en este run (`flujo/paso`). */
   private aliasDurableDe = new Set<string>();
+  /** D90 — el paso que el panel abierto está atendiendo, para el puente de zonas. */
+  private pasoDelPanel: WalkStep | null = null;
+  /** P4 — criterios del FD por id, leídos una vez (vacío si no hay criteria.json). */
+  private criteriosDelFd: Map<string, { titulo: string; fuente: string; esperado: string }> | null = null;
   /** Sumidero del puente de grabación: lo pone la espera activa. */
   private assistTrack: ((seq: PickedElement[]) => void) | null = null;
   private assistPending: ((p: AssistSubmission) => void) | null = null;
@@ -2658,6 +2801,11 @@ class DomWalker {
     const walker = new DomWalker(opts, script, contract, state);
     walker.page = page;
     return walker;
+  }
+
+  /** D90 — las zonas de un paso ambiguo, contra la página del banco. */
+  async benchZonas(step: WalkStep): Promise<ZonaDelHint[]> {
+    return this.zonasDelHint(step);
   }
 
   /** Resuelve un paso contra la página del banco. Devuelve la cadena y el locator. */
@@ -3278,11 +3426,28 @@ class DomWalker {
   private locatorFromChain(scope: Page | Frame, src: string): Locator | null {
     let current: Page | Frame | Locator = scope;
     for (const { segment, nth } of parseLocatorChain(src)) {
-      const filterMatch = segment.match(/^(.*)\.filter\(\{\s*hasText:\s*'((?:[^'\\]|\\.)*)'\s*\}\)$/);
-      const base = filterMatch ? filterMatch[1] : segment;
+      /**
+       * D88/D90 — LA SUBIDA AL CONTENEDOR, en la gramática.
+       *
+       * `getByText('Single').locator('xpath=../..')` es como se expresa «la
+       * tarjeta de Single» cuando el ámbito del FD apunta al título y el
+       * elemento es su hermano. La escalera ya lo PRODUCE (D88 lo escribe en
+       * `resolved_via`, y D90 lo ofrece como zona), y sin esta lectura no se
+       * podía volver a resolver: un alias o un `step.locator` fundido con esa
+       * forma caía a la escalera en silencio — el defecto de K0.39 otra vez.
+       *
+       * Solo se admiten saltos `..`. Un xpath arbitrario NO entra: la lista
+       * blanca de locators es fail-closed (K0.46) y aceptar expresiones libres
+       * la abriría de par en par, que es justo lo que D20 vino a cerrar.
+       */
+      const subida = segment.match(/^(.*)\.locator\('xpath=((?:\.\.)(?:\/\.\.)*)'\)$/);
+      const sinSubida = subida ? subida[1] : segment;
+      const filterMatch = sinSubida.match(/^(.*)\.filter\(\{\s*hasText:\s*'((?:[^'\\]|\\.)*)'\s*\}\)$/);
+      const base = filterMatch ? filterMatch[1] : sinSubida;
       let loc = this.locatorFromSource(current, base);
       if (!loc) return null;
-      if (filterMatch) loc = loc.filter({ hasText: filterMatch[2].replace(/\\'/g, "'") });
+      if (filterMatch) loc = loc.filter({ hasText: filterMatch[2].replace(/\'/g, "'") });
+      if (subida) loc = loc.locator(`xpath=${subida[2]}`);
       if (typeof nth === 'number') loc = loc.nth(nth);
       current = loc;
     }
@@ -3980,6 +4145,115 @@ class DomWalker {
     return trepado ? out : null;
   }
 
+  /**
+   * D90 — EL PELDAÑO QUE FALTABA: PREGUNTAR EN EL IDIOMA DEL FD.
+   *
+   * El motor trabaja con la frase del FD: el guion guarda `{role:'link',
+   * name:'Book now'}`, no un locator, y 97 de los 102 pasos completados de un run
+   * de campo se resolvieron así. Pero cuando esa frase es AMBIGUA el panel dejaba
+   * de hablar ese idioma: ofrecía cuatro filas idénticas (`link · Book now`) y
+   * pedía elegir un locator. El QA eligió la primera —el botón del banner— y de
+   * ahí salió una habitación equivocada reservada en verde.
+   *
+   * Un humano que lee el FD no elige por posición: elige por CONTEXTO («el Book
+   * now de la tarjeta Single»). Esa información es la misma que el `scope` del
+   * guion, y esto la ofrece en el momento en que hace falta.
+   *
+   * Cómo se calcula, sin adivinar y verificando cada paso:
+   *
+   *  1. de cada coincidencia del hint se sube al ancestro más cercano que
+   *     contenga EXACTAMENTE UNA — la misma regla de D88, que ya está medida;
+   *  2. de ese ancestro se saca una ETIQUETA: un texto corto suyo que resuelva
+   *     ÚNICO en la página. Sin unicidad no sirve como ámbito, y ofrecerla sería
+   *     repetir D87 (proponer algo ambiguo pintado de bueno);
+   *  3. la cadena resultante se ejecuta y tiene que dar exactamente 1. Lo que no
+   *     pasa esa prueba no se ofrece.
+   *
+   * Lo que se entrega al panel es una ZONA, no un locator posicional: al fundirse
+   * deja `scope: {text:'Single'}` en el guion, o sea lenguaje de FD, y a partir de
+   * ahí D88 lo resuelve solo para siempre. Es la diferencia entre enseñarle al
+   * producto dónde está el elemento y enseñarle a leer mejor el plan.
+   */
+  private async zonasDelHint(step: WalkStep): Promise<ZonaDelHint[]> {
+    if (!step.hint) return [];
+    const plan = hintLocatorPlan(step.hint, this.priority);
+    for (const p of [plan, normalizedPlan(plan)]) {
+      for (const attempt of p) {
+        const base = this.attemptToLocator(this.page, attempt).filter({ visible: true });
+        const n = await base.count().catch(() => 0);
+        // solo hay zonas que ofrecer si el hint designa a VARIAS cosas: con una
+        // no hay nada que desambiguar, y con cero el problema es otro
+        if (n <= 1) continue;
+        const fuente = locatorSource(attempt);
+        const zonas: ZonaDelHint[] = [];
+        for (let i = 0; i < Math.min(n, ZONAS_CAP); i++) {
+          const zona = await this.zonaDeUno(base.nth(i), attempt, fuente).catch(() => null);
+          if (zona && !zonas.some((z) => z.etiqueta === zona.etiqueta)) zonas.push(zona);
+        }
+        return zonas;
+      }
+    }
+    return [];
+  }
+
+  /** La zona de UNA coincidencia: su contenedor mínimo y una etiqueta única suya. */
+  private async zonaDeUno(
+    uno: Locator,
+    attempt: LocatorAttempt,
+    fuente: string,
+  ): Promise<ZonaDelHint | null> {
+    const rawPlan = [attempt];
+    let cur = uno;
+    /**
+     * NO se para en el primer ancestro: TODOS los ancestros de una coincidencia
+     * la contienen, así que «el más cercano que contenga una» sería siempre el
+     * padre inmediato — y ahí dentro no hay ninguna palabra que nombre la zona
+     * (el único texto es el del propio elemento, que por definición no
+     * desambigua). Se sube mientras el ancestro siga conteniendo UNA SOLA
+     * coincidencia, y se para en cuanto aparece una etiqueta utilizable. Si al
+     * subir empieza a contener varias, esa rama ya no sirve para desambiguar y
+     * se abandona en vez de forzarla.
+     */
+    for (let nivel = 1; nivel <= ZONA_TREPADA_MAX; nivel++) {
+      cur = cur.locator('xpath=..');
+      if ((await cur.count().catch(() => 0)) !== 1) return null;
+      if ((await this.cuentaDelHintEn(cur, rawPlan)) !== 1) return null;
+
+      // textos cortos del contenedor, en orden de documento: el título de la
+      // tarjeta va antes que su botón, que es justo el orden que se quiere
+      const textos = (await cur
+        .evaluate((nodo: Element) =>
+          Array.from(nodo.querySelectorAll('*'))
+            .filter((e) => e.children.length === 0)
+            .map((e) => (e.textContent ?? '').replace(/\s+/g, ' ').trim())
+            .filter((t) => t.length > 0 && t.length <= 60),
+        )
+        .catch(() => [])) as string[];
+
+      for (const texto of textos) {
+        /**
+         * La etiqueta tiene que resolver ÚNICA en la página. Sin eso no vale
+         * como ámbito, y ofrecerla sería repetir D87 con otra cara: vender
+         * ambigüedad presentada como contexto.
+         */
+        const cuantos = await this.page
+          .getByText(texto, { exact: true })
+          .filter({ visible: true })
+          .count()
+          .catch(() => 0);
+        if (cuantos !== 1) continue;
+        const subida = `.locator('xpath=${Array(nivel).fill('..').join('/')}')`;
+        const cadena = `getByText('${texto.replace(/'/g, "\\'")}', { exact: true })${subida}${CHAIN_SEP}${fuente}`;
+        // y la cadena entera se EJECUTA antes de ofrecerla, no se supone (D87)
+        const loc = this.locatorFromChain(this.page, cadena);
+        const resuelve = loc ? await loc.count().catch(() => 0) : 0;
+        if (resuelve !== 1) continue;
+        return { etiqueta: texto, locator: cadena, niveles: nivel };
+      }
+    }
+    return null;
+  }
+
   /** Coincidencias VISIBLES del hint dentro de un contenedor, con la regla por INTENTO de `cuentaFueraDelAmbito`. */
   private async cuentaDelHintEn(
     contenedor: Page | Frame | Locator,
@@ -4617,6 +4891,24 @@ class DomWalker {
      *
      * Plazo corto a propósito: el texto tiene que estar AHORA, no dentro de 30 s.
      */
+    /**
+     * D90 — el puente de las ZONAS. Devuelve, para el paso que está bloqueado,
+     * en qué zonas de la pantalla su hint resuelve único, cada una nombrada con
+     * una palabra que se ve. Todo el cálculo vive en Node y usa la MISMA
+     * escalera del walker: si el panel lo calculara por su cuenta, ofrecería
+     * zonas que el motor no sabe resolver.
+     */
+    await this.page.exposeFunction('__qaZonas', async () => {
+      const step = this.pasoDelPanel;
+      if (!step) return [];
+      try {
+        return await this.zonasDelHint(step);
+      } catch (err) {
+        console.error(`[dom-walker] no pude calcular zonas: ${String(err).split('\n')[0]}`);
+        return [];
+      }
+    });
+
     await this.page.exposeFunction('__qaAssistTexto', async (t: string) => {
       const found = await this.findVisibleText(t, 1_500).catch(() => null);
       return { ok: found !== null, matched: found?.matched_text ?? null };
@@ -4798,7 +5090,52 @@ class DomWalker {
       flow.steps.filter((x) => this.state.completed.includes(`${flow.flow}/${x.id}`)).map((x) => x.id),
     );
     const caso = filasDelCaso(flow.steps, { pasoActual: step.id, completados, bloqueados });
-    return { prefs, tira, caso, casoRef: { flujo: flow.flow, criterios: flow.criteria ?? [] } };
+    if (this.criteriosDelFd === null) this.criteriosDelFd = this.cargarCriterios();
+    // el criterio del FD se busca por el id que el GUION declara: es el único
+    // enganche que existe entre las dos capas, y es explícito (`flow.criteria`).
+    const delFd = (flow.criteria ?? [])
+      .map((id) => this.criteriosDelFd!.get(id.toUpperCase()))
+      .find((x) => x !== undefined);
+    return {
+      prefs, tira, caso,
+      casoRef: {
+        flujo: flow.flow,
+        criterios: flow.criteria ?? [],
+        ...(delFd?.titulo ? { titulo: delFd.titulo } : {}),
+        ...(delFd?.fuente ? { fuente: delFd.fuente } : {}),
+        ...(delFd?.esperado ? { esperado: delFd.esperado } : {}),
+      },
+    };
+  }
+
+  /**
+   * P4 — los criterios del FD, leídos UNA vez. Fail-soft a propósito: un
+   * criteria.json ilegible no puede tumbar un run —el panel enseñaría menos, que
+   * es lo que enseñaba antes de existir esto— pero SÍ se dice por pantalla, con
+   * el mismo criterio que D71 y D83: el silencio es lo que deja que una capa se
+   * desconecte sin que nadie lo note.
+   */
+  private cargarCriterios(): Map<string, { titulo: string; fuente: string; esperado: string }> {
+    const m = new Map<string, { titulo: string; fuente: string; esperado: string }>();
+    const ruta = this.opts.criteriaPath;
+    if (!ruta) return m;
+    if (!existsSync(ruta)) {
+      console.error(`[dom-walker] --criterios=${ruta} no existe: el panel enseñará el criterio del guion sin la línea del FD`);
+      return m;
+    }
+    try {
+      const doc = parseJsonLoose<{ criteria?: Array<{ id?: string; title?: string; source_ref?: string; then?: string }> }>(
+        readFileSync(ruta, 'utf8'),
+      );
+      for (const c of doc.criteria ?? []) {
+        if (!c.id) continue;
+        m.set(c.id.toUpperCase(), { titulo: c.title ?? '', fuente: c.source_ref ?? '', esperado: c.then ?? '' });
+      }
+      console.log(`[dom-walker] criterios del FD: ${m.size} desde ${ruta}`);
+    } catch (err) {
+      console.error(`[dom-walker] --criterios ilegible (${String(err).split('\n')[0]}): el panel ensenara el criterio del guion sin la linea del FD`);
+    }
+    return m;
   }
 
   /** Ruta del marcador de asistencia en curso (K0.45/D12). */
@@ -4977,6 +5314,7 @@ class DomWalker {
         const gestos = this.assistRecorded.length;
         this.assistPending = null;
         this.assistTrack = null;
+        this.pasoDelPanel = null;
         /**
          * El marcador se conserva SOLO si hay algo que conservar. Caducar con
          * CERO gestos no deja evidencia que salvar, y un marcador pegado sobre
@@ -5000,6 +5338,8 @@ class DomWalker {
       };
       timer = setTimeout(() => finish(null), this.opts.assistTimeoutMs);
       this.assistPending = (p) => finish(p);
+      // D90 — el puente de zonas necesita saber QUÉ paso se está atendiendo
+      this.pasoDelPanel = step;
 
       const inject = (note: string): Promise<void> =>
         this.page
@@ -5104,6 +5444,8 @@ class DomWalker {
         resolvedByIdx.push(null);
         continue;
       }
+      // D90 — una zona trae su cadena ya verificada (`manual_locator`), y
+      // `locatorForPicked` la respeta como autoritativa (K0.20-A)
       const r = await this.locatorForPicked(el);
       candidates.push(r?.candidate ?? null);
       resolvedByIdx.push(r);
@@ -5112,6 +5454,8 @@ class DomWalker {
     let steps = buildAssistSteps(sequence, candidates, {
       targetIndex: submission.target_index !== undefined && submission.target_index >= 0 ? submission.target_index : undefined,
       targetAction: step.action,
+      // D90 — para una elección de zona el hint del PASO es el que manda
+      targetHint: step.hint,
     });
     const targetIdx = steps.findIndex((s) => s.role === 'target');
     const target = targetIdx >= 0 ? resolvedByIdx[targetIdx] : null;
@@ -7762,6 +8106,7 @@ async function main(): Promise<void> {
       headed: { type: 'boolean', default: false },
       'storage-state': { type: 'string' },
       aliases: { type: 'string' },
+      criterios: { type: 'string' },
       assist: { type: 'boolean', default: false },
       'assist-timeout': { type: 'string' },
       'no-minimize': { type: 'boolean', default: false },
@@ -7821,6 +8166,7 @@ async function main(): Promise<void> {
     headed: (values.headed ?? false) || assist,
     storageState: values['storage-state'] ?? process.env.QA_STORAGE_STATE,
     aliasesPath: values.aliases ?? process.env.QA_HINT_ALIASES,
+    criteriaPath: values.criterios ?? process.env.QA_CRITERIA,
     assist,
     assistTimeoutMs: Number(values['assist-timeout'] ?? process.env.QA_ASSIST_TIMEOUT ?? 600) * 1000,
     assistMinimize: !(values['no-minimize'] ?? false),

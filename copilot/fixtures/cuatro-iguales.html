@@ -54,7 +54,14 @@
       var host = document.querySelector('[data-qa-assist-host]');
       if (!host || !cmd) return;
       clearInterval(espera);
-      if (cmd === 'inventario') {
+      if (cmd === 'zona') {
+        // D90: el QA elige la ZONA en palabras, no un locator
+        enviar(host, { zona: 'Suite' });
+        setTimeout(function () { enviar(host, 'stop'); }, 600);
+      } else if (cmd === 'zona-inexistente') {
+        enviar(host, { zona: 'Planta 47' });
+        setTimeout(function () { enviar(host, 'stop'); }, 600);
+      } else if (cmd === 'inventario') {
         // el camino del QA en campo: abrir la lista y elegir un «Book now».
         // Con D87 esa fila trae un locator POSICIONAL.
         enviar(host, { inventario: { pedido: 'Book now', contiene: 'Book now' } });

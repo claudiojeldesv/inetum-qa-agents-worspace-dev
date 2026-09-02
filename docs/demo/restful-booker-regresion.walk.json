@@ -12,7 +12,7 @@
         {
           "id": "s1",
           "action": "expect_text",
-          "value": "Welcome to Shady Meadows B&B test"
+          "value": "Welcome to Shady Meadows B&B"
         },
         {
           "id": "s2",

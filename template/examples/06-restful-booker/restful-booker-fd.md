@@ -24,7 +24,7 @@ del caso (10/11/2026 a 12/11/2026).
 ### Pasos
 
 1. Acceder al portal.
-2. Comprobar que se muestra el título **Welcome to Shady Meadows B&B test**.
+2. Comprobar que se muestra el título **Welcome to Shady Meadows B&B**.
 3. Introducir la fecha de entrada `10/11/2026`.
 4. Introducir la fecha de salida `12/11/2026`.
 5. Pulsar el botón **Check Availability**.

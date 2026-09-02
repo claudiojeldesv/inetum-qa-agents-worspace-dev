@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "source_fd": "ensayo-panel-fd.md",
+  "refined_timestamp": "2026-09-02T22:27:57.195Z",
+  "target_url": "https://automationintesting.online/",
+  "criteria": [
+    {
+      "id": "EP01",
+      "title": "Elegir la zona cuando el nombre no basta",
+      "flow": "elegir-la-zona-cuando-el",
+      "given": "el portal muestra el catálogo de habitaciones con disponibilidad.",
+      "when": "verificar que un huésped puede abrir la habitación individual desde el catálogo cuando el catálogo ofrece varias habitaciones con el mismo botón.",
+      "then": "Se abre la ficha de la habitación individual, y no la de otra habitación del catálogo.",
+      "source_ref": "ensayo-panel-fd.md:17-36",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "EP02",
+      "title": "Señalar un elemento que el plan no sabe nombrar",
+      "flow": "senalar-un-elemento-que-el",
+      "given": "ninguna.",
+      "when": "verificar que el huésped puede llegar al formulario de contacto desde el portal.",
+      "then": "El portal ofrece un formulario de contacto accesible desde la página principal, con un botón de envío directo.",
+      "source_ref": "ensayo-panel-fd.md:40-55",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    },
+    {
+      "id": "EP03",
+      "title": "Cuando la aplicación y el plan no dicen lo mismo",
+      "flow": "cuando-la-aplicacion-y-el",
+      "given": "ninguna.",
+      "when": "verificar que el portal anuncia su garantía de precio y ofrece el botón de reserva rápida en la página principal.",
+      "then": "El portal muestra la garantía de precio y permite reservar en un paso desde la página principal.",
+      "source_ref": "ensayo-panel-fd.md:59-74",
+      "confidence": "high",
+      "drift_risk": "low",
+      "assumptions": [],
+      "open_questions": []
+    }
+  ],
+  "brief": {
+    "flows": [
+      "elegir-la-zona-cuando-el",
+      "senalar-un-elemento-que-el",
+      "cuando-la-aplicacion-y-el"
+    ],
+    "entry": "/",
+    "ignore": [],
+    "drift_flags": []
+  },
+  "open_questions_ref": null,
+  "pii_redaction": {
+    "verdict": "pass",
+    "literals_found": [],
+    "downstream_note": null
+  },
+  "refiner_notes": "Convertido por src/fd-to-criteria.ts: parser determinista de la forma onesait, SIN LLM. Dos límites que hay que leer antes de fiarse de este fichero: `drift_risk` NO se evalúa (sale `low` en todos porque juzgarlo exige criterio y esto no lo tiene), y `open_questions` sale vacío (detectar ambigüedad tampoco es mecánico). Lo que sí es fiable y es para lo que existe: `id`, `title`, `given/when/then` citados del FD, y `source_ref` con la línea real."
+}

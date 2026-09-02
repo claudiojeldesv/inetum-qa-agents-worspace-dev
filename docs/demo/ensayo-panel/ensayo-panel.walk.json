@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "site_id": "ensayo-panel",
+  "entry": "/",
+  "flows": [
+    {
+      "flow": "ep01-elegir-la-zona",
+      "criteria": [
+        "EP01"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "expect_text",
+          "value": "Welcome to Shady Meadows B&B"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "label": "Check In"
+          },
+          "value": "10/11/2026"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "label": "Check Out"
+          },
+          "value": "12/11/2026"
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Check Availability"
+          }
+        },
+        {
+          "id": "s5",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Book now"
+          },
+          "retry_safe": true,
+          "expect_transition": true,
+          "screen": "ficha-habitacion"
+        },
+        {
+          "id": "s6",
+          "action": "expect_text",
+          "value": "Single Room"
+        }
+      ],
+      "unauthenticated": true
+    },
+    {
+      "flow": "ep02-senalar-el-elemento",
+      "criteria": [
+        "EP02"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": {
+            "test_id": "zona-de-contacto"
+          }
+        },
+        {
+          "id": "s2",
+          "action": "expect_text",
+          "value": "Send Us a Message"
+        },
+        {
+          "id": "s3",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Enviar formulario ya"
+          }
+        }
+      ],
+      "unauthenticated": true
+    },
+    {
+      "flow": "ep03-quien-tiene-razon",
+      "criteria": [
+        "EP03"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "expect_text",
+          "value": "Precio garantizado"
+        },
+        {
+          "id": "s2",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Reserva rápida"
+          }
+        }
+      ],
+      "unauthenticated": true
+    }
+  ]
+}
