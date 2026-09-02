@@ -69,6 +69,8 @@ import {
   pedidoDelPaso,
   clasificarBloqueo,
   decidirEspera,
+  notaMemoriaEfimera,
+  locatorEsFragil,
   // D81 — el inventario del panel: que el QA SIEMPRE pueda coger el locator.
   filaDelInventario,
   ordenarInventario,
@@ -5479,7 +5481,23 @@ class DomWalker {
         `[dom-walker] RESCATE PENDIENTE ${flow.flow}/${step.id}: esperando respuesta de '${decision.listener}' ` +
           `hasta ${Math.round(decision.timeoutMs / 1000)}s. El navegador NO se cierra.`,
       );
+      /**
+       * El desenlace de la espera se registra SIEMPRE, con su reloj. Sin esto
+       * hubo una laguna real: en el primer run de campo, `cp001-acceso/s1` pidió
+       * rescate dos veces (65 s de diferencia) y ninguno de los dos ramales dejó
+       * traza, así que las dos explicaciones candidatas —un relanzamiento del
+       * walker que el audit-log append-only no distingue, o una salida de la
+       * espera sin registrar— quedaron indistinguibles con lo que había en
+       * disco. Un mecanismo que no dice cómo terminó no se puede depurar.
+       */
+      const t0 = Date.now();
       const llegó = await this.esperarRespuestaDeRescate(step, decision.timeoutMs);
+      this.audit(llegó ? 'allow' : 'skip', `espera de rescate ${flow.flow}/${step.id}: ${llegó ? 'respuesta recibida' : 'plazo agotado'} tras ${Date.now() - t0} ms`, {
+        phase: 'rescue-wait',
+        listener: decision.listener,
+        waited_ms: Date.now() - t0,
+        timeout_ms: decision.timeoutMs,
+      });
       if (llegó) {
         this.audit('allow', `respuesta de rescate recibida en proceso: ${flow.flow}/${step.id}`, {
           phase: 'rescue-response',
@@ -6171,7 +6189,14 @@ class DomWalker {
             const count = loc ? await loc.count().catch(() => 0) : 0;
             if (loc && count >= 1) {
               resolved = { locator: count === 1 ? loc : loc.first(), via: rescue.locator, frame_path: [] };
-              this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: rescue.locator, audit_logged: true, source: 'llm' });
+              // D85 — la fragilidad la declaraba solo el panel, así que un
+              // posicional respondido por una IA se colaba en memoria durable
+              // sin tocar el cerrojo. Ahora el rescate también la declara.
+              this.state.rescues.push({
+                flow: flow.flow, step: step.id, resolved: true, locator: rescue.locator,
+                audit_logged: true, source: 'llm',
+                ...(locatorEsFragil(rescue.locator) ? { fragile: true } : {}),
+              });
               this.audit('allow', `rescate resuelto ${stepKey} → ${rescue.locator}`, { phase: 'rescue-response' });
             } else {
               // D74 — el motivo es la CAUSA del bloqueo; el desenlace del rescate
@@ -6971,6 +6996,16 @@ class DomWalker {
     });
     console.log(
       `[dom-walker] viewport ${this.opts.viewport ? `${this.opts.viewport.width}×${this.opts.viewport.height} (declarado)` : '1280×720 (default de Playwright — sin declarar; ver D71)'}`
+    );
+    /**
+     * D83 — dónde vive la memoria durable, DICHO SIEMPRE. Mismo criterio que el
+     * viewport de D71: el valor efectivo se imprime aunque sea el default,
+     * porque el silencio es lo que permitió que tres runs seguidos aprendieran
+     * en un directorio efímero sin que nadie lo notara.
+     */
+    console.log(
+      `[dom-walker] memoria de aliases: ${this.aliasesPath}` +
+        notaMemoriaEfimera({ aliasesPath: this.aliasesPath, workDir: this.opts.workDir }),
     );
     if (animProfile.disable_animations) {
       // string, no referencia de función — mismo motivo que settleScript: esbuild

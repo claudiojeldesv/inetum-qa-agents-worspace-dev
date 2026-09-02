@@ -1309,6 +1309,75 @@ export function pedidoDelPaso(hint: StepHint | undefined): string {
   return h.name ?? h.label ?? h.text ?? h.test_id ?? '(el paso no dice qué buscar)';
 }
 
+// --------------------------------- D83: la memoria durable que no lo era
+/**
+ * D83 — **el destino de la memoria durable se perdía por un flag, en silencio.**
+ *
+ * El walker tiene un default durable (`config/hint-aliases/<site>.json`), pero
+ * `--aliases` lo sobrescribe sin decir nada. Medido en el workspace del QA
+ * (EspoCRM, 2026-09-02): tres runs consecutivos aprendieron 4 y 3 aliases
+ * respectivamente, cada uno en `.work/<su-dir>/aliases.json`, y
+ * `config/hint-aliases/` **ni existía**. Ninguno leyó la memoria del anterior,
+ * así que el run del rescate en proceso volvió a preguntar por `cp003/s5` — un
+ * paso cuyo alias ya estaba aprendido, en otro fichero.
+ *
+ * Y la causa de que el flag estuviera ahí no era del producto: **eran las guías
+ * que el orquestador le fue dando al QA**, todas con
+ * `--aliases=.work/<dir>/aliases.json`. La pieza funcionaba; se desconectó
+ * desde fuera, run tras run, sin que nada avisara.
+ *
+ * El arreglo NO es cambiar el default ni prohibir el flag: los tests quieren
+ * justamente un fichero desechable, y un run de diagnóstico también. Es el
+ * precedente de D71 — no se cambió el default del viewport, se hizo que el
+ * valor efectivo **se imprimiera siempre**. Aquí igual: el walker dice dónde
+ * escribe su memoria, y cuando ese sitio es efímero lo dice con su consecuencia
+ * delante.
+ */
+/**
+ * D85 — **el cerrojo de fragilidad solo miraba al panel.**
+ *
+ * `aliasPromotionVerdict` rechaza lo frágil desde K0.47 y es «el único cerrojo
+ * que no admite override humano», pero la fragilidad la MEDÍA el panel
+ * (`target.candidate.fragile`) y el camino del rescate LLM no la declaraba
+ * nunca: el registro del rescate se empujaba sin campo `fragile`, así que un
+ * posicional respondido por una IA entraba en memoria durable sin tocar el
+ * cerrojo.
+ *
+ * Medido en el primer run de campo de la Fase 2 (EspoCRM, 2026-09-02), con la
+ * asimetría en el mismo audit-log: el `getByRole('group').nth(0) >> …` que el
+ * QA señaló en el panel fue RECHAZADO («locator frágil (posicional)»), y el
+ * `getByRole('textbox', { name: 'Ciudad' }).nth(0)` que contestó el orquestador
+ * fue PROMOVIDO. El mismo tipo de locator, dos destinos, según quién lo dijo.
+ *
+ * Y aquí el riesgo es mayor que en el panel, no menor: el QA ve la pantalla y
+ * sabe que está eligiendo el primero de dos gemelos; una IA que responde
+ * `.nth(0)` sobre `textbox "Ciudad"` duplicado no puede saber si es el de
+ * facturación o el de envío. Ese es el verde que miente.
+ *
+ * La detección es sintáctica a propósito: la gramática de locators del proyecto
+ * es cerrada (lista blanca fail-closed, K0.46), así que `.nth(` es la forma
+ * ÚNICA de expresar posición y no hay que interpretar nada.
+ */
+export function locatorEsFragil(locator: string): boolean {
+  return /\.nth\(\s*\d+\s*\)/.test(locator);
+}
+
+export function notaMemoriaEfimera(i: { aliasesPath: string; workDir: string }): string {
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const a = norm(i.aliasesPath);
+  const w = norm(i.workDir);
+  const dentroDelWorkDir = w.length > 0 && (a === w || a.startsWith(`${w}/`));
+  // `.work/` es la convención del proyecto para lo efímero, y un run puede
+  // apuntar a un .work distinto del suyo — también moriría.
+  const enWork = a.split('/').includes('.work');
+  if (!dentroDelWorkDir && !enWork) return '';
+  return (
+    ' — OJO: ese fichero está en un directorio EFÍMERO, así que lo que el walker aprenda hoy no lo ' +
+    'encontrará el run de mañana: cada run volverá a preguntar lo que este ya resolvió. Para memoria ' +
+    'durable, no pases --aliases y se usará config/hint-aliases/<site>.json.'
+  );
+}
+
 // -------------------------- Fase 2: el rescate que no muere (pausa en sitio)
 /**
  * FASE 2 del plan del rescate — **pausar en el sitio en vez de morirse**.
