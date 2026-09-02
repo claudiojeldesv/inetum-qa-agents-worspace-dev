@@ -12,7 +12,7 @@ herramienta, y la herramienta deja de servir.
 **Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
 ([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 y P1 cerrados el
 2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28. P7 (banco de pruebas de paneles, núcleo)
-cerrado el 2026-08-29. P5 fase C, P6 y P3 cerrados el 2026-08-30.** Queda **P4, que es una decisión con el QA, no una tarea** (la pantalla de aprobación ya es una vista del caso y la tira de P3 ya lo enseña de un vistazo). Desde P7, toda rebanada de panel se audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
+cerrado el 2026-08-29. P5 fase C, P6 y P3 cerrados el 2026-08-30.** **P4 y P4-bis cerrados el 2026-09-02** (la decisión se tomó: el caso completo aporta, y con la comprobación de texto el panel además añade lo único que se puede añadir sin señalar). Queda como decisión pendiente si «añadir paso» vuelve al alcance ahora que D81 permite señalar sin tocar el DOM (la pantalla de aprobación ya es una vista del caso y la tira de P3 ya lo enseña de un vistazo). Desde P7, toda rebanada de panel se audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
 
 ---
 
@@ -198,7 +198,7 @@ Higiene que evita una vergüenza en demo: **medir** si el panel contamina el sca
 (axe atraviesa shadow DOM por defecto; el shadow cerrado protege de los locators, no necesariamente de
 axe). Medirlo antes de afirmar que está limpio.
 
-### P4 — La postura de caso completo
+### P4 — La postura de caso completo · CERRADO el 2026-09-02
 
 Los pasos del caso con su resultado esperado **solo en los que llevan un `expect_*`** (los de acción
 no tienen nada que comprobar), su procedencia y la línea del FD (`criteria.json` ya lleva
@@ -208,6 +208,57 @@ Al desplegar, el panel crece. Es correcto que tape la aplicación: en esa postur
 nada en ella.
 
 **Lo que NO entra**: reordenar y editar cualquier paso desde aquí (decisión 5).
+
+**Lo entregado**:
+
+1. **Tercera postura, `▤`**, junto a barra y fantasma. El panel se ensancha y sustituye el área de
+   trabajo por el caso entero. **No se recuerda como preferencia**, a diferencia de las otras dos, y
+   eso es deliberado: es una postura de LECTURA — persistirla haría que el panel siguiente abriera
+   enseñando el caso en vez de listo para grabar. Se abre, se lee, y se vuelve.
+2. **La frase de cada paso sale del guion y de nada más** (`frasePaso`, pura). No hay descripción
+   humana en el walk-script, y casar los pasos del FD con los del guion exigiría una correspondencia
+   que nadie garantiza — el paso 1 del FD, «Acceder al portal», es el `__entry` del walker. Antes que
+   inventarla, se dice lo que el paso HACE, incluido su ámbito («pulsar «Guardar» (en «Datos del
+   tomador»)»), que es la mitad de la instrucción. Un `value` marcado `secret` se pinta `••••`: el
+   panel vive dentro de la página de la aplicación.
+3. **El oráculo, solo donde el guion lo pide** (`oraculoDelPaso`): los `expect_*`, `wait_text` y la
+   postcondición INLINE `expect_after` de un paso de acción (K0.13 capa 3). El resto dice, con esas
+   palabras, «acción · sin resultado que comprobar» — es el elemento 4 que la auditoría de maquetas
+   corrigió. Y la frase NO repite el valor: lo lleva la línea del oráculo, debajo y con realce.
+4. **Los estados son los de la tira de P3** —hecho / aquí / no cuadra / pendiente— calculados por la
+   MISMA función. Dos definiciones derivarían (familia D2).
+5. **La línea del FD**: hoy se muestra el criterio que el guion declara (`flow.criteria`). El
+   `source_ref` con fichero y línea necesita un `criteria.json`, que **solo existe si el FD pasó por
+   el refiner (S3)**: los tres sitios de campo son S4 y no lo tienen. Es la pieza que falta, y no es
+   del panel.
+
+**Probado**: 19 tests. Los datos, puros; y la interfaz **leyendo el panel de verdad** en un navegador
+—el shadow root se fuerza a abierto solo en el test, para no probar una copia— porque la lección de
+D81 es que un camino sin test de punta a punta se rompe en las manos de otro. Además, el caso real de
+`cp001` de Restful Booker se pintó y se leyó antes de dárselo al QA (protocolo de P7).
+
+### P4-bis — «Añadir comprobación de texto» · CERRADO el 2026-09-02
+
+La auditoría retiró «Añadir paso a mano» con motivo —*un paso de acción necesita un locator, y un
+locator necesita un elemento señalado*; el canal del panel tiene `target`, `remove`, `assert`,
+`edit` y `recapture`, y no tiene `add`— pero dejó viva una distinción real: **una comprobación de
+texto sí se puede escribir**, porque `findVisibleText` opera sobre una cadena.
+
+Construida con dos cerrojos:
+
+- **se valida EN VIVO con la MISMA función que el run** usa para un `expect_text`. Validar con otra
+  búsqueda dejaría al QA escribir un oráculo que el panel acepta y el run no encuentra — la lección
+  de D87. Si el texto no se ve ahora mismo, no se acepta: un oráculo roto no falla al escribirlo,
+  falla dentro de tres semanas en la regresión de otro;
+- **no sustituye al objetivo**: un paso bloqueado sigue necesitando el elemento sobre el que actuar, y
+  si el QA solo añade comprobaciones se le dice eso y no «no se pudo determinar el objetivo».
+
+Se guarda como `expect_text` detrás del objetivo, sin locator y **sin hint inventado** — un hint aquí
+acabaría en el guion emitido describiendo un elemento que nadie señaló.
+
+**Nota para la próxima revisión de alcance**: la auditoría se escribió ANTES de D81. Hoy el QA sí
+puede señalar un elemento sin tocar el DOM («Ver todo lo que hay»), así que el motivo por el que se
+retiró «añadir paso» se ha debilitado. Es terreno de la decisión 5 y la tiene el QA, no el agente.
 
 ### P5 — La pantalla de aprobación · FASES A y B CERRADAS el 2026-08-28
 

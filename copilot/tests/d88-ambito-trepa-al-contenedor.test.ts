@@ -49,7 +49,7 @@ async function correr(hint: StepHint, scope: StepHint, esperado: string): Promis
   };
   const opts: WalkerOptions = {
     scriptPath: 't', contractPath: 't', baseUrl: FIX, workDir, rescueBudget: 0, screenCap: 60,
-    headed: false, assist: false, assistMinimize: false,
+    headed: false, assist: false, assistTimeoutMs: 5_000, assistMinimize: false,
     aliasesPath: resolve(workDir, 'aliases.json'), timingProfilePath: resolve(workDir, 't.json'), calibrate: false,
   };
   const map = await new DomWalker(opts, script, contract, freshState()).run();

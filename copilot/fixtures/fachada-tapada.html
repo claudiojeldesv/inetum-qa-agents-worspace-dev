@@ -45,6 +45,7 @@
 
   <p>Marcado: <span id="estado">ninguno</span></p>
 
+  <p id="resultado">Poliza registrada</p>
   <script>
     // El binding SOLO en el span — como la fachada real. Pulsar el input no hace nada.
     document.querySelectorAll('.ideal-radio').forEach(function (sp) {
@@ -74,6 +75,24 @@
         setTimeout(function () { enviar(host, 'stop'); }, 600);
       } else if (cmd === 'block') {
         enviar(host, 'block');
+      } else if (cmd === 'comprobacion') {
+        // P4: el QA resuelve el paso Y de paso anota una comprobacion de texto
+        // que la pantalla si muestra. El texto vive en el fixture (abajo).
+        enviar(host, { inventario: { pedido: 'Male', contiene: 'Male' } });
+        setTimeout(function () { enviar(host, { comprobacion: 'Poliza registrada' }); }, 500);
+        setTimeout(function () { enviar(host, 'stop'); }, 1400);
+      } else if (cmd === 'caso') {
+        // P4: abrir la vista de caso completo en un run REAL, y resolver el paso.
+        // Que la postura llegue al fichero de preferencias es la prueba de que el
+        // boton y el comando existen en el panel que el walker inyecta de verdad.
+        enviar(host, 'postura-caso');
+        setTimeout(function () { enviar(host, { inventario: { pedido: 'Male', contiene: 'Male' } }); }, 400);
+        setTimeout(function () { enviar(host, 'stop'); }, 1200);
+      } else if (cmd === 'comprobacion-falsa') {
+        // el texto NO esta en la pantalla: tiene que rechazarse y NO entrar
+        enviar(host, { inventario: { pedido: 'Male', contiene: 'Male' } });
+        setTimeout(function () { enviar(host, { comprobacion: 'Esto no existe en ningun sitio' }); }, 500);
+        setTimeout(function () { enviar(host, 'stop'); }, 1400);
       }
     }, 100);
   </script>

@@ -71,6 +71,8 @@ import {
   decidirEspera,
   notaMemoriaEfimera,
   locatorEsFragil,
+  filasDelCaso,
+  type FilaDeCaso,
   // D81 — el inventario del panel: que el QA SIEMPRE pueda coger el locator.
   filaDelInventario,
   ordenarInventario,
@@ -893,6 +895,10 @@ export interface MarcaDeTira {
 export interface P3Opts {
   prefs?: PanelPrefs;
   tira?: MarcaDeTira[];
+  /** P4 — las filas del caso completo, ya calculadas por `filasDelCaso`. */
+  caso?: FilaDeCaso[];
+  /** Cabecera de la vista de caso: el flujo y los criterios que declara el guion. */
+  casoRef?: { flujo: string; criterios: string[] };
 }
 
 /** CSS de las posturas y la tira — UNO para los dos paneles (familia D2: si cada
@@ -909,10 +915,31 @@ const POSTURAS_CSS = `
         .tira i.hecho{background:#059669}
         .tira i.aqui{background:#2563eb;box-shadow:0 0 0 1px #93c5fd}
         .tira i.nocuadra{background:#b91c1c}
-        .tira i.pend{background:#374151}`;
+        .tira i.pend{background:#374151}
+        /* P4 - la postura de caso completo. Se ensancha A PROPOSITO: aqui no se
+           esta senalando nada en la aplicacion, asi que taparla es correcto
+           (decision 4 del plan del panel). */
+        .p.caso{width:520px}
+        .p.caso .b{display:none}
+        .caso{display:none}
+        .p.caso .caso{display:block}
+        .caso .cab{padding:7px 10px;background:#161c25;border-bottom:1px solid #374151;color:#9ca3af;font-size:11.5px;display:flex;justify-content:space-between;gap:8px}
+        .caso .cab b{color:#f9fafb;font-weight:500}
+        .caso ol{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
+        .caso ol li{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #232b35;align-items:start}
+        .caso ol li:last-child{border-bottom:0}
+        .caso .n{color:#6b7280;font:11px ui-monospace,monospace;padding-top:2px}
+        .caso .tx{color:#f9fafb}
+        .caso .or{color:#9ca3af;font-size:11.5px;margin-top:2px}
+        .caso .or b{color:#9fd8bd;font-weight:400}
+        .caso .sin{color:#6b7280;font-size:11.5px;margin-top:2px;font-style:italic}
+        .caso li.hecho .n{color:#6fd3a6}
+        .caso li.aqui{background:#1a2430;box-shadow:inset 3px 0 0 #059669}
+        .caso li.nocuadra{background:#251b12;box-shadow:inset 3px 0 0 #b45309}
+        .caso li.pend{opacity:.62}`;
 
 /** Botones de postura para la cabecera. `─` colapsa a barra; `◌` fantasma. */
-const POSTURAS_HTML = `<span class="post"><button id="po-b" title="Colapsar a barra (Alt+P alterna posturas)">─</button><button id="po-f" title="Modo fantasma: se ve, no estorba (Alt+P alterna)">◌</button></span>`;
+const POSTURAS_HTML = `<span class="post"><button id="po-c" title="Ver el caso completo">▤</button><button id="po-b" title="Colapsar a barra (Alt+P alterna posturas)">─</button><button id="po-f" title="Modo fantasma: se ve, no estorba (Alt+P alterna)">◌</button></span>`;
 
 /**
  * El comportamiento de las posturas, compartido por los dos paneles. Requiere en
@@ -928,7 +955,7 @@ const POSTURAS_HTML = `<span class="post"><button id="po-b" title="Colapsar a ba
  */
 function posturasScript(p3?: P3Opts): string {
   return `
-    const P3 = ${JSON.stringify({ prefs: p3?.prefs ?? {}, tira: p3?.tira ?? [] })};
+    const P3 = ${JSON.stringify({ prefs: p3?.prefs ?? {}, tira: p3?.tira ?? [], caso: p3?.caso ?? [], casoRef: p3?.casoRef ?? null })};
     (() => {
       const tiraEl = root.querySelector('.tira');
       if (tiraEl) {
@@ -941,6 +968,48 @@ function posturasScript(p3?: P3Opts): string {
           tiraEl.appendChild(i);
         }
       }
+      /**
+       * P4 - LA VISTA DE CASO COMPLETO.
+       *
+       * Solo pinta lo que el guion trae: la frase de cada paso y su oraculo
+       * CUANDO lo tiene. La auditoria de maquetas retiro "deberia aparecer" de
+       * todos los pasos porque los de accion pura no tienen nada que comprobar,
+       * y decir lo contrario invita a exigir aserciones donde el plan no las
+       * pide. Aqui eso es literal: los que no lo llevan dicen que no lo llevan.
+       */
+      const casoEl = root.querySelector('.caso');
+      if (casoEl && P3.caso.length) {
+        const cab = document.createElement('div');
+        cab.className = 'cab';
+        const izq = document.createElement('span');
+        const conOraculo = P3.caso.filter((f) => f.oraculo).length;
+        izq.innerHTML = '<b>' + ((P3.casoRef && P3.casoRef.flujo) || 'caso') + '</b>';
+        const der = document.createElement('span');
+        der.textContent = P3.caso.length + ' pasos · ' + conOraculo + ' con comprobación'
+          + (P3.casoRef && P3.casoRef.criterios && P3.casoRef.criterios.length
+            ? ' · ' + P3.casoRef.criterios.join(', ') : '');
+        cab.appendChild(izq); cab.appendChild(der);
+        casoEl.appendChild(cab);
+        const ol = document.createElement('ol');
+        for (const f of P3.caso) {
+          const li = document.createElement('li');
+          li.className = f.estado;
+          const n = document.createElement('span');
+          n.className = 'n'; n.textContent = f.id;
+          const cuerpo = document.createElement('span');
+          const tx = document.createElement('span');
+          tx.className = 'tx'; tx.textContent = f.texto;
+          cuerpo.appendChild(tx);
+          const sub = document.createElement('span');
+          if (f.oraculo) { sub.className = 'or'; sub.innerHTML = 'debería verse: <b></b>'; sub.querySelector('b').textContent = f.oraculo; }
+          else { sub.className = 'sin'; sub.textContent = 'acción · sin resultado que comprobar'; }
+          cuerpo.appendChild(document.createElement('br'));
+          cuerpo.appendChild(sub);
+          li.appendChild(n); li.appendChild(cuerpo);
+          ol.appendChild(li);
+        }
+        casoEl.appendChild(ol);
+      }
       if (P3.prefs.left) { host.style.left = P3.prefs.left; host.style.right = 'auto'; }
       if (P3.prefs.top) { host.style.top = P3.prefs.top; }
       let postura = P3.prefs.postura || 'normal';
@@ -951,20 +1020,25 @@ function posturasScript(p3?: P3Opts): string {
       const aplicar = () => {
         caja.classList.toggle('barra', postura === 'barra');
         caja.classList.toggle('fantasma', postura === 'fantasma');
+        // P4 - 'caso' y 'barra' se excluyen por naturaleza (decision 4 del plan):
+        // una es leer el caso entero, la otra es no estorbar.
+        caja.classList.toggle('caso', postura === 'caso');
         // fantasma: el host deja pasar los clics y la cabecera se re-arma sola.
         // Tras la entrega el walker apaga el host (D64); la ventana en que un
         // Alt+P podría re-armarlo dura lo que el panel tarda en cerrarse solo.
         host.style.pointerEvents = postura === 'fantasma' ? 'none' : '';
         const h = root.querySelector('.h'); if (h) h.style.pointerEvents = 'auto';
-        const pb = root.getElementById('po-b'), pf = root.getElementById('po-f');
+        const pb = root.getElementById('po-b'), pf = root.getElementById('po-f'), pc = root.getElementById('po-c');
         if (pb) pb.className = postura === 'barra' ? 'on' : '';
         if (pf) pf.className = postura === 'fantasma' ? 'on' : '';
+        if (pc) { pc.className = postura === 'caso' ? 'on' : ''; pc.style.display = P3.caso.length ? '' : 'none'; }
       };
       window.__qaPostura = (p) => { postura = p; aplicar(); reportar(); };
       window.__qaPanelMovido = reportar;
-      const pb = root.getElementById('po-b'), pf = root.getElementById('po-f');
+      const pb = root.getElementById('po-b'), pf = root.getElementById('po-f'), pc = root.getElementById('po-c');
       if (pb) pb.onclick = (e) => { e.stopPropagation(); window.__qaPostura(postura === 'barra' ? 'normal' : 'barra'); };
       if (pf) pf.onclick = (e) => { e.stopPropagation(); window.__qaPostura(postura === 'fantasma' ? 'normal' : 'fantasma'); };
+      if (pc) pc.onclick = (e) => { e.stopPropagation(); window.__qaPostura(postura === 'caso' ? 'normal' : 'caso'); };
       document.addEventListener('keydown', (e) => {
         if (!e.altKey || (e.key !== 'p' && e.key !== 'P')) return;
         window.__qaPostura(postura === 'normal' ? 'barra' : postura === 'barra' ? 'fantasma' : 'normal');
@@ -977,7 +1051,8 @@ function posturasScript(p3?: P3Opts): string {
 const POSTURAS_CMD = `
       if (cmd === 'postura-barra') { window.__qaPostura && window.__qaPostura('barra'); return; }
       if (cmd === 'postura-fantasma') { window.__qaPostura && window.__qaPostura('fantasma'); return; }
-      if (cmd === 'postura-normal') { window.__qaPostura && window.__qaPostura('normal'); return; }`;
+      if (cmd === 'postura-normal') { window.__qaPostura && window.__qaPostura('normal'); return; }
+      if (cmd === 'postura-caso') { window.__qaPostura && window.__qaPostura('caso'); return; }`;
 
 /**
  * Panel de asistencia inyectado en la página de la app. Vive en un **shadow root
@@ -1073,6 +1148,7 @@ function assistOverlayScript(
       <div class="p">
         <div class="h"><span>Asistencia QA</span><span id="s">esperando</span>${POSTURAS_HTML}</div>
         <div class="tira"></div>
+        <div class="caso"></div>
         <div class="b">
           <div class="ctx"><b>Necesito que me eches una mano.</b> <span class="ref">paso \${'${step.id}'}</span><div class="dx">\${${JSON.stringify(
             // K0.44 — se embebe con JSON.stringify y no como literal entrecomillado a
@@ -1104,8 +1180,10 @@ function assistOverlayScript(
           </div>
           <div class="row">
             <button id="inv" class="safe">Ver todo lo que hay</button>
+            <button id="txt" class="safe">Añadir comprobación de texto</button>
           </div>
           <div id="invbox" style="display:none"></div>
+          <div id="txtbox" style="display:none"></div>
           <div class="row">
             <button id="d" class="drift">No existe aquí</button>
             <button id="b">Bloquear paso</button>
@@ -1430,6 +1508,55 @@ function assistOverlayScript(
       status.textContent = 'objetivo elegido de la lista — pulsa Parar para enviarlo';
       return true;
     };
+    /**
+     * P4 - ANADIR COMPROBACION DE TEXTO.
+     *
+     * La unica adicion a mano que la auditoria de maquetas dejo viva. "Anadir
+     * paso" se retiro porque un paso de accion necesita un locator y un locator
+     * necesita un elemento senalado; una comprobacion de texto NO: findVisibleText
+     * opera sobre una cadena.
+     *
+     * Se valida EN VIVO, con la misma regla que el locator tecleado: si el texto
+     * no se ve ahora mismo, no se acepta. El panel esta abierto SOBRE la pantalla
+     * en la que el QA quiere comprobarlo, asi que aceptar algo que no esta seria
+     * dejarle escribir un oraculo que nace roto - y un oraculo roto no falla al
+     * escribirlo, falla dentro de tres semanas en la regresion de otro.
+     */
+    const anadirComprobacion = async (texto) => {
+      const t = (texto || '').trim();
+      const box = $('txtbox');
+      if (!t) { box.querySelector('.err').textContent = 'escribe el texto que tiene que verse'; return false; }
+      box.querySelector('.err').textContent = 'buscándolo en la pantalla…';
+      let res;
+      try { res = await window.__qaAssistTexto(t); } catch (e) { res = { ok: false }; }
+      if (!res || !res.ok) {
+        box.querySelector('.err').textContent = 'ese texto no se ve ahora mismo en la pantalla';
+        return false;
+      }
+      seq.push({ via: 'texto', name: t, as: 'assertion',
+                 _q: { ok: true, tier: 'texto', fragile: false, label: 'texto visible', source: t } });
+      nodes.push(null);
+      box.style.display = 'none'; box.innerHTML = '';
+      render();
+      $('t').disabled = false;
+      status.textContent = 'comprobación añadida: se guardará como expect_text';
+      return true;
+    };
+    $('txt').onclick = () => {
+      const box = $('txtbox');
+      if (box.style.display === 'block') { box.style.display = 'none'; box.innerHTML = ''; return; }
+      box.style.display = 'block';
+      box.innerHTML = '<div style="margin-top:8px;padding:8px;border:1px solid #4b5563;border-radius:5px;background:#0b1220">'
+        + '<div style="color:#9ca3af;font-size:11.5px;margin-bottom:5px">Texto de negocio que tiene que verse en esta pantalla. '
+        + 'Se comprueba ahora: si no está, no se acepta.</div>'
+        + '<div style="display:flex;gap:6px"><input id="txtin" spellcheck="false" style="flex:1;min-width:0;font:12px system-ui;padding:4px 6px">'
+        + '<button id="txtok">Añadir</button></div>'
+        + '<div class="err" style="color:#fca5a5;font-size:11px;margin-top:4px"></div></div>';
+      const inp = box.querySelector('#txtin');
+      inp.onkeydown = (e) => { if (e.key === 'Enter') anadirComprobacion(inp.value); if (e.key === 'Escape') { box.style.display = 'none'; box.innerHTML = ''; } };
+      box.querySelector('#txtok').onclick = () => anadirComprobacion(inp.value);
+      setTimeout(() => inp.focus(), 0);
+    };
     $('inv').onclick = async () => {
       const box = $('invbox');
       if (box.style.display === 'block') { box.style.display = 'none'; box.innerHTML = ''; try { window.__qaResaltar(-1); } catch (e) {} return; }
@@ -1483,6 +1610,18 @@ function assistOverlayScript(
        * con que elegir una fila no hacía nada. Un camino sin test es un camino
        * que se rompe en las manos de otro.
        */
+      /**
+       * P4 - la comprobacion de texto, por comando. Mismo motivo que el
+       * inventario: el camino del raton y el que se prueba tienen que ser uno.
+       */
+      else if (cmd && cmd.comprobacion !== undefined) {
+        (async () => {
+          $('txt').onclick();
+          const inp = $('txtbox').querySelector('#txtin');
+          if (inp) { inp.value = cmd.comprobacion; }
+          await anadirComprobacion(cmd.comprobacion);
+        })();
+      }
       else if (cmd && cmd.inventario !== undefined) {
         (async () => {
           const els = await window.__qaInventario(cmd.inventario.pedido || '');
@@ -1585,6 +1724,7 @@ function verdictOverlayScript(
       <div class="p">
         <div class="h"><span>Veredicto QA</span><span id="s">esperando</span>${POSTURAS_HTML}</div>
         <div class="tira"></div>
+        <div class="caso"></div>
         <div class="b">
           \${${JSON.stringify(
             /**
@@ -4413,6 +4553,10 @@ class DomWalker {
         const ruta = this.panelPrefsPath;
         mkdirSync(dirname(ruta), { recursive: true });
         const limpio: PanelPrefs = {
+          // P4 — 'caso' NO está en la lista a propósito: es una postura de
+          // LECTURA, no de trabajo. Persistirla haría que el panel siguiente
+          // abriera enseñando el caso en vez de listo para grabar, y el QA
+          // tendría que volver atrás en cada paso. Se abre, se lee, y se vuelve.
           ...(p && (p.postura === 'normal' || p.postura === 'barra' || p.postura === 'fantasma') ? { postura: p.postura } : {}),
           ...(p && typeof p.left === 'string' && p.left.length < 32 ? { left: p.left } : {}),
           ...(p && typeof p.top === 'string' && p.top.length < 32 ? { top: p.top } : {}),
@@ -4459,6 +4603,20 @@ class DomWalker {
      * resuelve. La página es la fuente de la verdad, pero no se acepta un locator a
      * ciegas — se comprueba que resuelve único aquí mismo.
      */
+    /**
+     * P4 — el puente de la comprobación de texto. Usa `findVisibleText`, LA MISMA
+     * función con la que el walker evalúa un `expect_text` en el run: si el panel
+     * validara con otra búsqueda, el QA podría añadir una comprobación que el
+     * panel acepta y el run no encuentra. Verificar con una semántica distinta a
+     * la del consumidor es no verificar (D87).
+     *
+     * Plazo corto a propósito: el texto tiene que estar AHORA, no dentro de 30 s.
+     */
+    await this.page.exposeFunction('__qaAssistTexto', async (t: string) => {
+      const found = await this.findVisibleText(t, 1_500).catch(() => null);
+      return { ok: found !== null, matched: found?.matched_text ?? null };
+    });
+
     await this.page.exposeFunction('__qaAssistResolve', async (src: string) => {
       const loc = this.locatorFromChain(this.page, src);
       if (!loc) return { ok: false, count: 0, reason: 'gramática de locator no reconocida' };
@@ -4626,7 +4784,16 @@ class DomWalker {
       id: s.id,
       e: s.id === step.id ? 'aqui' : bloqueados.has(s.id) ? 'nocuadra' : this.state.completed.includes(`${flow.flow}/${s.id}`) ? 'hecho' : 'pend',
     }));
-    return { prefs, tira };
+    /**
+     * P4 — las filas del caso completo. Se calculan con `filasDelCaso`, que es
+     * pura y comparte los estados con la tira: una sola definición, o derivarían
+     * (familia D2).
+     */
+    const completados = new Set(
+      flow.steps.filter((x) => this.state.completed.includes(`${flow.flow}/${x.id}`)).map((x) => x.id),
+    );
+    const caso = filasDelCaso(flow.steps, { pasoActual: step.id, completados, bloqueados });
+    return { prefs, tira, caso, casoRef: { flujo: flow.flow, criterios: flow.criteria ?? [] } };
   }
 
   /** Ruta del marcador de asistencia en curso (K0.45/D12). */
@@ -4818,6 +4985,10 @@ class DomWalker {
           gestos_grabados: gestos,
           enviado: Boolean(p),
           paso_mutante: mutating,
+          // P4 — cuántas filas de caso llevaba el panel. Es la traza de que la
+          // vista se pintó con datos y no vacía; sin ella, un `filasDelCaso` que
+          // devolviera [] sería indistinguible de uno que funciona.
+          caso_filas: this.p3DelPaso(flow, step).caso?.length ?? 0,
           ...(gestos > 0 && !p ? { grabado_conservado: this.assistMarkerPath } : {}),
         });
         res(p);
@@ -4920,6 +5091,14 @@ class DomWalker {
     const candidates: Array<LocatorCandidate | null> = [];
     const resolvedByIdx: Array<{ locator: Locator; candidate: LocatorCandidate } | null> = [];
     for (const el of sequence) {
+      // P4 — una comprobación de texto no tiene nodo en el DOM: no hay locator que
+      // buscarle, y mandarla a la escalera solo produciría un candidato inventado
+      // sobre un elemento que nadie señaló.
+      if (el.via === 'texto') {
+        candidates.push(null);
+        resolvedByIdx.push(null);
+        continue;
+      }
       const r = await this.locatorForPicked(el);
       candidates.push(r?.candidate ?? null);
       resolvedByIdx.push(r);
@@ -4933,9 +5112,14 @@ class DomWalker {
     const target = targetIdx >= 0 ? resolvedByIdx[targetIdx] : null;
 
     if (!target) {
-      const why = candidates[targetIdx] === null
-        ? 'el elemento señalado no tiene identidad única ni por ancla, texto vecino, id estable o posición'
-        : 'no se pudo determinar el objetivo de la secuencia';
+      const why = sequence.every((el) => el.as === 'assertion')
+        // P4 — solo comprobaciones de texto: no hay nada que PULSAR. El paso
+        // bloqueado sigue necesitando su elemento, y decir «no se pudo determinar
+        // el objetivo» mandaría al QA a mirar un locator que nunca señaló.
+        ? 'solo añadiste comprobaciones de texto y este paso necesita además el elemento sobre el que actuar'
+        : candidates[targetIdx] === null
+          ? 'el elemento señalado no tiene identidad única ni por ancla, texto vecino, id estable o posición'
+          : 'no se pudo determinar el objetivo de la secuencia';
       await this.assistTell(`No pude construir un locator: ${why}.`, false);
       this.blockStep(flow, step, `asistencia: ${why}`, false);
       this.audit('block', `asistencia sin locator único en ${flow.flow}/${step.id}`, { phase: 'assist', source: 'human' });

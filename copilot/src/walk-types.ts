@@ -600,8 +600,15 @@ export interface PickedElement {
   name?: string;
   test_id?: string;
   label?: string;
-  /** 'click' = el QA lo pulsó · 'hover' = pasó por encima de forma sostenida. */
-  via: 'click' | 'hover';
+  /**
+   * 'click' = el QA lo pulsó · 'hover' = pasó por encima de forma sostenida ·
+   * 'texto' = NO es un elemento señalado, es una comprobación de texto que el QA
+   * escribió (P4). No tiene nodo en el DOM y por eso no pasa por la escalera de
+   * locators: `findVisibleText` opera sobre una cadena. Es la única adición a
+   * mano que la auditoría de maquetas dejó viva — «añadir paso» se retiró porque
+   * un paso de acción necesita un locator y un locator necesita un elemento.
+   */
+  via: 'click' | 'hover' | 'texto';
   // --- contexto para la escalera de fallback (K0.11b). Sin esto, un elemento sin
   // identidad semántica (input sin name/label/test-id: la norma en formularios Java
   // corporativos) no tiene locator posible y la asistencia se rendía tras el trabajo

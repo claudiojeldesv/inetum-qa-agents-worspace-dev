@@ -725,7 +725,10 @@ export function buildAssistSteps(
   sequence.forEach((el, i) => {
     // lo posterior al objetivo solo se conserva si es una comprobación marcada
     if (i > targetIdx && el.as !== 'assertion') return;
-    const hint: StepHint = {
+    // P4 — una comprobación de texto escrita a mano no señala a ningún elemento:
+    // su contenido va en `value`, y un hint aquí sería fontanería inventada que
+    // acabaría en el guion emitido.
+    const hint: StepHint = el.via === 'texto' ? {} : {
       ...(el.test_id ? { test_id: el.test_id } : {}),
       ...(el.role ? { role: el.role } : {}),
       ...(el.name ? { name: el.name } : {}),
@@ -760,8 +763,15 @@ export function pruneAssistSequence(sequence: PickedElement[]): PickedElement[] 
     [el.test_id ?? '', el.role, normalizeText(el.name ?? ''), normalizeText(el.label ?? '')].join('|');
   const out: PickedElement[] = [];
   for (const el of sequence) {
+    // P4 — una comprobación de texto escrita a mano no es un elemento señalado:
+    // no se deduplica ni se poda por hover/click. Dos comprobaciones seguidas del
+    // mismo texto son raras, pero si el QA las escribe es porque quiere las dos.
+    if (el.via === 'texto') {
+      out.push(el);
+      continue;
+    }
     const prev = out[out.length - 1];
-    if (prev && key(prev) === key(el)) {
+    if (prev && prev.via !== 'texto' && key(prev) === key(el)) {
       // mismo elemento: el click gana sobre el hover
       if (prev.via === 'hover' && el.via === 'click') out[out.length - 1] = el;
       continue;
@@ -776,6 +786,113 @@ export function pruneAssistSequence(sequence: PickedElement[]): PickedElement[] 
     if (!clicked.has(key(el))) return true;
     return out.findIndex((o) => o.via === 'click' && key(o) === key(el)) < i;
   });
+}
+
+// -------------------------------------------------- P4: el caso completo
+
+/** Una fila de la vista de caso completo del panel. */
+export interface FilaDeCaso {
+  id: string;
+  /** Lo que el paso hace, en palabras, derivado del guion. NUNCA inventado. */
+  texto: string;
+  /**
+   * Lo que debería verse después. **Solo en los pasos que llevan un `expect_*`**:
+   * la auditoría de maquetas retiró «debería aparecer» de los doce pasos porque
+   * los de acción pura no tienen nada que comprobar, y decir lo contrario invita
+   * a exigir aserciones donde el plan no las pide.
+   */
+  oraculo?: string;
+  estado: 'hecho' | 'aqui' | 'nocuadra' | 'pend';
+}
+
+/** Acciones que son POSTCONDICIÓN: las únicas que tienen algo que comprobar. */
+const ACCIONES_CON_ORACULO = new Set<WalkAction>([
+  'expect_text', 'expect_state', 'expect_value', 'expect_count', 'expect_each', 'wait_text',
+]);
+
+/** Cómo se nombra un elemento en la frase, con lo que el guion trae. */
+function nombreDelHint(h?: StepHint): string {
+  if (!h) return '';
+  const n = h.name ?? h.label ?? h.text ?? h.test_id ?? '';
+  return n ? `«${n}»` : '';
+}
+
+/**
+ * El paso en palabras, derivado del guion y de nada más.
+ *
+ * No hay descripción humana en el walk-script: el FD la tiene, pero casarla paso
+ * a paso exigiría una correspondencia que nadie garantiza (el paso 1 del FD,
+ * «Acceder al portal», es el `__entry` del walker). Antes que inventar esa
+ * correspondencia, se dice lo que el paso HACE, que es dato duro. La referencia
+ * al FD va a nivel de CASO, que es donde `criteria.json` la tiene.
+ */
+export function frasePaso(step: WalkStep): string {
+  const q = nombreDelHint(step.hint);
+  const v = step.value ? `«${step.secret ? '••••' : step.value}»` : '';
+  const donde = step.scope ? ` (en ${nombreDelHint(step.scope)})` : '';
+  switch (step.action) {
+    case 'goto': return `ir a ${step.target ?? 'la entrada'}`;
+    case 'fill': return `rellenar ${q} con ${v || '(vacío)'}${donde}`;
+    case 'click': return `pulsar ${q || 'el elemento del paso'}${donde}`;
+    case 'hover': return `pasar el ratón por ${q}${donde}`;
+    case 'select': return `elegir ${v} en ${q}${donde}`;
+    case 'check': return `marcar ${q}${donde}`;
+    case 'uncheck': return `desmarcar ${q}${donde}`;
+    case 'press': return `pulsar la tecla ${v}`;
+    case 'wait_url': return `esperar a la dirección ${step.target ?? ''}`;
+    /**
+     * En las postcondiciones la frase NO repite el valor: lo dice la línea del
+     * oráculo, justo debajo, y con su realce. Verlo dos veces en la misma fila
+     * hace la vista del caso más larga y menos legible — comprobado pintando el
+     * caso real de Restful Booker antes de enseñárselo al QA.
+     */
+    case 'wait_text': return 'esperar a que aparezca el texto';
+    case 'expect_text': return 'comprobar el texto que muestra la pantalla';
+    case 'expect_state': return `comprobar el estado de ${q}`;
+    case 'expect_value': return `comprobar el valor de ${q}`;
+    case 'expect_count': return `contar ${q}`;
+    case 'expect_each': return `comprobar cada ${q}`;
+    case 'scroll_until': return `desplazar hasta ${q}`;
+    case 'capture': return 'capturar la pantalla';
+    default: return step.action;
+  }
+}
+
+/** El oráculo del paso, si lo tiene. Vacío en los pasos de acción pura. */
+export function oraculoDelPaso(step: WalkStep): string | undefined {
+  if (!ACCIONES_CON_ORACULO.has(step.action)) {
+    // `expect_after` es postcondición INLINE de un paso de acción (K0.13 capa 3):
+    // el paso actúa Y tiene algo que comprobar detrás.
+    return step.expect_after || undefined;
+  }
+  // el nombre del campo ya está en la frase: el oráculo es solo lo que se espera
+  if (step.action === 'expect_state' || step.action === 'expect_value') {
+    return step.value || undefined;
+  }
+  return step.value || step.expect_after || undefined;
+}
+
+/**
+ * Las filas del caso completo. Pura: recibe el flujo y el estado, no toca disco
+ * ni navegador. Los estados son los MISMOS que la tira de P3 — una sola
+ * definición, o derivarían (familia D2).
+ */
+export function filasDelCaso(
+  pasos: WalkStep[],
+  ctx: { pasoActual: string; completados: Set<string>; bloqueados: Set<string> },
+): FilaDeCaso[] {
+  return pasos.map((s) => ({
+    id: s.id,
+    texto: frasePaso(s),
+    ...(oraculoDelPaso(s) ? { oraculo: oraculoDelPaso(s) } : {}),
+    estado: s.id === ctx.pasoActual
+      ? 'aqui'
+      : ctx.bloqueados.has(s.id)
+        ? 'nocuadra'
+        : ctx.completados.has(s.id)
+          ? 'hecho'
+          : 'pend',
+  }));
 }
 
 // ----------------------------------------------------------------- aliases
