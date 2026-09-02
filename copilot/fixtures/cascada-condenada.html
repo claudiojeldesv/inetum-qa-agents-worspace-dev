@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8" /><title>Cascada condenada</title></head>
+<body>
+  <h1>Listado</h1>
+  <!--
+    D78 — la PUERTA que el guion espera (el enlace del mensaje) NO existe, así que
+    el diálogo que abriría no puede aparecer y su botón Cerrar tampoco. Reproduce
+    el caso de campo: Restful Booker cp009, donde el mensaje que otro caso debía
+    crear no estaba, y el panel pidió al QA señalar el «Close» de un diálogo que
+    nunca se abrió.
+  -->
+  <p>No hay ningún mensaje que abrir.</p>
+  <script>
+    var cmd = new URLSearchParams(location.search).get('cmd');
+    var espera = setInterval(function () {
+      var host = document.querySelector('[data-qa-assist-host]');
+      if (!host || !cmd) return;
+      clearInterval(espera);
+      // el QA marca la PUERTA como inexistente; lo de detrás no debería preguntarse
+      host.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: 'drift' }));
+    }, 100);
+  </script>
+</body></html>

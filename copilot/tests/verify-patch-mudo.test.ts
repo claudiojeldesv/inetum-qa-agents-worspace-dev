@@ -68,6 +68,17 @@ function walkerWith(flowSteps: WalkFlow['steps'], state: WalkState): { walker: D
     // dentro del replay y el timeout corto haría fallar el test en vez de colgarlo.
     assist: true,
     assistTimeoutMs: 2_000,
+    /**
+     * D79 — el REPLAY es ahora opt-in: la verificación por defecto es en vivo,
+     * porque re-ejecutar el camino previo vuelve a hacer login (mortal donde la
+     * app admite una sola sesión) y vuelve a consumir datos de un solo uso.
+     *
+     * Este fichero prueba EL REPLAY —que sea mudo, que no abra panel dentro, y
+     * que su fallo no contamine el run principal— así que lo pide explícitamente.
+     * Sin esto los tests medirían el camino en vivo y darían verde sin haber
+     * ejercitado nada de lo que vinieron a proteger.
+     */
+    replayVerify: true,
     assistMinimize: false,
     aliasesPath: resolve(workDir, 'aliases.json'),
     timingProfilePath: resolve(workDir, 'timing.json'),

@@ -6104,6 +6104,34 @@ class DomWalker {
           if (this.verifying) {
             throw new Error(`hint irresoluble en ${step.id} durante el replay de verificación`);
           }
+          /**
+           * D78 — EL TRIAJE VA DELANTE DEL PANEL, no solo delante del rescate LLM.
+           *
+           * `triajeDelBloqueo` existe desde D68 y sabe decir «esto está en cascada
+           * de X, ni preguntes», pero corría más abajo, en el camino del rescate:
+           * protegía el presupuesto de tokens y NO el tiempo del QA. Medido en su
+           * estreno (Restful Booker, cp009): marcó s8 como inexistente —el mensaje
+           * que cp004 debía crear no estaba— y acto seguido el panel le pidió
+           * señalar el botón «Close» DEL DIÁLOGO QUE NUNCA SE ABRIÓ. En Tricentis,
+           * 22 de 45 bloqueos eran cascada.
+           *
+           * Y para el QA el daño es MAYOR que para el LLM, no menor: lo que enseña
+           * se promueve a memoria durable con override humano. Enseñar un locator
+           * sobre la pantalla equivocada no se queda en el run — envenena los
+           * siguientes.
+           *
+           * La ambigüedad y el ámbito fallido SÍ abren panel: elegir entre
+           * candidatos es exactamente para lo que el panel existe.
+           */
+          const bloqueadosAntes = new Set(
+            this.state.open_questions.filter((q) => q.flow === flow.flow).map((q) => q.step),
+          );
+          const puerta = puertaBloqueadaAntes(flow.steps, bloqueadosAntes, step.id);
+          if (this.opts.assist && puerta) {
+            const v = triajeDelBloqueo({ ambiguo: false, fueraDeAmbito: false, puertaBloqueada: puerta });
+            this.blockStep(flow, step, `hint irresoluble — ${v.motivo}`, false);
+            return;
+          }
           // K0.10: peldaño asistido ANTES del rescate LLM. Con el QA delante, resolver
           // visualmente cuesta $0 y captura además la coreografía (hover de menús).
           if (this.opts.assist) {
