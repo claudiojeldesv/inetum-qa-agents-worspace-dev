@@ -104,16 +104,32 @@ describe('K0.36-B — el puente anclado no cruza a un campo que ya tiene dueño'
   }, 120_000);
 });
 
-describe('K0.36-C — el ámbito que resuelve pero no contiene se dice con esas palabras', () => {
-  it('el hint no está dentro del ámbito, y el informe dice que sí está fuera', async () => {
+describe('K0.36-C — el ámbito que señala al título', () => {
+  /**
+   * ESTE TEST CAMBIÓ DE VEREDICTO EL 2026-09-02, Y A PROPÓSITO.
+   *
+   * K0.36 aceptó como límite que no se trepara del título a su contenedor, y lo
+   * que medía era el DIAGNÓSTICO: «el hint NO está dentro del ámbito, y aparece
+   * 1 vez fuera» — mejor que el «hint irresoluble» que mandaba al QA a arreglar
+   * un hint correcto, pero seguía siendo un paso perdido. D88 midió lo que
+   * costaba (cuatro de los seis paneles de un run de campo) y lo resuelve: se
+   * sube al ancestro más cercano que contenga coincidencias y se exige que
+   * traiga exactamente UNA. Este fixture es justo ese caso —el <h2> de la
+   * tarjeta y el campo como hermano dentro de la <section>— así que el paso ya
+   * no se pierde: se ejecuta.
+   *
+   * El diagnóstico NO se ha borrado, y sigue con test: cuando trepar no puede
+   * desempatar (el primer ancestro que sabe algo trae varias), el mensaje
+   * aparece igual — `d88-ambito-trepa-al-contenedor.test.ts`, último caso.
+   */
+  it('ya no se pierde: la trepada lo lleva al contenedor y el paso se ejecuta', async () => {
     const map = await walk([
       { id: 's1', action: 'fill', hint: { label: 'Nombre' }, scope: { text: 'Datos del tomador' }, value: 'Ana' },
     ]);
-    const r = razon(map, 's1');
-    expect(r).toContain('NO está dentro del ámbito');
-    expect(r).toContain('1 vez fuera');
-    // el diagnóstico viejo mandaba a arreglar el hint, que estaba bien
-    expect(r).not.toContain('hint irresoluble');
+    expect(razon(map, 's1'), 'no debería quedar bloqueado').toBe('');
+    expect(desenlace(map, 's1')).toBe('ok');
+    // y lo apuntado es código, no notación: `via` se emite a un .spec.ts (D20)
+    expect(via(map, 's1')).toContain("locator('xpath=..')");
   }, 120_000);
 
   it('sin ámbito, ese mismo hint resuelve: la culpa era del ámbito y se demuestra', async () => {

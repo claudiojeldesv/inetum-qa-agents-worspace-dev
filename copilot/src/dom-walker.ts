@@ -1013,6 +1013,21 @@ function assistOverlayScript(
 ): string {
   return `(() => {
     ${extractionHelpers(testidAttrs)}
+    /**
+     * D89 - el semaforo del panel tiene que decir LO MISMO que el registro:
+     * un locator posicional que el QA teclea o elige de la lista es fragil,
+     * y hasta hoy se pintaba 'manual' en verde. La deteccion es la misma que
+     * locatorEsFragil (walk-core), copiada y no importada porque este script
+     * viaja a la pagina; la gramatica de locators es cerrada (K0.46) y .nth(
+     * es la unica forma de expresar posicion, asi que las dos copias no
+     * pueden divergir sin que alguien cambie la gramatica.
+     *
+     * Sin acentos y sin comillas invertidas A PROPOSITO, y buscando por
+     * POSICION en vez de por regex: esto vive dentro de un template literal,
+     * donde una comilla invertida termina la cadena y una barra del regex se
+     * pierde, dejando la expresion sin casar EN SILENCIO (D87).
+     */
+    const POS = (l) => String(l || '').indexOf('.nth(') >= 0;
     const prev = document.querySelector('[' + ASSIST_HOST + ']');
     if (prev) prev.remove();
     const host = document.createElement('div');
@@ -1118,7 +1133,7 @@ function assistOverlayScript(
       try { res = await window.__qaAssistResolve(value); } catch (e) { res = { ok: false, count: 0 }; }
       if (res && res.ok) {
         seq[i].manual_locator = value;
-        seq[i]._q = { ok: true, tier: 'manual', fragile: false, label: 'manual', source: value };
+        seq[i]._q = { ok: true, tier: 'manual', fragile: POS(value), label: POS(value) ? 'frágil (posición)' : 'manual', source: value };
         delete seq[i]._editErr;
         editing = -1; render(); return true;
       }
@@ -1402,7 +1417,7 @@ function assistOverlayScript(
       // el objetivo es ÚNICO: lo elegido ahora sustituye a cualquier marca previa
       for (const s of seq) if (s.as === 'target') delete s.as;
       seq.push({ via: 'manual', name: value, as: 'target', manual_locator: value,
-                 _q: { ok: true, tier: 'manual', fragile: false, label: 'manual', source: value } });
+                 _q: { ok: true, tier: 'manual', fragile: POS(value), label: POS(value) ? 'frágil (posición)' : 'manual', source: value } });
       nodes.push(null);
       render();
       /**
@@ -3515,7 +3530,7 @@ class DomWalker {
      * Un contenedor ambiguo no se adivina: si hay dos diálogos que encajan, el paso
      * queda sin resolver y sube a la asistencia. Es la misma regla dura de siempre.
      */
-    const containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> = step.scope
+    let containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> = step.scope
       ? await this.resolveScope(step.scope, scopes)
       : scopes;
     if (step.scope && containers.length === 0) {
@@ -3545,6 +3560,13 @@ class DomWalker {
      * humano desambigua. Plantarse es lento; equivocarse en silencio es inservible.
      */
     const rawPlan = hintLocatorPlan(step.hint ?? {}, this.priority);
+    /**
+     * D88 — EL ÁMBITO QUE SEÑALA AL TÍTULO. Ver `trepaDelTituloAlContenedor`.
+     */
+    if (step.scope && step.hint) {
+      const trepado = await this.trepaDelTituloAlContenedor(containers, rawPlan, step);
+      if (trepado) containers = trepado;
+    }
     // se reinicia por paso: una descripción heredada del paso anterior mentiría
     this.ultimaDescripcion = null;
     let ambiguo: string | null = null;
@@ -3730,6 +3752,106 @@ class DomWalker {
    * fuera del ámbito declarado. Solo se llama cuando el paso ya está perdido, así
    * que su coste no entra en el camino feliz.
    */
+  /**
+   * D88 — EL ÁMBITO QUE SEÑALA AL TÍTULO, Y NO AL CONTENEDOR.
+   *
+   * K0.36 dejó esto escrito como límite aceptado: «no se trepa del título a su
+   * contenedor: elegir qué ancestro es el diálogo sería adivinar». La segunda
+   * mitad es cierta; la primera resultó ser evitable, y su coste está medido.
+   *
+   * Restful Booker, repetición del tramo del QA (2026-09-02): los pasos traen
+   * `scope: {text:'Single'|'Double'|'Suite'}`, que es lenguaje del FD y dice
+   * EXACTAMENTE cuál de los cuatro «Book now» toca. El ámbito resuelve al
+   * `<h5>` de la tarjeta y dentro de un título no hay enlaces, así que el paso
+   * caía al panel con las cuatro filas indistinguibles y el QA elegía la
+   * primera — que era el botón del banner. **Cuatro de los seis paneles de ese
+   * run existieron solo por esto**, con la respuesta escrita en el guion.
+   *
+   * La regla que sí se puede aplicar sin adivinar: subir al **ancestro más
+   * cercano que contenga alguna coincidencia del hint** y exigir que contenga
+   * EXACTAMENTE UNA. No se elige entre ancestros —se toma el primero que sabe
+   * algo— y si ese primero ya trae varias, no se desempata: se deja como hoy y
+   * el paso sube al panel. Medido en vivo sobre la portada real: dos niveles
+   * hasta `div.card` para las tres habitaciones, cada una a la suya
+   * (`/reservation/1`, `/2`, `/3`).
+   *
+   * El tope de niveles no es un ajuste fino: la regla se detiene sola en cuanto
+   * un ancestro sabe algo (el `<body>` las trae todas y devuelve varias). Es
+   * solo una cota para no recorrer un árbol entero cuando el hint no está.
+   */
+  private async trepaDelTituloAlContenedor(
+    containers: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }>,
+    rawPlan: LocatorAttempt[],
+    step: WalkStep,
+  ): Promise<Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> | null> {
+    const TOPE = 5;
+    const out: Array<{ scope: Page | Frame | Locator; path: string[]; via?: string }> = [];
+    let trepado = false;
+    for (const c of containers) {
+      // solo se trepa desde un Locator: un Page/Frame no tiene ancestros
+      const esLocator = typeof (c.scope as Locator).nth === 'function';
+      if (!esLocator || (await this.cuentaDelHintEn(c.scope, rawPlan)) > 0) {
+        out.push(c);
+        continue;
+      }
+      let cur = c.scope as Locator;
+      let encontrado: { scope: Locator; nivel: number } | null = null;
+      for (let nivel = 1; nivel <= TOPE; nivel++) {
+        cur = cur.locator('xpath=..');
+        if ((await cur.count().catch(() => 0)) !== 1) break;
+        const n = await this.cuentaDelHintEn(cur, rawPlan);
+        if (n === 0) continue;
+        // el primero que sabe algo decide: una sola coincidencia resuelve, varias
+        // NO se desempatan (eso es exactamente lo que sube al panel)
+        if (n === 1) encontrado = { scope: cur, nivel };
+        break;
+      }
+      if (encontrado) {
+        trepado = true;
+        /**
+         * La trepada va en el `via` COMO CÓDIGO, no como notación.
+         *
+         * `via` es la cadena que se emite a un .spec.ts cuando es expresable, y
+         * la lista blanca de K0.46 mira el PREFIJO del segmento — así que un
+         * «↑2» pegado detrás se colaría entero hasta un fichero que no compila
+         * (D20), y un `via` limpio sería peor todavía: compila y apunta al
+         * TÍTULO, donde no hay nada. Un locator que resuelve a cero en silencio
+         * es el verde falso que este proyecto lleva persiguiendo desde K0.33.
+         *
+         * `.locator('xpath=../..')` es Playwright de verdad y es exactamente lo
+         * que el walker acaba de hacer: la descripción y el hecho coinciden.
+         */
+        const subida = `.locator('xpath=${Array(encontrado.nivel).fill('..').join('/')}')`;
+        out.push({ scope: encontrado.scope, path: c.path, via: `${c.via ?? ''}${subida}` });
+        this.audit('allow', `ámbito trepado ${encontrado.nivel} nivel(es) en ${step.id}: el hint no estaba en el elemento del scope y sí, único, en su contenedor`, {
+          phase: 'scope',
+          scope: JSON.stringify(step.scope),
+          niveles: encontrado.nivel,
+        });
+      } else {
+        out.push(c);
+      }
+    }
+    return trepado ? out : null;
+  }
+
+  /** Coincidencias VISIBLES del hint dentro de un contenedor, con la regla por INTENTO de `cuentaFueraDelAmbito`. */
+  private async cuentaDelHintEn(
+    contenedor: Page | Frame | Locator,
+    rawPlan: LocatorAttempt[],
+  ): Promise<number> {
+    for (const plan of [rawPlan, normalizedPlan(rawPlan)]) {
+      for (const attempt of plan) {
+        const n = await this.attemptToLocator(contenedor, attempt)
+          .filter({ visible: true })
+          .count()
+          .catch(() => 0);
+        if (n > 0) return n;
+      }
+    }
+    return 0;
+  }
+
   private async cuentaFueraDelAmbito(
     rawPlan: LocatorAttempt[],
     scopes: Array<{ scope: Page | Frame; path: string[] }>,
@@ -4449,7 +4571,24 @@ class DomWalker {
       if (unique) {
         return {
           locator: unique,
-          candidate: { source: el.manual_locator, tier: 'manual', fragile: false, why: 'introducido por el QA' },
+          /**
+           * D89 — la fragilidad se CALCULA, no se decreta. Esto estampaba
+           * `fragile: false` sin mirar el locator, así que el cerrojo de D85
+           * —el único que no admite override humano, porque un posicional
+           * caduca al añadir una fila— no cubría el camino del inventario de
+           * D81. Estaba latente hasta que D87 empezó a desambiguar con
+           * `.nth(i)`: desde entonces lo que el QA señala ES posicional, y en
+           * campo se promovieron TRES aliases durables frágiles y además
+           * FALSOS. Que lo escriba una persona no lo hace estable.
+           */
+          candidate: {
+            source: el.manual_locator,
+            tier: 'manual',
+            fragile: locatorEsFragil(el.manual_locator),
+            why: locatorEsFragil(el.manual_locator)
+              ? 'introducido por el QA, pero posicional: se usa en este run y NO entra en memoria durable'
+              : 'introducido por el QA',
+          },
         };
       }
       return null;

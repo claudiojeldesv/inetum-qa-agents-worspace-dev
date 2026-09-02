@@ -10,9 +10,56 @@
     La variante «Book Now» está a propósito: getByRole casa sin distinguir
     mayúsculas, así que comparar con === decía «único» sobre algo que resuelve 4.
   -->
+  <!--
+    D88 — el ámbito señala al TÍTULO (el <span>) y el enlace es su HERMANO, no su
+    hijo: la forma exacta de la portada de Restful Booker, donde scope:{text:'Single'}
+    resolvía al <h5> de la tarjeta y el paso caía al panel con las cuatro filas
+    indistinguibles. Aquí la trepada es de UN nivel; en el sitio real son dos.
+  -->
   <div><span>Single</span> <a href="#s">Book Now</a></div>
   <div><span>Double</span> <a href="#d">Book now</a></div>
   <div><span>Twin</span> <a href="#t">Book now</a></div>
   <div><span>Suite</span> <a href="#u">Book now</a></div>
   <a href="#solo" id="unico">Reservar ya</a>
+
+  <!--
+    Y el caso en que trepar NO puede desempatar: el primer ancestro que sabe algo
+    trae DOS. La regla se planta y el paso sigue subiendo al panel, que es lo
+    correcto — desempatar ahí sería justo lo prohibido (K0.33).
+  -->
+  <div><span>Planta baja</span>
+    <div><a href="#v1">Ver detalle</a> <a href="#v2">Ver detalle</a></div>
+  </div>
+
+  <p id="estado">nada</p>
+  <script>
+    // deja constancia de QUÉ enlace se pulsó: sin esto, un test que solo mira
+    // "no quedó bloqueado" pasaría igual habiendo pulsado el enlace equivocado.
+    document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.getElementById('estado').textContent = 'pulsado: ' + a.getAttribute('href').slice(1);
+      });
+    });
+  </script>
+
+  <script>
+    // Arnés del panel, igual que en fachada-tapada.html: el test conduce la
+    // interfaz de verdad en vez de simular su resultado.
+    var cmd = new URLSearchParams(location.search).get('cmd');
+    var enviar = function (host, detail) {
+      host.dispatchEvent(new CustomEvent('qa-assist-cmd', { detail: detail }));
+    };
+    var espera = setInterval(function () {
+      var host = document.querySelector('[data-qa-assist-host]');
+      if (!host || !cmd) return;
+      clearInterval(espera);
+      if (cmd === 'inventario') {
+        // el camino del QA en campo: abrir la lista y elegir un «Book now».
+        // Con D87 esa fila trae un locator POSICIONAL.
+        enviar(host, { inventario: { pedido: 'Book now', contiene: 'Book now' } });
+        setTimeout(function () { enviar(host, 'stop'); }, 600);
+      }
+    }, 100);
+  </script>
 </body></html>

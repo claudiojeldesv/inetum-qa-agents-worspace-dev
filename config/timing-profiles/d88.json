@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "site_id": "d88",
+  "steps": {
+    "double/__entry": {
+      "samples": [
+        667,
+        656,
+        662
+      ],
+      "screen": "home",
+      "updated": "2026-09-02"
+    },
+    "double/s1": {
+      "samples": [
+        735,
+        646,
+        679
+      ],
+      "screen": "2",
+      "updated": "2026-09-02"
+    },
+    "double/s2": {
+      "samples": [
+        449,
+        439,
+        446
+      ],
+      "screen": "2",
+      "updated": "2026-09-02"
+    },
+    "single/__entry": {
+      "samples": [
+        930,
+        884,
+        993
+      ],
+      "screen": "home",
+      "updated": "2026-09-02"
+    },
+    "single/s1": {
+      "samples": [
+        727,
+        723,
+        805
+      ],
+      "screen": "1",
+      "updated": "2026-09-02"
+    },
+    "single/s2": {
+      "samples": [
+        451,
+        443,
+        454
+      ],
+      "screen": "1",
+      "updated": "2026-09-02"
+    },
+    "suite/__entry": {
+      "samples": [
+        651,
+        589,
+        675
+      ],
+      "screen": "home",
+      "updated": "2026-09-02"
+    },
+    "suite/s1": {
+      "samples": [
+        668,
+        708,
+        707
+      ],
+      "screen": "3",
+      "updated": "2026-09-02"
+    },
+    "suite/s2": {
+      "samples": [
+        439,
+        445,
+        441
+      ],
+      "screen": "3",
+      "updated": "2026-09-02"
+    }
+  }
+}
