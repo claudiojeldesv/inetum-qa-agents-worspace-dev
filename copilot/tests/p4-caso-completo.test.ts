@@ -132,20 +132,36 @@ describe('P4 — y eso llega a la pantalla del QA', () => {
       );
     }, sel);
 
-  it('el botón de caso completo existe y abre la vista', async () => {
+  it('el botón de caso completo abre la vista Y EL PANEL SIGUE AHÍ', async () => {
+    /**
+     * La segunda mitad de este test no es retórica: la primera versión pasaba
+     * con el panel APAGADO. El contenedor del caso se llamaba `caso` igual que
+     * la clase de la postura, así que la regla que lo oculta casaba también con
+     * el panel (`class="p caso"`) y al pulsar el botón desaparecía todo. El QA
+     * lo vio a la primera: «toqué ese botón y se cerró el modal».
+     *
+     * Consultar el DOM NO prueba que se vea: `querySelectorAll` devuelve nodos
+     * con `display:none` igual de contentos. Hay que medir la caja.
+     */
     await page.evaluate(() => {
       const host = document.querySelector('[data-qa-assist-host]') as Element & { shadowRoot: ShadowRoot };
       (host.shadowRoot.getElementById('po-c') as HTMLElement).click();
     });
-    const clases = await page.evaluate(() => {
+    const visto = await page.evaluate(() => {
       const host = document.querySelector('[data-qa-assist-host]') as Element & { shadowRoot: ShadowRoot };
-      return host.shadowRoot.querySelector('.p')!.className;
+      const panel = host.shadowRoot.querySelector('.p') as HTMLElement;
+      const caja = host.shadowRoot.querySelector('.casobox') as HTMLElement;
+      const r = panel.getBoundingClientRect(), c = caja.getBoundingClientRect();
+      return { clases: panel.className, panelAlto: r.height, panelAncho: r.width, casoAlto: c.height };
     });
-    expect(clases).toContain('caso');
+    expect(visto.clases).toContain('caso');
+    expect(visto.panelAlto, 'el panel se apagó al cambiar de postura').toBeGreaterThan(100);
+    expect(visto.panelAncho, 'la postura de caso ensancha el panel').toBeGreaterThan(400);
+    expect(visto.casoAlto, 'la lista del caso no se ve').toBeGreaterThan(100);
   }, 60_000);
 
   it('se ven los ocho pasos, con su frase', async () => {
-    const filas = await sombra('.caso ol li .tx');
+    const filas = await sombra('.casobox ol li .tx');
     expect(filas).toHaveLength(8);
     expect(filas[1]).toBe('rellenar «Nombre» con «Ana»');
     expect(filas[3]).toBe('pulsar «Guardar» (en «Datos del tomador»)');
@@ -153,19 +169,19 @@ describe('P4 — y eso llega a la pantalla del QA', () => {
 
   it('los pasos de acción pura DICEN que no tienen nada que comprobar', async () => {
     // es el elemento que la auditoría corrigió: no se les inventa un oráculo
-    const sin = await sombra('.caso ol li .sin');
+    const sin = await sombra('.casobox ol li .sin');
     expect(sin.length).toBeGreaterThan(0);
     expect(sin[0]).toContain('sin resultado que comprobar');
   }, 60_000);
 
   it('y los que sí lo tienen enseñan el texto exacto que se espera', async () => {
-    const or = (await sombra('.caso ol li .or')).join(' | ');
+    const or = (await sombra('.casobox ol li .or')).join(' | ');
     expect(or).toContain('Alta registrada');
     expect(or).toContain('88.00');
   }, 60_000);
 
   it('la cabecera dice el caso, cuántos pasos y cuántos llevan comprobación', async () => {
-    const cab = (await sombra('.caso .cab')).join(' ');
+    const cab = (await sombra('.casobox .cab')).join(' ');
     expect(cab).toContain('cp042-alta');
     expect(cab).toContain('8 pasos');
     expect(cab).toContain('3 con comprobación');
@@ -175,7 +191,7 @@ describe('P4 — y eso llega a la pantalla del QA', () => {
   it('dónde está el QA se ve sin leer: la fila en curso va marcada', async () => {
     const marcadas = await page.evaluate(() => {
       const host = document.querySelector('[data-qa-assist-host]') as Element & { shadowRoot: ShadowRoot };
-      return Array.from(host.shadowRoot.querySelectorAll('.caso ol li')).map((li) => li.className);
+      return Array.from(host.shadowRoot.querySelectorAll('.casobox ol li')).map((li) => li.className);
     });
     expect(marcadas[3]).toBe('aqui');
     expect(marcadas[6]).toBe('nocuadra');

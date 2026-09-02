@@ -921,22 +921,27 @@ const POSTURAS_CSS = `
            (decision 4 del plan del panel). */
         .p.caso{width:520px}
         .p.caso .b{display:none}
-        .caso{display:none}
-        .p.caso .caso{display:block}
-        .caso .cab{padding:7px 10px;background:#161c25;border-bottom:1px solid #374151;color:#9ca3af;font-size:11.5px;display:flex;justify-content:space-between;gap:8px}
-        .caso .cab b{color:#f9fafb;font-weight:500}
-        .caso ol{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
-        .caso ol li{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #232b35;align-items:start}
-        .caso ol li:last-child{border-bottom:0}
-        .caso .n{color:#6b7280;font:11px ui-monospace,monospace;padding-top:2px}
-        .caso .tx{color:#f9fafb}
-        .caso .or{color:#9ca3af;font-size:11.5px;margin-top:2px}
-        .caso .or b{color:#9fd8bd;font-weight:400}
-        .caso .sin{color:#6b7280;font-size:11.5px;margin-top:2px;font-style:italic}
-        .caso li.hecho .n{color:#6fd3a6}
-        .caso li.aqui{background:#1a2430;box-shadow:inset 3px 0 0 #059669}
-        .caso li.nocuadra{background:#251b12;box-shadow:inset 3px 0 0 #b45309}
-        .caso li.pend{opacity:.62}`;
+        /* OJO con el nombre: la POSTURA es la clase caso sobre .p, y el
+           contenedor es casobox. Cuando los dos se llamaban igual, la regla
+           que oculta el contenedor casaba tambien con el panel —que lleva
+           class="p caso"— y al pulsar el boton se apagaba el panel entero.
+           Medido en campo el 2026-09-02, a la primera vez que lo uso el QA. */
+        .casobox{display:none}
+        .p.caso .casobox{display:block}
+        .casobox .cab{padding:7px 10px;background:#161c25;border-bottom:1px solid #374151;color:#9ca3af;font-size:11.5px;display:flex;justify-content:space-between;gap:8px}
+        .casobox .cab b{color:#f9fafb;font-weight:500}
+        .casobox ol{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
+        .casobox ol li{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #232b35;align-items:start}
+        .casobox ol li:last-child{border-bottom:0}
+        .casobox .n{color:#6b7280;font:11px ui-monospace,monospace;padding-top:2px}
+        .casobox .tx{color:#f9fafb}
+        .casobox .or{color:#9ca3af;font-size:11.5px;margin-top:2px}
+        .casobox .or b{color:#9fd8bd;font-weight:400}
+        .casobox .sin{color:#6b7280;font-size:11.5px;margin-top:2px;font-style:italic}
+        .casobox li.hecho .n{color:#6fd3a6}
+        .casobox li.aqui{background:#1a2430;box-shadow:inset 3px 0 0 #059669}
+        .casobox li.nocuadra{background:#251b12;box-shadow:inset 3px 0 0 #b45309}
+        .casobox li.pend{opacity:.62}`;
 
 /** Botones de postura para la cabecera. `─` colapsa a barra; `◌` fantasma. */
 const POSTURAS_HTML = `<span class="post"><button id="po-c" title="Ver el caso completo">▤</button><button id="po-b" title="Colapsar a barra (Alt+P alterna posturas)">─</button><button id="po-f" title="Modo fantasma: se ve, no estorba (Alt+P alterna)">◌</button></span>`;
@@ -977,7 +982,7 @@ function posturasScript(p3?: P3Opts): string {
        * y decir lo contrario invita a exigir aserciones donde el plan no las
        * pide. Aqui eso es literal: los que no lo llevan dicen que no lo llevan.
        */
-      const casoEl = root.querySelector('.caso');
+      const casoEl = root.querySelector('.casobox');
       if (casoEl && P3.caso.length) {
         const cab = document.createElement('div');
         cab.className = 'cab';
@@ -1148,7 +1153,7 @@ function assistOverlayScript(
       <div class="p">
         <div class="h"><span>Asistencia QA</span><span id="s">esperando</span>${POSTURAS_HTML}</div>
         <div class="tira"></div>
-        <div class="caso"></div>
+        <div class="casobox"></div>
         <div class="b">
           <div class="ctx"><b>Necesito que me eches una mano.</b> <span class="ref">paso \${'${step.id}'}</span><div class="dx">\${${JSON.stringify(
             // K0.44 — se embebe con JSON.stringify y no como literal entrecomillado a
@@ -1724,7 +1729,7 @@ function verdictOverlayScript(
       <div class="p">
         <div class="h"><span>Veredicto QA</span><span id="s">esperando</span>${POSTURAS_HTML}</div>
         <div class="tira"></div>
-        <div class="caso"></div>
+        <div class="casobox"></div>
         <div class="b">
           \${${JSON.stringify(
             /**
