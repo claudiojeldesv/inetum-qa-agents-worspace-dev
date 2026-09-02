@@ -11,8 +11,11 @@ contra diferido con cosecha. Faltaba la tercera, que el propio producto ya usa c
 **Branch**: `design/kernel-v2`. **Estado**: **Fase 0 EJECUTADA** (2026-08-31) — resultados en
 [censo-de-bloqueos.md](../findings/censo-de-bloqueos.md); H1 corregida, H2 y H4 confirmadas, H3 parcial,
 H5 pendiente de A/B. **Fase 1 recortada a D74 y CERRADA** (2026-09-02) — el resto de su alcance lo
-dejó obsoleto el propio estreno del QA. **Fase 2 CONSTRUIDA** (2026-09-02): el walker ya espera en el
-sitio cuando alguien declara que escucha. Pendiente de medir en campo.
+dejó obsoleto el propio estreno del QA. **Fase 2 CONSTRUIDA, MEDIDA Y CERRADA** (2026-09-02): el
+walker espera en el sitio cuando alguien declara que escucha; medida en EspoCRM (84/89, **cero
+relanzamientos** con cinco peticiones, la cadena de tres puertas de `cp009` abierta con **un** rescate)
+y con su fleco cerrado el mismo día. **El plan queda cerrado**: lo que sobrevive no es trabajo de este
+plan sino dos confirmaciones de campo (§6) y un plan aparte (§8.1, el guion podrido).
 
 > **Lo que el censo cambió**: el abanico paralelo **no se construye** (12 rescates reales en 121
 > bloqueos). Y el premio del en proceso no es el que yo defendía: son los **40 pasos en cascada** que hoy
@@ -284,3 +287,30 @@ ronda de runs después, solo para medir. Es la lectura alternativa y es legítim
 
 **Redespliegue**: los workspaces (`qa/rbp`, `qa/tri`, `qa/crm`) no reciben nada hasta un
 `npm run field:deploy`. La línea base de cada uno queda intacta hasta que el QA decida.
+
+---
+
+## 10. Cierre del plan (2026-09-02)
+
+**Lo que se construyó y se midió**, en orden: censo retroactivo (Fase 0) → D74 (Fase 1, recortada) →
+espera en proceso (Fase 2) → fleco del traspaso. Las cuatro decisiones congeladas sobrevivieron sin
+re-litigarse: **D-a** se cumplió (la primera rebanada no tocó el rescate), **D-b** es el comportamiento
+real (por defecto con plazo, degradando a `exit 42`), **D-c** se ejerció cinco veces en campo sin una
+sola declinación, y **D-d** se respetó — el estreno del QA fue primero y **destapó más que el plan**
+(D75–D87 salieron de ahí, no de aquí).
+
+**Lo que NO se hizo, y por qué no es deuda**: el perfil por run de `config/rescue-profiles/<site>.jsonl`
+(§5). Se recortó a D74 con el estreno ya en marcha, y el propio estreno lo dejó obsoleto: la campaña de
+medición que ese fichero iba a alimentar era la de calibrar `K`, y `K` murió en la Fase 0. Reponerlo
+sería instrumentar para una decisión que ya no se toma.
+
+**Lo que sobrevive al cierre**, y ninguna de las tres es trabajo de este plan:
+
+| Qué | Cuesta | Por qué no bloquea el cierre |
+|---|---|---|
+| Confirmar en campo el `rescue-wait` de `047c9fc` | un run | El código está y tiene tests; falta verlo en un audit-log de campo |
+| Medir el valor de D83 con memoria durable cargada | el mismo run | **Hacerlo después de D89**: con D89 abierto el run vuelve a escribir aliases posicionales y se mediría la memoria envenenándose sola |
+| **H5** — ¿declina más el orquestador que un subagente limpio? | un A/B | Sin dato en contra: 5 de 5 respondidas en campo. D-c no se invierte hasta que alguien mida lo contrario |
+
+**Y un plan aparte, ya escrito**: §8.1, el guion podrido — el veredicto que el walker no sabe emitir
+(«este guion ya no describe esta aplicación»), con su par falsable H6 y sin dato todavía.
