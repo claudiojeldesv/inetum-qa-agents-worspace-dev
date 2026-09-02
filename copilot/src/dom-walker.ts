@@ -68,6 +68,7 @@ import {
   hashScript,
   pedidoDelPaso,
   clasificarBloqueo,
+  decidirEspera,
   // D81 — el inventario del panel: que el QA SIEMPRE pueda coger el locator.
   filaDelInventario,
   ordenarInventario,
@@ -322,6 +323,16 @@ interface RawElement {
 
 /** Marcador del host del panel asistido: la captura lo salta (K0.10). */
 const ASSIST_HOST_ATTR = 'data-qa-assist-host';
+
+/**
+ * FASE 2 — techo duro de la espera en proceso. Ningún canal puede pedir más,
+ * por mal escrito que esté: un `timeout_ms` de un día colgaría el run entero
+ * por la puerta de atrás, que es el fallo que la autodetección existe para
+ * evitar. Dos minutos cubren con holgura una micro-llamada medida en 10-33 s.
+ */
+const MAX_ESPERA_RESCATE_MS = 120_000;
+/** Cada cuánto se mira si ya está la respuesta. Barato: es una llamada a stat. */
+const ESPERA_RESCATE_SONDEO_MS = 300;
 
 /**
  * K0.44 (D10) — cada cuánto se comprueba que el panel SIGUE en pantalla.
@@ -5384,7 +5395,7 @@ class DomWalker {
 
   // ------------------------------------------------------------ rescate LLM
 
-  private async requestRescue(flow: WalkFlow, step: WalkStep): Promise<never> {
+  private async requestRescue(flow: WalkFlow, step: WalkStep): Promise<boolean> {
     /**
      * K0.29 — el snapshot NO se traga su error. `catch(() => '')` convertía un
      * fallo diagnosticable en una petición de rescate MUDA: medido en la gira
@@ -5448,11 +5459,86 @@ class DomWalker {
       phase: 'rescue-request',
       budget_remaining: req.budget_remaining,
     });
+
+    /**
+     * FASE 2 — si alguien declaró que escucha, se ESPERA aquí en vez de morirse.
+     *
+     * El coste del camino viejo está medido: `exit 42` obliga a reanudar, y la
+     * reanudación re-ejecuta el flujo desde su primer paso (D66) — 62 pasos
+     * re-ejecutados en Restful Booker, el 56% de un run, y `cp001` corriendo
+     * seis veces para completarse una. Esperando, esos pasos valen cero y el
+     * siguiente bloqueo se fotografía sobre la pantalla que abrió el arreglo
+     * anterior, que es lo que el replay no puede darte.
+     *
+     * La regla dura #5 sigue intacta: se escribe un fichero y se espera un
+     * fichero. El walker no habla con ningún LLM.
+     */
+    const decision = decidirEspera({ canal: this.leerCanalDeRescate(), maxTimeoutMs: MAX_ESPERA_RESCATE_MS });
+    if (decision.espera) {
+      console.error(
+        `[dom-walker] RESCATE PENDIENTE ${flow.flow}/${step.id}: esperando respuesta de '${decision.listener}' ` +
+          `hasta ${Math.round(decision.timeoutMs / 1000)}s. El navegador NO se cierra.`,
+      );
+      const llegó = await this.esperarRespuestaDeRescate(step, decision.timeoutMs);
+      if (llegó) {
+        this.audit('allow', `respuesta de rescate recibida en proceso: ${flow.flow}/${step.id}`, {
+          phase: 'rescue-response',
+          listener: decision.listener,
+        });
+        return true; // el reintento del paso consumirá la respuesta en ESTA sesión
+      }
+      // Plazo agotado: NO se cuelga y NO se pierde nada — se cae al camino de
+      // siempre, con el checkpoint ya persistido arriba.
+      this.audit('skip', `nadie contestó el rescate de ${flow.flow}/${step.id} en el plazo: se degrada a exit 42`, {
+        phase: 'rescue-response',
+        listener: decision.listener,
+      });
+      console.error(`[dom-walker] plazo agotado sin respuesta: se sale para que reanudes (exit ${EXIT_RESCUE_NEEDED}).`);
+    } else {
+      this.audit('skip', `rescate sin espera en proceso: ${decision.motivo}`, { phase: 'rescue-request' });
+    }
     console.error(
       `[dom-walker] RESCATE PENDIENTE ${flow.flow}/${step.id}: hint irresoluble. ` +
         `Escrito rescue-request.json; delega la micro-llamada y re-ejecuta para reanudar.`,
     );
     process.exit(EXIT_RESCUE_NEEDED);
+  }
+
+  /** El canal que el orquestador deja escrito si se compromete a atender. */
+  private leerCanalDeRescate(): unknown {
+    const p = resolve(this.opts.workDir, 'rescue-channel.json');
+    if (!existsSync(p)) return null;
+    try {
+      return parseJsonLoose(readFileSync(p, 'utf8'));
+    } catch {
+      // ilegible = no hay canal. `decidirEspera` es fail-closed y lo dirá.
+      return null;
+    }
+  }
+
+  /**
+   * Espera a que aparezca `rescue-response.json` PARA ESTE PASO. Mismo patrón
+   * que la espera del panel asistido (`assistResolve`): plazo duro y sondeo.
+   *
+   * Una respuesta de otro paso no cuenta como llegada: si contara, el walker
+   * seguiría con basura de una petición anterior y el consumo posterior la
+   * descartaría dejando el paso sin resolver y sin explicación.
+   */
+  private async esperarRespuestaDeRescate(step: WalkStep, timeoutMs: number): Promise<boolean> {
+    const p = resolve(this.opts.workDir, 'rescue-response.json');
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (existsSync(p)) {
+        try {
+          const res = parseJsonLoose<{ step?: string }>(readFileSync(p, 'utf8'));
+          if (res.step === step.id) return true;
+        } catch {
+          // a medio escribir: se reintenta en el siguiente ciclo
+        }
+      }
+      await new Promise((r) => setTimeout(r, ESPERA_RESCATE_SONDEO_MS));
+    }
+    return false;
   }
 
   private consumeRescueResponse(step: WalkStep): RescueResponse | null {
@@ -6220,7 +6306,21 @@ class DomWalker {
             this.audit('block', `presupuesto de rescates agotado en ${stepKey}`, { budget: this.opts.rescueBudget });
             return;
           }
-          return this.requestRescue(flow, step); // exit 42
+          /**
+           * FASE 2 — `requestRescue` ya no siempre mata el proceso. Si había
+           * canal declarado y llegó respuesta, devuelve `true` y el paso se
+           * REINTENTA aquí mismo: misma sesión, mismo navegador, misma pantalla.
+           * Eso es todo el diseño — los 62 pasos que el replay re-ejecutaba en
+           * Restful Booker valen cero, y el siguiente bloqueo del flujo se
+           * fotografía sobre la pantalla que abrió este arreglo.
+           *
+           * La recursión está acotada por el PRESUPUESTO, no por un contador
+           * aparte: `consumeRescueResponse` incrementa `rescues_used` al leer la
+           * respuesta, y el cerrojo de arriba corta en cuanto se agota. Un
+           * locator de rescate que no resuelva bloquea el paso por su camino.
+           */
+          if (await this.requestRescue(flow, step)) return this.executeStep(flow, step);
+          return;
         }
 
         // K0.32 — la foto se toma AQUÍ: resolución hecha, acción todavía sin

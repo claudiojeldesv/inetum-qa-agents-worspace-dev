@@ -10,7 +10,9 @@ incompatibilidad «todo de una» vs. rescate) había planteado una falsa dicotom
 contra diferido con cosecha. Faltaba la tercera, que el propio producto ya usa con humanos.
 **Branch**: `design/kernel-v2`. **Estado**: **Fase 0 EJECUTADA** (2026-08-31) — resultados en
 [censo-de-bloqueos.md](../findings/censo-de-bloqueos.md); H1 corregida, H2 y H4 confirmadas, H3 parcial,
-H5 pendiente de A/B. Fase 1 autorizada, no empezada. Fase 2 diseñada y **congelada**.
+H5 pendiente de A/B. **Fase 1 recortada a D74 y CERRADA** (2026-09-02) — el resto de su alcance lo
+dejó obsoleto el propio estreno del QA. **Fase 2 CONSTRUIDA** (2026-09-02): el walker ya espera en el
+sitio cuando alguien declara que escucha. Pendiente de medir en campo.
 
 > **Lo que el censo cambió**: el abanico paralelo **no se construye** (12 rescates reales en 121
 > bloqueos). Y el premio del en proceso no es el que yo defendía: son los **40 pasos en cascada** que hoy
@@ -130,9 +132,37 @@ del acta (`config/decisions/<site>.jsonl`). Por línea:
 esperar a nadie, ralentizar el run, o depender de un flag para emitirse. Es observación pura — y por eso
 es seguro que aterrice **antes** del estreno (ver §9).
 
-## 6. Fase 2 — el en proceso (diseñada, NO autorizada)
+## 6. Fase 2 — el en proceso · **CONSTRUIDA el 2026-09-02**
 
-Congelada aquí para que exista el día que el dato la desbloquee.
+Autorizada por el QA tras su estreno, y lo entregado:
+
+1. **Autodetección de escucha** — `decidirEspera` (walk-core, 8 tests), fail-closed hacia NO ESPERAR.
+   El orquestador declara `rescue-channel.json` con `{listener, timeout_ms}` en el work-dir antes de
+   lanzar; sin canal, o con un canal sin responsable o sin plazo válido, se sale por `exit 42` como
+   siempre. El razonamiento con los dos costes delante: **el replay cuesta pasos** (62 en RBP) y
+   **colgarse cuesta el run entero**, así que ante cualquier duda gana el camino que ya funciona.
+   Techo duro del proyecto (120 s): un canal mal escrito no puede colgar el run por la puerta de atrás.
+2. **Bucle de espera** sobre `rescue-response.json` para ESE paso, copiando el patrón del panel
+   asistido (plazo duro + sondeo de 300 ms). Una respuesta de otro paso no cuenta como llegada.
+   Al agotarse el plazo **no se cuelga y no se pierde nada**: degrada a `exit 42` con el checkpoint
+   ya persistido.
+3. **Reintento en la MISMA sesión**: `requestRescue` devuelve si llegó respuesta y el paso se
+   re-ejecuta ahí mismo — mismo navegador, misma pantalla. La recursión está acotada por el
+   **presupuesto**, no por un contador aparte (`consumeRescueResponse` incrementa `rescues_used` al
+   leer), así que una respuesta mala bloquea el paso en vez de reintentar sin fin.
+4. **La regla dura #5 intacta**: el walker escribe un fichero y espera un fichero. Sigue sin hablar
+   con ningún LLM. Lo único que cambia es que no se muere en medio.
+5. **`exit 42` NO desaparece**: es el camino de «nadie escucha» — CI, o un run lanzado a pelo.
+
+Tests de punta a punta (`fase2-rescate-en-proceso.test.ts`) con un orquestador de juguete que vigila
+la petición y contesta. **El testigo de que no hay `exit 42` es el test mismo**: `process.exit()`
+mataría el proceso de vitest, así que si el walker muriera estos tests no fallarían — desaparecerían.
+
+Pendiente de F2: **medirlo en campo** con el caso de las dos puertas consecutivas
+(`cp009-baja-cuenta` de EspoCRM: Acciones → Eliminar → Eliminar), que es donde el replay cobra dos
+veces y esto debería cobrar cero.
+
+### Diseño original (referencia)
 
 1. **Autodetección de escucha.** El orquestador declara canal (fichero centinela o variable de entorno al
    lanzar en segundo plano). Sin canal declarado → camino de hoy, `exit 42`, sin esperar a nadie. Mismo

@@ -1309,6 +1309,67 @@ export function pedidoDelPaso(hint: StepHint | undefined): string {
   return h.name ?? h.label ?? h.text ?? h.test_id ?? '(el paso no dice qué buscar)';
 }
 
+// -------------------------- Fase 2: el rescate que no muere (pausa en sitio)
+/**
+ * FASE 2 del plan del rescate — **pausar en el sitio en vez de morirse**.
+ *
+ * Hoy un rescate cuesta `exit 42` + reanudación, y la reanudación re-ejecuta el
+ * flujo desde su primer paso (D66): medido en Restful Booker, 13 rescates =
+ * **62 pasos re-ejecutados, el 56% de un run entero tirado**, y `cp001` corrió
+ * seis veces para completarse una. Si el walker puede ESPERAR la respuesta sin
+ * morirse, esos 62 pasos valen cero y el siguiente bloqueo se fotografía sobre
+ * la pantalla que abrió el arreglo anterior — el caso de las dos puertas
+ * consecutivas que el QA planteó, y que el censo confirmó (6 pares en 2 de 3
+ * sitios; `cp009` de EspoCRM encadena tres).
+ *
+ * **La regla dura #5 no se toca**: el walker escribe un fichero y espera un
+ * fichero. Sigue sin hablar con ningún LLM. Lo único que cambia es que no se
+ * muere en medio.
+ *
+ * Y `exit 42` NO desaparece: pasa a ser el camino de «nadie escucha». Que la
+ * espera exista no significa que se pueda usar siempre — un run de CI o lanzado
+ * a pelo no tiene a nadie al otro lado, y esperar ahí es colgarse. De ahí la
+ * autodetección: **el que escucha lo declara**, y sin declaración no se espera.
+ */
+
+/** Lo que el orquestador deja escrito cuando se compromete a atender rescates. */
+export interface CanalDeRescate {
+  /** Quién escucha. Informativo, va al audit-log. */
+  listener: string;
+  /** Cuánto está dispuesto a tardar. Sin esto no se espera a ciegas. */
+  timeout_ms: number;
+}
+
+export type DecisionDeEspera =
+  | { espera: true; timeoutMs: number; listener: string }
+  | { espera: false; motivo: string };
+
+/**
+ * ¿Se espera la respuesta en proceso, o se sale con exit 42?
+ *
+ * Fail-closed hacia NO ESPERAR: sin canal declarado, o con un canal ilegible o
+ * sin plazo válido, se sale por el camino de siempre. Colgar un run de CI a la
+ * espera de alguien que no existe es peor que el replay que este diseño viene a
+ * evitar — el replay cuesta pasos, colgarse cuesta el run entero.
+ */
+export function decidirEspera(i: {
+  canal: unknown;
+  /** Techo duro del proyecto: ningún canal puede pedir más. */
+  maxTimeoutMs: number;
+}): DecisionDeEspera {
+  if (!i.canal || typeof i.canal !== 'object') {
+    return { espera: false, motivo: 'nadie declaró canal de rescate: se sale con exit 42 para que el orquestador delegue y reanude' };
+  }
+  const c = i.canal as Partial<CanalDeRescate>;
+  if (typeof c.listener !== 'string' || c.listener.trim() === '') {
+    return { espera: false, motivo: 'el canal no dice QUIÉN escucha: sin responsable no se espera' };
+  }
+  if (typeof c.timeout_ms !== 'number' || !Number.isFinite(c.timeout_ms) || c.timeout_ms <= 0) {
+    return { espera: false, motivo: `el canal de '${c.listener}' no declara un plazo válido: no se espera a ciegas` };
+  }
+  return { espera: true, timeoutMs: Math.min(c.timeout_ms, i.maxTimeoutMs), listener: c.listener.trim() };
+}
+
 // ------------------------------------------------ D74: la clase del bloqueo
 /**
  * D74 — la clase de un bloqueo, decidida EN EL MOMENTO en que ocurre.
