@@ -113,7 +113,7 @@ export function censar(
   map: {
     site_id?: string;
     stats?: { steps_total?: number; steps_blocked?: number };
-    open_questions?: Array<{ flow: string; step: string; action: string; reason: string }>;
+    open_questions?: Array<{ flow: string; step: string; action: string; reason: string; clase?: Familia }>;
   },
   script: { site_id?: string; flows: Array<{ flow: string; steps: Array<{ id: string; action: string }> }> },
 ): Censo {
@@ -151,7 +151,18 @@ export function censar(
     }
     if (capas > cascadeDepthMax) cascadeDepthMax = capas;
 
-    const { familia, puerta: p } = clasificar({ reason: q.reason, puertaBloqueada: puerta });
+    /**
+     * D74 — si el run trae la clase COMO CAMPO, se cree. El censo nació para
+     * runs que solo tenían prosa, y esa deducción era su límite declarado: con
+     * presupuesto de rescate el motivo llega con el desenlace de la llamada y la
+     * ambigüedad original nunca se escribió, así que el censo la contaba como
+     * material de rescate (medido en RBP: `panel` de 6 a 1, `rescate` de 3 a 11).
+     * A partir de los runs con `clase`, ya no hay que adivinar — y la deducción
+     * sigue ahí para los artefactos viejos, que son inmutables.
+     */
+    const { familia, puerta: p } = q.clase
+      ? { familia: q.clase, puerta: q.clase === 'cascada' ? (puerta ?? undefined) : undefined }
+      : clasificar({ reason: q.reason, puertaBloqueada: puerta });
     familias[familia] += 1;
     bloqueos.push({ flow: q.flow, step: q.step, action: q.action, familia, ...(p ? { puerta: p } : {}), capas, reason: q.reason });
 

@@ -1309,6 +1309,46 @@ export function pedidoDelPaso(hint: StepHint | undefined): string {
   return h.name ?? h.label ?? h.text ?? h.test_id ?? '(el paso no dice qué buscar)';
 }
 
+// ------------------------------------------------ D74: la clase del bloqueo
+/**
+ * D74 — la clase de un bloqueo, decidida EN EL MOMENTO en que ocurre.
+ *
+ * Es el mismo criterio que `rescue-census.ts` aplica a posteriori sobre los
+ * artefactos, pero aquí vive en la única forma que no se puede pisar: un campo.
+ * El censo retroactivo seguirá existiendo (sirve para los runs viejos), pero a
+ * partir de aquí no tiene que adivinar nada.
+ *
+ * El orden es fail-safe hacia «no preguntes»: `drift` y `accion` se reconocen
+ * por la acción y el motivo ANTES de mirar la cascada, porque un `expect_text`
+ * que no se observa detrás de una puerta bloqueada sigue siendo un problema de
+ * oráculo, no de locator, y contarlo como cascada inflaría la única cifra que
+ * decide el diseño del rescate.
+ */
+export function clasificarBloqueo(i: {
+  action: string;
+  reason: string;
+  /**
+   * Estado OBSERVADO por el motor al resolver, no deducido del texto. Es la
+   * diferencia entre arreglar D74 y volver a fabricarlo: con presupuesto de
+   * rescate, el motivo con el que se bloquea ya es el desenlace de la llamada
+   * («rescate LLM respondió locator=null»), así que la ambigüedad original no
+   * está en el texto — nunca llegó a escribirse. Opcionales para que el censo
+   * retroactivo, que solo tiene el texto, pueda seguir usando esta función.
+   */
+  ambiguo?: boolean;
+  fueraDeAmbito?: boolean;
+  puertaBloqueada: string | null;
+}): 'drift' | 'accion' | 'cascada' | 'panel' | 'rescate' {
+  if (i.action.startsWith('expect') || /^drift/i.test(i.reason)) return 'drift';
+  if (/^la acción '/i.test(i.reason)) return 'accion';
+  const v = triajeDelBloqueo({
+    ambiguo: i.ambiguo ?? /matchea VARIOS elementos/i.test(i.reason),
+    fueraDeAmbito: i.fueraDeAmbito ?? /NO está dentro del ámbito/i.test(i.reason),
+    puertaBloqueada: i.puertaBloqueada,
+  });
+  return v.destino === 'cascada' ? 'cascada' : v.destino === 'panel' ? 'panel' : 'rescate';
+}
+
 // ------------------------------------------- D81: el inventario del panel
 /**
  * D81 — «que el QA SIEMPRE pueda coger el locator».

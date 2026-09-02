@@ -67,6 +67,7 @@ import {
   fingerprintHash,
   hashScript,
   pedidoDelPaso,
+  clasificarBloqueo,
   // D81 — el inventario del panel: que el QA SIEMPRE pueda coger el locator.
   filaDelInventario,
   ordenarInventario,
@@ -6064,7 +6065,8 @@ class DomWalker {
           const rescue = this.verifying ? null : this.consumeRescueResponse(step);
           if (rescue) {
             if (rescue.locator === null) {
-              this.blockStep(flow, step, `rescate LLM respondió locator=null: ${rescue.reason ?? 'elemento no presente en el snapshot'}`, true);
+              this.blockStep(flow, step, this.ultimaAmbiguedad ?? this.ultimoAmbitoFallido ?? 'hint irresoluble', true);
+              this.noteRescueOutcome(flow, step, `rescate LLM respondió locator=null: ${rescue.reason ?? 'elemento no presente en el snapshot'}`);
               this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: false, audit_logged: true, source: 'llm' });
               this.audit('block', `rescate fallido ${stepKey}: paso a open_questions`, { phase: 'rescue-response' });
               return;
@@ -6086,7 +6088,10 @@ class DomWalker {
               this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: true, locator: rescue.locator, audit_logged: true, source: 'llm' });
               this.audit('allow', `rescate resuelto ${stepKey} → ${rescue.locator}`, { phase: 'rescue-response' });
             } else {
-              this.blockStep(flow, step, `el locator del rescate no resuelve en el DOM: ${rescue.locator}`, true);
+              // D74 — el motivo es la CAUSA del bloqueo; el desenlace del rescate
+              // se añade aparte y no la borra.
+              this.blockStep(flow, step, this.ultimaAmbiguedad ?? this.ultimoAmbitoFallido ?? 'hint irresoluble', true);
+              this.noteRescueOutcome(flow, step, `el locator del rescate no resuelve en el DOM: ${rescue.locator}`);
               this.state.rescues.push({ flow: flow.flow, step: step.id, resolved: false, locator: rescue.locator, audit_logged: true, source: 'llm' });
               this.audit('block', `locator de rescate inválido ${stepKey}`, { phase: 'rescue-response' });
               return;
@@ -6713,9 +6718,38 @@ class DomWalker {
     );
   }
 
+  /**
+   * D74 — la clase se determina AQUÍ, en el momento del bloqueo, y se guarda como
+   * campo. Deducirla del `reason` después es un espejismo: el desenlace del
+   * rescate pisa ese texto y la clase original desaparece (medido en Restful
+   * Booker: `panel` de 6 a 1 entre dos runs del MISMO guion).
+   *
+   * Se clasifica con las mismas reglas que el censo (`clasificarBloqueo` en
+   * walk-core), no con una taxonomía nueva: un solo sitio donde vive el criterio.
+   */
   private blockStep(flow: WalkFlow, step: WalkStep, reason: string, rescueAttempted: boolean): void {
     if (this.verifying) return; // K0.25: cinturón — el replay no bloquea pasos del run
     if (this.state.open_questions.some((q) => q.flow === flow.flow && q.step === step.id)) return;
+    const bloqueados = new Set(
+      this.state.open_questions.filter((q) => q.flow === flow.flow).map((q) => q.step),
+    );
+    /**
+     * La ambigüedad se toma de los CAMPOS del motor (`ultimaAmbiguedad`,
+     * `ultimoAmbitoFallido`), no del texto del motivo — y esa distinción es todo
+     * el arreglo. Al leer el camino real se ve que el defecto no era «el reason
+     * se sobrescribe»: es que con presupuesto de rescate el PRIMER bloqueo ya
+     * llega con el texto del desenlace («rescate LLM respondió locator=null»), y
+     * la ambigüedad original NUNCA se escribe. Clasificar por el texto la
+     * perdería exactamente igual que antes. Los dos campos se limpian en cada
+     * resolución (líneas 3383-3384), así que hablan de ESTE paso.
+     */
+    const clase = clasificarBloqueo({
+      action: step.action,
+      reason,
+      ambiguo: Boolean(this.ultimaAmbiguedad),
+      fueraDeAmbito: Boolean(this.ultimoAmbitoFallido),
+      puertaBloqueada: puertaBloqueadaAntes(flow.steps, bloqueados, step.id),
+    });
     this.state.open_questions.push({
       flow: flow.flow,
       step: step.id,
@@ -6723,7 +6757,18 @@ class DomWalker {
       ...(step.hint ? { hint: step.hint } : {}),
       reason,
       rescue_attempted: rescueAttempted,
+      clase,
     });
+  }
+
+  /**
+   * D74 — el desenlace del rescate se AÑADE, no sustituye. Antes se reescribía el
+   * `reason` del bloqueo y con él se perdía la clase; ahora el motivo original y
+   * la clase quedan intactos y esto es un segundo campo.
+   */
+  private noteRescueOutcome(flow: WalkFlow, step: WalkStep, outcome: string): void {
+    const q = this.state.open_questions.find((x) => x.flow === flow.flow && x.step === step.id);
+    if (q) q.rescue_outcome = outcome;
   }
 
   // ------------------------------------------------- promoción de rescates

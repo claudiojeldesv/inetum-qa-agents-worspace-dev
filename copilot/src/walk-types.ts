@@ -428,6 +428,26 @@ export interface DomTransition {
   via: string;                   // locator usado
 }
 
+/**
+ * D74 — la CLASE del bloqueo, como campo y no como prosa.
+ *
+ * El `reason` se sobrescribía con el desenlace del rescate («rescate LLM
+ * respondió locator=null», «el locator del rescate no resuelve en el DOM») y
+ * la clase que el triaje había determinado desaparecía del registro. Medido en
+ * Restful Booker, mismo sitio y mismos pasos, dos runs: la clase `panel`
+ * (ambigüedad/ámbito) cayó de 6 a 1 y `rescate` subió de 3 a 11 — cuatro de las
+ * seis ambigüedades se contaron como material de rescate porque su texto ya no
+ * existía. Cualquier censo construido sobre la prosa mide un espejismo, y la
+ * ambigüedad que debía llegar al panel del QA deja de estar registrada como tal.
+ *
+ * Las cinco familias son las que el censo midió (`rescue-census.ts`), no una
+ * taxonomía nueva: `drift` (falla el oráculo, no el locator), `accion` (el
+ * locator resolvió y la acción se rechazó — familia D70), `cascada` (hay una
+ * puerta bloqueada antes), `panel` (ambigüedad o ámbito: elegir es del QA) y
+ * `rescate` (hint irresoluble limpio, la única que compra algo).
+ */
+export type ClaseDeBloqueo = 'drift' | 'accion' | 'cascada' | 'panel' | 'rescate';
+
 export interface BlockedStep {
   flow: string;
   step: string;
@@ -435,6 +455,14 @@ export interface BlockedStep {
   hint?: StepHint;
   reason: string;                // por qué quedó bloqueado (sin adivinar)
   rescue_attempted: boolean;
+  /**
+   * D74 — la clase determinada EN EL MOMENTO del bloqueo. Se escribe una vez y
+   * nada la pisa después: el desenlace del rescate va a `rescue_outcome`, que es
+   * un segundo evento, no una sustitución del primero.
+   */
+  clase?: ClaseDeBloqueo;
+  /** Desenlace del rescate, si se intentó. NUNCA sustituye a `clase` ni a `reason`. */
+  rescue_outcome?: string;
 }
 
 export interface RescueRecord {

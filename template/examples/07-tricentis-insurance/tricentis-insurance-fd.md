@@ -152,19 +152,35 @@ y cobertura mundial, crecientes de Silver a Ultimate.
 14. Introducir los datos del tomador: nombre `Ana`, apellido `Prueba`, nacimiento
     `03/15/1990`, género **Female**, dirección `Calle Falsa 123`, país `Spain`, código postal
     `28001`, ciudad `Madrid`, ocupación `Public Official`.
-15. Pulsar el botón **Next »**.
-16. Introducir la fecha de inicio (**Start Date**) `12/01/2026`.
-17. Seleccionar la suma asegurada (**Insurance Sum**) `3.000.000,00`.
-18. Seleccionar el seguro de daños (**Damage Insurance**) `No Coverage`.
-19. Pulsar el botón **Next »**.
-20. Comprobar que se muestra la tarifa **Silver**.
-21. Comprobar que se muestra la tarifa **Ultimate**.
-22. Comprobar que se muestra la fila **Price per Year ($)**.
+15. Marcar una afición (**Hobbies**) — `Speeding`.
+16. Pulsar el botón **Next »**.
+17. Introducir la fecha de inicio (**Start Date**) `12/01/2026`.
+18. Seleccionar la suma asegurada (**Insurance Sum**) `3.000.000,00`.
+19. Seleccionar el seguro de daños (**Damage Insurance**) `No Coverage`.
+20. Marcar un producto opcional (**Optional Products**) — `Euro Protection`.
+21. Pulsar el botón **Next »**.
+22. Comprobar que se muestra la tarifa **Silver**.
+23. Comprobar que se muestra la tarifa **Ultimate**.
+24. Comprobar que se muestra la fila **Price per Year ($)**.
 
 ### Resultado esperado
 
 El asistente tarifica la motocicleta con su formulario propio (sin bonificación ni coche de
 cortesía) y muestra la tabla con las cuatro opciones y su precio anual.
+
+> **Nota de campo (corrección del 2026-09-02).** Los pasos 15 y 20 **faltaban** en la primera
+> redacción de este caso, y el QA se topó con la consecuencia en su estreno: el `Next »` del paso
+> de producto caducaba y la tabla insistía en «*Please, complete the first three steps to see the
+> price table*». **Hobbies y Optional Products son grupos OBLIGATORIOS** («*Select at least 1
+> options*»), también en Motorcycle — y no solo en Automobile, donde sí estaban escritos desde el
+> principio. Con esto se cierra el «dato en disputa» que este dossier dejó abierto para el estreno:
+> el ejecutor tenía razón y la sonda del reconocimiento se equivocó.
+>
+> Y el sitio **no ayuda a descubrirlo**: los mensajes de error de esos grupos viven en el DOM pero
+> están OCULTOS (`display:none`), y el único aviso visible es un contador en la pestaña del
+> asistente. Ni `aria-invalid`, ni `role=alert`, ni `:invalid` nativo — cero de los tres, medido.
+> Un formulario que exige un campo sin decirlo de forma accesible es, además, un candidato a
+> hallazgo de accesibilidad.
 
 ---
 
