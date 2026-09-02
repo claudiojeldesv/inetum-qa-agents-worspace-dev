@@ -95,6 +95,30 @@ panel → verificación → fusión → memoria durable, que está construido po
 de punta a punta ni una sola vez. Mientras siga así, **cada run vuelve a pagar lo que el anterior ya
 aprendió** — y eso es lo que convierte una herramienta que ayuda en una herramienta que capitaliza.
 
+### Cerrado el 2026-09-02: el eslabón que faltaba era el TRASPASO, no una pieza
+
+Se recorrió la cadena entera por primera vez, con el parche real del workspace de campo
+(`.work/f5/assist-patch.json`, 4 pasos enseñados) contra una copia del guion. Resultado, y es mejor
+de lo que este finding suponía: **la fusión se comporta bien**. Separa lo que solo dice *cómo se
+llega* (se acepta en bloque) de lo que cambia *qué significa correcto* (se aprueba nombrando cada
+paso), y retuvo los tres cambios peligrosos —los `.nth(1)` de «Book now»— hasta que se nombraran.
+Fundir en bloque **no** se llevó por delante el `scope` del guion, que era el riesgo que se temía.
+
+O sea que no faltaba ninguna pieza: **faltaba que alguien dijera que el parche estaba ahí**. El run
+terminaba imprimiendo pantallas, pasos, rescates y bloqueos, y callaba que el QA acababa de enseñar
+cuatro pasos que morirían en un fichero. El arreglo es el silencio, no la mecánica:
+
+- el dom-map lleva `assist_patch` con lo enseñado y, por paso, si **dejó alias durable o no** —la
+  distinción que el QA no puede deducir: el alias sobrevive al run (no se lo volverán a preguntar),
+  el guion no cambia, y un paso enseñado SIN alias durable **se vuelve a preguntar sí o sí**;
+- el epílogo del run lo imprime con el comando exacto de revisión, `--work-dir` y `--script` ya
+  rellenos.
+
+**Lo que NO cambia**: fundir se sigue aprobando. «Que un programa lo reescriba en silencio es
+inaceptable» (SPEC-kernel-v2 §157) sigue siendo la regla; lo que se quita es el otro silencio.
+4 tests (`fase2-fleco-parche-anunciado.test.ts`), uno de ellos el cerrojo de que anunciar no es
+fundir.
+
 Nota alentadora del mismo run: los cuatro rescates **sí se promovieron a alias** (entradas
 `alias-promotion` a las 09:28:11, 09:30:58 y 09:32:29), y uno se usó dos veces dentro del propio run
 (`alias-hit s5` a las 09:31:03 y 09:31:10). El mecanismo de memoria funciona; lo que falta es el
@@ -115,7 +139,14 @@ No hay ninguno de los dos. Las dos explicaciones candidatas —un relanzamiento 
 audit-log append-only no distingue, o una salida de la espera que no registro— son indistinguibles
 con lo que hay en disco. **Coste real: cero** (no consumió presupuesto ni respuesta), pero es una
 laguna de instrumentación mía: **la espera debería registrar SIEMPRE su desenlace**, no solo el éxito
-y el plazo agotado. Se arregla en la próxima rebanada y el siguiente run lo zanja.
+y el plazo agotado.
+
+**Arreglado —y estaba arreglado antes de escribirse esto**: el audit `phase: rescue-wait` (desenlace
+y `waited_ms` en los DOS ramales) entró en `047c9fc` el mismo día, unas horas después de este run.
+Se comprobó releyendo el audit-log de `qa/crm/.work/f2`: **cero entradas `rescue-wait` con cinco
+respuestas recibidas**, lo que solo es posible si el código que las escribe no existía todavía. Queda
+pendiente de confirmación en campo: el próximo run con canal declarado zanja cuál de las dos
+explicaciones era —relanzamiento del walker, o salida de la espera sin registrar.
 
 ## 6. Límites de esta medición
 

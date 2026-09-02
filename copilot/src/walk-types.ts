@@ -539,6 +539,19 @@ export interface DomMap {
    * Opcional para poder leer dom-maps generados antes de K0.13 sin migrarlos.
    */
   step_reports?: StepReport[];
+  /**
+   * Lo que el QA enseñó en el panel y NO está en el guion — el «fleco» de la
+   * Fase 2 del rescate en proceso, medido en EspoCRM: dos de los cuatro
+   * rescates de un run fueron para pasos que el QA YA había enseñado el día
+   * anterior, porque el parche nunca se fundió. El walker no funde nada solo
+   * (eso se aprueba, SPEC-kernel-v2 §157), pero callarlo era lo que hacía que
+   * cada run volviera a pagar lo que el anterior ya había aprendido.
+   */
+  assist_patch?: {
+    entries: number;
+    /** Por paso enseñado: si su memoria sobrevive al run o muere con él. */
+    pendientes: { flow: string; step: string; locator: string; alias_durable: boolean }[];
+  };
 }
 
 /** Petición de rescate LLM (handoff por archivo: el orquestador delega en Haiku). */

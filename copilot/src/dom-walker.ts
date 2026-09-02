@@ -2164,6 +2164,8 @@ class DomWalker {
    * el contexto de la página se destruye con cada navegación, y ahí se perdía.
    */
   private assistRecorded: PickedElement[] = [];
+  /** Pasos cuyo rescate SÍ llegó a memoria durable en este run (`flujo/paso`). */
+  private aliasDurableDe = new Set<string>();
   /** Sumidero del puente de grabación: lo pone la espera activa. */
   private assistTrack: ((seq: PickedElement[]) => void) | null = null;
   private assistPending: ((p: AssistSubmission) => void) | null = null;
@@ -7084,6 +7086,7 @@ class DomWalker {
         origin: { flow: flow.flow, step: step.id, date: new Date().toISOString().slice(0, 10) },
       };
       this.saveAliases();
+      this.aliasDurableDe.add(`${flow.flow}/${step.id}`);
       this.audit('allow', `rescate promovido a alias: ${key} → ${rescue.locator}`, {
         phase: 'alias-promotion',
         file: this.aliasesPath,
@@ -7330,6 +7333,19 @@ class DomWalker {
       open_questions: this.state.open_questions,
       rescues: this.state.rescues,
       step_reports: reports,
+      ...(this.assistPatch.entries.length
+        ? {
+            assist_patch: {
+              entries: this.assistPatch.entries.length,
+              pendientes: this.assistPatch.entries.map((e) => ({
+                flow: e.flow,
+                step: e.replaces_step,
+                locator: e.steps.find((x) => x.role === 'target')?.locator ?? '',
+                alias_durable: this.aliasDurableDe.has(`${e.flow}/${e.replaces_step}`),
+              })),
+            },
+          }
+        : {}),
     };
     return map;
   }
@@ -7598,6 +7614,43 @@ async function main(): Promise<void> {
         `  - ${r.flow}/${r.step}${r.sin_red ? ' [SIN RED]' : ''} → tocó ${r.resolved_desc ?? '(no descrito)'}`,
       );
     }
+  }
+  /**
+   * EL FLECO DE LA FASE 2 — lo que el QA enseñó y el guion sigue sin saber.
+   *
+   * Medido en EspoCRM (2026-09-02): dos de los cuatro rescates de un run fueron
+   * para pasos que el QA YA había enseñado el día anterior. La cadena entera
+   * existe —panel → parche verificado → fusión firmada → memoria durable— pero
+   * el run terminaba sin decir que había un parche esperando, así que nadie lo
+   * fundía y el run siguiente volvía a preguntar lo mismo. El producto aprendía
+   * y no se lo guardaba.
+   *
+   * Esto NO funde nada: fundir se aprueba, y esa regla no se toca
+   * (SPEC-kernel-v2 §157, «que un programa lo reescriba en silencio es
+   * inaceptable»). Lo que se arregla es el silencio.
+   *
+   * La distinción que importa —y que el QA no puede deducir— es entre las dos
+   * memorias: el ALIAS sobrevive al run (el próximo no volverá a preguntar por
+   * ese paso) y el GUION sigue diciendo lo que falló. Un paso sin alias durable
+   * se vuelve a preguntar SÍ O SÍ mientras el parche no se funda.
+   */
+  const parche = map.assist_patch;
+  if (parche) {
+    const sinAlias = parche.pendientes.filter((x) => !x.alias_durable);
+    console.log(
+      `[dom-walker] enseñaste ${parche.entries} paso(s) en el panel y están en assist-patch.json, NO en el guion` +
+        (sinAlias.length > 0
+          ? ` — ${sinAlias.length} sin memoria durable: el próximo run VOLVERÁ a preguntarlos`
+          : ` (todos dejaron alias durable: el próximo run no los volverá a preguntar, pero el guion sigue pidiendo lo que falló)`),
+    );
+    for (const x of parche.pendientes) {
+      console.log(`  - ${x.flow}/${x.step}${x.alias_durable ? '' : ' [SE PIERDE]'} → ${x.locator}`);
+    }
+    console.log(
+      `  Para revisarlo (no toca nada, enseña lo que cambiaría):
+` +
+        `    npx tsx copilot/src/merge-assist-patch.ts --work-dir=${workDir} --script=${opts.scriptPath}`,
+    );
   }
   process.exit(EXIT_OK);
 }

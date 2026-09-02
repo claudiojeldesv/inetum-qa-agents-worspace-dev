@@ -158,9 +158,20 @@ Tests de punta a punta (`fase2-rescate-en-proceso.test.ts`) con un orquestador d
 la petición y contesta. **El testigo de que no hay `exit 42` es el test mismo**: `process.exit()`
 mataría el proceso de vitest, así que si el walker muriera estos tests no fallarían — desaparecerían.
 
-Pendiente de F2: **medirlo en campo** con el caso de las dos puertas consecutivas
-(`cp009-baja-cuenta` de EspoCRM: Acciones → Eliminar → Eliminar), que es donde el replay cobra dos
-veces y esto debería cobrar cero.
+Medido en campo el 2026-09-02 (EspoCRM, 84/89, **cero relanzamientos** con cinco peticiones) y con
+el caso de las dos puertas consecutivas cumplido: la cadena de tres puertas de `cp009` se abrió con
+**un** rescate. Dossier: [fase2-rescate-en-proceso.md](../findings/fase2-rescate-en-proceso.md).
+
+**El fleco, cerrado el mismo día**: la cadena panel → verificación → fusión → memoria durable se
+recorrió entera por primera vez y la fusión resultó sana —retiene lo que cambia QUÉ elemento hace el
+paso hasta que se nombra, y no se lleva el `scope`. Lo que faltaba era el traspaso: el run terminaba
+sin decir que había un parche esperando. Ahora el dom-map lleva `assist_patch` (con **si cada paso
+enseñado dejó alias durable o no**) y el epílogo lo imprime con el comando de revisión relleno.
+Fundir se sigue aprobando: la regla de §157 del kernel no se toca.
+
+Queda de F2, y no es código: **confirmar en campo el `rescue-wait`** que entró en `047c9fc` (el run
+de EspoCRM es anterior y no lo lleva), y un run con la memoria durable cargada como medición del
+valor de D83.
 
 ### Diseño original (referencia)
 
