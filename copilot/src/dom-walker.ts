@@ -942,6 +942,14 @@ export interface P3Opts {
  * panel llevara su copia, derivarían). `.post` va con float para no tocar el
  * layout existente de `.h`. */
 const POSTURAS_CSS = `
+        /* El panel NUNCA es mas alto que la ventana: en pantallas pequenas los
+           botones del final quedaban fuera y no habia forma de llegar a ellos
+           (medido por el QA en campo, 2026-09-03). La cabecera y la tira quedan
+           fijas -son el arrastre y las posturas- y hace scroll el CUERPO. */
+        .p{display:flex;flex-direction:column;max-height:calc(100vh - 24px)}
+        .h,.tira{flex-shrink:0}
+        .b{overflow-y:auto;overscroll-behavior:contain;min-height:0}
+        .casobox{overflow-y:auto;overscroll-behavior:contain;min-height:0}
         .post{float:right;display:inline-flex;gap:4px;margin-left:8px}
         .post button{padding:0 6px;font-size:11px;line-height:16px;background:#1f2937;border:1px solid #4b5563;color:#9ca3af;border-radius:3px;cursor:pointer}
         .post button.on{background:#4b5563;color:#f9fafb}
@@ -971,7 +979,7 @@ const POSTURAS_CSS = `
         .casobox .fd .src{color:#7f8ea3;font:11px ui-monospace,monospace}
         .casobox .fd .esp{color:#9ca3af;font-size:11.5px;margin-top:3px}
         .casobox .fd .esp i{color:#cfe0f2;font-style:normal}
-        .casobox ol{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
+        .casobox ol{list-style:none;margin:0;padding:0}
         .casobox ol li{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #232b35;align-items:start}
         .casobox ol li:last-child{border-bottom:0}
         .casobox .n{color:#6b7280;font:11px ui-monospace,monospace;padding-top:2px}
@@ -1795,8 +1803,12 @@ function assistOverlayScript(
     head.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, r: host.getBoundingClientRect() }; e.preventDefault(); });
     document.addEventListener('mousemove', (e) => {
       if (!drag) return;
-      host.style.left = (drag.r.left + e.clientX - drag.x) + 'px';
-      host.style.top = (drag.r.top + e.clientY - drag.y) + 'px';
+      // sujeto a la ventana: un panel arrastrado fuera no se puede recuperar,
+      // porque lo unico que lo mueve es su propia cabecera
+      const x = Math.max(8 - drag.r.width + 60, Math.min(window.innerWidth - 60, drag.r.left + e.clientX - drag.x));
+      const y = Math.max(0, Math.min(window.innerHeight - 34, drag.r.top + e.clientY - drag.y));
+      host.style.left = x + 'px';
+      host.style.top = y + 'px';
       host.style.right = 'auto';
     });
     document.addEventListener('mouseup', () => { if (drag) { drag = null; window.__qaPanelMovido && window.__qaPanelMovido(); } drag = null; });
@@ -2061,8 +2073,12 @@ function verdictOverlayScript(
     head.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, r: host.getBoundingClientRect() }; e.preventDefault(); });
     document.addEventListener('mousemove', (e) => {
       if (!drag) return;
-      host.style.left = (drag.r.left + e.clientX - drag.x) + 'px';
-      host.style.top = (drag.r.top + e.clientY - drag.y) + 'px';
+      // sujeto a la ventana: un panel arrastrado fuera no se puede recuperar,
+      // porque lo unico que lo mueve es su propia cabecera
+      const x = Math.max(8 - drag.r.width + 60, Math.min(window.innerWidth - 60, drag.r.left + e.clientX - drag.x));
+      const y = Math.max(0, Math.min(window.innerHeight - 34, drag.r.top + e.clientY - drag.y));
+      host.style.left = x + 'px';
+      host.style.top = y + 'px';
       host.style.right = 'auto';
     });
     document.addEventListener('mouseup', () => { if (drag) { drag = null; window.__qaPanelMovido && window.__qaPanelMovido(); } drag = null; });
