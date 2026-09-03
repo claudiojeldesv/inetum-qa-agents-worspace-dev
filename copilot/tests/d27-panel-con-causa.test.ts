@@ -309,7 +309,7 @@ describe('el panel dice de qué tipo de cosa habla', () => {
       pedido: pedidoDelPaso(hint),
       marcador: pedidoEsMarcador(hint),
       coincidencias: 0,
-      candidatos: [{ nombre: 'Contact', rol: 'link' }],
+      candidatos: ['Contact'],
     });
     expect(t).toContain('marcado en el código');
     expect(t, 'los guillemets prometen texto de pantalla').not.toContain('«zona-de-contacto»');
@@ -325,7 +325,7 @@ describe('el panel dice de qué tipo de cosa habla', () => {
       pedido: pedidoDelPaso(hint),
       marcador: pedidoEsMarcador(hint),
       coincidencias: 0,
-      candidatos: [{ nombre: 'Contact', rol: 'link' }],
+      candidatos: ['Contact'],
     });
     expect(t).toContain('«Contacto»');
     expect(t).not.toContain('marcado en el código');
@@ -333,5 +333,46 @@ describe('el panel dice de qué tipo de cosa habla', () => {
 
   it('un hint con nombre Y test_id no es un marcador: manda el nombre', () => {
     expect(pedidoEsMarcador({ name: 'Guardar', test_id: 'btn-save' })).toBe(false);
+  });
+});
+
+/**
+ * D90 — ante una ambigüedad, el panel nombra la herramienta que le corresponde.
+ *
+ * Medido en el ensayo: el QA resolvió el mismo paso TRES veces con «Ver todo lo
+ * que hay», las tres con un `.nth(i)` que se tiraba al terminar por frágil,
+ * teniendo «¿Cuál de ellos?» al lado. El mensaje decía «señálame el que toca», y
+ * señalar es exactamente lo que produce el posicional. Un panel que conoce la
+ * causa y no dice qué herramienta le toca está dejando trabajo tirado.
+ */
+describe('ambigüedad — el panel empuja a la herramienta correcta', () => {
+  it('nombra «¿Cuál de ellos?» en vez de pedir que se señale', () => {
+    const t = textoAsistencia({
+      causa: 'ambiguo', pedido: 'Book now', coincidencias: 3,
+      candidatos: ['Book Now', 'Book now', 'Book now'],
+    });
+    expect(t).toContain('¿Cuál de ellos?');
+    expect(t, 'señalar es lo que produce el posicional').not.toContain('Señálame el que toca');
+  });
+
+  it('y no lista nombres cuando todos dicen lo mismo', () => {
+    const t = textoAsistencia({
+      causa: 'ambiguo', pedido: 'Book now', coincidencias: 3,
+      candidatos: ['Book Now', 'Book now', 'Book now'],
+    });
+    expect(t).toContain('todos se llaman igual');
+    expect(t).not.toContain('Estoy dudando entre');
+  });
+
+  it('EL PAR: cuando los nombres SÍ distinguen, la lista se queda (D27)', () => {
+    // Si la lista desapareciera siempre, se perdería el caso que D27 midió: un
+    // hint corto que matchea tres nombres distintos se resuelve leyéndolos.
+    const t = textoAsistencia({
+      causa: 'ambiguo', pedido: 'Ref.', coincidencias: 3,
+      candidatos: ['Ref.', 'Ref. customer', 'Project ref.'],
+    });
+    expect(t).toContain('Estoy dudando entre');
+    expect(t).toContain('Ref. customer');
+    expect(t).toContain('¿Cuál de ellos?');
   });
 });

@@ -1419,10 +1419,34 @@ export function textoAsistencia(d: DiagnosticoAsistencia): string {
 
   if (d.causa === 'ambiguo') {
     const n = d.coincidencias ?? 0;
+    /**
+     * D90 — ANTE UNA AMBIGÜEDAD EL PANEL EMPUJA A «¿CUÁL DE ELLOS?», NO A SEÑALAR.
+     *
+     * Este mensaje decía «señálame el que toca», y señalar es lo que hace el
+     * inventario: produce un `.nth(i)`, que es posicional, frágil y no entra en
+     * memoria durable. Para esta causa concreta existe una herramienta mejor —
+     * elegir la ZONA en palabras, que se funde como `scope` y se resuelve solo
+     * a partir de entonces— y el panel la conocía sin decirlo.
+     *
+     * Medido: el QA resolvió el mismo paso TRES veces con el inventario, las
+     * tres con un posicional que se tiraba al terminar, teniendo el botón bueno
+     * al lado. Un panel que sabe la causa y no nombra la herramienta que le
+     * corresponde está dejando trabajo tirado.
+     *
+     * La lista de nombres se mantiene CUANDO DISTINGUE: un hint como «Ref.» que
+     * matchea «Ref.», «Ref. customer» y «Project ref.» sí se resuelve leyéndola,
+     * y ese es el caso que D27 midió. Se retira cuando todos los candidatos
+     * dicen lo mismo —«· Book Now · Book now»—, porque entonces no ayuda a
+     * elegir y ocupa el sitio del consejo que sí sirve.
+     */
+    const distintos = [...new Set(cand.map((c) => c.trim().toLowerCase()))];
     return (
       `«${d.pedido}» aparece ${n} veces en esta pantalla y no sé cuál es el bueno.\n` +
-      (cand.length > 0 ? `Estoy dudando entre:\n${lista(cand)}\n` : '') +
-      `No es que no exista: es que hay varios. Señálame el que toca.`
+      (distintos.length > 1
+        ? `Estoy dudando entre:\n${lista(cand)}\n`
+        : `Y por el nombre no se distinguen: todos se llaman igual.\n`) +
+      `No es que no exista: es que hay varios.\n` +
+      `Pulsa «¿Cuál de ellos?» y te digo en qué zona de la pantalla está cada uno.`
     );
   }
 
