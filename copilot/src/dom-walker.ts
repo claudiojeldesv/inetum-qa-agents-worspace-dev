@@ -1095,8 +1095,25 @@ function posturasScript(p3?: P3Opts): string {
         }
         casoEl.appendChild(ol);
       }
-      if (P3.prefs.left) { host.style.left = P3.prefs.left; host.style.right = 'auto'; }
-      if (P3.prefs.top) { host.style.top = P3.prefs.top; }
+      /**
+       * D94 - LA POSICION RECORDADA TAMBIEN SE SUJETA A LA VENTANA.
+       *
+       * El tope del arrastre (D93) protege el gesto, pero la restauracion
+       * entraba sin pasar por el: una posicion guardada en otra sesion -o en
+       * otra RESOLUCION- puede dejar la cabecera fuera de la pantalla, y sin
+       * cabecera no hay arrastre con el que recuperar el panel. Medido en
+       * campo con top:-95px guardado por el arrastre viejo, que no tenia tope.
+       * Se sujeta contra la ventana DE AHORA, no la de cuando se guardo.
+       */
+      const ancho = host.getBoundingClientRect().width || 390;
+      if (P3.prefs.left) {
+        const l = Math.max(8 - ancho + 60, Math.min(window.innerWidth - 60, parseFloat(P3.prefs.left) || 0));
+        host.style.left = l + 'px'; host.style.right = 'auto';
+      }
+      if (P3.prefs.top) {
+        const t = Math.max(0, Math.min(window.innerHeight - 34, parseFloat(P3.prefs.top) || 0));
+        host.style.top = t + 'px';
+      }
       let postura = P3.prefs.postura || 'normal';
       const caja = root.querySelector('.p');
       const reportar = () => {
@@ -4877,7 +4894,12 @@ class DomWalker {
           // tendría que volver atrás en cada paso. Se abre, se lee, y se vuelve.
           ...(p && (p.postura === 'normal' || p.postura === 'barra' || p.postura === 'fantasma') ? { postura: p.postura } : {}),
           ...(p && typeof p.left === 'string' && p.left.length < 32 ? { left: p.left } : {}),
-          ...(p && typeof p.top === 'string' && p.top.length < 32 ? { top: p.top } : {}),
+          // D94 — un top negativo dejaría la cabecera irrecuperable al restaurar:
+          // se persiste a suelo 0. El resto lo sujeta la restauración contra la
+          // ventana del momento, que es la única que conoce su tamaño.
+          ...(p && typeof p.top === 'string' && p.top.length < 32
+            ? { top: `${Math.max(0, parseFloat(p.top) || 0)}px` }
+            : {}),
         };
         writeFileSync(ruta, JSON.stringify(limpio, null, 2), 'utf8');
       } catch {

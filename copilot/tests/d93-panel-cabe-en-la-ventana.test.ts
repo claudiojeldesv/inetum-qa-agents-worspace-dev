@@ -149,3 +149,45 @@ describe('D93 — el panel cabe en la ventana y todo es alcanzable', () => {
     expect(r.izquierda, 'la cabecera se fue por la derecha').toBeLessThan(r.ventanaAncho);
   }, 60_000);
 });
+
+/**
+ * D94 — la posición RECORDADA también se sujeta a la ventana.
+ *
+ * El tope de D93 protege el arrastre, pero la restauración de preferencias
+ * entraba sin pasar por él: un `top:-95px` guardado por el arrastre viejo (sin
+ * tope) dejó la cabecera fuera de la pantalla en el run siguiente — y sin
+ * cabecera no hay arrastre con el que recuperar el panel. Medido en campo, con
+ * captura del QA. La posición se sujeta contra la ventana DE AHORA, porque una
+ * posición legítima en una pantalla grande puede ser irrecuperable en una
+ * pequeña.
+ */
+describe('D94 — una posición guardada fuera de la ventana no deja el panel irrecuperable', () => {
+  it('con top negativo y left desorbitado guardados, la cabecera queda DENTRO', async () => {
+    const b2 = await chromium.launch();
+    const p2 = await (await b2.newContext({ viewport: VENTANA })).newPage();
+    await p2.goto(pathToFileURL(resolve(__dirname, '../fixtures/cuatro-iguales.html')).href);
+    await p2.evaluate(() => {
+      const orig = Element.prototype.attachShadow;
+      Element.prototype.attachShadow = function (init: ShadowRootInit) {
+        return orig.call(this, { ...init, mode: 'open' });
+      };
+    });
+    await p2.evaluate(
+      assistOverlayScript(TESTID_ATTR_CANDIDATES, PASOS[0], 'motivo', false, [], {
+        // el caso de campo, literal: top:-95px. Y un left de otra resolución.
+        prefs: { top: '-95px', left: '3000px' },
+        caso: [],
+      }),
+    );
+    const r = await p2.evaluate(() => {
+      const host = document.querySelector('[data-qa-assist-host]') as Element & { shadowRoot: ShadowRoot };
+      const h = (host.shadowRoot.querySelector('.h') as HTMLElement).getBoundingClientRect();
+      return { top: h.top, left: h.left, alto: h.height, vw: window.innerWidth, vh: window.innerHeight };
+    });
+    await b2.close();
+    expect(r.alto, 'la cabecera tiene que existir').toBeGreaterThan(10);
+    expect(r.top, 'la cabecera se restauró por encima del borde').toBeGreaterThanOrEqual(0);
+    expect(r.top).toBeLessThan(r.vh);
+    expect(r.left, 'la cabecera se restauró fuera por la derecha').toBeLessThan(r.vw);
+  }, 60_000);
+});
