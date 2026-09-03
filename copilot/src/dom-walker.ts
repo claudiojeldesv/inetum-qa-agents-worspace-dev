@@ -68,6 +68,7 @@ import {
   hashScript,
   pedidoDelPaso,
   pedidoEsMarcador,
+  candidatoEnPalabras,
   clasificarBloqueo,
   decidirEspera,
   notaMemoriaEfimera,
@@ -1219,6 +1220,8 @@ function assistOverlayScript(
         li.asr{background:#1e3a5f;outline:1px solid #2563eb}
         li button{padding:1px 5px;font-size:11px}
         .st{margin-top:6px;color:#9ca3af;font-size:11px}
+        .grp{margin-top:9px;padding-top:6px;border-top:1px solid #232b35;color:#6b7280;
+             font-size:10px;text-transform:uppercase;letter-spacing:.5px}
         .warn{color:#fca5a5}${POSTURAS_CSS}
       </style>
       <div class="p">
@@ -1254,20 +1257,27 @@ function assistOverlayScript(
           <div class="row">
             <button id="x" class="${mutating ? 'safe' : ''}" disabled>Capturar sin ejecutar</button>
           </div>
+          <!-- D92: los botones van agrupados por PARA QUE SIRVEN. Antes estaban
+               todos seguidos, como cinco maneras equivalentes de resolver, y el
+               QA no podia saber cual correspondia a su situacion. La comprobacion
+               de texto va aparte del todo: NO resuelve el paso, es un anadido. -->
+          <div class="grp">para resolver este paso</div>
           <div class="row">
             <button id="zon" class="safe">¿Cuál de ellos?</button>
+            <button id="inv" class="safe">Ver todo lo que hay</button>
           </div>
           <div id="zonbox" style="display:none"></div>
-          <div class="row">
-            <button id="inv" class="safe">Ver todo lo que hay</button>
-            <button id="txt" class="safe">Añadir comprobación de texto</button>
-          </div>
           <div id="invbox" style="display:none"></div>
-          <div id="txtbox" style="display:none"></div>
+          <div class="grp">salidas</div>
           <div class="row">
             <button id="d" class="drift">No existe aquí</button>
             <button id="b">Bloquear paso</button>
           </div>
+          <div class="grp">de paso, mientras estás aquí</div>
+          <div class="row">
+            <button id="txt">Añadir comprobación de texto</button>
+          </div>
+          <div id="txtbox" style="display:none"></div>
         </div>
       </div>\`;
     const $ = (id) => root.getElementById(id);
@@ -4720,7 +4730,7 @@ class DomWalker {
    * que no se parece a lo esperado sigue siendo la respuesta.
    */
   private async diagnosticoDeResultado(esperado: string): Promise<{ texto: string; candidatos: string[] }> {
-    const candidatos = resultadosOrdenados(await this.nombresDePantalla(true), esperado);
+    const candidatos = resultadosOrdenados((await this.nombresDePantalla(true)).map((c) => c.nombre), esperado);
     return { texto: textoAsistencia({ causa: 'resultado-ausente', pedido: esperado, candidatos }), candidatos };
   }
 
@@ -4740,10 +4750,15 @@ class DomWalker {
        * lista vacia no es un hallazgo, es una comparacion que no se puede hacer: se
        * ensena lo que hay del rol pedido y que elija el QA.
        */
-      const candidatos = pedidoSinPalabrasUtiles(pedido)
-        ? resultadosOrdenados(nombres, pedido)
-        : candidatosParaInforme(nombres, pedido, n > 1);
-      return textoAsistencia({ causa, pedido, marcador, coincidencias: n, candidatos });
+      // el ranking casa por PALABRAS contra el pedido: se rankean los nombres a
+      // secas y el tipo se añade después, para no contaminar el emparejado
+      const rolDe = new Map(nombres.map((c) => [c.nombre, c.rol]));
+      const soloNombres = nombres.map((c) => c.nombre);
+      const rankeados = pedidoSinPalabrasUtiles(pedido)
+        ? resultadosOrdenados(soloNombres, pedido)
+        : candidatosParaInforme(soloNombres, pedido, n > 1);
+      const candidatos = rankeados.map((x) => candidatoEnPalabras(x, rolDe.get(x)));
+      return textoAsistencia({ causa, pedido, marcador, coincidencias: n, candidatos, hint: step.hint, accion: step.action });
     } catch {
       return this.hintText(step);
     }
@@ -4759,7 +4774,7 @@ class DomWalker {
    * negocio (heading/alert/status), que ya distinguen resultado de mueble; para una
    * acción, los elementos con los que se puede interactuar.
    */
-  private async nombresDePantalla(resultado: boolean, rol?: string): Promise<string[]> {
+  private async nombresDePantalla(resultado: boolean, rol?: string): Promise<Array<{ nombre: string; rol?: string }>> {
     const raw = (await this.page.evaluate(captureScript(TESTID_ATTR_CANDIDATES, this.cssFallbackAttrs))) as RawElement[];
     const vivos: RawElement[] = [];
     for (const el of raw) {
@@ -4795,7 +4810,13 @@ class DomWalker {
 
     const delRol = rol ? superficie.filter((el) => el.role === rol) : [];
     const elegidos = delRol.length > 0 ? delRol : superficie;
-    return [...new Set(elegidos.map((el) => el.name as string))];
+    // D92 — el rol viaja con el nombre: el tipo del candidato sale del DOM, no
+    // del plan, así que está SIEMPRE, incluso cuando el plan no dice qué buscaba
+    const porNombre = new Map<string, { nombre: string; rol?: string }>();
+    for (const el of elegidos) {
+      if (!porNombre.has(el.name as string)) porNombre.set(el.name as string, { nombre: el.name as string, rol: el.role });
+    }
+    return [...porNombre.values()];
   }
 
   private hintText(step: WalkStep): string {

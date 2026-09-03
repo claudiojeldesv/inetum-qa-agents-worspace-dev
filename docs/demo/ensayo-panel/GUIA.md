@@ -38,10 +38,18 @@ Aparece tras rellenar las fechas y pulsar Check Availability. **Debes ver esto**
 
 ```
 Necesito que me eches una mano.                      paso s5
-«Book now» aparece 3 veces en esta pantalla y no sé cuál es el bueno.
+El enlace «Book now» aparece 3 veces en esta pantalla y no sé cuál es el bueno.
 Y por el nombre no se distinguen: todos se llaman igual.
 No es que no exista: es que hay varios.
-Pulsa «¿Cuál de ellos?» y te digo en qué zona de la pantalla está cada uno.
+▸ Pulsa «¿Cuál de ellos?» y te digo en qué zona de la pantalla está cada uno.
+```
+
+Y debajo, los botones agrupados por para qué sirven:
+
+```
+── PARA RESOLVER ESTE PASO ──   [¿Cuál de ellos?] [Ver todo lo que hay]
+── SALIDAS ──                   [No existe aquí] [Bloquear paso]
+── DE PASO, MIENTRAS ESTÁS AQUÍ ── [Añadir comprobación de texto]
 ```
 
 ### Qué hacer
@@ -97,10 +105,13 @@ lo que distingue «resolvió» de «resolvió el correcto».
 
 ```
 Necesito que me eches una mano.                      paso s1
-No encuentro «Contacto» en esta pantalla.
-Lo más parecido que veo es:
-· Contact
-Si es alguno de ésos, señálamelo. Si no, enséñame dónde está.
+El plan pide el enlace «Contacto» y en esta pantalla no hay ningún enlace con ese nombre.
+Pero sí veo esto, que se parece:
+· Contact  (enlace)
+▸ Si es lo mismo con otro nombre → «Ver todo lo que hay» y pulsa su fila.
+  El plan aprende el nombre nuevo y no te lo vuelvo a preguntar.
+▸ Si está en otra pantalla → Grabar, haz el camino, Parar.
+▸ Si de verdad aquí no existe → «No existe aquí».
 ```
 
 El FD pide **Contacto**; la aplicación dice **Contact**. Aquí no hay ambigüedad: hay un solo elemento
@@ -128,8 +139,11 @@ cascada y no lo verás: es correcto, no un fallo.
 
 ```
 Necesito que me eches una mano.                      paso s3
-No encuentro «Enviar formulario ya» en esta pantalla, ni nada que se le parezca.
-Si hay que llegar por otro camino, enséñamelo. Si de verdad aquí no está, dilo con «No existe aquí».
+El plan pide el botón «Enviar formulario ya» y en esta pantalla no hay ningún botón
+con ese nombre, ni nada que se le parezca.
+▸ Si está en otra pantalla → Grabar, haz el camino, Parar.
+▸ Si la aplicación ya no lo tiene → «No existe aquí». Queda anotado como diferencia
+  entre el plan y la aplicación, y el caso sigue.
 ```
 
 ### Qué hacer
@@ -176,8 +190,11 @@ resultado bueno con otras palabras. No es el caso aquí.
 
 ```
 Necesito que me eches una mano.                      paso s2
-No encuentro «Reserva rápida» en esta pantalla, ni nada que se le parezca.
-Si hay que llegar por otro camino, enséñamelo. Si de verdad aquí no está, dilo con «No existe aquí».
+El plan pide el botón «Reserva rápida» y en esta pantalla no hay ningún botón
+con ese nombre, ni nada que se le parezca.
+▸ Si está en otra pantalla → Grabar, haz el camino, Parar.
+▸ Si la aplicación ya no lo tiene → «No existe aquí». Queda anotado como diferencia
+  entre el plan y la aplicación, y el caso sigue.
 ```
 
 **Pulsa «No existe aquí»**. Es la salida para cuando el elemento no está y no hay nada que señalar. El

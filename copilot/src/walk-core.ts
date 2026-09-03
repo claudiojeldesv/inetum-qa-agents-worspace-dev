@@ -841,14 +841,22 @@ export function frasePaso(step: WalkStep): string {
   const q = nombreDelHint(step.hint);
   const v = step.value ? `«${step.secret ? '••••' : step.value}»` : '';
   const donde = step.scope ? ` (en ${nombreDelHint(step.scope)})` : '';
+  /**
+   * D92 — el TIPO también aquí: «pulsar el enlace «Book now»» dice más que
+   * «pulsar «Book now»», y sale del mismo sitio que en el panel de asistencia
+   * (rol declarado, o el verbo). Cuando no se sabe, no se afirma: `quiénTipado`
+   * degrada al nombre a secas, que es lo que había.
+   */
+  const tipo = tipoDelPedido(step.hint, step.action);
+  const qt = tipo && q ? `${tipo.genero === 'f' ? 'la' : 'el'} ${tipo.palabra} ${q}` : q;
   switch (step.action) {
     case 'goto': return `ir a ${step.target ?? 'la entrada'}`;
-    case 'fill': return `rellenar ${q} con ${v || '(vacío)'}${donde}`;
-    case 'click': return `pulsar ${q || 'el elemento del paso'}${donde}`;
-    case 'hover': return `pasar el ratón por ${q}${donde}`;
-    case 'select': return `elegir ${v} en ${q}${donde}`;
-    case 'check': return `marcar ${q}${donde}`;
-    case 'uncheck': return `desmarcar ${q}${donde}`;
+    case 'fill': return `rellenar ${qt} con ${v || '(vacío)'}${donde}`;
+    case 'click': return `pulsar ${qt || 'el elemento del paso'}${donde}`;
+    case 'hover': return `pasar el ratón por ${qt}${donde}`;
+    case 'select': return `elegir ${v} en ${qt}${donde}`;
+    case 'check': return `marcar ${qt}${donde}`;
+    case 'uncheck': return `desmarcar ${qt}${donde}`;
     case 'press': return `pulsar la tecla ${v}`;
     case 'wait_url': return `esperar a la dirección ${step.target ?? ''}`;
     /**
@@ -859,8 +867,8 @@ export function frasePaso(step: WalkStep): string {
      */
     case 'wait_text': return 'esperar a que aparezca el texto';
     case 'expect_text': return 'comprobar el texto que muestra la pantalla';
-    case 'expect_state': return `comprobar el estado de ${q}`;
-    case 'expect_value': return `comprobar el valor de ${q}`;
+    case 'expect_state': return `comprobar el estado de ${qt}`;
+    case 'expect_value': return `comprobar el valor de ${qt}`;
     case 'expect_count': return `contar ${q}`;
     case 'expect_each': return `comprobar cada ${q}`;
     case 'scroll_until': return `desplazar hasta ${q}`;
@@ -1359,6 +1367,68 @@ export type CausaAsistencia =
   /** El texto que el plan esperaba ver como resultado no aparece. */
   | 'resultado-ausente';
 
+/**
+ * D92 — EL TIPO DE LO QUE SE BUSCA, EN PALABRAS DEL QA.
+ *
+ * Del `role` cuando el plan lo declara (76% de los pasos medidos en los guiones
+ * reales); del VERBO cuando no (`fill` solo puede ser un campo, `select` una
+ * lista, `check` una casilla — otro 22%). En el resto no se afirma tipo: decir
+ * «el botón» de algo que puede ser un enlace sería fabricar, y una descripción
+ * inventada es peor que ninguna.
+ */
+const ROL_EN_PALABRAS: Record<string, { palabra: string; genero: 'm' | 'f' }> = {
+  button: { palabra: 'botón', genero: 'm' },
+  link: { palabra: 'enlace', genero: 'm' },
+  textbox: { palabra: 'campo', genero: 'm' },
+  searchbox: { palabra: 'buscador', genero: 'm' },
+  checkbox: { palabra: 'casilla', genero: 'f' },
+  radio: { palabra: 'opción', genero: 'f' },
+  combobox: { palabra: 'lista', genero: 'f' },
+  option: { palabra: 'opción', genero: 'f' },
+  heading: { palabra: 'título', genero: 'm' },
+  tab: { palabra: 'pestaña', genero: 'f' },
+  row: { palabra: 'fila', genero: 'f' },
+  cell: { palabra: 'celda', genero: 'f' },
+  listitem: { palabra: 'elemento de la lista', genero: 'm' },
+  img: { palabra: 'imagen', genero: 'f' },
+  menuitem: { palabra: 'opción del menú', genero: 'f' },
+  spinbutton: { palabra: 'campo numérico', genero: 'm' },
+  switch: { palabra: 'interruptor', genero: 'm' },
+};
+
+const TIPO_POR_VERBO: Record<string, { palabra: string; genero: 'm' | 'f' }> = {
+  fill: { palabra: 'campo', genero: 'm' },
+  select: { palabra: 'lista', genero: 'f' },
+  check: { palabra: 'casilla', genero: 'f' },
+  uncheck: { palabra: 'casilla', genero: 'f' },
+};
+
+/** El verbo del paso, para cuando no se puede afirmar tipo («pulsar «X»»). */
+const VERBO_DEL_PASO: Record<string, string> = {
+  click: 'pulsar',
+  hover: 'pasar el ratón por',
+  press: 'pulsar',
+};
+
+export function tipoDelPedido(
+  hint: StepHint | undefined,
+  accion?: WalkAction,
+): { palabra: string; genero: 'm' | 'f' } | null {
+  if (hint?.role && ROL_EN_PALABRAS[hint.role]) return ROL_EN_PALABRAS[hint.role];
+  if (accion && TIPO_POR_VERBO[accion]) return TIPO_POR_VERBO[accion];
+  return null;
+}
+
+/**
+ * Un candidato de la lista, con su tipo al lado: `Contact (enlace)`. El tipo
+ * del candidato sale del DOM, no del plan — así que está SIEMPRE, incluso
+ * cuando el plan no dice qué buscaba.
+ */
+export function candidatoEnPalabras(nombre: string, rol?: string): string {
+  const t = rol ? ROL_EN_PALABRAS[rol] : undefined;
+  return t ? `${nombre}  (${t.palabra})` : nombre;
+}
+
 export interface DiagnosticoAsistencia {
   causa: CausaAsistencia;
   /** Lo que el plan pedía, en palabras del plan. */
@@ -1371,6 +1441,10 @@ export interface DiagnosticoAsistencia {
   candidatos?: string[];
   /** Nombre de la zona, cuando la causa es `zona-ausente`. */
   zona?: string;
+  /** El hint del paso, para decir QUÉ TIPO de cosa se busca (D92). */
+  hint?: StepHint;
+  /** La acción del paso: el tipo se deriva del verbo cuando el rol no está. */
+  accion?: WalkAction;
 }
 
 /**
@@ -1393,10 +1467,50 @@ export function textoAsistencia(d: DiagnosticoAsistencia): string {
   const lista = (c: string[]): string => c.map((n) => `· ${n}`).join('\n');
   const cand = d.candidatos ?? [];
 
+  /**
+   * D92 — CADA CAUSA DICE QUÉ TIPO DE PROBLEMA ES Y QUÉ BOTÓN LE CORRESPONDE.
+   *
+   * Lo nombró el QA después de recorrer el ensayo entero: *«alguien que no
+   * conozca qa-automator no sabe realmente la diferencia entre la parada 3 y un
+   * "no encontré el objeto"»*. Tenía razón: el panel decía QUÉ no consiguió
+   * hacer, pero no de qué clase de problema se trataba — «el plan lo llama de
+   * otra manera» y «esto no existe» sonaban igual, y la única pista era una
+   * línea de candidatos que hay que saber leer. Con cinco botones delante y
+   * ninguna indicación de cuál corresponde, el QA elige el que ya conoce (se
+   * midió: tres veces el inventario teniendo la herramienta buena al lado).
+   *
+   * Tres reglas, todas con dato del guion y nada inventado:
+   *  1. el TIPO de lo que se busca se dice cuando se sabe — del `role` si el
+   *     plan lo declara (76% de los pasos medidos), del verbo si no (`fill` es
+   *     un campo); si ni eso, se usa el verbo y no se afirma tipo;
+   *  2. cada mensaje termina nombrando el botón o los botones que le tocan,
+   *     con `▸` para poder escanearlos con el navegador al lado;
+   *  3. lo que pasa DESPUÉS de pulsar se dice cuando no es obvio («queda
+   *     anotado como diferencia... y el caso sigue»).
+   */
+  const tipo = tipoDelPedido(d.hint, d.accion);
+  const que = d.marcador
+    ? `${tipo ? `${tipo.genero === 'f' ? 'la' : 'el'} ${tipo.palabra}` : 'el elemento'} marcado en el código como "${d.pedido}"`
+    : tipo
+      ? `${tipo.genero === 'f' ? 'la' : 'el'} ${tipo.palabra} «${d.pedido}»`
+      : `«${d.pedido}»`;
+  // «El plan pide X»: si no hay tipo, el verbo del paso lleva la frase
+  const pide = !d.marcador && !tipo && d.accion && VERBO_DEL_PASO[d.accion]
+    ? `${VERBO_DEL_PASO[d.accion]} «${d.pedido}»`
+    : que;
+  const negacion = d.marcador
+    ? 'no encuentro ese marcador'
+    : tipo
+      ? `no hay ${tipo.genero === 'f' ? 'ninguna' : 'ningún'} ${tipo.palabra} con ese nombre`
+      : 'no hay nada con ese nombre';
+
   if (d.causa === 'zona-ausente') {
     return (
-      `No encuentro la zona «${d.zona ?? d.pedido}» donde tenía que buscar «${d.pedido}».\n` +
-      `Puede que esta pantalla no sea la que el plan esperaba. Enséñame dónde está, o dime que aquí no existe.`
+      `El plan dice que ${que} está dentro de «${d.zona ?? d.pedido}», y en esta pantalla ` +
+      `no hay ninguna zona que se llame así.\n` +
+      `Puede que no sea la pantalla que el plan esperaba, o que esa zona haya cambiado de nombre.\n` +
+      `▸ Si ${tipo ? `${tipo.genero === 'f' ? 'la' : 'el'} ${tipo.palabra}` : 'el elemento'} está aquí igualmente → «Ver todo lo que hay» y señálalo.\n` +
+      `▸ Si esta pantalla no es la que toca → «Bloquear paso».`
     );
   }
 
@@ -1410,57 +1524,45 @@ export function textoAsistencia(d: DiagnosticoAsistencia): string {
   }
 
   if (d.causa === 'unico-pero-falla') {
+    const g = tipo?.genero === 'f' ? 'a' : 'o';
     return (
-      `Sí veo «${d.pedido}» en esta pantalla, pero no he conseguido usarlo.\n` +
-      `Puede estar tapado por otra cosa, deshabilitado, o hacer falta algún paso antes. ` +
-      `Enséñame el camino que hay que seguir para llegar hasta él.`
+      `${que.charAt(0).toUpperCase()}${que.slice(1)} sí está en esta pantalla — el problema es que no he conseguido usarl${g}.\n` +
+      `Puede estar tapad${g} por otra cosa, apagad${g}, o faltar algún paso antes.\n` +
+      `▸ Pulsa Grabar y haz tú el camino completo. Parar cuando acabes.\n` +
+      `▸ Si lo que hay que pulsar es OTRO elemento (el que está encima, por ejemplo) → «Ver todo lo que hay» y señálalo.`
     );
   }
 
   if (d.causa === 'ambiguo') {
     const n = d.coincidencias ?? 0;
     /**
-     * D90 — ANTE UNA AMBIGÜEDAD EL PANEL EMPUJA A «¿CUÁL DE ELLOS?», NO A SEÑALAR.
-     *
-     * Este mensaje decía «señálame el que toca», y señalar es lo que hace el
-     * inventario: produce un `.nth(i)`, que es posicional, frágil y no entra en
-     * memoria durable. Para esta causa concreta existe una herramienta mejor —
-     * elegir la ZONA en palabras, que se funde como `scope` y se resuelve solo
-     * a partir de entonces— y el panel la conocía sin decirlo.
-     *
-     * Medido: el QA resolvió el mismo paso TRES veces con el inventario, las
-     * tres con un posicional que se tiraba al terminar, teniendo el botón bueno
-     * al lado. Un panel que sabe la causa y no nombra la herramienta que le
-     * corresponde está dejando trabajo tirado.
-     *
-     * La lista de nombres se mantiene CUANDO DISTINGUE: un hint como «Ref.» que
-     * matchea «Ref.», «Ref. customer» y «Project ref.» sí se resuelve leyéndola,
-     * y ese es el caso que D27 midió. Se retira cuando todos los candidatos
-     * dicen lo mismo —«· Book Now · Book now»—, porque entonces no ayuda a
-     * elegir y ocupa el sitio del consejo que sí sirve.
+     * La lista de candidatos se mantiene CUANDO DISTINGUE: un hint como «Ref.»
+     * que matchea «Ref.», «Ref. customer» y «Project ref.» sí se resuelve
+     * leyéndola, y ese es el caso que D27 midió. Se retira cuando todos dicen
+     * lo mismo —«· Book Now · Book now»—, porque entonces no ayuda a elegir y
+     * ocupa el sitio del consejo que sí sirve.
      */
     const distintos = [...new Set(cand.map((c) => c.trim().toLowerCase()))];
     return (
-      `«${d.pedido}» aparece ${n} veces en esta pantalla y no sé cuál es el bueno.\n` +
+      `${que.charAt(0).toUpperCase()}${que.slice(1)} aparece ${n} veces en esta pantalla y no sé cuál es el bueno.\n` +
       (distintos.length > 1
         ? `Estoy dudando entre:\n${lista(cand)}\n`
         : `Y por el nombre no se distinguen: todos se llaman igual.\n`) +
       `No es que no exista: es que hay varios.\n` +
-      `Pulsa «¿Cuál de ellos?» y te digo en qué zona de la pantalla está cada uno.`
+      `▸ Pulsa «¿Cuál de ellos?» y te digo en qué zona de la pantalla está cada uno.`
     );
   }
 
-  // un marcador técnico se nombra como lo que es: no se manda a nadie a buscar
-  // en la pantalla un atributo del código
-  const que = d.marcador
-    ? `el elemento marcado en el código como "${d.pedido}"`
-    : `«${d.pedido}»`;
+  // causa 'ausente': el plan pide algo que esta pantalla no tiene
   return cand.length > 0
-    ? `No encuentro ${que} en esta pantalla.\n` +
-        `Lo más parecido que veo es:\n${lista(cand)}\n` +
-        `Si es alguno de ésos, señálamelo. Si no, enséñame dónde está.`
-    : `No encuentro ${que} en esta pantalla, ni nada que se le parezca.\n` +
-        `Si hay que llegar por otro camino, enséñamelo. Si de verdad aquí no está, dilo con «No existe aquí».`;
+    ? `El plan pide ${pide} y en esta pantalla ${negacion}.\n` +
+        `Pero sí veo esto, que se parece:\n${lista(cand)}\n` +
+        `▸ Si es lo mismo con otro nombre → «Ver todo lo que hay» y pulsa su fila. El plan aprende el nombre nuevo y no te lo vuelvo a preguntar.\n` +
+        `▸ Si está en otra pantalla → Grabar, haz el camino, Parar.\n` +
+        `▸ Si de verdad aquí no existe → «No existe aquí».`
+    : `El plan pide ${pide} y en esta pantalla ${negacion}, ni nada que se le parezca.\n` +
+        `▸ Si está en otra pantalla → Grabar, haz el camino, Parar.\n` +
+        `▸ Si la aplicación ya no lo tiene → «No existe aquí». Queda anotado como diferencia entre el plan y la aplicación, y el caso sigue.`;
 }
 
 /** Lo que el plan pedía, en palabras del plan y no del motor. */

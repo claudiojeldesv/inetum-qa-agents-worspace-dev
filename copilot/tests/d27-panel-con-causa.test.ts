@@ -15,7 +15,7 @@
  * del motor. El QA no tiene por qué saber que dentro hay una escalera de locators.
  */
 import { describe, it, expect } from 'vitest';
-import { textoAsistencia, pedidoDelPaso, pedidoEsMarcador } from '../src/walk-core.ts';
+import { textoAsistencia, pedidoDelPaso, pedidoEsMarcador, candidatoEnPalabras } from '../src/walk-core.ts';
 import { candidatosParaInforme, pedidoSinPalabrasUtiles, resultadosOrdenados } from '../../src/locator-candidates.ts';
 
 /** Palabras del motor. Ninguna puede llegar a la pantalla del QA. */
@@ -43,12 +43,12 @@ describe('D27 — la misma petición, dos realidades, dos mensajes', () => {
     expect(t).toContain('No es que no exista');
     expect(t).toContain('Ref. customer');
     // Lo que NO puede decir: nada que sugiera ausencia. Es el error que se midió.
-    expect(t).not.toMatch(/No encuentro/i);
+    expect(t).not.toMatch(/no hay nada con ese nombre|ni nada que se le parezca/i);
   });
 
   it('...y cuando de verdad no está, lo dice de otra manera', () => {
     const t = textoAsistencia({ causa: 'ausente', pedido, coincidencias: 0, candidatos: [] });
-    expect(t).toMatch(/No encuentro/i);
+    expect(t).toMatch(/El plan pide .+ y en esta pantalla no hay/i);
     expect(t).toContain('No existe aquí');
     expect(t).not.toContain('veces');
   });
@@ -74,7 +74,7 @@ describe('los candidatos son la mitad del mensaje', () => {
     const t = textoAsistencia({ causa: 'ausente', pedido: 'login', candidatos: cand });
     expect(cand).toContain('Log In');
     expect(t).toContain('Log In');
-    expect(t).toContain('Lo más parecido');
+    expect(t).toContain('Pero sí veo esto, que se parece');
   });
 
   it('CONTROL: la lista no se convierte en un volcado de la pantalla', () => {
@@ -227,7 +227,7 @@ describe('D27 contra DOM real — la causa se mide, no se supone', () => {
     const t = await diagnosticar({ id: 's1', action: 'click', hint: { text: 'Duplicado' } });
     expect(t).toMatch(/aparece \d+ veces/);
     expect(t).toContain('No es que no exista');
-    expect(t).not.toMatch(/No encuentro/i);
+    expect(t).not.toMatch(/no hay nada con ese nombre|ni nada que se le parezca/i);
     expect(sinJerga(t)).toEqual([]);
   }, 120_000);
 
@@ -235,7 +235,7 @@ describe('D27 contra DOM real — la causa se mide, no se supone', () => {
     await pagina.goto(`${FIXTURES}/texto-ambiguo.html`);
     const diagnosticar = walkerSobre(pagina);
     const t = await diagnosticar({ id: 's1', action: 'click', hint: { text: 'Parafarmacia veterinaria' } });
-    expect(t).toMatch(/No encuentro/i);
+    expect(t).toMatch(/El plan pide .+ y en esta pantalla no hay/i);
     // El candidato sale de la pantalla VIVA, no del dom-map (que aqui ni existe).
     expect(t).toContain('Parafarmacia');
     expect(sinJerga(t)).toEqual([]);
@@ -259,8 +259,8 @@ describe('D27 contra DOM real — la causa se mide, no se supone', () => {
     await pagina.goto(`${FIXTURES}/texto-ambiguo.html`);
     const diagnosticar = walkerSobre(pagina);
     const t = await diagnosticar({ id: 's1', action: 'click', hint: { text: 'Medicamentos' } });
-    expect(t).toContain('Sí veo');
-    expect(t).not.toMatch(/No encuentro/i);
+    expect(t).toContain('sí está en esta pantalla');
+    expect(t).not.toMatch(/no hay nada con ese nombre|ni nada que se le parezca/i);
     expect(t).not.toMatch(/aparece \d+ veces/);
     expect(sinJerga(t)).toEqual([]);
   }, 120_000);
@@ -374,5 +374,73 @@ describe('ambigüedad — el panel empuja a la herramienta correcta', () => {
     expect(t).toContain('Estoy dudando entre');
     expect(t).toContain('Ref. customer');
     expect(t).toContain('¿Cuál de ellos?');
+  });
+});
+
+/**
+ * D92 — cada causa dice QUÉ TIPO de problema es y QUÉ BOTÓN le corresponde.
+ *
+ * Lo nombró el QA tras el ensayo: «alguien que no conozca qa-automator no sabe
+ * realmente la diferencia entre la parada 3 y un "no encontré el objeto"». El
+ * panel decía qué no consiguió hacer, pero no de qué clase de problema se
+ * trataba ni cuál de sus cinco botones le tocaba.
+ */
+describe('D92 — el tipo de lo que se busca, y el botón que corresponde', () => {
+  it('con rol declarado, el tipo va en la frase', () => {
+    const t = textoAsistencia({
+      causa: 'ausente', pedido: 'Contacto', coincidencias: 0,
+      candidatos: ['Contact  (enlace)'],
+      hint: { role: 'link', name: 'Contacto' }, accion: 'click',
+    });
+    expect(t).toContain('el enlace «Contacto»');
+    expect(t).toContain('no hay ningún enlace con ese nombre');
+  });
+
+  it('sin rol, el tipo sale del verbo: fill solo puede ser un campo', () => {
+    const t = textoAsistencia({
+      causa: 'ausente', pedido: 'Check In', coincidencias: 0, candidatos: [],
+      hint: { label: 'Check In' }, accion: 'fill',
+    });
+    expect(t).toContain('el campo «Check In»');
+  });
+
+  it('sin rol ni verbo tipable, NO se afirma tipo: el verbo lleva la frase', () => {
+    // Decir «el botón» de algo que puede ser un enlace sería fabricar.
+    const t = textoAsistencia({
+      causa: 'ausente', pedido: 'Contacto', coincidencias: 0, candidatos: [],
+      hint: { name: 'Contacto' }, accion: 'click',
+    });
+    expect(t).toContain('pulsar «Contacto»');
+    expect(t).not.toMatch(/el (botón|enlace|campo) «Contacto»/);
+  });
+
+  it('el género se respeta: ninguna casilla, no ningún casilla', () => {
+    const t = textoAsistencia({
+      causa: 'ausente', pedido: 'Acepto', coincidencias: 0, candidatos: [],
+      hint: { role: 'checkbox', name: 'Acepto' }, accion: 'check',
+    });
+    expect(t).toContain('la casilla «Acepto»');
+    expect(t).toContain('ninguna casilla');
+  });
+
+  it('cada causa nombra su botón', () => {
+    const base = { pedido: 'X', coincidencias: 0, candidatos: [] as string[] };
+    expect(textoAsistencia({ ...base, causa: 'ausente', candidatos: ['Y'] })).toContain('«Ver todo lo que hay»');
+    expect(textoAsistencia({ ...base, causa: 'ausente' })).toContain('«No existe aquí»');
+    expect(textoAsistencia({ ...base, causa: 'ambiguo', coincidencias: 3 })).toContain('«¿Cuál de ellos?»');
+    expect(textoAsistencia({ ...base, causa: 'unico-pero-falla' })).toContain('«Ver todo lo que hay»');
+    expect(textoAsistencia({ ...base, causa: 'zona-ausente', zona: 'Z' })).toContain('«Bloquear paso»');
+  });
+
+  it('la ausencia dice qué pasa DESPUÉS de declarar que no existe', () => {
+    // Sin la consecuencia, «No existe aquí» suena a rendirse. Es un registro.
+    const t = textoAsistencia({ causa: 'ausente', pedido: 'X', coincidencias: 0, candidatos: [] });
+    expect(t).toContain('Queda anotado como diferencia');
+  });
+
+  it('el candidato lleva su tipo, que sale del DOM y está siempre', () => {
+    expect(candidatoEnPalabras('Contact', 'link')).toBe('Contact  (enlace)');
+    expect(candidatoEnPalabras('Contact', undefined)).toBe('Contact');
+    expect(candidatoEnPalabras('Contact', 'rol-desconocido')).toBe('Contact');
   });
 });

@@ -34,22 +34,24 @@ const PASOS: WalkStep[] = [
 ];
 
 describe('P4 — los datos de la fila salen del guion y de nada más', () => {
-  it('cada acción se dice en palabras, con lo que el paso trae', () => {
+  it('cada acción se dice en palabras, con lo que el paso trae — Y CON SU TIPO', () => {
+    // D92: «pulsar el botón «Guardar»» dice más que «pulsar «Guardar»». El tipo
+    // sale del rol declarado o del verbo, y si no se sabe, no se afirma.
     // Las postcondiciones NO repiten su valor en la frase: lo lleva la línea del
     // oráculo, debajo y con realce. Decirlo dos veces alarga la fila y no añade.
-    expect(frasePaso(PASOS[1])).toBe('rellenar «Nombre» con «Ana»');
+    expect(frasePaso(PASOS[1])).toBe('rellenar el campo «Nombre» con «Ana»');
     expect(frasePaso(PASOS[4])).toBe('comprobar el texto que muestra la pantalla');
-    expect(frasePaso(PASOS[5])).toBe('elegir «España» en «País»');
+    expect(frasePaso(PASOS[5])).toBe('elegir «España» en la lista «País»');
   });
 
   it('el ámbito del paso se dice, porque es la mitad de la instrucción', () => {
     // «pulsar Guardar» a secas es ambiguo en una pantalla con tres Guardar; el
     // guion ya sabe en cuál, y callarlo en la vista del caso sería esconderlo.
-    expect(frasePaso(PASOS[3])).toBe('pulsar «Guardar» (en «Datos del tomador»)');
+    expect(frasePaso(PASOS[3])).toBe('pulsar el botón «Guardar» (en «Datos del tomador»)');
   });
 
   it('un valor secreto NO se pinta: el panel vive en la página de la aplicación', () => {
-    expect(frasePaso(PASOS[2])).toBe('rellenar «Clave» con «••••»');
+    expect(frasePaso(PASOS[2])).toBe('rellenar el campo «Clave» con «••••»');
     expect(frasePaso(PASOS[2])).not.toContain('secreta');
   });
 
@@ -163,8 +165,8 @@ describe('P4 — y eso llega a la pantalla del QA', () => {
   it('se ven los ocho pasos, con su frase', async () => {
     const filas = await sombra('.casobox ol li .tx');
     expect(filas).toHaveLength(8);
-    expect(filas[1]).toBe('rellenar «Nombre» con «Ana»');
-    expect(filas[3]).toBe('pulsar «Guardar» (en «Datos del tomador»)');
+    expect(filas[1]).toBe('rellenar el campo «Nombre» con «Ana»');
+    expect(filas[3]).toBe('pulsar el botón «Guardar» (en «Datos del tomador»)');
   }, 60_000);
 
   it('los pasos de acción pura DICEN que no tienen nada que comprobar', async () => {
