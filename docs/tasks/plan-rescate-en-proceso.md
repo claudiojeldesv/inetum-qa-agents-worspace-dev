@@ -236,6 +236,11 @@ declinaciones acumuladas declinó lo que uno limpio resolvía).
 
 ### 8.1 El plan podrido — el caso que ningún modelo de rescate salva
 
+> **Desde el 2026-09-03 esta sección tiene plan propio**: [`plan-guion-podrido.md`](plan-guion-podrido.md),
+> con la revisión de literatura que **tumba el umbral por volumen** (Memon & Soffa: un cambio dejó
+> inservible el 74% de una suite y el 71,3% era reparable) y lo sustituye por clasificación por forma.
+> H6 sobrevive reformulada. Lo que sigue abajo es el registro original, sin tocar.
+
 Señalado por el QA al leer los resultados de la Fase 0, y es un hueco real de este plan.
 
 Si el walk-script está **desactualizado** respecto a la aplicación —tres sprints de cambios de UI contra
