@@ -10,8 +10,10 @@ distinto, es un hallazgo y merece contarse.
 
 ## El comando
 
-```bash
-cd C:/Users/USUARIO/qa/rbp && npx.cmd tsx copilot/src/dom-walker.ts --script=.work/ensayo/ensayo-panel.walk.json --contract=config/style-contracts/restful-booker.yaml --base-url=https://automationintesting.online --work-dir=.work/ensayo-run --criterios=.work/ensayo/criteria.json --rescue-budget=0 --assist --assist-timeout=600 --actor="Claudio Jeldes" --fd=.work/ensayo/ensayo-panel-fd.md --headed
+```powershell
+cd C:UsersUSUARIOqabp
+Remove-Item -Recurse -Force .workensayo-run -ErrorAction SilentlyContinue
+npx.cmd tsx copilot/src/dom-walker.ts --script=.work/ensayo/ensayo-panel.walk.json --contract=config/style-contracts/restful-booker.yaml --base-url=https://automationintesting.online --work-dir=.work/ensayo-run --criterios=.work/ensayo/criteria.json --rescue-budget=0 --assist --assist-timeout=600 --actor="Claudio Jeldes" --fd=.work/ensayo/ensayo-panel-fd.md --headed
 ```
 
 | | |
@@ -217,16 +219,18 @@ durable. Con el inventario sí saldría, y eso también sería correcto.
 
 Luego revisa el parche (**no toca nada**, solo enseña lo que cambiaría):
 
-```bash
-cd C:/Users/USUARIO/qa/rbp && npx.cmd tsx copilot/src/merge-assist-patch.ts --work-dir=.work/ensayo-run --script=.work/ensayo/ensayo-panel.walk.json
+```powershell
+cd C:UsersUSUARIOqabp
+npx.cmd tsx copilot/src/merge-assist-patch.ts --work-dir=.work/ensayo-run --script=.work/ensayo/ensayo-panel.walk.json
 ```
 
 Debe separar por peso: *CÓMO SE LLEGA* en bloque, *QUÉ SIGNIFICA CORRECTO* uno a uno.
 
 Y el acta con tu veredicto:
 
-```bash
-cd C:/Users/USUARIO/qa/rbp && npx.cmd tsx src/scripts/check-decisions.ts
+```powershell
+cd C:UsersUSUARIOqabp
+npx.cmd tsx src/scripts/check-decisions.ts
 ```
 
 ## Qué mirar con lupa
