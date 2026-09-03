@@ -15,7 +15,7 @@
  * del motor. El QA no tiene por qué saber que dentro hay una escalera de locators.
  */
 import { describe, it, expect } from 'vitest';
-import { textoAsistencia, pedidoDelPaso } from '../src/walk-core.ts';
+import { textoAsistencia, pedidoDelPaso, pedidoEsMarcador } from '../src/walk-core.ts';
 import { candidatosParaInforme, pedidoSinPalabrasUtiles, resultadosOrdenados } from '../../src/locator-candidates.ts';
 
 /** Palabras del motor. Ninguna puede llegar a la pantalla del QA. */
@@ -288,5 +288,50 @@ describe('el pedido que no da para comparar, y la ventana que tapa el fondo', ()
     expect(pedidoSinPalabrasUtiles('ok')).toBe(true);
     expect(pedidoSinPalabrasUtiles('Sí')).toBe(true);
     expect(pedidoSinPalabrasUtiles('Add')).toBe(false);
+  });
+});
+
+/**
+ * Un MARCADOR TÉCNICO no se cita como si fuera texto de la pantalla.
+ *
+ * Salió a la primera vez que el QA usó el ensayo del panel: el guion pedía un
+ * `test_id` y el panel decía «No encuentro «zona-de-contacto» en esta pantalla»,
+ * así que se puso a buscar ese texto en la web. Con estas palabras: *«pero en la
+ * página no aparece "zona de contacto"»*. Tenía razón — `data-testid` es un
+ * atributo del código, no una palabra que se lea.
+ */
+describe('el panel dice de qué tipo de cosa habla', () => {
+  it('un test_id se nombra como marcador del código, no entre guillemets', () => {
+    const hint = { test_id: 'zona-de-contacto' };
+    expect(pedidoEsMarcador(hint)).toBe(true);
+    const t = textoAsistencia({
+      causa: 'ausente',
+      pedido: pedidoDelPaso(hint),
+      marcador: pedidoEsMarcador(hint),
+      coincidencias: 0,
+      candidatos: [{ nombre: 'Contact', rol: 'link' }],
+    });
+    expect(t).toContain('marcado en el código');
+    expect(t, 'los guillemets prometen texto de pantalla').not.toContain('«zona-de-contacto»');
+  });
+
+  it('un nombre de pantalla se sigue citando como tal', () => {
+    // El par: si el mensaje cambiara para TODOS, se perdería la distinción, que
+    // es justo lo que se quería ganar.
+    const hint = { name: 'Contacto' };
+    expect(pedidoEsMarcador(hint)).toBe(false);
+    const t = textoAsistencia({
+      causa: 'ausente',
+      pedido: pedidoDelPaso(hint),
+      marcador: pedidoEsMarcador(hint),
+      coincidencias: 0,
+      candidatos: [{ nombre: 'Contact', rol: 'link' }],
+    });
+    expect(t).toContain('«Contacto»');
+    expect(t).not.toContain('marcado en el código');
+  });
+
+  it('un hint con nombre Y test_id no es un marcador: manda el nombre', () => {
+    expect(pedidoEsMarcador({ name: 'Guardar', test_id: 'btn-save' })).toBe(false);
   });
 });

@@ -1363,6 +1363,8 @@ export interface DiagnosticoAsistencia {
   causa: CausaAsistencia;
   /** Lo que el plan pedía, en palabras del plan. */
   pedido: string;
+  /** `pedido` es un marcador técnico (test_id), no un texto de la pantalla. */
+  marcador?: boolean;
   /** Cuántos elementos visibles coincidían. Solo se enseña si es >1. */
   coincidencias?: number;
   /** Nombres de pantalla parecidos, ya rankeados por el llamante. */
@@ -1424,11 +1426,16 @@ export function textoAsistencia(d: DiagnosticoAsistencia): string {
     );
   }
 
+  // un marcador técnico se nombra como lo que es: no se manda a nadie a buscar
+  // en la pantalla un atributo del código
+  const que = d.marcador
+    ? `el elemento marcado en el código como "${d.pedido}"`
+    : `«${d.pedido}»`;
   return cand.length > 0
-    ? `No encuentro «${d.pedido}» en esta pantalla.\n` +
+    ? `No encuentro ${que} en esta pantalla.\n` +
         `Lo más parecido que veo es:\n${lista(cand)}\n` +
         `Si es alguno de ésos, señálamelo. Si no, enséñame dónde está.`
-    : `No encuentro «${d.pedido}» en esta pantalla, ni nada que se le parezca.\n` +
+    : `No encuentro ${que} en esta pantalla, ni nada que se le parezca.\n` +
         `Si hay que llegar por otro camino, enséñamelo. Si de verdad aquí no está, dilo con «No existe aquí».`;
 }
 
@@ -1436,6 +1443,20 @@ export function textoAsistencia(d: DiagnosticoAsistencia): string {
 export function pedidoDelPaso(hint: StepHint | undefined): string {
   const h = hint ?? {};
   return h.name ?? h.label ?? h.text ?? h.test_id ?? '(el paso no dice qué buscar)';
+}
+
+/**
+ * ¿Lo que el plan pide es un MARCADOR TÉCNICO y no un nombre de pantalla?
+ *
+ * Un test_id es un atributo del código (data-testid="zona-de-contacto"), no una
+ * palabra que se lea en la aplicación. Citarlo entre comillas como si lo fuera
+ * manda al QA a buscar un texto que no está en ninguna parte — lo dijo él con
+ * esas palabras la primera vez que lo vio: «pero en la página no aparece "zona
+ * de contacto"». El panel tiene que decir de qué tipo de cosa está hablando.
+ */
+export function pedidoEsMarcador(hint: StepHint | undefined): boolean {
+  const h = hint ?? {};
+  return !h.name && !h.label && !h.text && Boolean(h.test_id);
 }
 
 // --------------------------------- D83: la memoria durable que no lo era

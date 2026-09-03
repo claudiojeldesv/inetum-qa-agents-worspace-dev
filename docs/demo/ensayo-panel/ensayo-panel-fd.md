@@ -46,7 +46,7 @@ Se abre la ficha de la habitación individual, y no la de otra habitación del c
 ### Pasos
 
 1. Acceder al portal.
-2. Abrir la zona de contacto.
+2. Pulsar **Contacto** en la navegación.
 3. Comprobar que se muestra el bloque **Send Us a Message**.
 4. Pulsar el botón **Enviar formulario ya**.
 
@@ -81,8 +81,9 @@ Los tres casos tienen una tensión **deliberada**, y cada una ejercita una salid
 
 - **EP01 · paso 6**: «el botón Book now de la habitación individual» es correcto como frase de
   negocio y ambiguo como instrucción: hay uno por habitación. Es el caso de **«¿Cuál de ellos?»**.
-- **EP02 · paso 2**: «abrir la zona de contacto» no nombra ningún elemento concreto. El plan no
-  puede resolverlo solo; hay que **señalarlo** con «Ver todo lo que hay».
+- **EP02 · paso 2**: el documento está en castellano y la aplicación en inglés, así que «Contacto»
+  no aparece en ninguna parte — lo que hay es «Contact». Es el desencuentro de idioma más común en
+  campo, y el caso de **«Ver todo lo que hay»**: hay que señalar el elemento.
 - **EP02 · paso 4**: «Enviar formulario ya» tampoco existe. Es el caso de **«Bloquear paso»**: la
   salida de «no quiero decidir esto ahora».
 - **EP03 · pasos 2 y 3**: la garantía de precio y la reserva rápida **no existen en la aplicación**.

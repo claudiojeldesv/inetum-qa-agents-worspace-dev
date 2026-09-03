@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "site_id": "ensayo-panel",
+  "steps": {
+    "ep01-elegir-la-zona/__entry": {
+      "samples": [
+        888
+      ],
+      "screen": "home",
+      "updated": "2026-09-03"
+    },
+    "ep01-elegir-la-zona/s1": {
+      "samples": [
+        451
+      ],
+      "screen": "home",
+      "updated": "2026-09-03"
+    },
+    "ep02-senalar-el-elemento/__entry": {
+      "samples": [
+        616
+      ],
+      "screen": "home",
+      "updated": "2026-09-03"
+    },
+    "ep03-quien-tiene-razon/__entry": {
+      "samples": [
+        660
+      ],
+      "screen": "home",
+      "updated": "2026-09-03"
+    },
+    "ep03-quien-tiene-razon/s1": {
+      "samples": [
+        439
+      ],
+      "screen": "home",
+      "updated": "2026-09-03"
+    }
+  }
+}

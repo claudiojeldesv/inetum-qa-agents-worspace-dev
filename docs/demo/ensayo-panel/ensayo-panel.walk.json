@@ -67,7 +67,7 @@
           "id": "s1",
           "action": "click",
           "hint": {
-            "test_id": "zona-de-contacto"
+            "name": "Contacto"
           }
         },
         {

@@ -67,6 +67,7 @@ import {
   fingerprintHash,
   hashScript,
   pedidoDelPaso,
+  pedidoEsMarcador,
   clasificarBloqueo,
   decidirEspera,
   notaMemoriaEfimera,
@@ -4725,6 +4726,7 @@ class DomWalker {
 
   private async diagnosticarParaPanel(step: WalkStep): Promise<string> {
     const pedido = pedidoDelPaso(step.hint);
+    const marcador = pedidoEsMarcador(step.hint);
     const esResultado = step.action === 'expect_text';
     try {
       if (esResultado) return (await this.diagnosticoDeResultado(step.value ?? pedido)).texto;
@@ -4741,7 +4743,7 @@ class DomWalker {
       const candidatos = pedidoSinPalabrasUtiles(pedido)
         ? resultadosOrdenados(nombres, pedido)
         : candidatosParaInforme(nombres, pedido, n > 1);
-      return textoAsistencia({ causa, pedido, coincidencias: n, candidatos });
+      return textoAsistencia({ causa, pedido, marcador, coincidencias: n, candidatos });
     } catch {
       return this.hintText(step);
     }

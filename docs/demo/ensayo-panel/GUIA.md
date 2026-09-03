@@ -56,9 +56,11 @@ el panel de veredicto: la aplicación no muestra «Single Room» porque estás e
 
 **Es el par falsable del ensayo**: distingue «resolvió» de «resolvió el correcto».
 
-### 3 · `ep02/s1` — el plan no sabe nombrar el elemento
+### 3 · `ep02/s1` — el documento está en castellano y la aplicación en inglés
 
-El FD dice *«abrir la zona de contacto»*, que no nombra ningún elemento concreto.
+El FD pide **Contacto**. En la página lo que hay es **Contact**. Es el desencuentro de idioma más
+común en campo, y el panel te lo dice tal cual: *«No encuentro «Contacto» … lo más parecido que veo
+es: Contact»*.
 
 **Prueba aquí**: **«Ver todo lo que hay»**. Busca el enlace de contacto, pulsa su fila, comprueba que
 el recuadro naranja cae donde esperas, y **Parar**.
