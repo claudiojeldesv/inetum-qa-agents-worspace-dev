@@ -9,7 +9,13 @@ app tiene razón» hacia el plan. En un entorno corporativo cambiante eso convie
 muro, y a un muro se le pasa por el lado — el QA edita el FD o los tests a mano, por fuera de la
 herramienta, y la herramienta deja de servir.
 
-**Estado**: diseño cerrado con el QA, maquetas auditadas contra el código
+**Estado**: **PLAN CERRADO el 2026-09-03** — las diez fases construidas, medidas en campo y con el
+ciclo completo demostrado en el ensayo del panel: la tercera pasada del mismo caso corrió sin
+preguntar nada, con la zona enseñada en la segunda servida desde memoria durable (`alias-hit` de la
+cadena de D90) y el veredicto firmado en el acta con cadena coherente. Lo que queda vivo NO es de
+este plan: la decisión de si «añadir paso» vuelve al alcance ahora que D81 permite señalar sin tocar
+el DOM (terreno de la decisión 5, la tiene el QA), y los defectos de panel abiertos en el índice
+(D75/D76/D82). Diseño original: diseño cerrado con el QA, maquetas auditadas contra el código
 ([auditoria-maquetas-panel.md](../findings/auditoria-maquetas-panel.md)). **P0 y P1 cerrados el
 2026-08-24. P2 y P5 (fases A y B) cerrados el 2026-08-28. P7 (banco de pruebas de paneles, núcleo)
 cerrado el 2026-08-29. P5 fase C, P6 y P3 cerrados el 2026-08-30.** **P4, P4-bis y P4-ter cerrados (2026-09-02/03)** (la decisión se tomó: el caso completo aporta, y con la comprobación de texto el panel además añade lo único que se puede añadir sin señalar). Queda como decisión pendiente si «añadir paso» vuelve al alcance ahora que D81 permite señalar sin tocar el DOM (la pantalla de aprobación ya es una vista del caso y la tira de P3 ya lo enseña de un vistazo). Desde P7, toda rebanada de panel se audita con el banco contra el sitio real antes de pedirle la primera vez al QA.
