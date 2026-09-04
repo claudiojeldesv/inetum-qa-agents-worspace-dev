@@ -158,3 +158,47 @@ defectos exigiendo las filas de D95–D97, que es su trabajo. 23 tests propios d
 
 **Lo que este estreno NO valida**, y queda para F3 con el estreno del QA: la experiencia de alguien que
 no soy yo leyendo la guía 06. Lo he conducido yo, y yo escribí el command.
+
+
+---
+
+# Apéndice — F3: recorrer el lab y escribir las guías (2026-09-04)
+
+Las seis guías del lab 06 se escribieron **al recorrerlo**, no antes (E-12). Workspace nuevo
+`qa/rbp-lab`, healthcheck 39/39.
+
+## Lo que se verificó ejecutándolo
+
+| Guía | Verificado de verdad | Cómo |
+|---|---|---|
+| 01 setup | el validador de contrato y el **estado efectivo de la sesión** | `contract-validator` sobre el contract del lab; salida transcrita literal |
+| 02 autonomous | la resolución de módulo (`S4/functional`) y el pre-flight (`warn/W1`) | `resolve-mode`, `check-compliance` |
+| 03 spec-refiner | la resolución (`S3/functional`), el pre-flight, y **los diez criterios con su línea del FD** | `resolve-mode`, `fd-to-criteria` en vista previa |
+| 04 req-driven | la resolución (`S2/functional`) y **el parseo completo del `.feature`**: cuatro RF con `(TC-CPxxx)` y la tabla de ejemplos | `resolve-mode`, `parseFeature` |
+| 05 panel | **el panel entero**, leído del shadow DOM del panel real: cabecera, diagnóstico, los tres grupos de botones y la vista de caso con la línea del FD | render + lectura; y los textos de las cinco paradas capturados del `assist-pending.json` de un run vivo |
+| 06 rescate | **el ciclo completo**, cuarta pasada: tres rescates conducidos, cero relanzamientos | el command de punta a punta |
+
+**Lo que NO se ejecutó de punta a punta**: los pipelines completos de S4, S3 y S2 (Planner + Generator
+nativos). Se verificó su **entrada** —módulo, compliance, criterios— y las guías describen el resto
+desde el contrato de cada command. Queda para el estreno del QA (F5), que es exactamente su función.
+
+## Dos cosas medidas que cambiaron una guía
+
+**Las dos «Contact»**, que el panel anuncia sin decir dónde están: medidas en el sitio el 2026-09-04 —
+una en el menú de navegación (`href="/#contact"`, y=8) y otra en el pie (`href="#"`, y=3487). La guía lo
+dice, en vez de mandar al QA a buscarlas.
+
+**`--gherkin`, no `--feature`.** Al preparar la guía 04 usé `--feature=` y el resolutor devolvió
+`module: "S4"` sin quejarse: se habría acabado en la puerta autónoma creyendo estar en la de requisitos.
+No es un defecto del producto —el command documenta `--gherkin`— pero es una trampa fácil, y la guía la
+señala con las dos salidas al lado.
+
+## D98, que sólo apareció escribiendo la guía 05
+
+Al recorrer el camino del panel con los plazos cortos, tres paneles caducaron y el paso siguiente murió
+con `intercepts pointer events` **citando el host del propio panel**. El arreglo de D64 sólo cubría los
+caminos de éxito. Detalle en el índice de defectos; verificado con el mismo input (7 bloqueados → 6, y
+los seis legítimos).
+
+Es el argumento de F3 en una línea: **una guía que se escribe recorriendo encuentra defectos que una
+guía escrita de memoria no puede encontrar.**
