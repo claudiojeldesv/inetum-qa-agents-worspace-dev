@@ -13,8 +13,9 @@ pasa a **spike-puerta** que pruebo yo antes de construir nada más (E-17, §4.1)
 command existe, se probó de punta a punta contra RBP y **se sostiene**: dos pasadas, siete rescates
 conducidos, **cero relanzamientos**, y tres defectos que solo aparecen ejecutándolo (D95–D97, los tres
 cerrados). Resultados en [estreno-command-regresion.md](../findings/estreno-command-regresion.md).
-**Siguiente: F2** (el material determinista). Pasa por delante de los demás planes abiertos hasta
-entregarse.
+**F2 CERRADA** (el material, medido antes de darlo) y **F3+F4 CERRADAS** (las seis guías, escritas al
+recorrer el lab; D98 salió de ahí). **Siguiente y último: F5 — el estreno del QA**, que es el criterio de
+hecho. Pasa por delante de los demás planes abiertos hasta entregarse.
 
 ---
 
@@ -163,12 +164,16 @@ F1  EL SPIKE DEL COMMAND — LA PUERTA DEL PLAN (§4.1): CERRADA, la puerta se p
     aplicado al primero EN SILENCIO — del motor), D96 (npx+shell destrozaba los
     argumentos y dejaba el log a cero bytes) y D97 (contestar era irreversible
     y sin sonda) cerrados. La alternativa del prompt canónico NO hace falta
-F2  material determinista: criteria.json, reservas.feature, regresion-corta.walk.json
-    (casos elegidos con el dom-map sellado), mecanismo {{hoy+N}} con sus tests
-F3  verificación puerta a puerta EN WORKSPACE REAL (field:deploy limpio a qa/rbp):
-    recorro cada puerta de verdad y ESCRIBO su guía con los textos de la pantalla
-    — la guía no existe antes del recorrido (E-12, lección D81)
-F4  README índice + pasada de coherencia (mismo vocabulario entre guías, orden E-13)
+F2  CERRADA — criteria.json, reservas.feature, regresion-corta.walk.json (los tres
+    casos elegidos con lo MEDIDO), el ensayo movido al example, y las fichas
+    {{hoy+N}} / {{unico}} con sus tests. Hallazgo: el TRIAJE reparte el mismo
+    guion entre las dos guías (panel al QA, rescate a la IA)
+F3  CERRADA — seis guías escritas AL recorrer `qa/rbp-lab`. Los textos del panel
+    salen del panel real (shadow DOM + assist-pending.json de un run vivo). D98
+    apareció aquí: un panel caducado seguía interceptando los clics de la app
+F4  CERRADA — README índice, lab 06 registrado en la tabla de labs, y coherencia
+    comprobada: cero enlaces rotos, cero rutas citadas que no existan en un
+    workspace desplegado
 F5  cierre: suite completa verde, healthcheck del template, STATUS/CLAUDE.md,
     y el estreno: el QA recorre el example entero en su máquina
 ```
