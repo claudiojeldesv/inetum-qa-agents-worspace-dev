@@ -7,9 +7,10 @@ IA. Onboarding y demo a la vez.**
 **Origen**: pedido del QA el 2026-09-03 — *«dejar una versión que le dé la posibilidad al usuario de
 tener un example con las nuevas funcionalidades de qa-automator [...] probemos todas las puertas de
 entrada más la del FD con rescate, o semi manual. Que podamos ver el setup y demás»*. Afinado en
-entrevista de 4 rondas (§2). **Branch**: `design/example-rbp` (desde `design/kernel-v2`). **Estado**:
-**ENTREVISTADO — pendiente del visto bueno del QA antes de implementar**. Pasa por delante de los demás
-planes abiertos hasta entregarse.
+entrevista de 4 rondas (§2), con un ajuste del 2026-09-04: el command del rescate — la pieza no probada —
+pasa a **spike-puerta** que pruebo yo antes de construir nada más (E-17, §4.1). **Branch**:
+`design/example-rbp` (desde `design/kernel-v2`). **Estado**: **ENTREVISTADO — pendiente del visto bueno
+del QA antes de implementar**. Pasa por delante de los demás planes abiertos hasta entregarse.
 
 ---
 
@@ -60,6 +61,7 @@ Se escriben con su motivo para no re-litigarlas.
 | E-14 | Fechas que se queman: **automático + explicado** — ventana propia por run donde el material lo permita, y la guía explica el porqué | el dato que se quema es lección de QA real, no estorbo a esconder |
 | E-15 | El run con rescate lo conduce un **command dedicado** (pieza nueva de producto), no un prompt canónico | decisión del QA en ronda 4 — menos fricción, más producto |
 | E-16 | **Branch propio, va primero**: `design/example-rbp`; los demás planes abiertos esperan | decisión del QA en ronda 4 |
+| E-17 | El command del rescate **se prueba primero y lo pruebo yo** (spike-puerta, §4.1): nada más se construye hasta que se sostenga | ajuste del QA del 2026-09-04 — «el command no está probado y lo vamos a dejar probado» |
 
 ## 3. El material, pieza a pieza
 
@@ -89,7 +91,7 @@ No se eligen por gusto: el censo ya dice qué pasos de RBP bloquean y por qué (
 3 `rescate`, 13 `drift`...). Criterio de selección: que entre los 2-3 casos salgan **al menos** un
 `ambiguo` (los tres «Book now» → zonas D90), un renombrado (inventario), y un veredicto de
 postcondición (CP010, el defecto real del sitio, donde «el FD tiene razón» es la respuesta correcta).
-La selección exacta se hace en F1 leyendo el dom-map sellado, y se documenta en el propio walk-script
+La selección exacta se hace en F2 leyendo el dom-map sellado, y se documenta en el propio walk-script
 (campo `note` por caso: qué función del panel enseña).
 
 ### 3.5 Fechas por run — mecanismo mínimo determinista (NUEVO)
@@ -145,9 +147,11 @@ literales, una tabla «qué mirar con lupa» al final. Cada guía abre diciendo 
 
 ```
 F0  branch design/example-rbp + inventario de 06 y docs/demo (qué se reusa, qué estorba)
-F1  material determinista: criteria.json, reservas.feature, regresion-corta.walk.json
+F1  EL SPIKE DEL COMMAND — LA PUERTA DEL PLAN (§4.1): /qa-automator:regression mínimo,
+    probado POR MÍ de punta a punta contra RBP. Si no se sostiene, el plan se
+    detiene aquí y E-15 vuelve a la mesa — antes de haber construido nada más
+F2  material determinista: criteria.json, reservas.feature, regresion-corta.walk.json
     (casos elegidos con el dom-map sellado), mecanismo {{hoy+N}} con sus tests
-F2  el command /qa-automator:regression + tests del protocolo del respondedor
 F3  verificación puerta a puerta EN WORKSPACE REAL (field:deploy limpio a qa/rbp):
     recorro cada puerta de verdad y ESCRIBO su guía con los textos de la pantalla
     — la guía no existe antes del recorrido (E-12, lección D81)
@@ -156,8 +160,30 @@ F5  cierre: suite completa verde, healthcheck del template, STATUS/CLAUDE.md,
     y el estreno: el QA recorre el example entero en su máquina
 ```
 
-F1 y F2 son paralelas entre sí; F3 exige ambas. El estreno del QA (F5) es el criterio de hecho: si una
-guía le hace preguntar algo que la guía debía contestar, es defecto de la guía y se anota como D-NN.
+F1 va primero **a propósito**: el command es la pieza con más incógnitas y no depende de nada del
+material nuevo — la regresión completa de RBP ya existe como walk-script y el `rescue-wait` del walker
+está medido en campo (EspoCRM, cero relanzamientos). Probarlo antes de construir el resto es lo que
+convierte el riesgo en dato barato. F3 exige F1 y F2. El estreno del QA (F5) es el criterio de hecho: si
+una guía le hace preguntar algo que la guía debía contestar, es defecto de la guía y se anota como D-NN.
+
+### 4.1 El spike del command — qué significa «probado por mí»
+
+Ajuste pedido por el QA el 2026-09-04: el command no está probado y **se entrega probado**; lo pruebo yo
+antes de seguir desarrollando (decisión **E-17**). Concretamente:
+
+1. **Workspace real, limpio**: `field:deploy --site=restful-booker` a un destino nuevo.
+2. **El command mínimo escrito** y desplegado como lo recibiría el usuario.
+3. **Un run de verdad con rescate**: el walker en background con `--rescue-budget` y canal declarado,
+   sobre la regresión existente de RBP (no la corta, que aún no existe), y yo conduciéndolo **siguiendo
+   el texto del command al pie de la letra** — si tengo que salirme del texto para que funcione, eso es
+   un defecto del command, no una licencia.
+4. **Medible o no pasó**: peticiones de rescate contestadas, relanzamientos (esperado: cero), y el
+   epílogo con parche y acta coherente (`check-decisions`). Los números van a un finding corto.
+
+Lo que el spike NO valida (y queda para F3 con el estreno): la experiencia de un usuario que no soy yo
+leyendo la guía 06. **Salida honesta si falla**: el protocolo no cabe en un command → se lo cuento al QA
+con el dato y la alternativa de la ronda 4 (prompt canónico en la guía) vuelve como propuesta — la
+decisión es suya, no mía.
 
 ## 5. Riesgos
 
@@ -168,8 +194,9 @@ guía le hace preguntar algo que la guía debía contestar, es defecto de la gu�
 - **La entrevista del setup tiene varianza** — la guía 01 no promete un contract idéntico, promete que
   valide y enseña a leer las diferencias.
 - **El command nuevo es la pieza con más incógnitas** (nunca hubo command que condujera el rescate; en
-  campo lo conduje yo a mano). Si F2 destapa que el protocolo no cabe en un command, la salida honesta
-  es decirlo y proponer el recorte — no estirar (regla #9).
+  campo lo conduje yo a mano). Mitigado por E-17: es la PRIMERA fase y es una puerta — si el spike
+  (§4.1) destapa que el protocolo no cabe en un command, se dice con el dato y se propone la
+  alternativa, no se estira (regla #9). El coste hundido en ese caso: F0 y el propio spike, nada más.
 - **Verificar S4/S3/S2 cuesta runs reales** con Planner/Generator nativos. Se verifica con los flows
   recortados donde exista el knob, y se dice en el finding qué se corrió exactamente.
 
