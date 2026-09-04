@@ -57,6 +57,10 @@ que le cierren la puerta, quiere que le lleven a lo suyo. Detectar sin encaminar
 Y si hay **varios** documentos o Gherkin tuyos, el script deja el comando en `null` a propósito —
 **pregunta cuál**, no elijas el primero.
 
+**Y si el workspace trae labs** (`material.de_ejemplo` no vacío), dilo en una línea al empezar: hay
+material para aprender y **cada parada tiene su guía escrita**. No obligues al QA a descubrirlas por su
+cuenta — medido en el estreno: el QA lanzó el setup y su primera pregunta fue «¿qué guía sigo?».
+
 ## Protocolo de la entrevista
 
 **Todas las preguntas son funcionales.** Ninguna pide al QA que sepa qué es un locator, un rol
@@ -186,6 +190,22 @@ se descubre corriendo, y se añade después con dato. Dilo así en el resumen fi
    | S1 | no está implementado: dilo y ofrece otra puerta |
 
    Si dice que sí, **invócalo**. Si dice que no, deja el comando escrito y termina.
+
+6. **DI QUÉ LEER EN ESA PARADA.** Junto al comando, nombra la guía del lab que la explica — con su ruta
+   completa, para que se pueda abrir sin buscar. Si el workspace no trae labs, di que no hay guía y
+   sáltate este paso; **nunca inventes una ruta**.
+
+   | Módulo o parada | Guía |
+   |---|---|
+   | la propia entrevista | `examples/06-restful-booker/guias/01-setup.md` |
+   | S4 autónomo | `examples/06-restful-booker/guias/02-autonomous.md` |
+   | S3 spec-refiner | `examples/06-restful-booker/guias/03-spec-refiner.md` |
+   | S2 req-driven | `examples/06-restful-booker/guias/04-req-driven.md` |
+   | regresión con panel (la resuelve el QA) | `examples/06-restful-booker/guias/05-panel.md` |
+   | regresión con rescate de IA | `examples/06-restful-booker/guias/06-rescate.md` |
+
+   Y ofrécete a leerla y conducirla tú, que es más útil que dejarle un fichero abierto: el QA no tiene
+   por qué leerse una guía para que la herramienta funcione.
 
    **Esto es lo que convierte el setup en una puerta y no en un formulario.** Lo que falta para
    trabajar después de la entrevista es una sola pregunta, y hacerla cuesta menos que obligar al QA
