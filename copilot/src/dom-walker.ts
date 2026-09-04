@@ -5479,6 +5479,32 @@ class DomWalker {
       }, ASSIST_WATCHDOG_MS);
     });
 
+    /**
+     * D98 — EL PANEL DEJA DE INTERCEPTAR EN CUANTO ACABA LA ESPERA, PASE LO QUE PASE.
+     *
+     * D64 puso esto en los dos caminos de ÉXITO —secuencia entregada y veredicto
+     * firmado— y ahí se quedó. Pero el panel sobrevive a la espera en el DOM
+     * (`position:fixed` arriba a la derecha, 390 px), así que cuando la espera
+     * termina SIN entrega —plazo agotado, «Bloquear paso», «No existe aquí»— se
+     * queda de superficie de entrada sobre esa esquina durante el resto del run.
+     *
+     * Medido en el estreno del lab (2026-09-04, `cp007`): tres paneles caducados
+     * y después el paso `s10` murió así —
+     *
+     *   la acción 'click' falló sobre getByRole('button', { name: 'Create' }):
+     *   Timeout 10000ms exceeded. (<div data-qa-assist-host="1"> intercepts pointer events)
+     *
+     * — un fallo del walker con cara de fallo de la aplicación, en un paso que no
+     * tenía nada malo. Y el daño no es solo el paso: infla la cuenta de bloqueados
+     * y manda a quien lo lea a depurar un botón que está perfecto.
+     *
+     * El motivo de D64 vale igual aquí: en cuanto la espera acaba, el panel deja
+     * de ser superficie de entrada y pasa a ser solo algo que se lee. Se hace en
+     * el ÚNICO punto por el que salen todos los desenlaces, para que un camino
+     * nuevo no vuelva a olvidarlo.
+     */
+    await this.panelDejaDeInterceptar();
+
     if (!submission) {
       this.blockStep(flow, step, endReason, false);
       return null;
@@ -5544,9 +5570,9 @@ class DomWalker {
       return null;
     }
 
-    // D64: la entrega ya está en manos del walker — el panel no puede interceptar
-    // ni la verificación en vivo ni la acción real que viene después.
-    await this.panelDejaDeInterceptar();
+    // D64 lo pedía aquí, y D98 lo subió al cierre de la espera: para cuando se
+    // llega a este punto el panel ya no intercepta, por cualquiera de los
+    // desenlaces. No se repite — la misma regla en dos sitios es la familia D2.
 
     let verify = await this.verifyAssistPatch(flow, step, steps);
     // minimización por replay (K0.11e): quitar abridores de uno en uno mientras siga
