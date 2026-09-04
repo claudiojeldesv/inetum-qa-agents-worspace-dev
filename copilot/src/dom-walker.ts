@@ -102,6 +102,8 @@ import {
   rescueInstructions,
   assistMarkerPayload,
   resolveFixtureRef,
+  datosDelRun,
+  type DatosDelRun,
   slugFromUrl,
   updateTimingProfile,
   validateWalkScript,
@@ -2408,6 +2410,12 @@ function actionFailureDetail(err: unknown): string {
 
 class DomWalker {
   private readonly opts: WalkerOptions;
+  /**
+   * F2 — los datos que caducan, fijados UNA vez por run. Se resuelve aqui y no
+   * en cada uso para que un `{{hoy+2}}` escrito en un campo y comprobado luego
+   * en su oraculo no puedan caer en dias distintos al cruzar la medianoche.
+   */
+  private readonly datosDelRun: DatosDelRun = datosDelRun();
   private readonly script: WalkScript;
   private readonly contract: StyleContract;
   private readonly priority: string[];
@@ -6689,7 +6697,7 @@ class DomWalker {
         // K0.13: se estabiliza ANTES de juzgar. Declarar drift sobre una pantalla a
         // medio pintar es la forma más rápida de mentir en el informe.
         const obs = await this.waitForSettle(settle);
-        const value = resolveFixtureRef(step.value!, fixtures);
+        const value = resolveFixtureRef(step.value!, fixtures, this.datosDelRun);
         /**
          * K0.30 (F4) — el ÁMBITO de la aserción. `expect_text` es una búsqueda en
          * TODA la página, y eso se cobró un verde falso en la gira (§20): el texto
@@ -6790,7 +6798,7 @@ class DomWalker {
          * "parecido". Fallo = drift del FD, no problema de locator → sin rescate.
          */
         const obs = await this.waitForSettle(settle);
-        const want = resolveFixtureRef(step.value!, fixtures);
+        const want = resolveFixtureRef(step.value!, fixtures, this.datosDelRun);
         const report = { action_ms: Date.now() - startedAt, settle: obs, retried: false };
         const resolved = await this.resolveHint(step);
         if (!resolved) {
@@ -7264,7 +7272,7 @@ class DomWalker {
         if (step.expect_transition) {
           await this.page.evaluate('window.__qaDocMark = 1').catch(() => {});
         }
-        const value = step.value !== undefined ? resolveFixtureRef(step.value, fixtures) : undefined;
+        const value = step.value !== undefined ? resolveFixtureRef(step.value, fixtures, this.datosDelRun) : undefined;
 
         const runAction = async (loc: Locator): Promise<void> => {
           switch (step.action) {
@@ -7436,7 +7444,7 @@ class DomWalker {
             break;
           }
 
-          const wanted = resolveFixtureRef(step.expect_after, fixtures);
+          const wanted = resolveFixtureRef(step.expect_after, fixtures, this.datosDelRun);
           const found = await this.findVisibleText(wanted, ORACLE_TIMEOUT_MS);
           if (found) {
             this.recordBusinessText(wanted, found.via, found.frame_path);

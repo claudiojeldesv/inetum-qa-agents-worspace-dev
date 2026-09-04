@@ -501,6 +501,28 @@ export function emitFromWalk(
       const pom = chain ? `${varFor(pageFor(screen))}.${propFor(pageFor(screen), step, chain)}` : '';
       let value = '';
       if (step.value !== undefined && !step.secret) {
+        /**
+         * F2 — UNA FICHA `{{hoy+N}}` NO SE CONGELA DENTRO DE UN SPEC.
+         *
+         * El walker resuelve las fichas al usarlas, y ahí está bien: el «hoy» es
+         * el del run. Un spec emitido es otra cosa — se guarda en el repo y se
+         * ejecuta dentro de un mes, así que escribir aquí la fecha de HOY produce
+         * un test que empieza a fallar solo, con una fecha pasada dentro y sin
+         * pista de por qué. Emitir código que la calcule al ejecutar es
+         * razonable, pero es diseño de emisión y no cabe en esta rebanada.
+         *
+         * Así que se niega, con el nombre de la ficha y del paso. El flujo acaba
+         * ENCOLADO con ese motivo (la puerta que el emisor ya tenía para lo no
+         * emitible), no tumbando la tanda. Fail-closed: la alternativa silenciosa
+         * es una bomba de relojería.
+         */
+        if (typeof step.value === 'string' && step.value.includes('{{')) {
+          throw new Error(
+            `el paso '${step.id}' lleva una ficha de datos del run (${step.value}) y un spec no puede congelarla: ` +
+              `la fecha de generación quedaría escrita dentro y el test empezaría a fallar solo. ` +
+              `Las fichas son del walker; para emitir spec, pon un literal.`,
+          );
+        }
         value = `'${q(resolveFixtureRef(step.value, contract.synthetic_fixtures))}'`;
       } else if (step.secret) {
         const env = `QA_${script.site_id}_${hintKey(step)}`

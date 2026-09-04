@@ -1,0 +1,225 @@
+{
+  "version": 1,
+  "site_id": "restful-booker",
+  "entry": "/",
+  "note": "Recorte del guion de regresion de restful-booker para el example: TRES casos del FD, elegidos por lo que se MIDIO que hacen (estreno del command de regresion y del propio recorte, 2026-09-04). Su propiedad util: el TRIAJE reparte el mismo guion entre las dos guias — cp004/cp005 se plantan como clase 'panel' (van al QA) y cp007 como clase 'rescate' (va a la IA), asi que cada guia solo se detiene donde su clase de ayuda es la que toca. El guion completo de 111 pasos esta en docs/demo/.",
+  "flows": [
+    {
+      "flow": "cp004-contacto-envio",
+      "criteria": [
+        "CP004"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Contact"
+          },
+          "retry_safe": true,
+          "expect_after": "Send Us a Message"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "value": "Ana Prueba"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Email"
+          },
+          "value": "ana.prueba@example.com"
+        },
+        {
+          "id": "s4",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Phone"
+          },
+          "value": "012345678901"
+        },
+        {
+          "id": "s5",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Subject"
+          },
+          "value": "Consulta sobre desayuno"
+        },
+        {
+          "id": "s6",
+          "action": "fill",
+          "hint": {
+            "test_id": "ContactDescription"
+          },
+          "value": "Hola, quisiera saber el horario del desayuno para una estancia de dos noches. Gracias."
+        },
+        {
+          "id": "s7",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Submit"
+          }
+        },
+        {
+          "id": "s8",
+          "action": "expect_text",
+          "value": "Thanks for getting in touch"
+        }
+      ],
+      "unauthenticated": true,
+      "note": "PARADA DEL PANEL HUMANO (clase 'panel'). El hint pide el enlace «Contact» y hay varios en la pagina: el triaje lo manda al QA, NO a la IA, porque elegir entre candidatos a ciegas es adivinar. Con --assist se abre el panel y se resuelve eligiendo ZONA. Sin --assist queda bloqueado y el resto del caso sigue: los siete pasos siguientes van verdes y el oraculo del FD se cumple. Medido en tres pasadas (2026-09-04)."
+    },
+    {
+      "flow": "cp005-contacto-validaciones",
+      "criteria": [
+        "CP005"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "click",
+          "hint": {
+            "role": "link",
+            "name": "Contact"
+          },
+          "retry_safe": true,
+          "expect_after": "Send Us a Message"
+        },
+        {
+          "id": "s2",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Submit"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "expect_text",
+          "value": "Name may not be blank"
+        },
+        {
+          "id": "s4",
+          "action": "expect_text",
+          "value": "Subject may not be blank"
+        },
+        {
+          "id": "s5",
+          "action": "expect_text",
+          "value": "Message may not be blank"
+        }
+      ],
+      "unauthenticated": true,
+      "note": "SEGUNDA PARADA DEL PANEL, el mismo hint. Si en cp004 ensenaste la zona y entro en memoria durable, aqui NO deberia preguntarte nada. Si vuelve a preguntar, la memoria no se guardo — y eso es un hallazgo. Tres oraculos de validacion, los tres verdes."
+    },
+    {
+      "flow": "cp007-alta-habitacion",
+      "criteria": [
+        "CP007"
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "action": "goto",
+          "target": "/admin",
+          "screen": "admin-login"
+        },
+        {
+          "id": "s2",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Username"
+          },
+          "value": "$fixtures.credentials[0].username"
+        },
+        {
+          "id": "s3",
+          "action": "fill",
+          "hint": {
+            "role": "textbox",
+            "name": "Password"
+          },
+          "value": "$fixtures.credentials[0].password",
+          "secret": true
+        },
+        {
+          "id": "s4",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Login"
+          },
+          "expect_transition": true,
+          "screen": "admin-rooms"
+        },
+        {
+          "id": "s5",
+          "action": "fill",
+          "hint": {
+            "test_id": "roomName"
+          },
+          "value": "7{{unico}}",
+          "note": "el nombre se hace unico por run: esta demo es publica y compartida, y cada alta deja rastro en el catalogo que otros casos consultan"
+        },
+        {
+          "id": "s6",
+          "action": "select",
+          "hint": {
+            "test_id": "type"
+          },
+          "value": "Twin"
+        },
+        {
+          "id": "s7",
+          "action": "select",
+          "hint": {
+            "test_id": "accessible"
+          },
+          "value": "true"
+        },
+        {
+          "id": "s8",
+          "action": "fill",
+          "hint": {
+            "test_id": "roomPrice"
+          },
+          "value": "123"
+        },
+        {
+          "id": "s9",
+          "action": "check",
+          "hint": {
+            "label": "WiFi"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "click",
+          "hint": {
+            "role": "button",
+            "name": "Create"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "expect_text",
+          "value": "7{{unico}}"
+        }
+      ],
+      "note": "PARADAS DE LA IA (clase 'rescate'), tres. Los testids 'type', 'accessible' y 'roomPrice' no existen en la pagina; el de 'roomName' si. Los dos combobox se distinguen por su CONTENIDO ('Suite' / 'false'), asi que la IA los resuelve del snapshot. Los dos textbox NO se distinguen por nada: ahi la respuesta correcta es DECLINAR, y entonces el oraculo de s11 no se cumple porque la habitacion no llega a crearse. Medido identico en tres pasadas."
+    }
+  ]
+}

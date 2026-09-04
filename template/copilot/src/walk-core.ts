@@ -27,7 +27,19 @@ import type {
  * Valor sin prefijo $fixtures → literal (datos sintéticos declarados inline).
  * Ref irresoluble → error (nunca inventar datos).
  */
-export function resolveFixtureRef(value: string, fixtures: Record<string, unknown>): string {
+export function resolveFixtureRef(
+  value: string,
+  fixtures: Record<string, unknown>,
+  /**
+   * Contexto del run para las fichas `{{hoy+N}}` / `{{unico}}`. Opcional para no
+   * migrar a los consumidores que no las necesitan; cuando NO se pasa, un valor
+   * con fichas viaja tal cual — y quien lo emita a un fichero tiene que negarse
+   * (lo hace `walk-to-spec`), porque congelar la fecha de generación dentro de un
+   * spec que se ejecutará dentro de un mes es una bomba de relojería.
+   */
+  run?: DatosDelRun,
+): string {
+  if (run) value = resolverFichasDelRun(value, run);
   if (!value.startsWith('$fixtures.')) return value;
   const path = value.slice('$fixtures.'.length);
   const segments = path.split('.').flatMap((seg) => {
@@ -49,6 +61,110 @@ export function resolveFixtureRef(value: string, fixtures: Record<string, unknow
     throw new Error(`Fixture ref irresoluble: '${value}' (synthetic_fixtures del contract no la contiene)`);
   }
   return String(cursor);
+}
+
+// -------------------------------------------------- datos que se queman (F2)
+
+/**
+ * EL DATO QUE CADUCA, RESUELTO AL USARLO — el mínimo imprescindible, y se dice
+ * dónde está el límite.
+ *
+ * Los `value` del walk-script son literales, y hay dos clases de literal que
+ * envenenan un guion reutilizable:
+ *
+ *  - **fechas**: las reservas de un portal son estado persistente. El guion de
+ *    campo de Restful Booker lleva `10/11/2026` escrito a mano; el segundo run
+ *    en la misma época de datos choca contra su propia reserva (409, y en ese
+ *    sitio el 409 revienta el frontend).
+ *  - **nombres que se crean**: `cp007` da de alta la habitación «701» en una
+ *    demo PÚBLICA Y COMPARTIDA. Cada persona que recorra el example dejaría otra
+ *    701 dentro, y el catálogo de habitaciones es justo lo que otros casos
+ *    consultan. Medido en el estreno del command de regresión: entre dos pasadas
+ *    del MISMO guion desapareció la tarjeta «Single» de la portada sin que nadie
+ *    tocara nada — el catálogo lo mueve cualquiera.
+ *
+ * Dos fichas, y ninguna más:
+ *
+ *   {{hoy}}  {{hoy+2}}  {{hoy-1}}       → fecha, formato `DD/MM/YYYY`
+ *   {{hoy+2:YYYY-MM-DD}}                → fecha con formato explícito
+ *   {{unico}}                           → 4 dígitos únicos del run
+ *
+ * **Dónde está el límite, y por qué**: esto es aritmética de calendario y un
+ * sufijo. NO es gestión de datos consumibles — pools de pólizas, reservas de
+ * objetos de negocio, reposición por batch. Eso vive en su propio plan
+ * (`plan-datos-consumibles.md`) y necesita que alguien DECLARE de qué stock
+ * tira cada flujo, que es una decisión del cliente y no una función.
+ *
+ * Y una limitación declarada: `{{unico}}` son los minutos del día, así que dos
+ * personas que arranquen en el mismo minuto colisionan. Suficiente para un
+ * example; insuficiente para un pool, que es otra vez el plan de al lado.
+ */
+export interface DatosDelRun {
+  /**
+   * El «hoy» del run, fijado UNA vez. Si se recalculase en cada uso, un
+   * `{{hoy+2}}` escrito en un campo y comprobado luego en el oráculo podrían
+   * caer en días distintos al cruzar la medianoche — el fallo intermitente que
+   * nadie reproduce.
+   */
+  hoy: Date;
+  /** Sufijo único del run. Numérico a propósito: se usa en nombres como el de una habitación. */
+  unico: string;
+}
+
+export function datosDelRun(ahora: Date = new Date()): DatosDelRun {
+  const minutos = ahora.getHours() * 60 + ahora.getMinutes();
+  return { hoy: ahora, unico: String(minutos).padStart(4, '0') };
+}
+
+const dosDigitos = (n: number): string => String(n).padStart(2, '0');
+
+/** Los formatos que se admiten, declarados. Uno que no esté aquí es un error, no un default. */
+const FORMATOS_DE_FECHA: Record<string, (d: Date) => string> = {
+  'DD/MM/YYYY': (d) => `${dosDigitos(d.getDate())}/${dosDigitos(d.getMonth() + 1)}/${d.getFullYear()}`,
+  'DD-MM-YYYY': (d) => `${dosDigitos(d.getDate())}-${dosDigitos(d.getMonth() + 1)}-${d.getFullYear()}`,
+  'YYYY-MM-DD': (d) => `${d.getFullYear()}-${dosDigitos(d.getMonth() + 1)}-${dosDigitos(d.getDate())}`,
+  'MM/DD/YYYY': (d) => `${dosDigitos(d.getMonth() + 1)}/${dosDigitos(d.getDate())}/${d.getFullYear()}`,
+};
+
+export const FORMATOS_DE_FECHA_ADMITIDOS = Object.keys(FORMATOS_DE_FECHA);
+
+/** `{{...}}` sin resolver. Se usa para detectar fichas desconocidas y negarse. */
+const FICHA_CUALQUIERA = /\{\{([^}]*)\}\}/;
+const FICHA_HOY = /\{\{hoy(?:\s*([+-])\s*(\d+))?(?::([^}]+))?\}\}/g;
+const FICHA_UNICO = /\{\{unico\}\}/g;
+
+/**
+ * Sustituye las fichas de un valor. Pura: el «hoy» y el único entran por
+ * parámetro, así que un test fija la fecha y comprueba el literal exacto.
+ *
+ * Fail-closed ante lo que no entiende: una ficha desconocida **lanza** en vez de
+ * dejarse pasar. Un `{{fecha_de_hoy}}` que llegue tal cual al navegador escribe
+ * las llaves dentro del campo, el formulario lo acepta, y el fallo aparece tres
+ * pantallas después convertido en un oráculo que no cuadra.
+ */
+export function resolverFichasDelRun(value: string, run: DatosDelRun): string {
+  if (!value.includes('{{')) return value;
+  let out = value.replace(FICHA_HOY, (_m, signo: string | undefined, dias: string | undefined, fmt: string | undefined) => {
+    const n = dias ? Number(dias) * (signo === '-' ? -1 : 1) : 0;
+    const d = new Date(run.hoy.getFullYear(), run.hoy.getMonth(), run.hoy.getDate() + n);
+    const formato = (fmt ?? 'DD/MM/YYYY').trim();
+    const fn = FORMATOS_DE_FECHA[formato];
+    if (!fn) {
+      throw new Error(
+        `formato de fecha desconocido en '${value}': '${formato}'. Admitidos: ${FORMATOS_DE_FECHA_ADMITIDOS.join(' | ')}`,
+      );
+    }
+    return fn(d);
+  });
+  out = out.replace(FICHA_UNICO, run.unico);
+  const resto = out.match(FICHA_CUALQUIERA);
+  if (resto) {
+    throw new Error(
+      `ficha desconocida en '${value}': '{{${resto[1]}}}'. Admitidas: {{hoy}} · {{hoy+N}} · {{hoy-N}} ` +
+        `(con :FORMATO opcional) · {{unico}}`,
+    );
+  }
+  return out;
 }
 
 // -------------------------------------------------------------- JSON de I/O

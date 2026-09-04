@@ -1,6 +1,6 @@
 # Labs — `ia4d-qa-automator`
 
-Cinco labs reproducibles, ordenados por dificultad. Cada carpeta es **un proyecto distinto** y
+Seis labs reproducibles, ordenados por dificultad. Cada carpeta es **un proyecto distinto** y
 trae solo **inputs**: los tests los genera el agente cuando ejecutas el command, así practicas el
 flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 
@@ -20,6 +20,7 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
 | 03 | [OrangeHRM](03-orangehrm/) | S4 (S2/S3 opc.) | Autónomo acotado por módulos sobre una SPA con sesión persistente. | Sí (SPA) | — |
 | 04 | [TodoMVC](04-todomvc/) | Tú eliges | **Reto**: sin pasos ni solución. Acotas, eliges puerta, entregas verde. | — | — |
 | 05 | [Configuración](05-config/) | — | Env-vars, Style Contract y el command `config`. Todas las capas, sin navegador (pasos 1–4). | — | — |
+| 06 | [Restful Booker](06-restful-booker/) | S2, S3, S4 + walker | **El lab completo**: todas las puertas sobre un mismo sitio, más el panel y el rescate con IA. Demo compartida con estado. | Sí (admin) | Sí |
 
 ## Orden recomendado
 
@@ -29,6 +30,9 @@ flujo real en vez de copiar un resultado. Hazlos en orden si es tu primera vez.
    el agente no fabrica lo que no existe.
 3. **03-OrangeHRM** — segundo patrón auth (SPA), con foco en **acotar por módulos** en el autónomo.
 4. **04-TodoMVC** — el reto. Aplicas todo lo anterior tú solo.
+6. **06-Restful Booker** — el lab completo: el mismo sitio por todas las puertas, y el ciclo del walker
+   con el panel y con rescate de IA. Hazlo cuando los anteriores te hayan dejado claro qué hace cada
+   puerta por separado.
 5. **05-Configuración** — transversal, cuando quieras: qué puedes ajustar (env-vars, contract,
    defaults) y cómo verificarlo con `/ia4d-qa-automator:config`. Útil antes de apuntar el agente a tu web.
 
