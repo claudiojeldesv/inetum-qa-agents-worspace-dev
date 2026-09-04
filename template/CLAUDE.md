@@ -8,7 +8,7 @@ los tests antes de exponerlos.
 > Esto es una **guía de uso para el Ingeniero QA** (y para Claude Code cuando trabaja en este workspace).
 > No describe cómo se construyó el agente. Si quieres extenderlo, ese es otro repo.
 
-## Empieza por los labs
+## Empieza por aquí
 
 **Prepara el workspace primero (una vez).** Desde la raíz (la carpeta `template/` que descargaste
 **es** la raíz):
@@ -23,7 +23,21 @@ Sin esto el agente no funciona: sus hooks (compliance pre-flight, guarda anti-`f
 las dependencias instaladas. Si lanzas un command sin haber instalado, el pre-flight te bloquea con
 un mensaje pidiéndote `npm install` en vez de fallar de forma críptica.
 
-En [`examples/`](examples/) hay cinco labs reproducibles, ordenados por dificultad. Hazlos en
+Y ya está. **Para trabajar, una sola cosa:**
+
+```
+/ia4d-qa-automator:setup
+```
+
+El setup mira qué hay en el workspace, te pregunta qué tienes para empezar —un documento funcional, un
+Gherkin, sólo la URL—, **deduce la puerta que te toca**, emite tu Style Contract y **se ofrece a lanzar
+el comando**, ya relleno. Si vuelves otro día detecta que ya tienes contract y, en vez de repetir la
+entrevista, te pregunta qué quieres hacer. No hace falta que te aprendas los modos de abajo: están
+documentados para cuando quieras el atajo directo.
+
+### Y para aprender, los labs
+
+En [`examples/`](examples/) hay seis labs reproducibles, ordenados por dificultad. Hazlos en
 orden la primera vez:
 
 1. [`01-saucedemo`](examples/01-saucedemo/) — las tres puertas (S2/S3/S4) sobre e-commerce limpio.
@@ -31,6 +45,8 @@ orden la primera vez:
 3. [`03-orangehrm`](examples/03-orangehrm/) — autónomo acotado por módulos sobre una SPA con sesión.
 4. [`04-todomvc`](examples/04-todomvc/) — reto: lo resuelves tú, sin solución.
 5. [`05-config`](examples/05-config/) — transversal: env-vars, Style Contract y el command `config`. Todas las capas.
+6. [`06-restful-booker`](examples/06-restful-booker/) — **el lab completo**: todas las puertas sobre un
+   mismo sitio, más el walker con panel y con rescate de IA.
 
 Cada lab trae solo **inputs**; los tests los genera el agente al ejecutar el command.
 
@@ -76,6 +92,8 @@ que la app realmente expone, y lo reportan sin fabricar tests para lo que no exi
 ## Comandos
 
 ```
+/ia4d-qa-automator:setup                                          # LA PUERTA: entrevista, emite tu contract y te lleva
+/ia4d-qa-automator:setup --revisar                                # reabre la entrevista sobre el contract que ya tienes
 /ia4d-qa-automator:healthcheck                                    # verifica que el runtime está completo
 /ia4d-qa-automator:autonomous   --url=<URL> --flows=<módulos>     # S4 (acota por módulos)
 /ia4d-qa-automator:spec-refiner --fd=<path> --url=<URL>           # S3
@@ -83,7 +101,11 @@ que la app realmente expone, y lo reportan sin fabricar tests para lo que no exi
 /ia4d-qa-automator:report                                         # reporte Allure enriquecido (post-run)
 /ia4d-qa-automator:heal                                           # sana los rojos del último run + auditoría post-heal
 /ia4d-qa-automator:config       [--style=<contract.yaml>]         # valida el contract + muestra estado efectivo
+/ia4d-qa-automator:regression   --script=<guion.walk.json> --base-url=<URL>   # regresión con rescate de IA
 ```
+
+**El setup es el camino por defecto, no un peaje**: si ya sabes lo que quieres, lanza el command directo.
+Lo que no debería pasar nunca es tener que leerte esta lista para saber por dónde empezar.
 
 Flags del autónomo: `--flows=login,checkout` acota por módulos (recomendado); `--entry=<path>` fija
 el punto de entrada profundo; `--ignore=<glob>` excluye zonas. Flag común opcional:
@@ -95,9 +117,9 @@ el punto de entrada profundo; `--ignore=<glob>` excluye zonas. Flag común opcio
    pre-flight bloquea cualquier URL que no matche. No hay override.
 2. Si usa credenciales de test documentadas, decláralas en `allowed_test_credentials` del mismo
    archivo (no son PII; nunca pongas credenciales reales).
-3. (Opcional) Declara un **Style Contract** en `config/style-contracts/<tu-sitio>.yaml`. Si no hay
-   contract, el agente usa defaults y lo registra.
-4. Lanza `/ia4d-qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`.
+3. Lanza **`/ia4d-qa-automator:setup`**: te entrevista, emite tu Style Contract y te lleva a la puerta
+   que te toca. (Si prefieres el atajo, el paso 4.)
+4. Atajo, si ya sabes lo que quieres: `/ia4d-qa-automator:autonomous --url=<tu-url> --flows=<tus-módulos>`.
 
 ## Style Contract — tus convenciones
 

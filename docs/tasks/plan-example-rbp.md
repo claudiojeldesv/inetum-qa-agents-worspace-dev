@@ -67,6 +67,7 @@ Se escriben con su motivo para no re-litigarlas.
 | E-15 | El run con rescate lo conduce un **command dedicado** (pieza nueva de producto), no un prompt canónico | decisión del QA en ronda 4 — menos fricción, más producto |
 | E-16 | **Branch propio, va primero**: `design/example-rbp`; los demás planes abiertos esperan | decisión del QA en ronda 4 |
 | E-17 | El command del rescate **se prueba primero y lo pruebo yo** (spike-puerta, §4.1): nada más se construye hasta que se sostenga | ajuste del QA del 2026-09-04 — «el command no está probado y lo vamos a dejar probado» |
+| E-18 | **La entrada es la conversación, no el índice**: `/setup` detecta qué hay, deduce la puerta y **ofrece lanzarla**; el README del lab deja de ser un menú de seis puertas y pasa a decir a qué guía te lleva cada parada | corrección del QA del 2026-09-04 — *«el setup es justamente para eso: una puerta única con la que la misma IA te va llevando»*. Las seis guías paralelas de E-3/E-13 **duplicaban en documentación el hilo que el producto ya sabía conducir**. Las guías siguen valiendo como material de cada parada; lo que cambia es la entrada |
 
 ## 3. El material, pieza a pieza
 

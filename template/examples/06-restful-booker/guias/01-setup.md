@@ -60,6 +60,14 @@ no intentando adivinar lo que dice el fichero de arriba.
 Al terminar emite tu contrato y lo pasa por el mismo validador. Si algo no cuadra, te lo dice **antes**
 de darlo por bueno: esa validación es determinística, no una opinión del modelo.
 
+**Y no acaba ahí.** Con el contrato escrito, el setup sabe qué puerta te toca —lo dedujo de tu primera
+respuesta— y **se ofrece a lanzarla**, con los argumentos ya rellenos. Di que sí y estarás dentro del
+run sin haber copiado ni un comando. Ésa es la diferencia entre una puerta y un formulario.
+
+**Si vuelves mañana**, el setup lo primero que hace es mirar: detecta que ese contrato es tuyo —lo
+distingue de los siete de ejemplo que trae el workspace por una marca que él mismo dejó— y en vez de
+repetirte la entrevista te pregunta qué quieres hacer.
+
 ## Paso 3 — compara
 
 Abre los dos y mira las diferencias. Las que importan:

@@ -21,17 +21,31 @@ sobre el mismo material y puedes comparar lo que produce cada una.
 > que se planten seis veces, una por cada función del panel. Uno enseña el producto trabajando; el otro
 > te enseña a manejar el panel sin esperar a que la regresión se rompa sola.
 
-## Orden recomendado
+## Por dónde se empieza: por la conversación, no por este índice
 
-De menos material a más. Cada guía funciona también suelta.
+```
+/ia4d-qa-automator:setup
+```
 
-1. **`guias/01-setup.md`** — la entrevista que emite el Style Contract del sitio, y comparar el tuyo con
-   el que viene aquí.
-2. **`guias/02-autonomous.md`** — S4: solo la URL. La puerta que no necesita que prepares nada.
-3. **`guias/03-spec-refiner.md`** — S3: el FD y la URL. Trazabilidad `CPxxx` y detección de drift.
-4. **`guias/04-req-driven.md`** — S2: el `.feature` y la URL. La misma trazabilidad por otra puerta.
-5. **`guias/05-panel.md`** — el walker semi-manual: cuando no encuentra algo, te pregunta.
-6. **`guias/06-rescate.md`** — el walker con IA: cuando no encuentra algo, se lo pregunta a Claude.
+**Eso es todo.** El setup mira primero qué hay en el workspace, te pregunta qué tienes para empezar —un
+documento funcional, un Gherkin, sólo la URL— y de ahí **deduce la puerta**, emite tu Style Contract y
+**se ofrece a lanzar el comando que toca**, ya relleno. Si vuelves otro día, detecta que ya tienes
+contract y en vez de repetir la entrevista te pregunta qué quieres hacer.
+
+Las guías de abajo **no son seis caminos que tengas que elegir**: son lo que leer **en la parada donde
+el setup te deje**. Cada una explica una puerta con sus textos reales y qué mirar con lupa.
+
+| Si el setup te lleva a… | Lee |
+|---|---|
+| la propia entrevista, y quieres entenderla | [`guias/01-setup.md`](guias/01-setup.md) |
+| **S4** — sólo tienes la URL | [`guias/02-autonomous.md`](guias/02-autonomous.md) |
+| **S3** — tienes un documento funcional | [`guias/03-spec-refiner.md`](guias/03-spec-refiner.md) |
+| **S2** — tienes un `.feature` Gherkin | [`guias/04-req-driven.md`](guias/04-req-driven.md) |
+| ejecutar una regresión y resolverla tú | [`guias/05-panel.md`](guias/05-panel.md) |
+| ejecutar una regresión y que la resuelva la IA | [`guias/06-rescate.md`](guias/06-rescate.md) |
+
+> **Y si prefieres el camino largo**, recórrelas en ese orden: va de menos material a más, y al final
+> puedes comparar los tests que produce cada puerta sobre el mismo sitio. Cada guía funciona suelta.
 
 ## El sitio, y dos cosas que muerden
 

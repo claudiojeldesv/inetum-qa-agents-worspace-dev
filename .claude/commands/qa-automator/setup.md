@@ -29,6 +29,34 @@ contestándose a lo loco. Lo que decidas aquí queda declarado, auditable y reut
 /ia4d-qa-automator:setup --proyecto=<slug>  # nombre del contract (por defecto, se pregunta)
 ```
 
+## Paso 0 — MIRA QUÉ HAY ANTES DE PREGUNTAR NADA
+
+Antes de la primera pregunta, una llamada:
+
+```
+node node_modules/tsx/dist/cli.mjs src/scripts/estado-del-proyecto.ts
+```
+
+Devuelve, como hecho y no como impresión: si hay **contract tuyo** (los siete de ejemplo que trae
+el workspace NO cuentan — se distinguen por la marca que este mismo command deja al emitir),
+qué **material has traído** frente al de los labs, y qué **módulo** sugiere `resolveMode` con eso.
+
+Y actúas según lo que diga:
+
+| `contracts.propios` | Qué haces |
+|---|---|
+| **vacío** | la entrevista completa. Es el camino normal |
+| **uno o más**, y NO viene `--revisar` | **no entrevistas y no te paras en seco**: enséñale lo que ya tiene —proyecto, módulo, gates— y pregúntale **qué quiere hacer**. Si quiere cambiar el contract, `--revisar`. Si quiere trabajar, salta al Cierre y ofrécele lanzar |
+| **uno o más**, y SÍ viene `--revisar` | la entrevista, partiendo de lo que ya está declarado |
+
+**Por qué esta tabla y no «existe → para»**: un workspace recién desplegado trae siete contracts de
+ejemplo, así que «¿hay contract?» siempre da que sí; y un QA que vuelve al día siguiente no quiere
+que le cierren la puerta, quiere que le lleven a lo suyo. Detectar sin encaminar es un callejón.
+
+**No uses el JSON para adivinar la URL ni el nombre del proyecto**: no están ahí, se preguntan.
+Y si hay **varios** documentos o Gherkin tuyos, el script deja el comando en `null` a propósito —
+**pregunta cuál**, no elijas el primero.
+
 ## Protocolo de la entrevista
 
 **Todas las preguntas son funcionales.** Ninguna pide al QA que sepa qué es un locator, un rol
@@ -120,20 +148,55 @@ se descubre corriendo, y se añade después con dato. Dilo así en el resumen fi
 
 ## Cierre
 
-1. Escribe el fichero.
-2. Ejecuta la validación determinística: `npx tsx src/scripts/check-contract.ts` o, si no existe
-   ese atajo, `/ia4d-qa-automator:config --style=<proyecto>.yaml`. **La validación no es
-   opcional**: es lo que impide emitir un contract con un campo mal escrito que luego se ignora
-   en silencio.
+1. Escribe el fichero, **con esta primera línea**:
+
+   ```yaml
+   # emitido por ia4d-qa-automator:setup el AAAA-MM-DD
+   ```
+
+   Es un comentario, así que no toca el schema ni lo ve el validador. Sirve para que el Paso 0 de
+   la próxima vez sepa que este contract es del QA y no uno de los de ejemplo. **Sin esa línea, la
+   puerta no te reconocerá mañana.**
+
+2. Ejecuta la validación determinística:
+
+   ```
+   node node_modules/tsx/dist/cli.mjs src/contract-validator.ts config/style-contracts/<proyecto>.yaml
+   ```
+
+   **No es opcional**: es lo que impide emitir un contract con un campo mal escrito que luego se
+   ignora en silencio. Además imprime el **estado efectivo de la sesión** —qué gates están on/off y
+   de dónde sale cada decisión—; enséñaselo, es la mitad del valor.
+
 3. Si la validación devuelve avisos, **corrígelos con el QA, no por tu cuenta** — cada aviso es
    una decisión suya que quedó incoherente.
+
 4. Resume en cinco líneas: módulo, papel del walker, presupuesto de rescate, gates encendidos, y
    qué has puesto por defecto sin preguntar.
-5. Di cuál es el siguiente comando según el módulo (`spec-refiner`, `req-driven` o `autonomous`).
+
+5. **OFRÉCETE A LANZARLO.** No termines nombrando un comando para que lo copie: dile cuál toca
+   según el módulo y **pregúntale si lo lanzas ahora**, con los argumentos ya rellenos con lo que
+   acaba de contarte.
+
+   | Módulo | Lo que ofreces |
+   |---|---|
+   | S3 | `/ia4d-qa-automator:spec-refiner --fd=<su documento> --url=<su URL> --style=<su contract>` |
+   | S2 | `/ia4d-qa-automator:req-driven --gherkin=<su .feature> --url=<su URL> --style=<su contract>` |
+   | S4 | `/ia4d-qa-automator:autonomous --url=<su URL> --flows=<los módulos que nombró> --style=<su contract>` |
+   | S1 | no está implementado: dilo y ofrece otra puerta |
+
+   Si dice que sí, **invócalo**. Si dice que no, deja el comando escrito y termina.
+
+   **Esto es lo que convierte el setup en una puerta y no en un formulario.** Lo que falta para
+   trabajar después de la entrevista es una sola pregunta, y hacerla cuesta menos que obligar al QA
+   a leerse la ayuda para saber qué escribir.
 
 ## Límites
 
 - No toca el navegador ni invoca subagents. Solo conversa y escribe un fichero.
 - No inventa credenciales, URLs ni convenciones. Lo que no se ha dicho, se marca DEFAULT.
 - No decide el papel del walker: lo deriva del módulo y lo declara.
-- Un contract ya existente **no se sobrescribe sin `--revisar`**; sin esa bandera, avisa y para.
+- Un contract ya existente **no se sobrescribe sin `--revisar`**. Sin esa bandera NO se para en seco:
+  se enseña lo que hay y se pregunta qué quiere hacer (Paso 0).
+- Ofrecer lanzar el comando siguiente SÍ entra; **entrevistar en cada run, no**. La entrevista es una
+  vez por proyecto: una regresión nocturna no puede contestar preguntas.
