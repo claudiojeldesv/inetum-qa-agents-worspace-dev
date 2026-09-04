@@ -110,6 +110,25 @@ function escribirEstado(e: EstadoRegresion): void {
   writeFileSync(estadoPath(e.work_dir), JSON.stringify(e, null, 2), 'utf8');
 }
 
+/**
+ * La ruta del CLI de tsx, para lanzarlo con `node` y sin shell.
+ *
+ * D96 — `npx` en Windows es un `.cmd`, y lanzarlo obliga a `shell: true`. Con
+ * shell pasan dos cosas, las dos medidas en el estreno: los argumentos con
+ * espacios y llaves se destrozan (`--locator="getByRole('combobox').filter({
+ * hasText: 'Suite' })"` acabó en «"C:\Program" no se reconoce»), y la herencia
+ * de descriptores se pierde por el cmd.exe intermedio, dejando el log del
+ * walker a cero bytes. Con `node <cli.mjs>` no hay shell, no hay `.cmd`, y los
+ * argumentos llegan literales.
+ */
+export function tsxCli(): string {
+  const local = resolve(process.cwd(), 'node_modules/tsx/dist/cli.mjs');
+  if (!existsSync(local)) {
+    throw new Error('no encuentro node_modules/tsx/dist/cli.mjs — ¿falta `npm install` en este workspace?');
+  }
+  return local;
+}
+
 /** ¿Sigue vivo el proceso? `kill(pid, 0)` no envía señal: solo pregunta. */
 export function procesoVivo(pid: number | undefined): boolean {
   if (!pid) return false;
@@ -336,17 +355,21 @@ function stageArrancar(f: Record<string, string | boolean | undefined>): number 
 
   const logPath = resolve(workDir, 'walker.log');
   const fd = openSync(logPath, 'a');
-  const isWin = process.platform === 'win32';
   /**
    * `detached` + `unref` para que el walker SOBREVIVA al final de este proceso:
    * el orquestador vuelve en otro turno y el navegador tiene que seguir donde
    * estaba — es todo el punto del rescate en proceso. La salida va a un fichero
    * porque quien la lea será otro stage, no esta consola.
+   *
+   * Y se lanza `node <tsx/cli.mjs>` en vez de `npx tsx`, SIN shell. Medido en el
+   * estreno (D96): con `npx.cmd` + `shell:true` en Windows el log salía a CERO
+   * BYTES —la herencia de descriptores se pierde por el cmd.exe intermedio— y
+   * este command ofrece «mira el log» como única salida cuando algo se atasca.
+   * Sin shell, los descriptores llegan al proceso que de verdad escribe.
    */
-  const hijo = spawn(isWin ? 'npx.cmd' : 'npx', ['--no-install', 'tsx', ...args], {
+  const hijo = spawn(process.execPath, [tsxCli(), ...args], {
     detached: true,
     stdio: ['ignore', fd, fd],
-    shell: isWin,
     env: { ...process.env, QA_WORK_DIR: workDir },
   });
   hijo.unref();
@@ -465,6 +488,27 @@ function stageResponder(f: Record<string, string | boolean | undefined>): number
   const locator = (f['locator'] as string) ?? '';
   const motivo = (f['motivo'] as string) ?? '';
   if (!declinar && !locator) return fallo('hace falta --locator=<cadena> o --declinar --motivo=<por qué>');
+
+  /**
+   * D97 — CONTESTAR ES IRREVERSIBLE: gasta presupuesto y el walker actúa.
+   *
+   * Medido en el propio estreno, y me pasó a mí: usé `responder` para SONDEAR si
+   * el comillado del shell funcionaba, con un locator de prueba a medias
+   * (`getByRole('combobox')`, sin el filtro). Se escribió, el walker lo consumió
+   * y gastó uno de los tres rescates del presupuesto en una sonda. No hay vuelta
+   * atrás porque el walker ya ha actuado.
+   *
+   * Dos puertas: `--dry-run` para comprobar la gramática sin escribir nada, y
+   * negarse a contestar DOS VECES el mismo paso salvo que se pida explícitamente.
+   */
+  const clave = `${pet.flow}/${pet.step}`;
+  const estadoPrevio = leerEstado(workDir);
+  if (estadoPrevio.ultimo_contestado === clave && !f['rehacer']) {
+    return fallo(
+      `ya contestaste ${clave} en este run: contestar dos veces gasta otro rescate del presupuesto. ` +
+        `Si de verdad quieres rectificar, añade --rehacer; si solo quieres comprobar la forma, usa --dry-run.`,
+    );
+  }
   if (declinar && !motivo) {
     return fallo('--declinar exige --motivo=: un locator=null sin motivo no sirve aguas abajo (queda en el informe)');
   }
@@ -480,6 +524,17 @@ function stageResponder(f: Record<string, string | boolean | undefined>): number
     void hintExpresado;
   }
 
+  if (f['dry-run']) {
+    console.log(
+      JSON.stringify(
+        { stage: 'responder', dry_run: true, paso: clave, valido: true, se_escribiria: declinar ? null : locator.trim() },
+        null,
+        2,
+      ),
+    );
+    return EXIT_OK;
+  }
+
   const respuesta = {
     step: pet.step,
     locator: declinar ? null : locator.trim(),
@@ -487,11 +542,10 @@ function stageResponder(f: Record<string, string | boolean | undefined>): number
   };
   writeFileSync(resolve(workDir, 'rescue-response.json'), JSON.stringify(respuesta, null, 2), 'utf8');
 
-  const estado = leerEstado(workDir);
   escribirEstado({
-    ...estado,
-    ultimo_contestado: `${pet.flow}/${pet.step}`,
-    contestadas: (estado.contestadas ?? 0) + 1,
+    ...estadoPrevio,
+    ultimo_contestado: clave,
+    contestadas: (estadoPrevio.contestadas ?? 0) + 1,
   });
   appendAuditEntry({
     source: 'command',
@@ -592,7 +646,7 @@ const USO = `uso: run-regresion-mecanico <stage> [flags]
   arrancar   --work-dir=<dir> --base-url=<URL> [--script=] [--contract=] [--rescue-budget=3]
              [--criterios=] [--aliases=] [--headed]
   esperar    --work-dir=<dir> [--cap=<segundos>]
-  responder  --work-dir=<dir> (--locator=<cadena> | --declinar --motivo=<texto>)
+  responder  --work-dir=<dir> (--locator=<cadena> | --declinar --motivo=<texto>) [--dry-run] [--rehacer]
   cierre     --work-dir=<dir>`;
 
 async function main(): Promise<void> {
@@ -615,6 +669,8 @@ async function main(): Promise<void> {
       locator: { type: 'string' },
       motivo: { type: 'string' },
       declinar: { type: 'boolean', default: false },
+      'dry-run': { type: 'boolean', default: false },
+      rehacer: { type: 'boolean', default: false },
     },
     allowPositionals: true,
   });

@@ -7046,8 +7046,45 @@ class DomWalker {
             }
             const loc = this.locatorFromChain(this.page, rescue.locator);
             const count = loc ? await loc.count().catch(() => 0) : 0;
-            if (loc && count >= 1) {
-              resolved = { locator: count === 1 ? loc : loc.first(), via: rescue.locator, frame_path: [] };
+            /**
+             * D95 — UN LOCATOR DE RESCATE AMBIGUO SE BLOQUEA, NO SE APLICA AL PRIMERO.
+             *
+             * Esto era `count >= 1` con `loc.first()` cuando había varios, y el
+             * desenlace se anotaba `resolved: true` sin decir en ningún sitio que
+             * la respuesta había sido ambigua. Medido en el estreno del command
+             * de regresión (RBP, `cp007/s6`): la respuesta `getByRole('combobox')`
+             * matcheaba DOS comboboxes —el tipo de habitación y el accesible—, se
+             * aplicó al primero y acertó por suerte. El siguiente formulario donde
+             * el orden sea el otro escribe en el campo equivocado y el run sale
+             * verde.
+             *
+             * Y era una asimetría injustificable con el propio motor: la escalera
+             * de resolución exige UNICIDAD (por eso el mismo run bloqueó
+             * `Contact` por «matchea VARIOS elementos» y abrió panel), mientras el
+             * camino del rescate se conformaba con «al menos uno». El rescate era
+             * más permisivo que el motor al que alimenta.
+             *
+             * Un `.nth(N)` deliberado sigue valiendo: ahí `count` es 1. Lo que se
+             * rechaza es la ambigüedad SIN cualificar, que es adivinar.
+             */
+            if (loc && count > 1) {
+              this.blockStep(flow, step, this.ultimaAmbiguedad ?? this.ultimoAmbitoFallido ?? 'hint irresoluble', true);
+              this.noteRescueOutcome(
+                flow,
+                step,
+                `el locator del rescate matchea ${count} elementos (${rescue.locator}): ambiguo, no se aplica al primero`,
+              );
+              this.state.rescues.push({
+                flow: flow.flow, step: step.id, resolved: false, locator: rescue.locator,
+                audit_logged: true, source: 'llm',
+              });
+              this.audit('block', `locator de rescate AMBIGUO ${stepKey}: ${count} coincidencias`, {
+                phase: 'rescue-response',
+              });
+              return;
+            }
+            if (loc && count === 1) {
+              resolved = { locator: loc, via: rescue.locator, frame_path: [] };
               // D85 — la fragilidad la declaraba solo el panel, así que un
               // posicional respondido por una IA se colaba en memoria durable
               // sin tocar el cerrojo. Ahora el rescate también la declara.

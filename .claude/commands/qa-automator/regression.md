@@ -41,12 +41,17 @@ cosa: el locator.** Nada más de este command es tu criterio.
 - `--criterios=<path>` (opcional): `criteria.json` del FD, para que el informe cite `fichero.md:línea`.
 - `--headed` (opcional): navegador visible. Útil cuando el QA quiere mirar.
 
+**Por qué `node node_modules/tsx/dist/cli.mjs` y no `npx tsx`** (no lo "limpies"): en Windows `npx` es un
+`.cmd` y obliga a pasar por el shell. Con shell, un `--locator="getByRole('combobox').filter({ hasText:
+'Suite' })"` acabó en `"C:\Program" no se reconoce` y el log del walker salió a **cero bytes** (D96). Sin
+shell los argumentos llegan literales.
+
 ## Procedure
 
 ### 1. Setup (compliance sin override + canal declarado)
 
 ```
-npx --no-install tsx src/scripts/run-regresion-mecanico.ts setup --script=<script> --base-url=<url> [--contract=<c>] [--work-dir=<dir>]
+node node_modules/tsx/dist/cli.mjs src/scripts/run-regresion-mecanico.ts setup --script=<script> --base-url=<url> [--contract=<c>] [--work-dir=<dir>]
 ```
 
 - **Exit 2** → target bloqueado por compliance. **Aborta** y di la razón y la regla. No hay flag que lo salte.
@@ -60,7 +65,7 @@ Agrupa esta llamada con la del paso 2 en un solo turno: entre las dos no hay nin
 ### 2. Arrancar el walker en segundo plano
 
 ```
-npx --no-install tsx src/scripts/run-regresion-mecanico.ts arrancar --work-dir=<dir> --base-url=<url> [--contract=<c>] [--rescue-budget=3] [--criterios=<c>] [--headed]
+node node_modules/tsx/dist/cli.mjs src/scripts/run-regresion-mecanico.ts arrancar --work-dir=<dir> --base-url=<url> [--contract=<c>] [--rescue-budget=3] [--criterios=<c>] [--headed]
 ```
 
 Devuelve `pid`, `log` y los argumentos exactos. El walker queda **detached**: sobrevive al final de tu
@@ -69,7 +74,7 @@ turno, que es todo el punto — su navegador tiene que seguir en la misma pantal
 ### 3. Esperar (aquí se te devuelve el control solo si hay algo que hacer)
 
 ```
-npx --no-install tsx src/scripts/run-regresion-mecanico.ts esperar --work-dir=<dir>
+node node_modules/tsx/dist/cli.mjs src/scripts/run-regresion-mecanico.ts esperar --work-dir=<dir>
 ```
 
 Tres desenlaces:
@@ -89,11 +94,11 @@ propio motor) y el `aria_snapshot` **ya podado** a la vecindad del elemento.
 Decide leyendo el snapshot, y responde con **una** de las dos formas:
 
 ```
-npx --no-install tsx src/scripts/run-regresion-mecanico.ts responder --work-dir=<dir> --locator="getByRole('link', { name: 'Book now' }).nth(0)"
+node node_modules/tsx/dist/cli.mjs src/scripts/run-regresion-mecanico.ts responder --work-dir=<dir> --locator="getByRole('link', { name: 'Book now' }).nth(0)"
 ```
 
 ```
-npx --no-install tsx src/scripts/run-regresion-mecanico.ts responder --work-dir=<dir> --declinar --motivo="en el snapshot no hay ningún control con ese nombre ni equivalente"
+node node_modules/tsx/dist/cli.mjs src/scripts/run-regresion-mecanico.ts responder --work-dir=<dir> --declinar --motivo="en el snapshot no hay ningún control con ese nombre ni equivalente"
 ```
 
 **Las reglas del juicio, y son duras:**
@@ -107,8 +112,16 @@ npx --no-install tsx src/scripts/run-regresion-mecanico.ts responder --work-dir=
 4. **`--declinar` exige `--motivo`.** Un `locator=null` sin motivo no sirve aguas abajo: queda en el
    informe y nadie sabe qué mirar.
 
-**Comilla siempre `--locator=` y `--motivo=`** (`--motivo="no está en el snapshot"`). Sin comillas, el
-shell corta el valor en el primer espacio y escribes un motivo de una palabra sin que nada se queje.
+**Comilla siempre `--locator=` y `--motivo=`** (`--motivo="no está en el snapshot"`).
+
+**Contestar es irreversible**: gasta un rescate del presupuesto y el walker actúa. Si solo quieres
+comprobar que la forma del locator es válida, añade **`--dry-run`** (no escribe nada). Contestar dos veces
+el mismo paso se rechaza; para rectificar de verdad, `--rehacer`. Medido en el estreno: se gastó un
+rescate del presupuesto en una sonda (D97).
+
+**Si el locator matchea VARIOS elementos, el walker bloquea el paso** y no lo aplica al primero (D95). No
+es un fallo del motor: es que la respuesta era una adivinanza. Vuelve con un locator que distinga, o
+declina.
 
 El stage **valida la gramática antes de escribir** (lista blanca de D20). Si te rechaza el locator
 (exit 1), corrige la forma — no reintentes lo mismo. Las posiciones se expresan con el sufijo
@@ -119,7 +132,7 @@ Tras responder, **vuelve al paso 3**. El walker reintenta el paso y sigue desde 
 ### 5. Cierre
 
 ```
-npx --no-install tsx src/scripts/run-regresion-mecanico.ts cierre --work-dir=<dir>
+node node_modules/tsx/dist/cli.mjs src/scripts/run-regresion-mecanico.ts cierre --work-dir=<dir>
 ```
 
 Retira el canal y devuelve `stats`, `bloqueados`, `rescates`, `assist_patch` y `siguientes` — los comandos

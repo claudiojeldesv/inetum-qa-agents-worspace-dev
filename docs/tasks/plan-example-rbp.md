@@ -9,8 +9,12 @@ tener un example con las nuevas funcionalidades de qa-automator [...] probemos t
 entrada más la del FD con rescate, o semi manual. Que podamos ver el setup y demás»*. Afinado en
 entrevista de 4 rondas (§2), con un ajuste del 2026-09-04: el command del rescate — la pieza no probada —
 pasa a **spike-puerta** que pruebo yo antes de construir nada más (E-17, §4.1). **Branch**:
-`design/example-rbp` (desde `design/kernel-v2`). **Estado**: **ENTREVISTADO — pendiente del visto bueno
-del QA antes de implementar**. Pasa por delante de los demás planes abiertos hasta entregarse.
+`design/example-rbp` (desde `design/kernel-v2`). **Estado**: **F0 y F1 CERRADAS** (2026-09-04) — el
+command existe, se probó de punta a punta contra RBP y **se sostiene**: dos pasadas, siete rescates
+conducidos, **cero relanzamientos**, y tres defectos que solo aparecen ejecutándolo (D95–D97, los tres
+cerrados). Resultados en [estreno-command-regresion.md](../findings/estreno-command-regresion.md).
+**Siguiente: F2** (el material determinista). Pasa por delante de los demás planes abiertos hasta
+entregarse.
 
 ---
 
@@ -96,6 +100,13 @@ La selección exacta se hace en F2 leyendo el dom-map sellado, y se documenta en
 
 ### 3.5 Fechas por run — mecanismo mínimo determinista (NUEVO)
 
+> **Lo que el estreno de F1 añadió a este apartado**: no son solo las fechas. El **catálogo de
+> habitaciones** de RBP también es estado compartido — entre las dos pasadas del estreno desapareció la
+> tarjeta «Single» de la portada sin que nadie tocara el guion, y `cp001/s5` pasó de resolver solo a
+> pedir rescate. El token de fechas no cubre esto. Dos salidas para F2: elegir flujos que no dependan
+> del catálogo, o que el caso **cree su propia habitación** antes de reservarla. Se decide con el guion
+> delante. Detalle en [el finding](../findings/estreno-command-regresion.md) §4.
+
 Hoy los `value` del walk-script son literales y las fechas de reserva de RBP son estado persistente:
 un re-run choca (409). Mecanismo mínimo:
 
@@ -147,9 +158,11 @@ literales, una tabla «qué mirar con lupa» al final. Cada guía abre diciendo 
 
 ```
 F0  branch design/example-rbp + inventario de 06 y docs/demo (qué se reusa, qué estorba)
-F1  EL SPIKE DEL COMMAND — LA PUERTA DEL PLAN (§4.1): /qa-automator:regression mínimo,
-    probado POR MÍ de punta a punta contra RBP. Si no se sostiene, el plan se
-    detiene aquí y E-15 vuelve a la mesa — antes de haber construido nada más
+F1  EL SPIKE DEL COMMAND — LA PUERTA DEL PLAN (§4.1): CERRADA, la puerta se pasa.
+    E-15 confirmada: el protocolo cabe en un command. D95 (rescate ambiguo
+    aplicado al primero EN SILENCIO — del motor), D96 (npx+shell destrozaba los
+    argumentos y dejaba el log a cero bytes) y D97 (contestar era irreversible
+    y sin sonda) cerrados. La alternativa del prompt canónico NO hace falta
 F2  material determinista: criteria.json, reservas.feature, regresion-corta.walk.json
     (casos elegidos con el dom-map sellado), mecanismo {{hoy+N}} con sus tests
 F3  verificación puerta a puerta EN WORKSPACE REAL (field:deploy limpio a qa/rbp):
